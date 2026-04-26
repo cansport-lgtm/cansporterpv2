@@ -71,7 +71,7 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /^https:\/\/uosklqojmujdyxhnipnb\.supabase\.co\/.*/i,
+            urlPattern: /^https:\/\/nkkzxnihjpqdalzerrhk\.supabase\.co\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-cache",
