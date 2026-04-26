@@ -1,0 +1,1 @@
+ALTER TABLE public.qa_processes ADD COLUMN is_hourly_tracked boolean DEFAULT false;

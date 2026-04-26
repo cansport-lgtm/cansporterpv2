@@ -1,0 +1,2 @@
+ALTER TABLE public.sales_dispatches DROP CONSTRAINT sales_dispatches_delivery_status_check;
+ALTER TABLE public.sales_dispatches ADD CONSTRAINT sales_dispatches_delivery_status_check CHECK (delivery_status = ANY (ARRAY['pending'::text, 'in_transit'::text, 'delivered'::text, 'returned'::text, 'acknowledged'::text]));

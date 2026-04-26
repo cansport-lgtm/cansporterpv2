@@ -1,0 +1,325 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cansport Global Industries ERP Design System
+   Industrial Manufacturing Theme - Professional & Data-Dense */
+
+@layer base {
+  :root {
+    /* Core backgrounds — slate-50 with subtle indigo wash */
+    --background: 220 30% 98%;
+    --foreground: 222 47% 11%;
+
+    /* Cards — pure white with soft borders */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    /* Popovers and dropdowns */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary - Vibrant Indigo */
+    --primary: 238 75% 58%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 250 80% 65%;
+
+    /* Secondary - Soft slate */
+    --secondary: 220 16% 96%;
+    --secondary-foreground: 222 47% 15%;
+
+    /* Muted elements */
+    --muted: 220 16% 96%;
+    --muted-foreground: 220 10% 46%;
+
+    /* Accent - Violet (paired with indigo for gradients) */
+    --accent: 262 75% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive - Red */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success - Green */
+    --success: 142 72% 35%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Amber */
+    --warning: 38 92% 50%;
+    --warning-foreground: 215 25% 15%;
+
+    /* Info - Blue */
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    /* Borders and inputs — light slate */
+    --border: 220 14% 92%;
+    --input: 220 14% 92%;
+    --ring: 238 75% 58%;
+
+    --radius: 0.875rem;
+
+    /* Brand gradient */
+    --gradient-brand: linear-gradient(135deg, hsl(238 75% 58%), hsl(262 75% 60%));
+    --shadow-soft: 0 1px 2px 0 hsl(220 40% 20% / 0.04), 0 1px 3px 0 hsl(220 40% 20% / 0.06);
+    --shadow-elevated: 0 10px 30px -12px hsl(238 75% 58% / 0.18), 0 4px 12px -4px hsl(220 40% 20% / 0.06);
+
+    /* Sidebar - Light & Modern */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 25% 25%;
+    --sidebar-primary: 238 75% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 96%;
+    --sidebar-accent-foreground: 238 75% 50%;
+    --sidebar-border: 220 14% 93%;
+    --sidebar-ring: 238 75% 58%;
+
+    /* Module colors */
+    --module-production: 199 89% 48%;
+    --module-qa: 142 72% 35%;
+    --module-hr: 262 83% 58%;
+    --module-performance: 330 81% 60%;
+    --module-maintenance: 38 92% 50%;
+    --module-sales: 173 80% 40%;
+    --module-purchase: 215 60% 50%;
+
+    /* Status colors */
+    --status-draft: 210 15% 60%;
+    --status-in-progress: 199 89% 48%;
+    --status-pending: 38 92% 50%;
+    --status-approved: 142 72% 35%;
+    --status-rejected: 0 72% 51%;
+    --status-closed: 215 25% 35%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 20% 96%;
+
+    --card: 222 40% 10%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 222 40% 10%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 238 80% 65%;
+    --primary-foreground: 222 47% 6%;
+    --primary-glow: 262 80% 70%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 20% 92%;
+
+    --muted: 222 30% 14%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 262 80% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 72% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 222 47% 6%;
+
+    --info: 199 89% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 238 80% 65%;
+
+    --gradient-brand: linear-gradient(135deg, hsl(238 80% 65%), hsl(262 80% 70%));
+    --shadow-soft: 0 1px 2px 0 hsl(0 0% 0% / 0.3), 0 1px 3px 0 hsl(0 0% 0% / 0.2);
+    --shadow-elevated: 0 10px 30px -12px hsl(238 80% 65% / 0.35), 0 4px 12px -4px hsl(0 0% 0% / 0.3);
+
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 238 80% 65%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 222 35% 14%;
+    --sidebar-accent-foreground: 238 80% 75%;
+    --sidebar-border: 222 30% 16%;
+    --sidebar-ring: 238 80% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(238 75% 58% / 0.08), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 75% 60% / 0.06), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .bg-brand-gradient {
+    background-image: var(--gradient-brand);
+  }
+  .text-brand-gradient {
+    background-image: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+}
+
+@layer components {
+  /* ERP Status Badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-draft {
+    @apply bg-slate-100 text-slate-600;
+  }
+  
+  .status-in-progress {
+    @apply bg-blue-100 text-blue-700;
+  }
+  
+  .status-pending {
+    @apply bg-amber-100 text-amber-700;
+  }
+  
+  .status-approved {
+    @apply bg-green-100 text-green-700;
+  }
+  
+  .status-rejected {
+    @apply bg-red-100 text-red-700;
+  }
+  
+  .status-closed {
+    @apply bg-slate-200 text-slate-700;
+  }
+
+  /* Module Cards */
+  .module-card {
+    @apply rounded-2xl border border-border/60 bg-card p-6 shadow-soft transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5;
+  }
+
+  /* Data Tables */
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply bg-muted/50 px-4 py-3 text-left font-semibold text-muted-foreground uppercase text-xs tracking-wider;
+  }
+
+  .data-table td {
+    @apply px-4 py-3 border-b border-border;
+  }
+
+  .data-table tr:hover td {
+    @apply bg-muted/30;
+  }
+
+  /* Metric Cards */
+  .metric-card {
+    @apply rounded-2xl bg-card border border-border/60 p-5 shadow-soft transition-all duration-200 hover:shadow-elevated;
+  }
+
+  .metric-value {
+    @apply text-2xl font-bold text-foreground tracking-tight;
+  }
+
+  .metric-label {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .metric-trend-up {
+    @apply text-green-600;
+  }
+
+  .metric-trend-down {
+    @apply text-red-600;
+  }
+
+  /* Form Elements */
+  .form-section {
+    @apply space-y-4 rounded-lg border bg-card p-6;
+  }
+
+  .form-label {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .form-description {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Sidebar Module Icons */
+  .module-icon {
+    @apply h-5 w-5;
+  }
+
+  /* Page Headers */
+  .page-header {
+    @apply mb-6 flex items-center justify-between;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-foreground tracking-tight;
+  }
+
+  .page-description {
+    @apply text-muted-foreground;
+  }
+
+  /* Dashboard Grids */
+  .dashboard-grid {
+    @apply grid gap-4 md:grid-cols-2 lg:grid-cols-4;
+  }
+
+  /* Filter Bar */
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-3 rounded-lg bg-muted/30 p-4 mb-4;
+  }
+
+  /* Custom scrollbar utilities */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+}

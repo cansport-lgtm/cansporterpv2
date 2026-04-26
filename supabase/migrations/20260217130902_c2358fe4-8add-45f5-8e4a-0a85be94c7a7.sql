@@ -1,0 +1,1 @@
+ALTER TABLE public.consumption_raw_materials ADD COLUMN threshold numeric DEFAULT 0;

@@ -1,0 +1,1 @@
+ALTER TABLE public.consumption_raw_materials ADD COLUMN cost_value numeric DEFAULT 0;

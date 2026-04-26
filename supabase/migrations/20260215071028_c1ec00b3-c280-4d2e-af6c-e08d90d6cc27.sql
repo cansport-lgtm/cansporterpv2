@@ -1,0 +1,1 @@
+ALTER TABLE public.planning_items ADD COLUMN costing_value numeric DEFAULT 0;

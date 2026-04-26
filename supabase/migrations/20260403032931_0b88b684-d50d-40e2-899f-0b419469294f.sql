@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_order_items ADD COLUMN production_instructions TEXT DEFAULT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.labour_mph_authorized ADD COLUMN action_taken TEXT;

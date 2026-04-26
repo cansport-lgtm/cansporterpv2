@@ -1,0 +1,1 @@
+ALTER TABLE public.online_orders ADD COLUMN quantity integer DEFAULT 1;

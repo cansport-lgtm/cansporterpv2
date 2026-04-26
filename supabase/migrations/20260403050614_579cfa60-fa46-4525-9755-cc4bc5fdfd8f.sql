@@ -1,0 +1,1 @@
+ALTER TABLE public.customers ADD COLUMN billing_customer TEXT DEFAULT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.qa_processes ADD COLUMN is_export_allowed boolean NOT NULL DEFAULT false;

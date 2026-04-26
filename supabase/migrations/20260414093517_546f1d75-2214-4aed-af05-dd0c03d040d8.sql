@@ -1,0 +1,1 @@
+ALTER TABLE public.labour_productivity_targets ADD COLUMN IF NOT EXISTS todays_target integer;

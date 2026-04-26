@@ -1,0 +1,1 @@
+ALTER TABLE public.labour_employees ADD COLUMN joining_date DATE DEFAULT NULL;

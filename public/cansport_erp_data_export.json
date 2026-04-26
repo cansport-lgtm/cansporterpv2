@@ -1,0 +1,153 @@
+{
+  "export_info": {
+    "project_name": "Cansport ERP",
+    "export_date": "2026-01-20",
+    "total_tables": 63
+  },
+  "data": {
+    "app_users": [
+      {"id": "118e0e49-4915-4c53-8ddc-cbb7d20f4b42", "user_id": "MC01", "full_name": "ali", "designation": "machine operator", "is_active": true},
+      {"id": "16ddaed1-8ca1-4d20-9a82-da9b149ef24d", "user_id": "QA02", "full_name": "shoaib", "designation": "QA inspector", "is_active": true},
+      {"id": "d8a3c2b3-cbb4-4917-a319-2462c8138c7b", "user_id": "FI01", "full_name": "floor", "designation": "floor supervisor", "is_active": true},
+      {"id": "4bfea7b5-196a-4456-9358-1606d84ca83d", "user_id": "maintainance", "full_name": "Fakhar", "designation": "maintainance manager", "is_active": true},
+      {"id": "b7481376-6215-4fbc-9e62-17ad718d7941", "user_id": "MC02", "full_name": "Shahid", "designation": "operator", "is_active": true},
+      {"id": "c363837e-21ab-4959-aad0-bf6e67d4a1d5", "user_id": "QA03", "full_name": "moazam", "designation": "QA exe", "is_active": true},
+      {"id": "2dff5e23-8f17-4da6-b4af-25eb33f07c69", "user_id": "MC04", "full_name": "Assistant", "designation": null, "is_active": true},
+      {"id": "1b6e2ad3-a547-4687-897a-1c18d412039d", "user_id": "HR01", "full_name": "waqas", "designation": "Hr Manager", "is_active": true},
+      {"id": "d051b6a0-65cd-4697-992a-79cb45ca62b3", "user_id": "SE01", "full_name": "asad", "designation": "sales executive", "is_active": true},
+      {"id": "5b59891b-1a02-48fd-bb46-84f044439ddf", "user_id": "abrar ahmad", "full_name": "abrar", "designation": "operational manager", "is_active": true},
+      {"id": "985dd96b-07ac-4700-87cb-75ec697f58c7", "user_id": "SP01", "full_name": "sajid", "designation": "production coordinator", "is_active": true},
+      {"id": "7f866641-e640-4130-9d24-b48c3cc54fd0", "user_id": "admin", "full_name": "UA", "designation": "Super Admin", "is_active": true},
+      {"id": "45a8d2d0-0086-4ddb-8fbc-e5f04f48d46f", "user_id": "MC05", "full_name": "shahroz", "designation": "operator", "is_active": true},
+      {"id": "3f0fdfed-7e77-4a4b-81b9-7a61c9bc343d", "user_id": "OD01", "full_name": "shahroz", "designation": "packing team leader", "is_active": true},
+      {"id": "2859e5cd-5247-491c-aa4c-496a86e2cad3", "user_id": "FI02", "full_name": "floor2", "designation": "floor incharge", "is_active": true}
+    ],
+    "user_roles": [
+      {"id": "83b1429b-a6d5-40a2-a4a6-4d19b95ebe00", "user_id": "4bfea7b5-196a-4456-9358-1606d84ca83d", "role": "manager"},
+      {"id": "80d2f09d-0f02-497a-ae80-666b4c6d4fe6", "user_id": "118e0e49-4915-4c53-8ddc-cbb7d20f4b42", "role": "operator"},
+      {"id": "3111ae6d-9367-41f4-9c0e-4d5743175a73", "user_id": "985dd96b-07ac-4700-87cb-75ec697f58c7", "role": "supervisor"},
+      {"id": "0daedf21-708c-46dd-867a-b55833d303e7", "user_id": "7f866641-e640-4130-9d24-b48c3cc54fd0", "role": "super_admin"},
+      {"id": "cb67bd71-b8b6-42a6-a841-ba5e8d117ba3", "user_id": "d051b6a0-65cd-4697-992a-79cb45ca62b3", "role": "sales_executive"},
+      {"id": "78488145-3b8f-4576-a615-45e79b5d69bf", "user_id": "b7481376-6215-4fbc-9e62-17ad718d7941", "role": "operator"},
+      {"id": "5244a1e6-5cb2-4b81-a6a8-c6e18edc67c5", "user_id": "16ddaed1-8ca1-4d20-9a82-da9b149ef24d", "role": "supervisor"},
+      {"id": "e205627a-1b95-4b1a-a428-97d6a01a46d8", "user_id": "c363837e-21ab-4959-aad0-bf6e67d4a1d5", "role": "supervisor"},
+      {"id": "339590d1-7c53-4054-b113-7a2f307b0854", "user_id": "5b59891b-1a02-48fd-bb46-84f044439ddf", "role": "manager"},
+      {"id": "57f1b856-81d3-483a-97e7-fe80d25b3b1a", "user_id": "3f0fdfed-7e77-4a4b-81b9-7a61c9bc343d", "role": "order_management"},
+      {"id": "2742b1d7-4aa5-4fd9-b207-46c456f11796", "user_id": "d8a3c2b3-cbb4-4917-a319-2462c8138c7b", "role": "floor_incharge"},
+      {"id": "5c22a0d5-949b-4e02-8927-16bf3e28cede", "user_id": "1b6e2ad3-a547-4687-897a-1c18d412039d", "role": "manager"},
+      {"id": "f569547b-85bf-4eea-b48c-39e05ca349a3", "user_id": "2859e5cd-5247-491c-aa4c-496a86e2cad3", "role": "floor_incharge"}
+    ],
+    "production_departments": [
+      {"id": "9c5b9a73-7cc0-4a71-a8d6-963bfb1aa0e7", "code": "PRESS", "name": "Press", "sequence_order": 1, "is_active": true},
+      {"id": "2eb9b938-977a-4a77-b814-631019530cab", "code": "JORR", "name": "Jorr", "sequence_order": 2, "is_active": true},
+      {"id": "e58a0249-9974-4bd4-835f-3aa7a9e22276", "code": "LOCAL_FINAL", "name": "Local Final", "sequence_order": 3, "is_active": true},
+      {"id": "eba4f888-7289-4e1d-a1c9-1a03ebafd13a", "code": "FANCY_FINAL", "name": "Fancy Final", "sequence_order": 4, "is_active": true},
+      {"id": "ddef0875-c727-41b5-abb8-5619a9186650", "code": "PACKING", "name": "Packing", "sequence_order": 5, "is_active": true},
+      {"id": "ed1a9d47-6e64-4a2b-9392-2678b0a7f1a2", "code": "Training", "name": "Trainings", "sequence_order": 7, "is_active": true},
+      {"id": "fb901607-2b75-4394-8eb6-9328d8308d96", "code": "Compounding+others", "name": "Compounding+others", "sequence_order": 6, "is_active": true},
+      {"id": "1906bb2e-bb8b-4493-bedf-11a7e549adae", "code": "Kapra Cutting", "name": "Kapra Cutting", "sequence_order": 0, "is_active": true},
+      {"id": "cb4cba0c-fe36-4e73-9063-e534e80dba5c", "code": "Master Compounding", "name": "Master Compounding", "sequence_order": 0, "is_active": true},
+      {"id": "18d35f23-a0b2-48de-84b3-0fa9eeba9799", "code": "Testing & Inspection", "name": "Testing & Inspection", "sequence_order": 0, "is_active": true}
+    ],
+    "designations": [
+      {"id": "55271f15-fe94-4395-9ffe-ed7c357ff707", "name": "Production Manager", "level": 5, "is_active": true},
+      {"id": "80fcc47f-29ae-4b90-b711-859492eec469", "name": "Shift Supervisor", "level": 4, "is_active": true},
+      {"id": "98860234-d539-4adc-843e-d39ef0269857", "name": "Machine Operator", "level": 2, "is_active": true},
+      {"id": "960bb44a-b679-4b51-aec1-df928e057b53", "name": "Quality Inspector", "level": 3, "is_active": true},
+      {"id": "9306995d-7e56-402a-8baf-9d2f95410240", "name": "Maintenance Technician", "level": 3, "is_active": true},
+      {"id": "3de4f4f9-d726-4fb9-bc52-d69ed0a55ca9", "name": "Helper", "level": 1, "is_active": true}
+    ],
+    "grades": [
+      {"id": "318cf7c3-869e-4f85-bc73-b43bc55ee2e5", "code": "LB", "name": "LB", "description": "Grade LB", "is_active": true},
+      {"id": "34f34148-d201-4959-adac-00e85a520569", "code": "FB", "name": "FB", "description": "Grade FB", "is_active": true},
+      {"id": "df5569b7-1842-45af-b963-635cf5a694a8", "code": "KB", "name": "KB", "description": "Grade KB", "is_active": true},
+      {"id": "487b7783-bb20-4d0c-8bea-efb39efa5b14", "code": "T", "name": "T", "description": "Grade T", "is_active": true},
+      {"id": "67aadb06-e18b-4e4f-a8d1-a334b429cc5f", "code": "VM", "name": "VM", "description": "Grade VM", "is_active": true},
+      {"id": "3975279b-d790-4ecf-99ca-14fcf7ec239b", "code": "V", "name": "V", "description": "Grade V", "is_active": true},
+      {"id": "87efe7e0-2f85-4d6d-a659-30ec37675f09", "code": "OX", "name": "OX", "description": "Grade OX", "is_active": true},
+      {"id": "d6b5a118-5869-4cef-9538-80a211f95d1c", "code": "Compound", "name": "Compound", "description": "Compounding", "is_active": true},
+      {"id": "1b498551-27fa-4492-97c7-b0957e92e894", "code": "solution", "name": "solution", "description": "soution", "is_active": true},
+      {"id": "ebd91f64-3473-4858-8e01-b46ba9f1792b", "code": "Kapra", "name": "Kapra", "description": "Kapra", "is_active": true},
+      {"id": "9b37783e-1cd9-4486-a25b-44eeab5cdd2d", "code": "Leak ball", "name": "Leak ball", "description": "Leak balls", "is_active": true},
+      {"id": "b1c70fc2-82e3-466a-a910-2a456d1b9269", "code": "Rejection", "name": "Rejection", "description": null, "is_active": true}
+    ],
+    "units_of_measure": [
+      {"id": "9c28ed2a-8c4b-4a57-ad8f-413655079276", "name": "Kilogram", "symbol": "kg", "is_active": true},
+      {"id": "ee5c2bb8-20a3-4bd0-8098-fdb8ca9ae671", "name": "Pieces", "symbol": "pcs", "is_active": true},
+      {"id": "9904029c-349c-4f0b-a252-27721ea42e6b", "name": "Meter", "symbol": "m", "is_active": true},
+      {"id": "490bec05-bf88-45f5-bea2-5a736c866282", "name": "Roll", "symbol": "roll", "is_active": true},
+      {"id": "f32bb26b-1754-4527-a451-c814ca606d8b", "name": "Dozen", "symbol": "doz", "is_active": true},
+      {"id": "0b188893-5f95-4d00-ae7f-85cb1a4b29d0", "name": "Liter", "symbol": "L", "is_active": true},
+      {"id": "e3ac7c17-a1fe-48e0-8621-17b4faf808ff", "name": "Box", "symbol": "box", "is_active": true},
+      {"id": "40349316-6259-41c5-a8b7-dfd733d82c89", "name": "Set", "symbol": "set", "is_active": true},
+      {"id": "417273f3-3f89-41af-ba32-49e5e84ae310", "name": "Press Sheets", "symbol": "sheets", "is_active": true},
+      {"id": "7b39d4ca-f31c-4a1a-b742-28239101ff91", "name": "Bags", "symbol": "bags", "is_active": true}
+    ],
+    "products": [
+      {"id": "07d6acf7-ddf1-44b3-b9cc-d933a5905b90", "code": "004", "name": "72 size standard", "is_active": false},
+      {"id": "564f1b5b-485b-4d92-a7ed-82f289a86efc", "code": "005", "name": "Spiner Ball", "grade_id": "318cf7c3-869e-4f85-bc73-b43bc55ee2e5", "is_active": true},
+      {"id": "7798f19a-75a8-48c5-8519-2fd508a122a8", "code": "002", "name": "VM70", "grade_id": "67aadb06-e18b-4e4f-a8d1-a334b429cc5f", "is_active": true},
+      {"id": "60e35f98-d76c-42ea-b10e-e0f1c9a4b777", "code": "001", "name": "VM72", "grade_id": "67aadb06-e18b-4e4f-a8d1-a334b429cc5f", "is_active": true},
+      {"id": "51b3f59a-6b79-4090-b260-21d5f00f070d", "code": "003", "name": "THAI 70", "grade_id": "67aadb06-e18b-4e4f-a8d1-a334b429cc5f", "is_active": true},
+      {"id": "d550bc96-c9bc-4a42-a13f-ca81fd2cc5ac", "code": "006", "name": "FB", "grade_id": "34f34148-d201-4959-adac-00e85a520569", "is_active": true},
+      {"id": "ea9af03c-8991-4a3b-b297-6b41cc7f0154", "code": "007", "name": "A Ball", "grade_id": "318cf7c3-869e-4f85-bc73-b43bc55ee2e5", "is_active": true},
+      {"id": "6aa6bdea-4204-4310-9b55-fd080e1d7446", "code": "1000", "name": "Dolphins", "description": "Bolle", "is_active": true}
+    ],
+    "suppliers": [
+      {"id": "16c79f9b-1b48-4059-845f-aa50fb51126f", "code": "SUP001", "name": "Raw Materials Corp", "contact_person": "Mr. Sharma", "phone": "9876543210", "payment_terms": 30, "is_active": true},
+      {"id": "240fa713-a0f1-4b75-b5a8-b402abd4139a", "code": "SUP002", "name": "Office Essentials Ltd", "contact_person": "Ms. Gupta", "phone": "9876543211", "payment_terms": 30, "is_active": true},
+      {"id": "a8c94663-8ee1-4d67-96a9-ef39a78b486d", "code": "SUP003", "name": "Industrial Spares Inc", "contact_person": "Mr. Verma", "phone": "9876543212", "payment_terms": 30, "is_active": true},
+      {"id": "56bdea40-8544-4ba6-9d7a-aa00284df3c6", "code": "SUP004", "name": "General Trading Co", "contact_person": "Mr. Khan", "phone": "9876543213", "payment_terms": 30, "is_active": true}
+    ],
+    "defect_reasons": [
+      {"id": "b0646858-0248-4c77-b7fa-dba7b2d5039a", "code": "DEF06", "name": "Coly Fault", "severity": "Critical", "is_active": true},
+      {"id": "fccf88c4-cf6f-4203-95fd-941536382e43", "code": "DEF01", "name": "Solution Fault", "severity": "critical", "is_active": true},
+      {"id": "56f22d31-9609-4082-bbdf-69270575ccf9", "code": "DEF04", "name": "coly crack", "severity": "minor", "is_active": true},
+      {"id": "bfa17a73-9c54-4996-8f02-9e4611da1f94", "code": "DEF03", "name": "kacha pan", "severity": "critical", "is_active": true},
+      {"id": "1655cd2e-2ff4-44e0-b7f5-303ded4e847e", "code": "DEF05", "name": "Gas kam issue", "severity": "Major", "is_active": true},
+      {"id": "11fdf9ea-ee12-4d81-8990-b129bc810bc6", "code": "DEF02", "name": "coly Blast", "severity": "critical", "is_active": true}
+    ],
+    "downtime_reasons": [
+      {"id": "7ef1fa9a-f2a0-4091-bba4-35dac63f66c0", "code": "PDT02", "name": "Power Failure", "category": "Electrical", "is_planned": false, "is_active": true},
+      {"id": "882d4174-1073-4284-9a29-0ccebcc7ecd6", "code": "PDT03", "name": "Material Shortage", "category": "Supply", "is_planned": false, "is_active": true},
+      {"id": "2eb2c4ff-8dc0-4532-92c0-2999a4cc7fbb", "code": "PDT04", "name": "Tool Change", "category": "Setup", "is_planned": true, "is_active": true},
+      {"id": "3f49b502-4153-460b-93c6-c2056e6269e6", "code": "PDT05", "name": "Preventive Maintenance", "category": "Maintenance", "is_planned": true, "is_active": true},
+      {"id": "4e98bea7-3f3e-44f5-86dd-8e4d72ad90f7", "code": "PDT06", "name": "Quality Hold", "category": "Quality", "is_planned": false, "is_active": true},
+      {"id": "d64a6999-80df-4f5e-99a5-ee7cda2c590f", "code": "PDT07", "name": "Operator Unavailable", "category": "Manpower", "is_planned": false, "is_active": true},
+      {"id": "fc7c650b-1f40-4177-a9f6-85e9d773af6c", "code": "PDT08", "name": "Shift Change", "category": "Operations", "is_planned": true, "is_active": true},
+      {"id": "9c3f7bd8-0701-45d9-b8a9-f18e1536d1a3", "code": "PDT01", "name": "Electric Fault", "category": "Mechanical", "is_planned": false, "is_active": true}
+    ],
+    "maintenance_types": [
+      {"id": "9825ece4-a6b8-4c21-be85-c8acea9076d7", "code": "PM", "name": "Preventive Maintenance", "description": "Scheduled maintenance to prevent breakdowns", "is_active": true},
+      {"id": "d083fb1d-7f6c-4a8d-9943-e3efa9216ba9", "code": "CM", "name": "Corrective Maintenance", "description": "Repairs after identifying issues", "is_active": true},
+      {"id": "e50b0fba-b672-4cce-93c1-b514be8361ca", "code": "BM", "name": "Breakdown Maintenance", "description": "Emergency repairs after equipment failure", "is_active": true},
+      {"id": "85797cb8-1fbf-45dd-9a3b-0963bb8939f3", "code": "PDM", "name": "Predictive Maintenance", "description": "Maintenance based on condition monitoring", "is_active": true}
+    ],
+    "leave_types": [
+      {"id": "2282df15-9050-4027-aa48-849ecc74234d", "code": "CL", "name": "Casual Leave", "days_per_year": 12, "is_paid": true, "is_active": true},
+      {"id": "2e4276c9-07f5-4a86-9c02-9a11c256486b", "code": "SL", "name": "Sick Leave", "days_per_year": 12, "is_paid": true, "is_active": true},
+      {"id": "8088cc36-0d46-4fdf-a726-f11ab36963b6", "code": "EL", "name": "Earned Leave", "days_per_year": 15, "is_paid": true, "is_active": true},
+      {"id": "e5bd1a54-f935-488a-b1e0-d67be6af7339", "code": "LWP", "name": "Leave Without Pay", "days_per_year": 0, "is_paid": false, "is_active": true},
+      {"id": "7fbbc1be-fc28-41ac-b2d1-b37242a982d3", "code": "ML", "name": "Maternity Leave", "days_per_year": 180, "is_paid": true, "is_active": true},
+      {"id": "e65d820f-ef6d-4a0b-a384-a070d858b18a", "code": "PL", "name": "Paternity Leave", "days_per_year": 15, "is_paid": true, "is_active": true}
+    ],
+    "scrap_reasons": [
+      {"id": "960245ca-a44c-41e1-aa54-c09ed265ed80", "code": "SCR01", "name": "Dimensional Deviation", "is_active": true},
+      {"id": "318f96fd-7dfb-45c1-8e3d-7d64a3867764", "code": "SCR02", "name": "Surface Defect", "is_active": true},
+      {"id": "115c7761-ea99-40d3-a5a2-68c38cf7cf12", "code": "SCR03", "name": "Material Defect", "is_active": true},
+      {"id": "17ea64e8-fbcd-40a6-8515-c42998ce6594", "code": "SCR04", "name": "Process Failure", "is_active": true},
+      {"id": "2036b36e-9d5f-47cc-9025-c91649a8e75d", "code": "SCR05", "name": "Handling Damage", "is_active": true}
+    ],
+    "items": [
+      {"id": "d3f582bf-c9ee-4c2f-9641-c222124be7df", "code": "RM001", "name": "Rubber Compound A", "category": "raw_material", "min_stock": 100, "reorder_level": 150},
+      {"id": "0003cbfc-c26d-4489-944d-073e8369750a", "code": "RM002", "name": "Rubber Compound B", "category": "raw_material", "min_stock": 100, "reorder_level": 150},
+      {"id": "c5fce134-12b2-41e6-ba74-b884b6252366", "code": "RM003", "name": "Pigment Black", "category": "raw_material", "min_stock": 20, "reorder_level": 30},
+      {"id": "b119ecb8-e100-4fff-bb45-9d11b282e74d", "code": "OS001", "name": "A4 Paper Ream", "category": "office_supplies", "min_stock": 10, "reorder_level": 20},
+      {"id": "96ae3356-f615-490f-9a06-afd99bcd9a53", "code": "OS002", "name": "Printer Ink Cartridge", "category": "office_supplies", "min_stock": 5, "reorder_level": 10},
+      {"id": "d8fdf857-5967-4c4d-a365-3634552bf7e0", "code": "GS001", "name": "Safety Gloves", "category": "general_supplies", "min_stock": 10, "reorder_level": 15},
+      {"id": "df8b9ba1-2de2-44e4-b96a-2d46eca77e87", "code": "SP001", "name": "Bearing 6205", "category": "spare_maintenance", "min_stock": 5, "reorder_level": 10},
+      {"id": "fe964f7c-51d1-4c78-ab57-2be73f7d61c8", "code": "SP002", "name": "V-Belt A52", "category": "spare_maintenance", "min_stock": 3, "reorder_level": 5}
+    ],
+    "note": "This is a partial data export. For complete data including all customers, employees, machines, sales orders, production entries, QA inspections, etc., please use the backend panel or connect to GitHub for full database access."
+  }
+}

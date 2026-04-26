@@ -1,0 +1,1 @@
+ALTER TABLE public.five_s_checkpoints ADD COLUMN checkpoint_text_urdu TEXT;

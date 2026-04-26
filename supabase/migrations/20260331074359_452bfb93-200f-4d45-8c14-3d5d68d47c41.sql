@@ -1,0 +1,1 @@
+ALTER TABLE public.fixed_assets ADD COLUMN responsible_person TEXT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.hourly_production_processes ADD COLUMN department_id UUID REFERENCES public.production_departments(id) ON DELETE SET NULL;

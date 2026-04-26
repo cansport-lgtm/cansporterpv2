@@ -1,0 +1,2 @@
+-- Add new store_operator role to the app_role enum
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'store_operator';

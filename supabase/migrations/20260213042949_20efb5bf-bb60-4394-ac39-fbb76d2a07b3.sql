@@ -1,0 +1,1 @@
+ALTER TABLE public.labour_employees ADD COLUMN category text DEFAULT null;

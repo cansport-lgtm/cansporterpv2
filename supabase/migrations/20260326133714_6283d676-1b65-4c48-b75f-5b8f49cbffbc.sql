@@ -1,0 +1,1 @@
+ALTER TABLE public.performance_monthly_goals ADD COLUMN weight numeric DEFAULT 0;

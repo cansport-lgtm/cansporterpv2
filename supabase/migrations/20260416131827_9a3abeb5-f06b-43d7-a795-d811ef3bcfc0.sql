@@ -1,0 +1,2 @@
+ALTER TABLE public.consumption_bom DROP CONSTRAINT consumption_bom_product_id_fkey;
+ALTER TABLE public.consumption_bom ADD CONSTRAINT consumption_bom_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.consumption_products(id) ON DELETE CASCADE;

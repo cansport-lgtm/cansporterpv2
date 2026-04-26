@@ -1,0 +1,8 @@
+ALTER TABLE public.online_orders
+  ADD COLUMN IF NOT EXISTS tracking_number TEXT,
+  ADD COLUMN IF NOT EXISTS booking_weight NUMERIC,
+  ADD COLUMN IF NOT EXISTS actual_weight NUMERIC,
+  ADD COLUMN IF NOT EXISTS origin_city TEXT,
+  ADD COLUMN IF NOT EXISTS return_city TEXT,
+  ADD COLUMN IF NOT EXISTS pickup_date DATE,
+  ADD COLUMN IF NOT EXISTS delivery_date DATE;

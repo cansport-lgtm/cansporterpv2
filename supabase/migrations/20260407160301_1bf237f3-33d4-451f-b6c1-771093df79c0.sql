@@ -1,0 +1,1 @@
+UPDATE public.sales_orders SET status = 'dispatched', updated_at = now() WHERE id = 'b1990689-e278-4f36-9570-7e37c03a6372';

@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_dispatch_items ADD COLUMN packing_type TEXT DEFAULT NULL;
