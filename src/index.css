@@ -63,8 +63,16 @@
 
     /* Brand gradient */
     --gradient-brand: linear-gradient(135deg, hsl(238 75% 58%), hsl(262 75% 60%));
+    --gradient-brand-soft: linear-gradient(135deg, hsl(238 75% 58% / 0.12), hsl(262 75% 60% / 0.12));
+    --gradient-mesh: radial-gradient(ellipse 80% 50% at 50% -10%, hsl(238 75% 58% / 0.10), transparent 60%),
+                     radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 75% 60% / 0.08), transparent 60%),
+                     radial-gradient(ellipse 50% 40% at 0% 100%, hsl(199 89% 48% / 0.05), transparent 60%);
+
     --shadow-soft: 0 1px 2px 0 hsl(220 40% 20% / 0.04), 0 1px 3px 0 hsl(220 40% 20% / 0.06);
+    --shadow-card: 0 1px 0 0 hsl(220 40% 20% / 0.02), 0 2px 6px -1px hsl(220 40% 20% / 0.05), 0 4px 12px -4px hsl(220 40% 20% / 0.04);
     --shadow-elevated: 0 10px 30px -12px hsl(238 75% 58% / 0.18), 0 4px 12px -4px hsl(220 40% 20% / 0.06);
+    --shadow-glow: 0 0 0 1px hsl(238 75% 58% / 0.12), 0 8px 24px -8px hsl(238 75% 58% / 0.45);
+    --shadow-ring: 0 0 0 4px hsl(238 75% 58% / 0.12);
 
     /* Sidebar - Light & Modern */
     --sidebar-background: 0 0% 100%;
@@ -95,13 +103,13 @@
   }
 
   .dark {
-    --background: 222 47% 6%;
+    --background: 222 47% 5%;
     --foreground: 210 20% 96%;
 
-    --card: 222 40% 10%;
+    --card: 222 40% 9%;
     --card-foreground: 210 20% 96%;
 
-    --popover: 222 40% 10%;
+    --popover: 222 40% 11%;
     --popover-foreground: 210 20% 96%;
 
     --primary: 238 80% 65%;
@@ -129,13 +137,21 @@
     --info: 199 89% 55%;
     --info-foreground: 0 0% 100%;
 
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
+    --border: 222 30% 16%;
+    --input: 222 30% 16%;
     --ring: 238 80% 65%;
 
     --gradient-brand: linear-gradient(135deg, hsl(238 80% 65%), hsl(262 80% 70%));
+    --gradient-brand-soft: linear-gradient(135deg, hsl(238 80% 65% / 0.18), hsl(262 80% 70% / 0.18));
+    --gradient-mesh: radial-gradient(ellipse 80% 50% at 50% -10%, hsl(238 80% 65% / 0.18), transparent 60%),
+                     radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 80% 70% / 0.14), transparent 60%),
+                     radial-gradient(ellipse 50% 40% at 0% 100%, hsl(199 89% 55% / 0.08), transparent 60%);
+
     --shadow-soft: 0 1px 2px 0 hsl(0 0% 0% / 0.3), 0 1px 3px 0 hsl(0 0% 0% / 0.2);
+    --shadow-card: 0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 2px 6px -1px hsl(0 0% 0% / 0.4), 0 4px 12px -4px hsl(0 0% 0% / 0.3);
     --shadow-elevated: 0 10px 30px -12px hsl(238 80% 65% / 0.35), 0 4px 12px -4px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 0 1px hsl(238 80% 65% / 0.25), 0 8px 24px -8px hsl(238 80% 65% / 0.6);
+    --shadow-ring: 0 0 0 4px hsl(238 80% 65% / 0.2);
 
     --sidebar-background: 222 47% 8%;
     --sidebar-foreground: 210 20% 90%;
@@ -156,9 +172,8 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(238 75% 58% / 0.08), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 75% 60% / 0.06), transparent 60%);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    background-image: var(--gradient-mesh);
     background-attachment: fixed;
   }
 
@@ -166,11 +181,25 @@
     font-family: 'Space Grotesk', sans-serif;
     @apply font-bold tracking-tight;
   }
+
+  /* Subtle global selection */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.2);
+    color: hsl(var(--foreground));
+  }
+
+  /* Better default focus ring everywhere */
+  :focus-visible {
+    outline: none;
+  }
 }
 
 @layer utilities {
   .bg-brand-gradient {
     background-image: var(--gradient-brand);
+  }
+  .bg-brand-gradient-soft {
+    background-image: var(--gradient-brand-soft);
   }
   .text-brand-gradient {
     background-image: var(--gradient-brand);
@@ -181,44 +210,64 @@
   .shadow-soft {
     box-shadow: var(--shadow-soft);
   }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
   .shadow-elevated {
     box-shadow: var(--shadow-elevated);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .shadow-ring {
+    box-shadow: var(--shadow-ring);
+  }
+  .ring-brand {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.15);
+  }
+  /* Soft, refined focus ring used on interactive surfaces */
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }
 
 @layer components {
-  /* ERP Status Badges */
+  /* ERP Status Badges — refined with leading dot + soft ring */
   .status-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset;
   }
-  
+  .status-badge::before {
+    content: "";
+    @apply h-1.5 w-1.5 rounded-full bg-current opacity-80;
+  }
+
   .status-draft {
-    @apply bg-slate-100 text-slate-600;
+    @apply bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700/60;
   }
-  
+
   .status-in-progress {
-    @apply bg-blue-100 text-blue-700;
+    @apply bg-blue-50 text-blue-700 ring-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/60;
   }
-  
+
   .status-pending {
-    @apply bg-amber-100 text-amber-700;
+    @apply bg-amber-50 text-amber-700 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/60;
   }
-  
+
   .status-approved {
-    @apply bg-green-100 text-green-700;
+    @apply bg-green-50 text-green-700 ring-green-200/80 dark:bg-green-950/40 dark:text-green-300 dark:ring-green-900/60;
   }
-  
+
   .status-rejected {
-    @apply bg-red-100 text-red-700;
+    @apply bg-red-50 text-red-700 ring-red-200/80 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/60;
   }
-  
+
   .status-closed {
-    @apply bg-slate-200 text-slate-700;
+    @apply bg-slate-100 text-slate-600 ring-slate-200/80 dark:bg-slate-800/40 dark:text-slate-400 dark:ring-slate-700/60;
   }
 
   /* Module Cards */
   .module-card {
-    @apply rounded-2xl border border-border/60 bg-card p-6 shadow-soft transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5;
+    @apply relative rounded-2xl border border-border/60 bg-card p-6 shadow-card transition-all duration-200 ease-out hover:shadow-elevated hover:-translate-y-0.5 hover:border-primary/30;
   }
 
   /* Data Tables */
@@ -231,32 +280,46 @@
   }
 
   .data-table td {
-    @apply px-4 py-3 border-b border-border;
+    @apply px-4 py-3 border-b border-border/60 transition-colors;
   }
 
   .data-table tr:hover td {
-    @apply bg-muted/30;
+    @apply bg-muted/40;
   }
 
   /* Metric Cards */
   .metric-card {
-    @apply rounded-2xl bg-card border border-border/60 p-5 shadow-soft transition-all duration-200 hover:shadow-elevated;
+    @apply relative rounded-2xl bg-card border border-border/60 p-5 shadow-card transition-all duration-200 ease-out hover:shadow-elevated hover:-translate-y-0.5 hover:border-primary/30 overflow-hidden;
+  }
+  /* Subtle gradient accent strip on top of every metric card */
+  .metric-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--gradient-brand);
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .metric-card:hover::before {
+    opacity: 0.9;
   }
 
   .metric-value {
     @apply text-2xl font-bold text-foreground tracking-tight;
+    font-family: 'Space Grotesk', sans-serif;
   }
 
   .metric-label {
-    @apply text-sm text-muted-foreground;
+    @apply text-sm text-muted-foreground font-medium;
   }
 
   .metric-trend-up {
-    @apply text-green-600;
+    @apply text-green-600 dark:text-green-400;
   }
 
   .metric-trend-down {
-    @apply text-red-600;
+    @apply text-red-600 dark:text-red-400;
   }
 
   /* Form Elements */
@@ -279,15 +342,15 @@
 
   /* Page Headers */
   .page-header {
-    @apply mb-6 flex items-center justify-between;
+    @apply mb-6 flex items-center justify-between pb-4 border-b border-border/60;
   }
 
   .page-title {
-    @apply text-2xl font-bold text-foreground tracking-tight;
+    @apply text-2xl md:text-3xl font-bold text-foreground tracking-tight leading-tight;
   }
 
   .page-description {
-    @apply text-muted-foreground;
+    @apply text-sm text-muted-foreground mt-0.5;
   }
 
   /* Dashboard Grids */
@@ -297,7 +360,7 @@
 
   /* Filter Bar */
   .filter-bar {
-    @apply flex flex-wrap items-center gap-3 rounded-lg bg-muted/30 p-4 mb-4;
+    @apply flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 mb-4 shadow-soft;
   }
 
   /* Custom scrollbar utilities */

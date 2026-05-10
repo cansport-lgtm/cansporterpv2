@@ -23,28 +23,32 @@ export function PageHeader({
   action,
   children,
 }: PageHeaderProps) {
+  const hasCustomIconStyle = Boolean(iconColor);
+
   return (
     <div className="page-header">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4 min-w-0">
         {Icon && (
           <div
             className={cn(
-              "h-10 w-10 rounded-lg flex items-center justify-center",
-              iconColor || "bg-primary text-primary-foreground"
+              "h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center shadow-soft ring-1 ring-inset ring-border/60",
+              hasCustomIconStyle
+                ? iconColor
+                : "bg-brand-gradient text-primary-foreground shadow-glow"
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-6 w-6" />
           </div>
         )}
-        <div>
-          <h1 className="page-title">{title}</h1>
+        <div className="min-w-0">
+          <h1 className="page-title truncate">{title}</h1>
           {description && <p className="page-description">{description}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         {children}
         {action && (
-          <Button onClick={action.onClick}>
+          <Button onClick={action.onClick} className="shadow-soft hover:shadow-glow transition-shadow">
             {action.icon ? (
               <action.icon className="h-4 w-4 mr-2" />
             ) : (
