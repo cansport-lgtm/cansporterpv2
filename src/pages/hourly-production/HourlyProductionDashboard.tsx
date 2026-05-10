@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Factory, BarChart3, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Clock, Factory, BarChart3, Users, CalendarIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const HOUR_LABELS: Record<number, string> = {};
@@ -17,15 +21,19 @@ for (let i = 0; i < 24; i++) {
 }
 
 export default function HourlyProductionDashboard() {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+  const isSelectedToday = isToday(selectedDate);
+  const dateLabel = isSelectedToday ? "today" : format(selectedDate, "MMM d, yyyy");
 
   const { data: entries = [] } = useQuery({
-    queryKey: ["hourly-production-entries-today", today],
+    queryKey: ["hourly-production-entries", selectedDateStr],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("hourly_production_entries")
         .select("*")
-        .eq("entry_date", today);
+        .eq("entry_date", selectedDateStr);
       if (error) throw error;
       return (data || []) as any[];
     },
@@ -118,17 +126,50 @@ export default function HourlyProductionDashboard() {
   return (
     <ERPLayout>
       <div className="space-y-6">
-        <PageHeader title="Hourly Production Monitoring" description="Real-time hourly production tracking dashboard" icon={Clock} iconColor="bg-violet-600 text-white" />
+        <PageHeader
+          title="Hourly Production Monitoring"
+          description={`Hourly production tracking for ${isSelectedToday ? "today" : format(selectedDate, "PPP")}`}
+          icon={Clock}
+          iconColor="bg-violet-600 text-white"
+        >
+          <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start text-left font-normal min-w-[180px]">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedDate, "PPP")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setDatePopoverOpen(false);
+                  }
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {!isSelectedToday && (
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>
+              Today
+            </Button>
+          )}
+        </PageHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Today's Total" value={totalProduction.toLocaleString()} icon={BarChart3} iconColor="text-blue-500" />
+          <MetricCard title={isSelectedToday ? "Today's Total" : "Total"} value={totalProduction.toLocaleString()} icon={BarChart3} iconColor="text-blue-500" />
           <MetricCard title="Active Processes" value={uniqueProcesses} icon={Factory} iconColor="text-green-500" />
-          <MetricCard title="Entries Today" value={entries.length} icon={Clock} iconColor="text-amber-500" />
+          <MetricCard title={isSelectedToday ? "Entries Today" : "Entries"} value={entries.length} icon={Clock} iconColor="text-amber-500" />
           <MetricCard title="Workers Tracked" value={uniqueWorkers} icon={Users} iconColor="text-purple-500" />
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Hourly Production Trend — Today</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Hourly Production Trend — {isSelectedToday ? "Today" : format(selectedDate, "PPP")}</CardTitle></CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -152,7 +193,7 @@ export default function HourlyProductionDashboard() {
                 <TableHeader><TableRow><TableHead>Process</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {processBreakdown.length === 0 ? (
-                    <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data today</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data {dateLabel}</TableCell></TableRow>
                   ) : processBreakdown.map((p) => (
                     <TableRow key={p.name}><TableCell className="font-medium">{p.name}</TableCell><TableCell className="text-right">{p.quantity.toLocaleString()}</TableCell></TableRow>
                   ))}
@@ -182,14 +223,14 @@ export default function HourlyProductionDashboard() {
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold">Hourly Trend by Process</h2>
-              <p className="text-sm text-muted-foreground">Grouped by department. Red cards indicate processes with no entries logged today.</p>
+              <p className="text-sm text-muted-foreground">Grouped by department. Red cards indicate processes with no entries logged {dateLabel}.</p>
             </div>
             {departmentGroups.map((dept) => (
               <div key={dept.departmentName} className="space-y-3">
                 <div className="flex items-center justify-between border-b pb-2">
                   <h3 className="text-lg font-semibold text-foreground">{dept.departmentName}</h3>
                   <span className="text-sm text-muted-foreground">
-                    {dept.total > 0 ? `Dept Total: ${dept.total.toLocaleString()}` : "No entries today"}
+                    {dept.total > 0 ? `Dept Total: ${dept.total.toLocaleString()}` : `No entries ${dateLabel}`}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -210,7 +251,7 @@ export default function HourlyProductionDashboard() {
                                   : "text-sm font-normal text-muted-foreground"
                               }
                             >
-                              {isEmpty ? "No entries today" : `Total: ${proc.total.toLocaleString()}`}
+                              {isEmpty ? `No entries ${dateLabel}` : `Total: ${proc.total.toLocaleString()}`}
                             </span>
                           </CardTitle>
                         </CardHeader>
