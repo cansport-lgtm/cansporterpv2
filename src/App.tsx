@@ -105,6 +105,7 @@ import DomesticItemOpeningPage from "./pages/domestic/DomesticItemOpeningPage";
 import DomesticNewItemPage from "./pages/domestic/DomesticNewItemPage";
 import DomesticOrderStatusPage from "./pages/domestic/DomesticOrderStatusPage";
 import DomesticDeadlineRequestsPage from "./pages/domestic/DomesticDeadlineRequestsPage";
+import DomesticInvoicesPage from "./pages/domestic/DomesticInvoicesPage";
 
 // Export Sales pages
 import ExportDashboard from "./pages/export/ExportDashboard";
@@ -258,6 +259,34 @@ import MachineMonitorDisplay from "./pages/machine-monitor/MachineMonitorDisplay
 import MachineMonitorMachinesPage from "./pages/machine-monitor/MachineMonitorMachinesPage";
 import MachineStatusEntryPage from "./pages/machine-monitor/MachineStatusEntryPage";
 import MachineQRScanPage from "./pages/machine-monitor/MachineQRScanPage";
+
+// Accounting (Standalone) pages
+import AccountingDashboard from "./pages/accounting/AccountingDashboard";
+import AccountingCoAPage from "./pages/accounting/AccountingCoAPage";
+import AccountingPartiesPage from "./pages/accounting/AccountingPartiesPage";
+import AccountingVouchersPage from "./pages/accounting/AccountingVouchersPage";
+import NewVoucherPage from "./pages/accounting/NewVoucherPage";
+import DayBookPage from "./pages/accounting/DayBookPage";
+import CashBookPage from "./pages/accounting/CashBookPage";
+import BankBookPage from "./pages/accounting/BankBookPage";
+import GeneralLedgerPage from "./pages/accounting/GeneralLedgerPage";
+import PartyLedgerPage from "./pages/accounting/PartyLedgerPage";
+import AccountingTrialBalancePage from "./pages/accounting/TrialBalancePage";
+import AccountingProfitLossPage from "./pages/accounting/ProfitLossPage";
+import AccountingBalanceSheetPage from "./pages/accounting/BalanceSheetPage";
+import DefaultAccountsPage from "./pages/accounting/DefaultAccountsPage";
+import SalesReconciliationPage from "./pages/accounting/SalesReconciliationPage";
+import ProductionCostRecognitionPage from "./pages/accounting/ProductionCostRecognitionPage";
+import ProductionReconciliationPage from "./pages/accounting/ProductionReconciliationPage";
+import PurchaseReconciliationPage from "./pages/accounting/PurchaseReconciliationPage";
+import ProductionOutputRecognitionPage from "./pages/accounting/ProductionOutputRecognitionPage";
+import CustomerReceiptsPage from "./pages/accounting/CustomerReceiptsPage";
+import SupplierPaymentsPage from "./pages/accounting/SupplierPaymentsPage";
+import SalesReturnPage from "./pages/accounting/SalesReturnPage";
+import PurchaseReturnPage from "./pages/accounting/PurchaseReturnPage";
+import PeriodClosePage from "./pages/accounting/PeriodClosePage";
+import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
+import AccountingAuditLogPage from "./pages/accounting/AuditLogPage";
 
 // CRM pages
 import CRMDashboard from "./pages/crm/CRMDashboard";
@@ -420,6 +449,7 @@ const App = () => (
             <Route path="/domestic/dispatch-dashboard" element={<ProtectedRoute><DomesticDispatchDashboard /></ProtectedRoute>} />
             <Route path="/domestic/dispatch-acknowledgement" element={<ProtectedRoute><DomesticDispatchAcknowledgementPage /></ProtectedRoute>} />
             <Route path="/domestic/deadline-requests" element={<ProtectedRoute requiredRole="super_admin"><DomesticDeadlineRequestsPage /></ProtectedRoute>} />
+            <Route path="/domestic/invoices" element={<ProtectedRoute><DomesticInvoicesPage /></ProtectedRoute>} />
             <Route path="/domestic/*" element={<ProtectedRoute><ComingSoon title="Domestic Sales" /></ProtectedRoute>} />
 
             {/* Export Sales Routes */}
@@ -594,6 +624,35 @@ const App = () => (
             <Route path="/machine-monitor/entry" element={<ProtectedRoute><MachineStatusEntryPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/machines" element={<ProtectedRoute><MachineMonitorMachinesPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
+
+            {/* Accounting (Standalone) Routes */}
+            <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />
+            <Route path="/accounting/chart-of-accounts" element={<ProtectedRoute><AccountingCoAPage /></ProtectedRoute>} />
+            <Route path="/accounting/parties" element={<ProtectedRoute><AccountingPartiesPage /></ProtectedRoute>} />
+            <Route path="/accounting/vouchers" element={<ProtectedRoute><AccountingVouchersPage /></ProtectedRoute>} />
+            <Route path="/accounting/vouchers/new" element={<ProtectedRoute><NewVoucherPage /></ProtectedRoute>} />
+            <Route path="/accounting/day-book" element={<ProtectedRoute><DayBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/cash-book" element={<ProtectedRoute><CashBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/bank-book" element={<ProtectedRoute><BankBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/general-ledger" element={<ProtectedRoute><GeneralLedgerPage /></ProtectedRoute>} />
+            <Route path="/accounting/party-ledger" element={<ProtectedRoute><PartyLedgerPage /></ProtectedRoute>} />
+            <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
+            <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
+            <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />
+            <Route path="/accounting/default-accounts" element={<ProtectedRoute><DefaultAccountsPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-reconciliation" element={<ProtectedRoute><SalesReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-cost-recognition" element={<ProtectedRoute><ProductionCostRecognitionPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-reconciliation" element={<ProtectedRoute><ProductionReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/purchase-reconciliation" element={<ProtectedRoute><PurchaseReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-output-recognition" element={<ProtectedRoute><ProductionOutputRecognitionPage /></ProtectedRoute>} />
+            <Route path="/accounting/customer-receipts" element={<ProtectedRoute><CustomerReceiptsPage /></ProtectedRoute>} />
+            <Route path="/accounting/supplier-payments" element={<ProtectedRoute><SupplierPaymentsPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-return" element={<ProtectedRoute><SalesReturnPage /></ProtectedRoute>} />
+            <Route path="/accounting/purchase-return" element={<ProtectedRoute><PurchaseReturnPage /></ProtectedRoute>} />
+            <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
+            <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
+            <Route path="/accounting/audit-log" element={<ProtectedRoute><AccountingAuditLogPage /></ProtectedRoute>} />
+            <Route path="/accounting/*" element={<ProtectedRoute><ComingSoon title="Accounting (Standalone)" /></ProtectedRoute>} />
 
             {/* CRM Routes */}
             <Route path="/crm/dashboard" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />

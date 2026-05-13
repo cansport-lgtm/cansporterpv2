@@ -18,6 +18,7 @@ import { Plus, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
 
 type PurchaseCategory = Database["public"]["Enums"]["purchase_category"];
 
@@ -204,11 +205,22 @@ export default function GoodsReceiptPage() {
 
       return newGRN;
     },
-    onSuccess: () => {
+    onSuccess: async (newGRN: any) => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipt-notes'] });
       queryClient.invalidateQueries({ queryKey: ['approved-purchase-orders'] });
       toast.success('Goods receipt created');
       resetForm();
+
+      // Phase 2B: auto-post AP/Inventory voucher (gated by VITE_ENABLE_ACC_AUTOPOST).
+      // Non-blocking: GRN is already saved. Failures surface as warnings only.
+      if (newGRN?.id) {
+        const result = await postGRNVoucher(newGRN.id);
+        if (result.ok && result.voucherNumber && !result.skipped) {
+          toast.success(`Accounting voucher posted: ${result.voucherNumber}`);
+        } else if (!result.ok) {
+          toast.error(`Accounting auto-post failed: ${result.error}. Use Purchase Reconciliation to repost.`);
+        }
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create goods receipt');

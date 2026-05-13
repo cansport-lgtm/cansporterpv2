@@ -177,6 +177,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Demo-only bypass: skip Supabase auth, inject a stub super_admin user
+    if (import.meta.env.VITE_DEMO_BYPASS === 'true') {
+      setUser({
+        id: '00000000-0000-0000-0000-000000000000',
+        user_id: 'demo',
+        full_name: 'Demo User',
+        department_id: null,
+        designation: 'Demo',
+        is_active: true,
+        last_login: new Date().toISOString(),
+      });
+      setRoles([{ role: 'super_admin' }]);
+      setModulePermissions([]);
+      setPurchaseCategoryPermissions([]);
+      setIsLoading(false);
+      return;
+    }
+
     const checkSession = async () => {
       sanitizeStoredSession();
       const sessionData = localStorage.getItem(SESSION_KEY);

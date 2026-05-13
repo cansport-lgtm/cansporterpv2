@@ -18,6 +18,8 @@ import { Plus, Search, Truck, Eye, X, Printer, Pencil } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
+import { postCOGSForDispatch } from "@/lib/accounting/postCOGSForDispatch";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -232,8 +234,10 @@ export default function DomesticDispatchPage() {
           if (itemsError) throw itemsError;
         }
       }
+
+      return newDispatch;
     },
-    onSuccess: () => {
+    onSuccess: async (newDispatch: any) => {
       queryClient.invalidateQueries({ queryKey: ['sales-dispatches', 'domestic'] });
       queryClient.invalidateQueries({ queryKey: ['orders-for-dispatch', 'domestic'] });
       queryClient.invalidateQueries({ queryKey: ['domestic-orders-status'] });
@@ -241,6 +245,29 @@ export default function DomesticDispatchPage() {
       queryClient.invalidateQueries({ queryKey: ['domestic-orders-pending-dispatch'] });
       toast.success('Dispatch created');
       handleCloseDialog();
+
+      // Phase 2A: auto-post AR/Sales journal (Dr AR / Cr Sales).
+      // Phase 3b: also auto-post COGS journal (Dr COGS / Cr FG).
+      // Non-blocking: dispatch is already saved. Failures surface as warnings only.
+      if (newDispatch?.id) {
+        const arResult = await postDispatchVoucher(newDispatch.id);
+        if (arResult.ok && arResult.vouchers && arResult.vouchers.length > 0) {
+          toast.success(`AR voucher posted (${arResult.vouchers.length})`);
+        } else if (!arResult.ok) {
+          toast.error(`AR auto-post failed: ${arResult.error}`);
+        }
+
+        const cogsResult = await postCOGSForDispatch(newDispatch.id);
+        if (cogsResult.ok && cogsResult.voucherNumber && !cogsResult.skipped) {
+          toast.success(`COGS voucher posted: ${cogsResult.voucherNumber}`);
+        } else if (cogsResult.skipped === "perpetual_disabled") {
+          // Silent — periodic mode is intentional. COGS will be posted at month-end via /accounting/periodic-cogs.
+        } else if (cogsResult.skipped === "zero_cost" && cogsResult.zeroCostProducts?.length) {
+          toast.warning(`COGS skipped — products without standard_cost: ${cogsResult.zeroCostProducts.join(", ")}`);
+        } else if (!cogsResult.ok) {
+          toast.error(`COGS auto-post failed: ${cogsResult.error}`);
+        }
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message);
