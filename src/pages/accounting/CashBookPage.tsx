@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -8,14 +8,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/use-toast";
+import { ArrowDownCircle, ArrowUpCircle, Zap } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 const sb = supabase as any;
 
+type QEMode = "receipt" | "payment";
+
 export default function CashBookPage() {
+  const queryClient = useQueryClient();
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountId, setAccountId] = useState<string>("");
+
+  // ----- Quick-entry state -----
+  const [qeMode, setQeMode] = useState<QEMode>("receipt");
+  const [qeDate, setQeDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [qeContraId, setQeContraId] = useState<string>("");
+  const [qePartyId, setQePartyId] = useState<string>("none");
+  const [qeAmount, setQeAmount] = useState<string>("");
+  const [qeNote, setQeNote] = useState<string>("");
+  const amountRef = useRef<HTMLInputElement>(null);
 
   const { data: cashAccounts } = useQuery({
     queryKey: ["acc-cashbook-accounts"],
@@ -34,6 +50,121 @@ export default function CashBookPage() {
   useEffect(() => {
     if (!accountId && cashAccounts?.length) setAccountId(cashAccounts[0].id);
   }, [cashAccounts, accountId]);
+
+  // Postable accounts for the "other side" of the entry (excludes the cash account itself)
+  const { data: postableAccounts } = useQuery({
+    queryKey: ["acc-cashbook-postable"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_chart_of_accounts")
+        .select("id, code, name, account_type, sub_category")
+        .eq("is_active", true)
+        .not("sub_category", "is", null)
+        .order("code");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: parties } = useQuery({
+    queryKey: ["acc-cashbook-parties"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_parties")
+        .select("id, name, party_type")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const otherSideAccounts = useMemo(
+    () => (postableAccounts || []).filter((a: any) => a.id !== accountId),
+    [postableAccounts, accountId]
+  );
+
+  const resetQuickEntry = () => {
+    setQeContraId("");
+    setQePartyId("none");
+    setQeAmount("");
+    setQeNote("");
+    // keep qeMode + qeDate to allow rapid repeat entry
+  };
+
+  const quickPostMutation = useMutation({
+    mutationFn: async () => {
+      const amount = parseFloat(qeAmount);
+      if (!accountId) throw new Error("Select a cash account");
+      if (!qeContraId) throw new Error("Select the other-side account");
+      if (qeContraId === accountId) throw new Error("Other-side account cannot be the cash account itself");
+      if (!(amount > 0)) throw new Error("Amount must be greater than zero");
+      if (!qeDate) throw new Error("Date is required");
+
+      const isReceipt = qeMode === "receipt";
+      const voucherType = isReceipt ? "CRV" : "CPV";
+
+      const { data: voucher, error: vErr } = await sb
+        .from("accounting_vouchers")
+        .insert({
+          voucher_number: "",
+          voucher_type: voucherType,
+          voucher_date: qeDate,
+          party_id: qePartyId === "none" ? null : qePartyId,
+          narration: qeNote,
+          total_amount: amount,
+          status: "posted",
+          source_module: "manual",
+        })
+        .select()
+        .single();
+      if (vErr) throw vErr;
+
+      const linesPayload = [
+        {
+          voucher_id: voucher.id,
+          account_id: accountId,
+          party_id: null,
+          debit_amount: isReceipt ? amount : 0,
+          credit_amount: isReceipt ? 0 : amount,
+          line_narration: isReceipt ? "Received" : "Paid",
+          line_order: 0,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: qeContraId,
+          party_id: qePartyId === "none" ? null : qePartyId,
+          debit_amount: isReceipt ? 0 : amount,
+          credit_amount: isReceipt ? amount : 0,
+          line_narration: qeNote || "",
+          line_order: 1,
+        },
+      ];
+      const { error: lErr } = await sb.from("accounting_voucher_lines").insert(linesPayload);
+      if (lErr) throw lErr;
+
+      return voucher;
+    },
+    onSuccess: (voucher: any) => {
+      toast({ title: `${voucher.voucher_type} posted`, description: voucher.voucher_number });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-opening"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-lines"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-contra"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-dash-lines"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-dash-recent"] });
+      resetQuickEntry();
+      amountRef.current?.focus();
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const submitOnEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !quickPostMutation.isPending) {
+      e.preventDefault();
+      quickPostMutation.mutate();
+    }
+  };
 
   // Opening balance: sum of lines BEFORE fromDate
   const { data: opening } = useQuery({
@@ -134,6 +265,101 @@ export default function CashBookPage() {
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Payments (Cr)</div><div className="text-xl font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Closing Balance</div><div className="text-xl font-semibold">Rs. {closing.toLocaleString()}</div></CardContent></Card>
       </div>
+
+      {/* Quick Entry — post a CRV or CPV against the selected cash account without leaving the page */}
+      <Card className="mb-4 border-dashed">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-semibold">Quick Entry</span>
+            <span className="text-xs text-muted-foreground">
+              Posts a {qeMode === "receipt" ? "Cash Receipt (CRV)" : "Cash Payment (CPV)"} against{" "}
+              <span className="font-medium">{selectedAccount?.name || "—"}</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-12 gap-2 items-end" onKeyDown={submitOnEnter}>
+            <div className="col-span-2">
+              <Label className="text-xs">Type</Label>
+              <div className="flex rounded-md border overflow-hidden h-9">
+                <button
+                  type="button"
+                  onClick={() => setQeMode("receipt")}
+                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${qeMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
+                >
+                  <ArrowDownCircle className="h-3 w-3" />Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQeMode("payment")}
+                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${qeMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
+                >
+                  <ArrowUpCircle className="h-3 w-3" />Payment
+                </button>
+              </div>
+            </div>
+            <div className="col-span-1">
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-9" />
+            </div>
+            <div className="col-span-3">
+              <Label className="text-xs">{qeMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
+              <Select value={qeContraId} onValueChange={setQeContraId}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select account" /></SelectTrigger>
+                <SelectContent>
+                  {otherSideAccounts.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      <span className="font-mono text-xs mr-2">{a.code}</span>{a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Party (optional)</Label>
+              <Select value={qePartyId} onValueChange={setQePartyId}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  {(parties || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} <span className="text-xs text-muted-foreground">({p.party_type})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-1">
+              <Label className="text-xs">Amount</Label>
+              <Input
+                ref={amountRef}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={qeAmount}
+                onChange={(e) => setQeAmount(e.target.value)}
+                className="h-9 text-right"
+                placeholder="0"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Note (optional)</Label>
+              <Input value={qeNote} onChange={(e) => setQeNote(e.target.value)} className="h-9" placeholder="Narration" />
+            </div>
+            <div className="col-span-1">
+              <Button
+                className="w-full h-9"
+                onClick={() => quickPostMutation.mutate()}
+                disabled={quickPostMutation.isPending || !accountId || !qeContraId || !(parseFloat(qeAmount) > 0)}
+              >
+                {quickPostMutation.isPending ? "..." : "Post"}
+              </Button>
+            </div>
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1">
+            Press <kbd className="px-1 border rounded">Enter</kbd> in any field to post. Form clears after each entry (date & type retained).
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="border rounded-lg">
         <Table>
