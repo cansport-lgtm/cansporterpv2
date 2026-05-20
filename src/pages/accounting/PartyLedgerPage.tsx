@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { FileText } from "lucide-react";
+import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -124,14 +125,19 @@ export default function PartyLedgerPage() {
     enabled: dispatchIdsToResolve.length > 0,
   });
 
-  const resolveSourceLink = (v: any): string | null => {
+  // Returns the source invoice id if this voucher was auto-posted from a domestic
+  // sales dispatch and we've resolved the dispatch -> invoice mapping. The caller
+  // opens the invoice in a modal directly over the ledger so the operator never
+  // navigates away from the page.
+  const resolveSourceInvoiceId = (v: any): string | null => {
     if (!v) return null;
     if (v.source_module === "domestic_sales" && v.source_reference_id) {
-      const invoiceId = dispatchInvoiceMap?.[v.source_reference_id];
-      if (invoiceId) return `/domestic/invoices?invoice=${invoiceId}`;
+      return dispatchInvoiceMap?.[v.source_reference_id] || null;
     }
     return null;
   };
+
+  const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     if (!lines) return [];
@@ -206,21 +212,22 @@ export default function PartyLedgerPage() {
             </TableRow>
             {!rows.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No transactions for this party in this range</TableCell></TableRow>}
             {rows.map((r: any) => {
-              const sourceHref = resolveSourceLink(r.voucher);
+              const sourceInvoiceId = resolveSourceInvoiceId(r.voucher);
               return (
               <TableRow key={r.id}>
                 <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
-                  {sourceHref ? (
-                    <Link
-                      to={sourceHref}
+                  {sourceInvoiceId ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewInvoiceId(sourceInvoiceId)}
                       className="text-primary hover:underline inline-flex items-center gap-1"
                       title="Open source invoice"
                     >
                       {r.voucher?.voucher_number}
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
+                      <FileText className="h-3 w-3" />
+                    </button>
                   ) : (
                     r.voucher?.voucher_number
                   )}
@@ -242,6 +249,11 @@ export default function PartyLedgerPage() {
           </TableBody>
         </Table>
       </div>
+
+      <InvoiceViewDialog
+        invoiceId={viewInvoiceId}
+        onOpenChange={(o) => !o && setViewInvoiceId(null)}
+      />
     </ERPLayout>
   );
 }
