@@ -13,7 +13,7 @@ export interface PostCOGSResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
 // Pure-periodic mode: when this is false, per-dispatch COGS doesn't fire.
 // The Periodic COGS page (/accounting/periodic-cogs) becomes the sole COGS source.

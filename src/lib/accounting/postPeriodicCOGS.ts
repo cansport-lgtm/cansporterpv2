@@ -38,7 +38,7 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
   return data?.account_id ?? null;
 };
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
 /**
  * Compute periodic COGS using both stock-closing sources + RM purchases.

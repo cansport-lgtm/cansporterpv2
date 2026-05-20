@@ -12,7 +12,9 @@ export interface PostGRNResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+// Default ON. Set VITE_ENABLE_ACC_AUTOPOST="false" to opt out (e.g. local dev
+// against a DB without the accounting schema).
+const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
