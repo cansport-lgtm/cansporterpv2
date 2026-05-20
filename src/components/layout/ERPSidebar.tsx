@@ -428,6 +428,7 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
       { title: "Customer Receipts (AR Aging)", href: "/accounting/customer-receipts" },
       { title: "Supplier Payments (AP Aging)", href: "/accounting/supplier-payments" },
+      { title: "Receivables & Payables Report", href: "/accounting/ar-ap-report" },
       { title: "Sales Return / Credit Note", href: "/accounting/sales-return" },
       { title: "Purchase Return / Debit Note", href: "/accounting/purchase-return" },
       { title: "Periodic COGS (Stock-Based)", href: "/accounting/periodic-cogs" },

@@ -271,6 +271,7 @@ import CashBookPage from "./pages/accounting/CashBookPage";
 import BankBookPage from "./pages/accounting/BankBookPage";
 import GeneralLedgerPage from "./pages/accounting/GeneralLedgerPage";
 import PartyLedgerPage from "./pages/accounting/PartyLedgerPage";
+import ReceivablesPayablesReportPage from "./pages/accounting/ReceivablesPayablesReportPage";
 import AccountingTrialBalancePage from "./pages/accounting/TrialBalancePage";
 import AccountingProfitLossPage from "./pages/accounting/ProfitLossPage";
 import AccountingBalanceSheetPage from "./pages/accounting/BalanceSheetPage";
@@ -636,6 +637,7 @@ const App = () => (
             <Route path="/accounting/bank-book" element={<ProtectedRoute><BankBookPage /></ProtectedRoute>} />
             <Route path="/accounting/general-ledger" element={<ProtectedRoute><GeneralLedgerPage /></ProtectedRoute>} />
             <Route path="/accounting/party-ledger" element={<ProtectedRoute><PartyLedgerPage /></ProtectedRoute>} />
+            <Route path="/accounting/ar-ap-report" element={<ProtectedRoute><ReceivablesPayablesReportPage /></ProtectedRoute>} />
             <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
             <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
             <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />
