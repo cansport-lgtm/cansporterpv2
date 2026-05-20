@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -14,11 +14,28 @@ import { format, subDays } from "date-fns";
 
 const sb = supabase as any;
 
+const VALID_TYPES = new Set(["all", "customer", "supplier", "employee", "other"]);
+
 export default function PartyLedgerPage() {
+  const [searchParams] = useSearchParams();
+  const initialType = (() => {
+    const t = searchParams.get("type");
+    return t && VALID_TYPES.has(t) ? t : "all";
+  })();
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 90), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [partyId, setPartyId] = useState<string>("");
-  const [filterType, setFilterType] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>(initialType);
+
+  // React to ?type= changes (e.g. user navigates Customer Ledger -> Vendor Ledger
+  // from the sidebar without remounting). Reset the selected party so we don't
+  // hold a stale customer when switching to vendors.
+  useEffect(() => {
+    const t = searchParams.get("type");
+    const next = t && VALID_TYPES.has(t) ? t : "all";
+    setFilterType((prev) => (prev === next ? prev : next));
+    if (t && VALID_TYPES.has(t)) setPartyId("");
+  }, [searchParams]);
 
   const { data: parties } = useQuery({
     queryKey: ["acc-pl-parties"],
@@ -132,7 +149,10 @@ export default function PartyLedgerPage() {
 
   return (
     <ERPLayout>
-      <PageHeader title="Party Ledger" description="Customer / supplier / employee account statement">
+      <PageHeader
+        title={filterType === "customer" ? "Customer Ledger" : filterType === "supplier" ? "Vendor Ledger" : filterType === "employee" ? "Employee Ledger" : "Party Ledger"}
+        description="Account statement with opening, movement and closing balances"
+      >
         <div className="flex gap-2">
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
