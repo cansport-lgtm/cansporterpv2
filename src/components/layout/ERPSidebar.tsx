@@ -415,7 +415,8 @@ const navigationItems: NavItem[] = [
       { title: "Cash Book", href: "/accounting/cash-book" },
       { title: "Bank Book", href: "/accounting/bank-book" },
       { title: "General Ledger", href: "/accounting/general-ledger" },
-      { title: "Party Ledger", href: "/accounting/party-ledger" },
+      { title: "Customer Ledger", href: "/accounting/party-ledger?type=customer" },
+      { title: "Vendor Ledger", href: "/accounting/party-ledger?type=supplier" },
       { title: "Trial Balance", href: "/accounting/trial-balance" },
       { title: "Profit & Loss", href: "/accounting/profit-loss" },
       { title: "Balance Sheet", href: "/accounting/balance-sheet" },
@@ -555,7 +556,9 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
           return false;
         }
 
-        return canAccessRoute(child.href);
+        // child.href may carry a default query string (e.g. ?type=customer);
+        // the role-restriction list only knows pathnames, so strip the query.
+        return canAccessRoute(child.href.split("?")[0]);
       });
     };
 
@@ -587,10 +590,14 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       .filter((item) => !item.children || item.children.length > 0);
   }, [isSuperAdmin, roles, canAccessModule, canAccessRoute, hasModulePermission]);
 
+  // Some sidebar entries carry a default query string (e.g. ?type=customer on the
+  // ledger views) so we compare only the path portion when locating the active module.
+  const hrefPath = (href: string) => href.split("?")[0];
+
   // Find which module contains the current route
   const getActiveModuleTitle = () => {
     for (const item of filteredNavigationItems) {
-      if (item.children?.some(child => location.pathname.startsWith(child.href))) {
+      if (item.children?.some(child => location.pathname.startsWith(hrefPath(child.href)))) {
         return item.title;
       }
     }
@@ -619,9 +626,19 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
     );
   };
 
-  const isActiveRoute = (href: string) => location.pathname === href;
+  const isActiveRoute = (href: string) => {
+    const [path, query] = href.split("?");
+    if (location.pathname !== path) return false;
+    if (!query) return true;
+    const want = new URLSearchParams(query);
+    const have = new URLSearchParams(location.search);
+    for (const [k, v] of want) {
+      if (have.get(k) !== v) return false;
+    }
+    return true;
+  };
   const isParentActive = (children?: { href: string }[]) =>
-    children?.some((child) => location.pathname.startsWith(child.href));
+    children?.some((child) => location.pathname.startsWith(hrefPath(child.href)));
 
   return (
     <>
