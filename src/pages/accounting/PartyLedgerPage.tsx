@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { FileText } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
+import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -125,19 +126,25 @@ export default function PartyLedgerPage() {
     enabled: dispatchIdsToResolve.length > 0,
   });
 
-  // Returns the source invoice id if this voucher was auto-posted from a domestic
-  // sales dispatch and we've resolved the dispatch -> invoice mapping. The caller
-  // opens the invoice in a modal directly over the ledger so the operator never
-  // navigates away from the page.
-  const resolveSourceInvoiceId = (v: any): string | null => {
-    if (!v) return null;
-    if (v.source_module === "domestic_sales" && v.source_reference_id) {
-      return dispatchInvoiceMap?.[v.source_reference_id] || null;
+  // Resolve a voucher's underlying source document so we can open it as a modal
+  // directly over the ledger.
+  //   - domestic_sales:  source_reference_id is a dispatch id; we look up the invoice.
+  //   - purchase:        source_reference_id IS the GRN id (the purchase invoice).
+  type SourceDoc = { kind: "invoice"; id: string } | { kind: "grn"; id: string } | null;
+  const resolveSourceDoc = (v: any): SourceDoc => {
+    if (!v?.source_reference_id) return null;
+    if (v.source_module === "domestic_sales") {
+      const invoiceId = dispatchInvoiceMap?.[v.source_reference_id];
+      return invoiceId ? { kind: "invoice", id: invoiceId } : null;
+    }
+    if (v.source_module === "purchase") {
+      return { kind: "grn", id: v.source_reference_id };
     }
     return null;
   };
 
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const [viewGRNId, setViewGRNId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     if (!lines) return [];
@@ -212,18 +219,24 @@ export default function PartyLedgerPage() {
             </TableRow>
             {!rows.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No transactions for this party in this range</TableCell></TableRow>}
             {rows.map((r: any) => {
-              const sourceInvoiceId = resolveSourceInvoiceId(r.voucher);
+              const sourceDoc = resolveSourceDoc(r.voucher);
+              const openSource = () => {
+                if (!sourceDoc) return;
+                if (sourceDoc.kind === "invoice") setViewInvoiceId(sourceDoc.id);
+                else if (sourceDoc.kind === "grn") setViewGRNId(sourceDoc.id);
+              };
+              const sourceTitle = sourceDoc?.kind === "grn" ? "Open purchase invoice (GRN)" : "Open source invoice";
               return (
               <TableRow key={r.id}>
                 <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
-                  {sourceInvoiceId ? (
+                  {sourceDoc ? (
                     <button
                       type="button"
-                      onClick={() => setViewInvoiceId(sourceInvoiceId)}
+                      onClick={openSource}
                       className="text-primary hover:underline inline-flex items-center gap-1"
-                      title="Open source invoice"
+                      title={sourceTitle}
                     >
                       {r.voucher?.voucher_number}
                       <FileText className="h-3 w-3" />
@@ -253,6 +266,10 @@ export default function PartyLedgerPage() {
       <InvoiceViewDialog
         invoiceId={viewInvoiceId}
         onOpenChange={(o) => !o && setViewInvoiceId(null)}
+      />
+      <GRNViewDialog
+        grnId={viewGRNId}
+        onOpenChange={(o) => !o && setViewGRNId(null)}
       />
     </ERPLayout>
   );
