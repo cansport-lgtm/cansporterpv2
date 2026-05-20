@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -32,12 +33,25 @@ const PAYMENT_TERMS_OPTIONS = ["Net 7", "Net 15", "Net 30", "Net 45", "Net 60", 
 export default function DomesticInvoicesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [createOpen, setCreateOpen] = useState(false);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [printInvoiceId, setPrintInvoiceId] = useState<string | null>(null);
+
+  // Deep-link: open ?invoice=<id> in the view dialog (used from Party Ledger etc.)
+  useEffect(() => {
+    const id = searchParams.get("invoice");
+    if (id) {
+      setViewInvoiceId(id);
+      const next = new URLSearchParams(searchParams);
+      next.delete("invoice");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Form state
   const [selectedDispatchId, setSelectedDispatchId] = useState("");
@@ -169,7 +183,22 @@ export default function DomesticInvoicesPage() {
   });
 
   // === Print ===
-  const printInvoice = invoices?.find((i: any) => i.id === printInvoiceId);
+  // Same fallback as view: support invoices not in the current date-filtered list (deep links).
+  const printInListInvoice = invoices?.find((i: any) => i.id === printInvoiceId);
+  const { data: printDeepLinkInvoice } = useQuery({
+    queryKey: ["domestic-invoice-direct-print", printInvoiceId],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("domestic_invoices")
+        .select("*, customer:customers(name, code), dispatch:sales_dispatches(dispatch_number, dispatch_date)")
+        .eq("id", printInvoiceId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!printInvoiceId && !printInListInvoice,
+  });
+  const printInvoice = printInListInvoice || printDeepLinkInvoice;
   const { data: printDispatchItems } = useQuery({
     queryKey: ["dispatch-items-for-print", printInvoice?.dispatch_id],
     queryFn: () => fetchDispatchDetail(printInvoice?.dispatch_id),
@@ -186,7 +215,23 @@ export default function DomesticInvoicesPage() {
   }, [printInvoiceId, printDispatchItems]);
 
   // === View ===
-  const viewInvoice = invoices?.find((i: any) => i.id === viewInvoiceId);
+  // Fall back to a direct fetch when the invoice isn't in the current date-filtered list
+  // (e.g. a deep link from the Party Ledger pointing at an older period).
+  const inListInvoice = invoices?.find((i: any) => i.id === viewInvoiceId);
+  const { data: deepLinkInvoice } = useQuery({
+    queryKey: ["domestic-invoice-direct", viewInvoiceId],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("domestic_invoices")
+        .select("*, customer:customers(name, code), dispatch:sales_dispatches(dispatch_number, dispatch_date)")
+        .eq("id", viewInvoiceId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!viewInvoiceId && !inListInvoice,
+  });
+  const viewInvoice = inListInvoice || deepLinkInvoice;
   const { data: viewDispatchItems } = useQuery({
     queryKey: ["dispatch-items-for-view", viewInvoice?.dispatch_id],
     queryFn: () => fetchDispatchDetail(viewInvoice?.dispatch_id),
