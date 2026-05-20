@@ -51,7 +51,9 @@ interface Item {
   reorder_level: number | null;
   is_inventory_item: boolean | null;
   is_active: boolean | null;
+  consumption_raw_material_id: string | null;
   units_of_measure?: { name: string } | null;
+  consumption_raw_materials?: { code: string; name: string } | null;
 }
 
 const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
@@ -78,6 +80,7 @@ export default function ItemsPage() {
     reorder_level: 0,
     is_inventory_item: true,
     is_active: true,
+    consumption_raw_material_id: "",
   });
 
   const { data: items = [], isLoading } = useQuery({
@@ -85,11 +88,31 @@ export default function ItemsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("*, units_of_measure(name)")
+        .select("*, units_of_measure(name), consumption_raw_materials(code, name)")
         .order("name", { ascending: true });
       if (error) throw error;
       return data as Item[];
     },
+  });
+
+  const { data: availableRawMaterials = [] } = useQuery({
+    queryKey: ["consumption-raw-materials-available", selectedItem?.id],
+    queryFn: async () => {
+      // Show RMs that are unlinked, plus the one currently linked to the
+      // item being edited (so it stays selectable in the dropdown).
+      const linkedRows = (items as Item[])
+        .filter((i) => i.consumption_raw_material_id && i.id !== selectedItem?.id)
+        .map((i) => i.consumption_raw_material_id as string);
+
+      const { data, error } = await supabase
+        .from("consumption_raw_materials")
+        .select("id, code, name, unit")
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return (data || []).filter((rm: any) => !linkedRows.includes(rm.id));
+    },
+    enabled: dialogOpen,
   });
 
   const { data: uoms = [] } = useQuery({
@@ -119,6 +142,7 @@ export default function ItemsPage() {
         reorder_level: data.reorder_level,
         is_inventory_item: data.is_inventory_item,
         is_active: data.is_active,
+        consumption_raw_material_id: data.consumption_raw_material_id || null,
       };
 
       if (data.id) {
@@ -171,6 +195,7 @@ export default function ItemsPage() {
       reorder_level: 0,
       is_inventory_item: true,
       is_active: true,
+      consumption_raw_material_id: "",
     });
     setSelectedItem(null);
     setDialogOpen(false);
@@ -190,6 +215,7 @@ export default function ItemsPage() {
       reorder_level: item.reorder_level || 0,
       is_inventory_item: item.is_inventory_item ?? true,
       is_active: item.is_active ?? true,
+      consumption_raw_material_id: item.consumption_raw_material_id || "",
     });
     setDialogOpen(true);
   };
@@ -222,6 +248,14 @@ export default function ItemsPage() {
       key: "unit_price",
       header: "Unit Price",
       render: (item: Item) => `Rs. ${item.unit_price?.toLocaleString() || 0}`,
+    },
+    {
+      key: "consumption_raw_materials",
+      header: "Linked Raw Material",
+      render: (item: Item) =>
+        item.consumption_raw_materials
+          ? `${item.consumption_raw_materials.code} · ${item.consumption_raw_materials.name}`
+          : "—",
     },
     {
       key: "is_active",
@@ -357,6 +391,39 @@ export default function ItemsPage() {
                   </Select>
                 </div>
               </div>
+              {formData.category === "raw_material" && (
+                <div className="space-y-2">
+                  <Label htmlFor="consumption_raw_material_id">
+                    Linked Raw Material (production side)
+                  </Label>
+                  <Select
+                    value={formData.consumption_raw_material_id || "none"}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        consumption_raw_material_id: value === "none" ? "" : value,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="None (procurement-only item)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (procurement-only item)</SelectItem>
+                      {(availableRawMaterials as any[]).map((rm) => (
+                        <SelectItem key={rm.id} value={rm.id}>
+                          {rm.code} · {rm.name} ({rm.unit})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Links this procurement item to a row in the Consumption Raw Materials
+                    master so GRN receipts and stock-closing for the same physical
+                    material stay in sync.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="unit_price">Unit Price (Rs.)</Label>
