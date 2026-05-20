@@ -47,7 +47,10 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
+        // App bundle currently builds to ~8 MiB on Vercel; raise the cap until
+        // route-level code splitting (React.lazy) lands. Below this the PWA
+        // plugin aborts the build.
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
@@ -71,7 +74,7 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /^https:\/\/nkkzxnihjpqdalzerrhk\.supabase\.co\/.*/i,
+            urlPattern: /^https:\/\/ojejlhnthhdvgbgpsgvi\.supabase\.co\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-cache",
