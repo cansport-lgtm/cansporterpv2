@@ -66,6 +66,25 @@ export default function RawMaterialsPage() {
     },
   });
 
+  // Map RM id -> linked procurement item (set on the Items master). Read-only here.
+  const { data: linkedItemByRmId = {} } = useQuery({
+    queryKey: ["consumption-rm-linked-items"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("items")
+        .select("id, code, name, consumption_raw_material_id")
+        .not("consumption_raw_material_id", "is", null);
+      if (error) throw error;
+      const map: Record<string, { id: string; code: string; name: string }> = {};
+      (data || []).forEach((row: any) => {
+        if (row.consumption_raw_material_id) {
+          map[row.consumption_raw_material_id] = { id: row.id, code: row.code, name: row.name };
+        }
+      });
+      return map;
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
       if (data.id) {
@@ -301,6 +320,7 @@ export default function RawMaterialsPage() {
                     <TableHead>Unit</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Cost Value</TableHead>
+                    <TableHead>Linked Item</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -309,11 +329,11 @@ export default function RawMaterialsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={9} className="text-center">Loading...</TableCell>
                     </TableRow>
                   ) : materials?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         No raw materials found. Add your first material.
                       </TableCell>
                     </TableRow>
@@ -325,6 +345,11 @@ export default function RawMaterialsPage() {
                         <TableCell>{material.unit}</TableCell>
                         <TableCell>{material.category || "-"}</TableCell>
                         <TableCell className="text-right">{(material.cost_value || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs">
+                          {linkedItemByRmId[material.id]
+                            ? `${linkedItemByRmId[material.id].code} · ${linkedItemByRmId[material.id].name}`
+                            : "—"}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={material.priority === "high" ? "destructive" : material.priority === "low" ? "outline" : "secondary"}>
                             {(material.priority || "medium").charAt(0).toUpperCase() + (material.priority || "medium").slice(1)}
@@ -371,6 +396,9 @@ export default function RawMaterialsPage() {
                         <span>{material.unit}</span>
                         {material.category && <span>{material.category}</span>}
                         <span>₹{(material.cost_value || 0).toFixed(2)}</span>
+                        {linkedItemByRmId[material.id] && (
+                          <span>↔ {linkedItemByRmId[material.id].code}</span>
+                        )}
                       </div>
                       <Badge variant={material.priority === "high" ? "destructive" : material.priority === "low" ? "outline" : "secondary"} className="text-xs">
                         {(material.priority || "medium").charAt(0).toUpperCase() + (material.priority || "medium").slice(1)}
