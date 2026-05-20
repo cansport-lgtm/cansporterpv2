@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Printer, FileText, Eye } from "lucide-react";
 import { format, addDays, startOfMonth } from "date-fns";
@@ -213,30 +213,6 @@ export default function DomesticInvoicesPage() {
     }, 250);
     return () => clearTimeout(t);
   }, [printInvoiceId, printDispatchItems]);
-
-  // === View ===
-  // Fall back to a direct fetch when the invoice isn't in the current date-filtered list
-  // (e.g. a deep link from the Party Ledger pointing at an older period).
-  const inListInvoice = invoices?.find((i: any) => i.id === viewInvoiceId);
-  const { data: deepLinkInvoice } = useQuery({
-    queryKey: ["domestic-invoice-direct", viewInvoiceId],
-    queryFn: async () => {
-      const { data, error } = await sb
-        .from("domestic_invoices")
-        .select("*, customer:customers(name, code), dispatch:sales_dispatches(dispatch_number, dispatch_date)")
-        .eq("id", viewInvoiceId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!viewInvoiceId && !inListInvoice,
-  });
-  const viewInvoice = inListInvoice || deepLinkInvoice;
-  const { data: viewDispatchItems } = useQuery({
-    queryKey: ["dispatch-items-for-view", viewInvoice?.dispatch_id],
-    queryFn: () => fetchDispatchDetail(viewInvoice?.dispatch_id),
-    enabled: !!viewInvoiceId && !!viewInvoice?.dispatch_id,
-  });
 
   const totals = {
     count: invoices?.length || 0,
@@ -452,56 +428,11 @@ export default function DomesticInvoicesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* View dialog */}
-      <Dialog open={!!viewInvoiceId} onOpenChange={(o) => !o && setViewInvoiceId(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{viewInvoice?.invoice_number}</DialogTitle></DialogHeader>
-          {viewInvoice && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-muted-foreground">Customer:</span> <strong>{viewInvoice.customer?.name}</strong></div>
-                <div><span className="text-muted-foreground">Dispatch:</span> <strong className="font-mono">{viewInvoice.dispatch?.dispatch_number}</strong></div>
-                <div><span className="text-muted-foreground">Date:</span> <strong>{format(new Date(viewInvoice.invoice_date), "dd MMM yyyy")}</strong></div>
-                <div><span className="text-muted-foreground">Due:</span> <strong>{viewInvoice.due_date ? format(new Date(viewInvoice.due_date), "dd MMM yyyy") : "—"}</strong></div>
-                <div><span className="text-muted-foreground">Terms:</span> <strong>{viewInvoice.payment_terms || "—"}</strong></div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline" className={STATUS_COLOR[viewInvoice.status]}>{viewInvoice.status}</Badge></div>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead className="text-right">Qty (Dz)</TableHead>
-                    <TableHead className="text-right">Rate/Dz</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {viewDispatchItems?.map((it: any) => (
-                    <TableRow key={it.id}>
-                      <TableCell className="text-xs">{it.order_item?.product?.name}</TableCell>
-                      <TableCell className="text-xs">{it.order_item?.grade?.name || "—"}</TableCell>
-                      <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-xs">Rs. {Number(it.order_item?.price_per_dozen || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-xs font-medium">Rs. {(Number(it.quantity_dozens) * Number(it.order_item?.price_per_dozen || 0)).toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex justify-between items-center font-bold border-t pt-3">
-                <span>Total</span>
-                <span>Rs. {Number(viewInvoice.total_amount).toLocaleString()}</span>
-              </div>
-              {viewInvoice.notes && <div><span className="text-muted-foreground">Notes:</span> {viewInvoice.notes}</div>}
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button size="sm" variant="outline" onClick={() => { setViewInvoiceId(null); setPrintInvoiceId(viewInvoice.id); }}>
-                  <Printer className="h-3 w-3 mr-1" />Print
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <InvoiceViewDialog
+        invoiceId={viewInvoiceId}
+        onOpenChange={(o) => !o && setViewInvoiceId(null)}
+        onPrint={(id) => { setViewInvoiceId(null); setPrintInvoiceId(id); }}
+      />
       </div>
     </ERPLayout>
   );
