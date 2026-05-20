@@ -52,6 +52,10 @@ interface NavChild {
   requiresApprove?: string; // module name; only show if user has approve permission for this module
   excludeRoles?: AppRole[];
   state?: Record<string, any>;
+  // When true, this entry renders as a non-clickable section header inside the
+  // module's children. Used to group long modules (e.g. Accounting) into
+  // standard-practice sections — Masters / Entries / Books / Ledgers / Reports etc.
+  isHeader?: boolean;
 }
 
 interface NavItem {
@@ -407,32 +411,46 @@ const navigationItems: NavItem[] = [
     module: "accounting",
     children: [
       { title: "Dashboard", href: "/accounting/dashboard" },
+
+      { title: "Masters", href: "", isHeader: true },
       { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
       { title: "Parties", href: "/accounting/parties" },
+      { title: "Default Accounts", href: "/accounting/default-accounts" },
+
+      { title: "Entries", href: "", isHeader: true },
       { title: "New Voucher", href: "/accounting/vouchers/new" },
-      { title: "Voucher Register", href: "/accounting/vouchers" },
+      { title: "Customer Receipts", href: "/accounting/customer-receipts" },
+      { title: "Supplier Payments", href: "/accounting/supplier-payments" },
+      { title: "Sales Return", href: "/accounting/sales-return" },
+      { title: "Purchase Return", href: "/accounting/purchase-return" },
+
+      { title: "Books", href: "", isHeader: true },
       { title: "Day Book", href: "/accounting/day-book" },
+      { title: "Voucher Register", href: "/accounting/vouchers" },
       { title: "Cash Book", href: "/accounting/cash-book" },
       { title: "Bank Book", href: "/accounting/bank-book" },
+
+      { title: "Ledgers", href: "", isHeader: true },
       { title: "General Ledger", href: "/accounting/general-ledger" },
       { title: "Customer Ledger", href: "/accounting/party-ledger?type=customer" },
       { title: "Vendor Ledger", href: "/accounting/party-ledger?type=supplier" },
+
+      { title: "Reports", href: "", isHeader: true },
       { title: "Trial Balance", href: "/accounting/trial-balance" },
       { title: "Profit & Loss", href: "/accounting/profit-loss" },
       { title: "Balance Sheet", href: "/accounting/balance-sheet" },
-      { title: "Default Accounts (Auto-post)", href: "/accounting/default-accounts" },
+      { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
+
+      { title: "Reconciliation", href: "", isHeader: true },
       { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
+      { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
+      { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
       { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
       { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
-      { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
-      { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
-      { title: "Customer Receipts (AR Aging)", href: "/accounting/customer-receipts" },
-      { title: "Supplier Payments (AP Aging)", href: "/accounting/supplier-payments" },
-      { title: "Receivables & Payables Report", href: "/accounting/ar-ap-report" },
-      { title: "Sales Return / Credit Note", href: "/accounting/sales-return" },
-      { title: "Purchase Return / Debit Note", href: "/accounting/purchase-return" },
-      { title: "Periodic COGS (Stock-Based)", href: "/accounting/periodic-cogs" },
-      { title: "Period Close / Year-End", href: "/accounting/period-close" },
+      { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
+
+      { title: "Period & Audit", href: "", isHeader: true },
+      { title: "Period Close", href: "/accounting/period-close" },
       { title: "Audit Log", href: "/accounting/audit-log" },
     ],
   },
@@ -546,6 +564,10 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       return item.children.filter((child) => {
         if (child.superAdminOnly && !isSuperAdmin) return false;
 
+        // Section headers are always visible alongside their group (we drop
+        // dangling headers later, after route-level filtering).
+        if (child.isHeader) return true;
+
         if (child.requiresApprove && !hasModulePermission(child.requiresApprove, "approve")) {
           return false;
         }
@@ -563,6 +585,29 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       });
     };
 
+    // Drop section headers that have no following link entries (e.g. when every
+    // route in that section was hidden by permissions). Headers are dangling
+    // when no non-header child sits between them and the next header / end.
+    const dropDanglingHeaders = (kids: NavChild[] | undefined): NavChild[] | undefined => {
+      if (!kids) return kids;
+      const out: NavChild[] = [];
+      for (let i = 0; i < kids.length; i++) {
+        const c = kids[i];
+        if (c.isHeader) {
+          // Look ahead until next header or end; keep header only if any link follows.
+          let hasLink = false;
+          for (let j = i + 1; j < kids.length; j++) {
+            if (kids[j].isHeader) break;
+            hasLink = true;
+            break;
+          }
+          if (!hasLink) continue;
+        }
+        out.push(c);
+      }
+      return out;
+    };
+
     return navigationItems
       .map((item) => {
         if (item.superAdminOnly && !isSuperAdmin) return null;
@@ -578,7 +623,7 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
 
           return {
             ...item,
-            children: visibleChildren,
+            children: dropDanglingHeaders(visibleChildren),
           };
         }
 
@@ -598,7 +643,7 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
   // Find which module contains the current route
   const getActiveModuleTitle = () => {
     for (const item of filteredNavigationItems) {
-      if (item.children?.some(child => location.pathname.startsWith(hrefPath(child.href)))) {
+      if (item.children?.some(child => !child.isHeader && location.pathname.startsWith(hrefPath(child.href)))) {
         return item.title;
       }
     }
@@ -638,8 +683,8 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
     }
     return true;
   };
-  const isParentActive = (children?: { href: string }[]) =>
-    children?.some((child) => location.pathname.startsWith(hrefPath(child.href)));
+  const isParentActive = (children?: { href: string; isHeader?: boolean }[]) =>
+    children?.some((child) => !child.isHeader && location.pathname.startsWith(hrefPath(child.href)));
 
   return (
     <>
@@ -735,21 +780,30 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
                           Add Raw Material
                         </button>
                       )}
-                      {item.children?.map((child) => (
-                        <Link
-                          key={child.title}
-                          to={child.href}
-                          state={child.state}
-                          className={cn(
-                            "block rounded-lg px-3 py-2 text-sm transition-all",
-                            isActiveRoute(child.href) && !child.state
-                              ? "bg-brand-gradient text-primary-foreground shadow-soft font-medium"
-                              : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                          )}
-                        >
-                          {child.title}
-                        </Link>
-                      ))}
+                      {item.children?.map((child, idx) =>
+                        child.isHeader ? (
+                          <div
+                            key={`hdr-${child.title}-${idx}`}
+                            className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none"
+                          >
+                            {child.title}
+                          </div>
+                        ) : (
+                          <Link
+                            key={child.title}
+                            to={child.href}
+                            state={child.state}
+                            className={cn(
+                              "block rounded-lg px-3 py-2 text-sm transition-all",
+                              isActiveRoute(child.href) && !child.state
+                                ? "bg-brand-gradient text-primary-foreground shadow-soft font-medium"
+                                : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                            )}
+                          >
+                            {child.title}
+                          </Link>
+                        )
+                      )}
                     </CollapsibleContent>
                   </Collapsible>
                 )}
