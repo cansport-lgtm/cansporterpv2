@@ -19,7 +19,7 @@ export interface PostSalesReturnResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();

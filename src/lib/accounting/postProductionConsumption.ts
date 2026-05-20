@@ -101,7 +101,7 @@ export interface PostConsumptionResult {
  */
 export async function postProductionConsumption(date: string): Promise<PostConsumptionResult> {
   try {
-    if (import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "true") {
+    if (import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "false") {
       return { ok: true, skipped: "flag_off" };
     }
 

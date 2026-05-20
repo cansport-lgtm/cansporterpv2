@@ -12,7 +12,9 @@ export interface PostDispatchResult {
 
 const SOURCE_MODULE = "domestic_sales";
 
-const isFlagOn = (): boolean => import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+// Default ON. Set VITE_ENABLE_ACC_AUTOPOST="false" to opt out (e.g. local dev
+// against a DB without the accounting schema).
+const isFlagOn = (): boolean => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data, error } = await sb
