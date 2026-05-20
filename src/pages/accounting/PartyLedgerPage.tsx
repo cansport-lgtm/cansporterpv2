@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -62,7 +64,7 @@ export default function PartyLedgerPage() {
       if (!partyId) return [];
       const { data, error } = await sb
         .from("accounting_voucher_lines")
-        .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration), account:accounting_chart_of_accounts(code, name)")
+        .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, source_module, source_reference_id), account:accounting_chart_of_accounts(code, name)")
         .eq("party_id", partyId)
         .gte("voucher.voucher_date", fromDate)
         .lte("voucher.voucher_date", toDate);
@@ -76,6 +78,43 @@ export default function PartyLedgerPage() {
     },
     enabled: !!partyId,
   });
+
+  // Resolve domestic-sales vouchers (source_reference_id = dispatch_id) to their invoice ids
+  // so we can deep-link from the ledger row directly into the invoice view.
+  const dispatchIdsToResolve = useMemo(() => {
+    const set = new Set<string>();
+    (lines || []).forEach((l: any) => {
+      if (l.voucher?.source_module === "domestic_sales" && l.voucher?.source_reference_id) {
+        set.add(l.voucher.source_reference_id);
+      }
+    });
+    return Array.from(set);
+  }, [lines]);
+
+  const { data: dispatchInvoiceMap } = useQuery({
+    queryKey: ["acc-pl-dispatch-invoice-map", dispatchIdsToResolve],
+    queryFn: async () => {
+      if (!dispatchIdsToResolve.length) return {} as Record<string, string>;
+      const { data, error } = await sb
+        .from("domestic_invoices")
+        .select("id, dispatch_id")
+        .in("dispatch_id", dispatchIdsToResolve);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { if (r.dispatch_id) map[r.dispatch_id] = r.id; });
+      return map;
+    },
+    enabled: dispatchIdsToResolve.length > 0,
+  });
+
+  const resolveSourceLink = (v: any): string | null => {
+    if (!v) return null;
+    if (v.source_module === "domestic_sales" && v.source_reference_id) {
+      const invoiceId = dispatchInvoiceMap?.[v.source_reference_id];
+      if (invoiceId) return `/domestic/invoices?invoice=${invoiceId}`;
+    }
+    return null;
+  };
 
   const rows = useMemo(() => {
     if (!lines) return [];
@@ -146,12 +185,25 @@ export default function PartyLedgerPage() {
               <TableCell className="text-right font-semibold">Rs. {Number(opening || 0).toLocaleString()}</TableCell>
             </TableRow>
             {!rows.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No transactions for this party in this range</TableCell></TableRow>}
-            {rows.map((r: any) => (
+            {rows.map((r: any) => {
+              const sourceHref = resolveSourceLink(r.voucher);
+              return (
               <TableRow key={r.id}>
                 <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
-                  {r.voucher?.voucher_number}
+                  {sourceHref ? (
+                    <Link
+                      to={sourceHref}
+                      className="text-primary hover:underline inline-flex items-center gap-1"
+                      title="Open source invoice"
+                    >
+                      {r.voucher?.voucher_number}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  ) : (
+                    r.voucher?.voucher_number
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{r.account?.name || "—"}</TableCell>
                 <TableCell className="text-xs max-w-[260px] truncate">{r.line_narration || r.voucher?.narration || "—"}</TableCell>
@@ -159,7 +211,8 @@ export default function PartyLedgerPage() {
                 <TableCell className="text-right text-xs">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs font-medium">Rs. {r.runningBalance.toLocaleString()}</TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             <TableRow className="bg-muted/40 font-semibold">
               <TableCell colSpan={4}>Period Total / Closing</TableCell>
               <TableCell className="text-right">Rs. {totalDr.toLocaleString()}</TableCell>
