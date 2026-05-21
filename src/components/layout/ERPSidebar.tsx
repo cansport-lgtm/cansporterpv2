@@ -196,6 +196,7 @@ const navigationItems: NavItem[] = [
       { title: "Customer Logos", href: "/sales/customer-logos" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
+      { title: "Sales Returns", href: "/sales/returns" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },
     ],
@@ -241,6 +242,7 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Requests", href: "/purchase/requests" },
       { title: "Purchase Orders", href: "/purchase/orders" },
       { title: "Goods Receipt", href: "/purchase/grn" },
+      { title: "Purchase Returns", href: "/purchase/returns" },
       { title: "Dashboard", href: "/purchase/dashboard" },
     ],
   },
@@ -421,8 +423,7 @@ const navigationItems: NavItem[] = [
       { title: "New Voucher", href: "/accounting/vouchers/new" },
       { title: "Customer Receipts", href: "/accounting/customer-receipts" },
       { title: "Supplier Payments", href: "/accounting/supplier-payments" },
-      { title: "Sales Return", href: "/accounting/sales-return" },
-      { title: "Purchase Return", href: "/accounting/purchase-return" },
+      // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
 
       { title: "Books", href: "", isHeader: true },
       { title: "Day Book", href: "/accounting/day-book" },
