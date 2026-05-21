@@ -42,12 +42,19 @@ export default function DomesticInvoicesPage() {
   const [printInvoiceId, setPrintInvoiceId] = useState<string | null>(null);
 
   // Deep-link: open ?invoice=<id> in the view dialog (used from Party Ledger etc.)
+  // Deep-link: open ?createFromDispatch=<id> to pre-fill the create dialog (used from Dispatch list)
   useEffect(() => {
-    const id = searchParams.get("invoice");
-    if (id) {
-      setViewInvoiceId(id);
+    const viewId = searchParams.get("invoice");
+    const fromDispatchId = searchParams.get("createFromDispatch");
+    if (viewId) setViewInvoiceId(viewId);
+    if (fromDispatchId) {
+      setSelectedDispatchId(fromDispatchId);
+      setCreateOpen(true);
+    }
+    if (viewId || fromDispatchId) {
       const next = new URLSearchParams(searchParams);
       next.delete("invoice");
+      next.delete("createFromDispatch");
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,10 +141,30 @@ export default function DomesticInvoicesPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedDispatchId) throw new Error("Pick a dispatch");
-      const dispatch = invoiceableDispatches?.find((d: any) => d.id === selectedDispatchId);
-      if (!dispatch) throw new Error("Dispatch not found");
-      const customerId = dispatch.order?.customer?.id;
+
+      // Resolve the customer for this dispatch. Prefer the in-memory list (already
+      // joined with order→customer); fall back to a direct query so deep-links work
+      // even when the dispatch isn't on the cached page (e.g. opened from Dispatch list).
+      const cached = invoiceableDispatches?.find((d: any) => d.id === selectedDispatchId);
+      let customerId: string | undefined = cached?.order?.customer?.id;
+      if (!customerId) {
+        const { data: directDispatch, error: dErr } = await sb
+          .from("sales_dispatches")
+          .select("id, order:sales_orders(customer:customers(id))")
+          .eq("id", selectedDispatchId)
+          .maybeSingle();
+        if (dErr) throw dErr;
+        customerId = directDispatch?.order?.customer?.id;
+      }
       if (!customerId) throw new Error("Dispatch has no linked customer");
+
+      // Refuse to create a second invoice for the same dispatch.
+      const { data: existing } = await sb
+        .from("domestic_invoices")
+        .select("id, invoice_number")
+        .eq("dispatch_id", selectedDispatchId)
+        .maybeSingle();
+      if (existing) throw new Error(`Dispatch already invoiced as ${existing.invoice_number}`);
 
       const { data, error } = await sb
         .from("domestic_invoices")

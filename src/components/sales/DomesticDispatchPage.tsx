@@ -14,8 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Search, Truck, Eye, X, Printer, Pencil } from "lucide-react";
+import { Plus, Search, Truck, Eye, X, Printer, Pencil, FileText } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
@@ -1003,6 +1004,11 @@ export default function DomesticDispatchPage() {
                           )}
                           <Button variant="ghost" size="icon" onClick={() => setViewDispatch(dispatch)}>
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" asChild title="Create invoice from this dispatch">
+                            <Link to={`/domestic/invoices?createFromDispatch=${dispatch.id}`}>
+                              <FileText className="h-4 w-4" />
+                            </Link>
                           </Button>
                         </TableCell>
                       </TableRow>
