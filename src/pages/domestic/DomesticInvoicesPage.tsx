@@ -81,7 +81,21 @@ export default function DomesticInvoicesPage() {
     },
   });
 
-  // Dispatches that don't yet have an invoice
+  // Resolve unique customers attached to a dispatch via its items chain.
+  // Domestic dispatches typically have dispatch.order_id = NULL and link
+  // multiple orders via the sales_dispatch_orders join table, so we cannot
+  // reach the customer through the legacy dispatch.order path. The customer
+  // is derivable from each line: dispatch_item → order_item → order → customer.
+  const customersFromItems = (items: any[]): { id: string; name: string; code: string | null }[] => {
+    const map = new Map<string, { id: string; name: string; code: string | null }>();
+    for (const it of items || []) {
+      const c = it.order_item?.order?.customer;
+      if (c?.id && !map.has(c.id)) map.set(c.id, { id: c.id, name: c.name, code: c.code || null });
+    }
+    return Array.from(map.values());
+  };
+
+  // Dispatches that don't yet have an invoice. Customer is derived from items.
   const { data: invoiceableDispatches } = useQuery({
     queryKey: ["invoiceable-dispatches"],
     queryFn: async () => {
@@ -91,14 +105,20 @@ export default function DomesticInvoicesPage() {
       const { data, error } = await sb
         .from("sales_dispatches")
         .select(`
-          id, dispatch_number, dispatch_date, order_id,
-          order:sales_orders(order_number, customer:customers(id, name, code))
+          id, dispatch_number, dispatch_date,
+          items:sales_dispatch_items(
+            order_item:sales_order_items(
+              order:sales_orders(customer:customers(id, name, code))
+            )
+          )
         `)
         .eq("sales_segment", "domestic")
         .order("dispatch_date", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return (data || []).filter((d: any) => !usedIds.has(d.id));
+      return (data || [])
+        .filter((d: any) => !usedIds.has(d.id))
+        .map((d: any) => ({ ...d, customers: customersFromItems(d.items || []) }));
     },
     enabled: createOpen,
   });
@@ -142,21 +162,26 @@ export default function DomesticInvoicesPage() {
     mutationFn: async () => {
       if (!selectedDispatchId) throw new Error("Pick a dispatch");
 
-      // Resolve the customer for this dispatch. Prefer the in-memory list (already
-      // joined with order→customer); fall back to a direct query so deep-links work
-      // even when the dispatch isn't on the cached page (e.g. opened from Dispatch list).
+      // Resolve the customer through the dispatch's items chain (the only path
+      // that works for both legacy single-order dispatches and the current
+      // many-to-many domestic dispatches that use sales_dispatch_orders).
       const cached = invoiceableDispatches?.find((d: any) => d.id === selectedDispatchId);
-      let customerId: string | undefined = cached?.order?.customer?.id;
-      if (!customerId) {
-        const { data: directDispatch, error: dErr } = await sb
-          .from("sales_dispatches")
-          .select("id, order:sales_orders(customer:customers(id))")
-          .eq("id", selectedDispatchId)
-          .maybeSingle();
+      let customers = cached?.customers as { id: string; name: string }[] | undefined;
+      if (!customers || customers.length === 0) {
+        const { data: directItems, error: dErr } = await sb
+          .from("sales_dispatch_items")
+          .select("order_item:sales_order_items(order:sales_orders(customer:customers(id, name, code)))")
+          .eq("dispatch_id", selectedDispatchId);
         if (dErr) throw dErr;
-        customerId = directDispatch?.order?.customer?.id;
+        customers = customersFromItems(directItems || []);
       }
-      if (!customerId) throw new Error("Dispatch has no linked customer");
+      if (!customers || customers.length === 0) {
+        throw new Error("Dispatch has no items linked to a customer. Add line items in the dispatch first.");
+      }
+      if (customers.length > 1) {
+        throw new Error(`Dispatch spans ${customers.length} customers. Split into separate invoices manually, one per customer.`);
+      }
+      const customerId = customers[0].id;
 
       // Refuse to create a second invoice for the same dispatch.
       const { data: existing } = await sb
@@ -409,12 +434,16 @@ export default function DomesticInvoicesPage() {
               <Select value={selectedDispatchId} onValueChange={setSelectedDispatchId}>
                 <SelectTrigger><SelectValue placeholder={invoiceableDispatches?.length ? "Pick a dispatch without an invoice" : "All dispatches have invoices"} /></SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  {invoiceableDispatches?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
-                      {format(new Date(d.dispatch_date), "dd MMM")} · {d.order?.customer?.name || "—"}
-                    </SelectItem>
-                  ))}
+                  {invoiceableDispatches?.map((d: any) => {
+                    const cust = d.customers?.[0]?.name;
+                    const more = (d.customers?.length || 0) > 1 ? ` +${d.customers.length - 1} more` : "";
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
+                        {format(new Date(d.dispatch_date), "dd MMM")} · {cust || "(no customer)"}{more}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {selectedDispatchId && (
