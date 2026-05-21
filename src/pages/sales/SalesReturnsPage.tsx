@@ -69,6 +69,19 @@ export default function SalesReturnsPage() {
     },
   });
 
+  // Resolve unique customers attached to a dispatch via its items chain.
+  // Same reason as in DomesticInvoicesPage: domestic dispatches use the
+  // sales_dispatch_orders join table, so the dispatch's direct order_id is
+  // typically NULL and the customer must come from the line items.
+  const customersFromItems = (items: any[]): { id: string; name: string }[] => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const it of items || []) {
+      const c = it.order_item?.order?.customer;
+      if (c?.id && !map.has(c.id)) map.set(c.id, { id: c.id, name: c.name });
+    }
+    return Array.from(map.values());
+  };
+
   const { data: dispatches } = useQuery({
     queryKey: ["sales-returns-dispatches"],
     queryFn: async () => {
@@ -76,12 +89,16 @@ export default function SalesReturnsPage() {
         .from("sales_dispatches")
         .select(`
           id, dispatch_number, dispatch_date,
-          order:sales_orders(order_number, customer:customers(id, name, code))
+          items:sales_dispatch_items(
+            order_item:sales_order_items(
+              order:sales_orders(customer:customers(id, name))
+            )
+          )
         `)
         .order("dispatch_date", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return data || [];
+      return (data || []).map((d: any) => ({ ...d, customers: customersFromItems(d.items || []) }));
     },
     enabled: createOpen,
   });
@@ -115,7 +132,10 @@ export default function SalesReturnsPage() {
   }, [dispatchId]);
 
   const selectedDispatch = dispatches?.find((d: any) => d.id === dispatchId);
-  const customerId = selectedDispatch?.order?.customer?.id;
+  const dispatchCustomers = selectedDispatch?.customers as { id: string; name: string }[] | undefined;
+  const customerId = dispatchCustomers?.length === 1 ? dispatchCustomers[0].id : undefined;
+  const customerName = dispatchCustomers?.[0]?.name;
+  const multiCustomer = (dispatchCustomers?.length || 0) > 1;
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
   const cogsTotal = lines.reduce((s, l) => s + l.qty * l.standard_cost, 0);
@@ -154,7 +174,8 @@ export default function SalesReturnsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!dispatchId) throw new Error("Pick a dispatch");
-      if (!customerId) throw new Error("Dispatch has no linked customer");
+      if (multiCustomer) throw new Error(`Dispatch spans ${dispatchCustomers!.length} customers — split into separate returns first.`);
+      if (!customerId) throw new Error("Dispatch has no items linked to a customer");
       if (!hasAnyQty) throw new Error("Enter at least one return quantity");
       if (overQty) throw new Error("Return quantity cannot exceed original dispatch quantity");
 
@@ -303,17 +324,23 @@ export default function SalesReturnsPage() {
               <Select value={dispatchId} onValueChange={setDispatchId}>
                 <SelectTrigger><SelectValue placeholder="Pick a dispatch to return from" /></SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  {dispatches?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
-                      {format(new Date(d.dispatch_date), "dd MMM")} · {d.order?.customer?.name || "—"}
-                    </SelectItem>
-                  ))}
+                  {dispatches?.map((d: any) => {
+                    const cust = d.customers?.[0]?.name;
+                    const more = (d.customers?.length || 0) > 1 ? ` +${d.customers.length - 1} more` : "";
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
+                        {format(new Date(d.dispatch_date), "dd MMM")} · {cust || "(no customer)"}{more}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {selectedDispatch && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  Customer: {selectedDispatch.order?.customer?.name || "—"} · {lines.length} line item(s)
+                <div className="text-xs mt-1">
+                  <span className="text-muted-foreground">Customer:</span> {customerName || "—"}
+                  {multiCustomer && <span className="text-red-600 ml-2">⚠ Dispatch spans {dispatchCustomers!.length} customers — split into separate returns, one per customer.</span>}
+                  <span className="text-muted-foreground"> · {lines.length} line item(s)</span>
                 </div>
               )}
             </div>
