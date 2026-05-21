@@ -286,6 +286,7 @@ import SupplierPaymentsPage from "./pages/accounting/SupplierPaymentsPage";
 import SalesReturnPage from "./pages/accounting/SalesReturnPage";
 import PurchaseReturnPage from "./pages/accounting/PurchaseReturnPage";
 import SalesReturnsPage from "./pages/sales/SalesReturnsPage";
+import CustomerPricingPage from "./pages/sales/CustomerPricingPage";
 import PurchaseReturnsPage from "./pages/purchase/PurchaseReturnsPage";
 import PeriodClosePage from "./pages/accounting/PeriodClosePage";
 import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
@@ -438,6 +439,7 @@ const App = () => (
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
+            <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
