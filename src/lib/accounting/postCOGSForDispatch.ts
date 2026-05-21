@@ -15,10 +15,11 @@ export interface PostCOGSResult {
 
 const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
 
-// Pure-periodic mode: when this is false, per-dispatch COGS doesn't fire.
-// The Periodic COGS page (/accounting/periodic-cogs) becomes the sole COGS source.
-// Default is false (periodic mode). Set VITE_ENABLE_PERPETUAL_COGS=true to opt into per-dispatch COGS.
-const isPerpetualEnabled = () => import.meta.env.VITE_ENABLE_PERPETUAL_COGS === "true";
+// Perpetual COGS: every dispatch immediately posts Dr COGS / Cr FG using product.standard_cost.
+// Default is ON — the live P&L is meaningless without matching COGS against revenue.
+// Set VITE_ENABLE_PERPETUAL_COGS=false to opt out (e.g. for periodic-only mode where the
+// Periodic COGS page at /accounting/periodic-cogs becomes the sole COGS source).
+const isPerpetualEnabled = () => import.meta.env.VITE_ENABLE_PERPETUAL_COGS !== "false";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
