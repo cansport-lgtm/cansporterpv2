@@ -194,6 +194,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Customers", href: "/sales/customers" },
       { title: "Customer Logos", href: "/sales/customer-logos" },
+      { title: "Customer Pricing", href: "/sales/customer-pricing" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
       { title: "Sales Returns", href: "/sales/returns" },
