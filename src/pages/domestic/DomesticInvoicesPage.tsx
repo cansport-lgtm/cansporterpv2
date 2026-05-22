@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
+import { InvoiceEditDialog } from "@/components/sales/InvoiceEditDialog";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Printer, FileText, Eye } from "lucide-react";
+import { Plus, Printer, FileText, Eye, Pencil } from "lucide-react";
 import { format, addDays, startOfMonth } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -40,6 +41,7 @@ export default function DomesticInvoicesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [printInvoiceId, setPrintInvoiceId] = useState<string | null>(null);
+  const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
 
   // Deep-link: open ?invoice=<id> in the view dialog (used from Party Ledger etc.)
   // Deep-link: open ?createFromDispatch=<id> to pre-fill the create dialog (used from Dispatch list)
@@ -123,13 +125,14 @@ export default function DomesticInvoicesPage() {
     enabled: createOpen,
   });
 
-  // Detail: dispatch items + amount, for the selected dispatch (used on create + view + print)
+  // Detail: dispatch items + amount, for the selected dispatch (used on create only;
+  // view/print read from the invoice's own items table once the invoice exists).
   const fetchDispatchDetail = async (dispatchId: string) => {
     const { data, error } = await sb
       .from("sales_dispatch_items")
       .select(`
         id, quantity_dozens, packing_type,
-        order_item:sales_order_items(price_per_dozen, product:products(code, name), grade:grades(name))
+        order_item:sales_order_items(price_per_dozen, product:products(id, code, name), grade:grades(name))
       `)
       .eq("dispatch_id", dispatchId);
     if (error) throw error;
@@ -200,6 +203,7 @@ export default function DomesticInvoicesPage() {
           invoice_date: invoiceDate,
           due_date: dueDate,
           payment_terms: paymentTerms,
+          subtotal: totalForCreate,
           total_amount: totalForCreate,
           notes: notes || null,
           status: "draft",
@@ -208,6 +212,31 @@ export default function DomesticInvoicesPage() {
         .select("id, invoice_number")
         .single();
       if (error) throw error;
+
+      // Snapshot dispatch items into the invoice's own item table so the
+      // invoice becomes a fully independent, editable document.
+      const itemsPayload = (createDispatchItems || []).map((it: any, i: number) => {
+        const qty = Number(it.quantity_dozens || 0);
+        const price = Number(it.order_item?.price_per_dozen || 0);
+        const product = it.order_item?.product;
+        return {
+          invoice_id: data.id,
+          dispatch_item_id: it.id,
+          product_id: product?.id || null,
+          description: product ? `${product.code || ""} — ${product.name || ""}` : null,
+          grade_name: it.order_item?.grade?.name || null,
+          packing_type: it.packing_type || null,
+          quantity_dozens: qty,
+          price_per_dozen: price,
+          amount: qty * price,
+          line_order: i,
+        };
+      });
+      if (itemsPayload.length > 0) {
+        const { error: iErr } = await sb.from("domestic_invoice_items").insert(itemsPayload);
+        if (iErr) throw iErr;
+      }
+
       return data;
     },
     onSuccess: (data) => {
@@ -251,20 +280,29 @@ export default function DomesticInvoicesPage() {
     enabled: !!printInvoiceId && !printInListInvoice,
   });
   const printInvoice = printInListInvoice || printDeepLinkInvoice;
-  const { data: printDispatchItems } = useQuery({
-    queryKey: ["dispatch-items-for-print", printInvoice?.dispatch_id],
-    queryFn: () => fetchDispatchDetail(printInvoice?.dispatch_id),
-    enabled: !!printInvoiceId && !!printInvoice?.dispatch_id,
+  // Read the invoice's own line items (snapshotted at create time and editable thereafter).
+  const { data: printItems } = useQuery({
+    queryKey: ["invoice-items-for-print", printInvoiceId],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("domestic_invoice_items")
+        .select("*")
+        .eq("invoice_id", printInvoiceId)
+        .order("line_order");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!printInvoiceId,
   });
 
   useEffect(() => {
-    if (!printInvoiceId || !printDispatchItems) return;
+    if (!printInvoiceId || !printItems) return;
     const t = setTimeout(() => {
       window.print();
       setPrintInvoiceId(null);
     }, 250);
     return () => clearTimeout(t);
-  }, [printInvoiceId, printDispatchItems]);
+  }, [printInvoiceId, printItems]);
 
   const totals = {
     count: invoices?.length || 0,
@@ -277,7 +315,7 @@ export default function DomesticInvoicesPage() {
   return (
     <ERPLayout>
       {/* === PRINT VIEW (only visible when printing) === */}
-      {printInvoice && printDispatchItems && (
+      {printInvoice && printItems && (
         <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:p-8 print:z-50 print:text-foreground">
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-800">
@@ -317,14 +355,14 @@ export default function DomesticInvoicesPage() {
                 </tr>
               </thead>
               <tbody>
-                {printDispatchItems.map((it: any, i: number) => (
+                {printItems?.map((it: any, i: number) => (
                   <tr key={it.id} className="border-b border-gray-200">
                     <td className="py-2">{i + 1}</td>
-                    <td className="py-2">{it.order_item?.product?.name} <span className="text-xs text-gray-500">({it.order_item?.product?.code})</span></td>
-                    <td className="py-2 text-xs">{it.order_item?.grade?.name || ""}{it.packing_type ? ` / ${it.packing_type}` : ""}</td>
+                    <td className="py-2">{it.description || "—"}</td>
+                    <td className="py-2 text-xs">{it.grade_name || ""}{it.packing_type ? ` / ${it.packing_type}` : ""}</td>
                     <td className="text-right py-2">{Number(it.quantity_dozens).toLocaleString()}</td>
-                    <td className="text-right py-2">Rs. {Number(it.order_item?.price_per_dozen || 0).toLocaleString()}</td>
-                    <td className="text-right py-2 font-medium">Rs. {(Number(it.quantity_dozens) * Number(it.order_item?.price_per_dozen || 0)).toLocaleString()}</td>
+                    <td className="text-right py-2">Rs. {Number(it.price_per_dozen).toLocaleString()}</td>
+                    <td className="text-right py-2 font-medium">Rs. {Number(it.amount).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -415,6 +453,7 @@ export default function DomesticInvoicesPage() {
                 <TableCell>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewInvoiceId(inv.id)} title="View"><Eye className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditInvoiceId(inv.id)} title="Edit"><Pencil className="h-3 w-3" /></Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setPrintInvoiceId(inv.id)} title="Print"><Printer className="h-3 w-3" /></Button>
                   </div>
                 </TableCell>
@@ -488,6 +527,11 @@ export default function DomesticInvoicesPage() {
         invoiceId={viewInvoiceId}
         onOpenChange={(o) => !o && setViewInvoiceId(null)}
         onPrint={(id) => { setViewInvoiceId(null); setPrintInvoiceId(id); }}
+      />
+
+      <InvoiceEditDialog
+        invoiceId={editInvoiceId}
+        onOpenChange={(o) => !o && setEditInvoiceId(null)}
       />
       </div>
     </ERPLayout>
