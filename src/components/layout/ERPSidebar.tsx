@@ -441,6 +441,7 @@ const navigationItems: NavItem[] = [
       { title: "Period & Audit", href: "", isHeader: true },
       { title: "Period Close", href: "/accounting/period-close" },
       { title: "Audit Log", href: "/accounting/audit-log" },
+      { title: "Settings", href: "/accounting/settings", superAdminOnly: true },
     ],
   },
   {

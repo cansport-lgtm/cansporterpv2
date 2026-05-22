@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { AlertCircle, CheckCircle } from "lucide-react";
+import { useAppSetting } from "@/hooks/useAppSetting";
+import { Link } from "react-router-dom";
 
 const sb = supabase as any;
 
@@ -79,7 +81,7 @@ export default function DefaultAccountsPage() {
     onError: (err: any) => toast({ title: "Save failed", description: err?.message, variant: "destructive" }),
   });
 
-  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+  const { value: flagEnabled } = useAppSetting<boolean>("accounting_autopost_enabled", true);
 
   const missingCount = useMemo(() => {
     if (!mappings) return DEFAULT_SLOTS.length;
@@ -107,9 +109,11 @@ export default function DefaultAccountsPage() {
           <div className={`text-2xl font-semibold ${missingCount === 0 ? "text-green-600" : "text-amber-600"}`}>{missingCount}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <div className="text-xs text-muted-foreground">Kill switch (env)</div>
-          <div className="text-sm font-mono mt-1">VITE_ENABLE_ACC_AUTOPOST</div>
-          <div className="text-xs text-muted-foreground mt-1">Set to <code>true</code> in <code>.env.local</code> then restart dev server.</div>
+          <div className="text-xs text-muted-foreground">Auto-post master switch</div>
+          <div className="text-sm mt-1">{flagEnabled ? "Currently ENABLED" : "Currently DISABLED"}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Toggle from <Link to="/accounting/settings" className="text-primary hover:underline">Accounting Settings</Link> (super-admin).
+          </div>
         </CardContent></Card>
       </div>
 

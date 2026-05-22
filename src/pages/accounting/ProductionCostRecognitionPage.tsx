@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { Calculator, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { useAppSetting } from "@/hooks/useAppSetting";
 import { previewProductionConsumption, postProductionConsumption } from "@/lib/accounting/postProductionConsumption";
 
 export default function ProductionCostRecognitionPage() {
@@ -27,7 +28,7 @@ export default function ProductionCostRecognitionPage() {
       queryClient.invalidateQueries({ queryKey: ["acc-prod-cost-preview"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
       if (result.skipped === "flag_off") {
-        toast({ title: "Auto-post flag is OFF", description: "Enable VITE_ENABLE_ACC_AUTOPOST=true to post.", variant: "destructive" });
+        toast({ title: "Auto-post flag is OFF", description: "Enable it from Accounting Settings (super-admin).", variant: "destructive" });
       } else if (result.skipped === "already_posted") {
         toast({ title: "Already posted", description: `Existing voucher: ${result.voucherNumber}` });
       } else if (result.skipped === "nothing_to_post") {
@@ -44,7 +45,7 @@ export default function ProductionCostRecognitionPage() {
   const totalAmount = preview?.totalAmount || 0;
   const rowCount = preview?.rows.length || 0;
   const zeroCostRows = (preview?.rows || []).filter((r) => r.cost_value === 0).length;
-  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+  const { value: flagEnabled } = useAppSetting<boolean>("accounting_autopost_enabled", true);
 
   return (
     <ERPLayout>
@@ -137,7 +138,7 @@ export default function ProductionCostRecognitionPage() {
       <div className="text-xs text-muted-foreground space-y-1">
         <div>• <strong>Idempotency</strong>: only one voucher per date can be posted. Reposting is blocked once a voucher exists for {date}.</div>
         <div>• <strong>Cost source</strong>: each raw material's <code>cost_value</code> field. Items showing Rs. 0 will post zero — set cost in the Raw Materials master before posting.</div>
-        <div>• <strong>Kill switch</strong>: posting is blocked when <code>VITE_ENABLE_ACC_AUTOPOST</code> is not <code>true</code>.</div>
+        <div>• <strong>Kill switch</strong>: posting is blocked when the accounting auto-post flag is OFF (toggle from Accounting Settings — super-admin).</div>
       </div>
     </ERPLayout>
   );

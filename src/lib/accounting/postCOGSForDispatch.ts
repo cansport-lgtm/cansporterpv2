@@ -13,13 +13,7 @@ export interface PostCOGSResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
-
-// Perpetual COGS: every dispatch immediately posts Dr COGS / Cr FG using product.standard_cost.
-// Default is ON — the live P&L is meaningless without matching COGS against revenue.
-// Set VITE_ENABLE_PERPETUAL_COGS=false to opt out (e.g. for periodic-only mode where the
-// Periodic COGS page at /accounting/periodic-cogs becomes the sole COGS source).
-const isPerpetualEnabled = () => import.meta.env.VITE_ENABLE_PERPETUAL_COGS !== "false";
+import { isAccAutopostEnabled, isPerpetualCogsEnabled } from "./appSettings";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
@@ -47,8 +41,8 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
  */
 export async function postCOGSForDispatch(dispatchId: string): Promise<PostCOGSResult> {
   try {
-    if (!isFlagOn()) return { ok: true, skipped: "flag_off" };
-    if (!isPerpetualEnabled()) return { ok: true, skipped: "perpetual_disabled" };
+    if (!(await isAccAutopostEnabled())) return { ok: true, skipped: "flag_off" };
+    if (!(await isPerpetualCogsEnabled())) return { ok: true, skipped: "perpetual_disabled" };
 
     // Load dispatch + items + linked products
     const { data: dispatch, error: dErr } = await sb

@@ -98,7 +98,7 @@ export default function SalesReconciliationPage() {
       queryClient.invalidateQueries({ queryKey: ["sales-recon-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
       if (result.skipped === "flag_off") {
-        toast({ title: "Auto-post flag is OFF", description: "Enable VITE_ENABLE_ACC_AUTOPOST=true and restart to repost.", variant: "destructive" });
+        toast({ title: "Auto-post flag is OFF", description: "Enable from Accounting Settings (super-admin).", variant: "destructive" });
       } else if (result.vouchers && result.vouchers.length > 0) {
         toast({ title: `Posted ${result.vouchers.length} voucher(s)` });
       } else {

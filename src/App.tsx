@@ -282,6 +282,7 @@ import PurchaseReturnsPage from "./pages/purchase/PurchaseReturnsPage";
 import PeriodClosePage from "./pages/accounting/PeriodClosePage";
 import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
 import AccountingAuditLogPage from "./pages/accounting/AuditLogPage";
+import AccountingSettingsPage from "./pages/accounting/AccountingSettingsPage";
 
 // CRM pages
 import CRMDashboard from "./pages/crm/CRMDashboard";
@@ -642,6 +643,7 @@ const App = () => (
             <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
             <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
             <Route path="/accounting/audit-log" element={<ProtectedRoute><AccountingAuditLogPage /></ProtectedRoute>} />
+            <Route path="/accounting/settings" element={<ProtectedRoute requiredRole="super_admin"><AccountingSettingsPage /></ProtectedRoute>} />
             <Route path="/accounting/*" element={<ProtectedRoute><ComingSoon title="Accounting (Standalone)" /></ProtectedRoute>} />
 
             {/* CRM Routes */}

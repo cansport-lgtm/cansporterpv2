@@ -92,7 +92,7 @@ export default function PurchaseReconciliationPage() {
       queryClient.invalidateQueries({ queryKey: ["acc-purch-recon-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
       if (result.skipped === "flag_off") {
-        toast({ title: "Auto-post flag is OFF", description: "Enable VITE_ENABLE_ACC_AUTOPOST=true", variant: "destructive" });
+        toast({ title: "Auto-post flag is OFF", description: "Enable from Accounting Settings (super-admin).", variant: "destructive" });
       } else if (result.skipped === "already_posted") {
         toast({ title: "Already posted", description: result.voucherNumber });
       } else {
