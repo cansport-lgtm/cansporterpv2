@@ -46,7 +46,8 @@ export default function PeriodicCOGSPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+  // Auto-post flag is default-ON since PR #10 — opt out by setting VITE_ENABLE_ACC_AUTOPOST="false".
+  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
   const p = preview;
   const variance = p?.variance ?? 0;
   const cogs = p?.calculatedCOGS ?? 0;
