@@ -210,15 +210,6 @@ import FiveSCheckpointsPage from "./pages/five-s/FiveSCheckpointsPage";
 import FiveSDepartmentsPage from "./pages/five-s/FiveSDepartmentsPage";
 
 // Finance Reports pages
-import FinanceDashboard from "./pages/finance/FinanceDashboard";
-import ChartOfAccountsPage from "./pages/finance/ChartOfAccountsPage";
-import PeriodsPage from "./pages/finance/PeriodsPage";
-import TrialBalancePage from "./pages/finance/TrialBalancePage";
-import JournalEntriesPage from "./pages/finance/JournalEntriesPage";
-import ProfitLossPage from "./pages/finance/ProfitLossPage";
-import BalanceSheetPage from "./pages/finance/BalanceSheetPage";
-import CashFlowPage from "./pages/finance/CashFlowPage";
-import AccountsReceivablePage from "./pages/finance/AccountsReceivablePage";
 
 // Six Sigma pages
 import SixSigmaDashboard from "./pages/six-sigma/SixSigmaDashboard";
@@ -574,16 +565,7 @@ const App = () => (
             <Route path="/five-s/*" element={<ProtectedRoute><ComingSoon title="5S Module" /></ProtectedRoute>} />
 
             {/* Finance Reports Routes */}
-            <Route path="/finance/dashboard" element={<ProtectedRoute><FinanceDashboard /></ProtectedRoute>} />
-            <Route path="/finance/chart-of-accounts" element={<ProtectedRoute><ChartOfAccountsPage /></ProtectedRoute>} />
-            <Route path="/finance/periods" element={<ProtectedRoute><PeriodsPage /></ProtectedRoute>} />
-            <Route path="/finance/trial-balance" element={<ProtectedRoute><TrialBalancePage /></ProtectedRoute>} />
-            <Route path="/finance/journal-entries" element={<ProtectedRoute><JournalEntriesPage /></ProtectedRoute>} />
-            <Route path="/finance/profit-loss" element={<ProtectedRoute><ProfitLossPage /></ProtectedRoute>} />
-            <Route path="/finance/balance-sheet" element={<ProtectedRoute><BalanceSheetPage /></ProtectedRoute>} />
-            <Route path="/finance/cash-flow" element={<ProtectedRoute><CashFlowPage /></ProtectedRoute>} />
-            <Route path="/finance/accounts-receivable" element={<ProtectedRoute><AccountsReceivablePage /></ProtectedRoute>} />
-            <Route path="/finance/*" element={<ProtectedRoute><ComingSoon title="Finance Reports" /></ProtectedRoute>} />
+            {/* Legacy /finance/* routes removed — module discontinued. Use Accounting instead. */}
 
             {/* Six Sigma Routes */}
             <Route path="/six-sigma/dashboard" element={<ProtectedRoute><SixSigmaDashboard /></ProtectedRoute>} />
