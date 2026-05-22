@@ -75,6 +75,7 @@ export default function DomesticSalesOrdersPage() {
       packing_type: string;
       no_of_packages: string;
       quantity_dozens: string;
+      price_per_dozen: string;
       production_instructions: string;
     }>,
   });
@@ -90,6 +91,7 @@ export default function DomesticSalesOrdersPage() {
       packing_type: string;
       no_of_packages: string;
       quantity_dozens: string;
+      price_per_dozen: string;
       production_instructions: string;
     }>,
   });
@@ -140,6 +142,34 @@ export default function DomesticSalesOrdersPage() {
     },
     enabled: !!viewOrder?.id,
   });
+
+  // Active customer pricing for the customer currently being edited (create or edit dialog).
+  // Used to auto-fill price_per_dozen when a product is picked.
+  const activeCustomerId = isDialogOpen ? formData.customer_id : (editOrder ? editFormData.customer_id : '');
+  const { data: customerPricingRows } = useQuery({
+    queryKey: ['domestic-order-customer-pricing', activeCustomerId],
+    queryFn: async () => {
+      if (!activeCustomerId) return [];
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const { data, error } = await supabase
+        .from('customer_pricing')
+        .select('product_id, price_per_dozen, effective_from, effective_to')
+        .eq('customer_id', activeCustomerId)
+        .eq('is_active', true)
+        .lte('effective_from', today);
+      if (error) throw error;
+      return (data || []).filter((r: any) => !r.effective_to || r.effective_to >= today);
+    },
+    enabled: !!activeCustomerId,
+  });
+  // Build a productId → price lookup (latest effective_from wins if multiple)
+  const priceForProduct = (productId: string): number => {
+    if (!productId || !customerPricingRows?.length) return 0;
+    const candidates = customerPricingRows.filter((r: any) => r.product_id === productId);
+    if (candidates.length === 0) return 0;
+    candidates.sort((a: any, b: any) => (b.effective_from || '').localeCompare(a.effective_from || ''));
+    return Number(candidates[0].price_per_dozen) || 0;
+  };
 
   // Fetch ALL order items for inline list view
   const allOrderIds = orders?.map(o => o.id) || [];
@@ -227,17 +257,21 @@ export default function DomesticSalesOrdersPage() {
       if (data.items.length > 0) {
         const items = data.items
           .filter(item => item.product_id && parseInt(item.quantity_dozens) > 0)
-          .map(item => ({
-            order_id: newOrder.id,
-            product_id: item.product_id,
-            grade_id: null,
-            packing_type: item.packing_type || null,
-            quantity_dozens: parseInt(item.quantity_dozens) || 0,
-            price_per_dozen: 0,
-            amount: 0,
-            production_instructions: item.production_instructions || null,
-            remarks: null,
-          }));
+          .map(item => {
+            const qty = parseInt(item.quantity_dozens) || 0;
+            const rate = parseFloat(item.price_per_dozen) || 0;
+            return {
+              order_id: newOrder.id,
+              product_id: item.product_id,
+              grade_id: null,
+              packing_type: item.packing_type || null,
+              quantity_dozens: qty,
+              price_per_dozen: rate,
+              amount: qty * rate,
+              production_instructions: item.production_instructions || null,
+              remarks: null,
+            };
+          });
 
         if (items.length > 0) {
           const { error: itemsError } = await supabase
@@ -393,12 +427,15 @@ export default function DomesticSalesOrdersPage() {
       // Update existing and insert new items
       for (const item of data.items) {
         const qty = parseInt(item.quantity_dozens) || 0;
+        const rate = parseFloat(item.price_per_dozen) || 0;
         if (!item.product_id || qty <= 0) continue;
         if (item.id) {
           await supabase.from('sales_order_items').update({
             product_id: item.product_id,
             packing_type: item.packing_type,
             quantity_dozens: qty,
+            price_per_dozen: rate,
+            amount: qty * rate,
             production_instructions: item.production_instructions || null,
           }).eq('id', item.id);
         } else {
@@ -407,8 +444,8 @@ export default function DomesticSalesOrdersPage() {
             product_id: item.product_id,
             packing_type: item.packing_type,
             quantity_dozens: qty,
-            price_per_dozen: 0,
-            amount: 0,
+            price_per_dozen: rate,
+            amount: qty * rate,
             production_instructions: item.production_instructions || null,
           }]);
         }
@@ -437,6 +474,7 @@ export default function DomesticSalesOrdersPage() {
         packing_type: item.packing_type || 'standard',
         no_of_packages: packages.toString(),
         quantity_dozens: (item.quantity_dozens || 0).toString(),
+        price_per_dozen: (item.price_per_dozen || 0).toString(),
         production_instructions: item.production_instructions || '',
       };
     });
@@ -455,7 +493,7 @@ export default function DomesticSalesOrdersPage() {
   const addEditItem = () => {
     setEditFormData({
       ...editFormData,
-      items: [...editFormData.items, { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', production_instructions: '' }],
+      items: [...editFormData.items, { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '' }],
     });
   };
 
@@ -474,6 +512,14 @@ export default function DomesticSalesOrdersPage() {
       const packingDozens = getPackingDozens(item.packing_type);
       const packages = parseInt(item.no_of_packages) || 0;
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
+    }
+    // Auto-fill price from customer_pricing on product change (only if no manual override yet).
+    if (field === 'product_id' && value) {
+      const existing = parseFloat(newItems[index].price_per_dozen);
+      if (!existing || existing <= 0) {
+        const lookup = priceForProduct(value);
+        if (lookup > 0) newItems[index].price_per_dozen = lookup.toString();
+      }
     }
     setEditFormData({ ...editFormData, items: newItems });
   };
@@ -495,6 +541,11 @@ export default function DomesticSalesOrdersPage() {
     const validItems = editFormData.items.filter(item => item.product_id && parseInt(item.quantity_dozens) > 0);
     if (validItems.length === 0) {
       toast.error('Please add at least one item with quantity');
+      return;
+    }
+    const zeroRate = validItems.find(item => !(parseFloat(item.price_per_dozen) > 0));
+    if (zeroRate) {
+      toast.error('Set Rate/Dz on every line — zero rates would silently skip accounting auto-post.');
       return;
     }
     updateMutation.mutate({ id: editOrder.id, data: editFormData });
@@ -612,7 +663,7 @@ export default function DomesticSalesOrdersPage() {
       ...formData,
       items: [
         ...formData.items,
-        { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', production_instructions: '' },
+        { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '' },
       ],
     });
   };
@@ -627,7 +678,7 @@ export default function DomesticSalesOrdersPage() {
   const updateItem = (index: number, field: string, value: string) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     // Auto-calculate quantity_dozens when packing_type or no_of_packages changes
     if (field === 'packing_type' || field === 'no_of_packages') {
       const item = newItems[index];
@@ -635,7 +686,16 @@ export default function DomesticSalesOrdersPage() {
       const packages = parseInt(item.no_of_packages) || 0;
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
     }
-    
+
+    // Auto-fill price from customer_pricing on product change (only if no manual override yet).
+    if (field === 'product_id' && value) {
+      const existing = parseFloat(newItems[index].price_per_dozen);
+      if (!existing || existing <= 0) {
+        const lookup = priceForProduct(value);
+        if (lookup > 0) newItems[index].price_per_dozen = lookup.toString();
+      }
+    }
+
     setFormData({ ...formData, items: newItems });
   };
 
@@ -652,6 +712,11 @@ export default function DomesticSalesOrdersPage() {
     const validItems = formData.items.filter(item => item.product_id && parseInt(item.quantity_dozens) > 0);
     if (validItems.length === 0) {
       toast.error('Please add at least one item with quantity');
+      return;
+    }
+    const zeroRate = validItems.find(item => !(parseFloat(item.price_per_dozen) > 0));
+    if (zeroRate) {
+      toast.error('Set Rate/Dz on every line — zero rates would silently skip accounting auto-post.');
       return;
     }
     saveMutation.mutate(formData);
@@ -799,6 +864,7 @@ export default function DomesticSalesOrdersPage() {
                                 <TableHead>Packing</TableHead>
                                 <TableHead>No of Ctn/Bag</TableHead>
                                 <TableHead>Qty (Dz) *</TableHead>
+                                <TableHead>Rate / Dz *</TableHead>
                                 <TableHead>Production Instructions</TableHead>
                                 <TableHead className="w-12"></TableHead>
                               </TableRow>
@@ -806,7 +872,7 @@ export default function DomesticSalesOrdersPage() {
                             <TableBody>
                               {formData.items.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                                  <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
                                     No items added
                                   </TableCell>
                                 </TableRow>
@@ -855,6 +921,17 @@ export default function DomesticSalesOrdersPage() {
                                         readOnly
                                         className="w-24 bg-muted"
                                         placeholder="0"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={item.price_per_dozen}
+                                        onChange={(e) => updateItem(index, 'price_per_dozen', e.target.value)}
+                                        className={`w-28 ${!(parseFloat(item.price_per_dozen) > 0) ? 'border-red-300' : ''}`}
+                                        placeholder="Rs. 0"
                                       />
                                     </TableCell>
                                     <TableCell>
@@ -1238,6 +1315,7 @@ export default function DomesticSalesOrdersPage() {
                           <TableHead>Packing</TableHead>
                           <TableHead>No of Ctn/Bag</TableHead>
                           <TableHead>Qty (Dz) *</TableHead>
+                          <TableHead>Rate / Dz *</TableHead>
                           <TableHead>Production Instructions</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
@@ -1245,7 +1323,7 @@ export default function DomesticSalesOrdersPage() {
                       <TableBody>
                         {editFormData.items.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                            <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
                               No items added
                             </TableCell>
                           </TableRow>
@@ -1294,6 +1372,17 @@ export default function DomesticSalesOrdersPage() {
                                   readOnly
                                   className="w-24 bg-muted"
                                   placeholder="0"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.price_per_dozen}
+                                  onChange={(e) => updateEditItem(index, 'price_per_dozen', e.target.value)}
+                                  className={`w-28 ${!(parseFloat(item.price_per_dozen) > 0) ? 'border-red-300' : ''}`}
+                                  placeholder="Rs. 0"
                                 />
                               </TableCell>
                               <TableCell>
