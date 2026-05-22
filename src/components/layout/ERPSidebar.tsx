@@ -390,23 +390,10 @@ const navigationItems: NavItem[] = [
       
     ],
   },
-  {
-    title: "Finance Reports",
-    icon: BookOpen,
-    color: "text-emerald-500",
-    module: "finance",
-    children: [
-      { title: "Dashboard", href: "/finance/dashboard" },
-      { title: "Chart of Accounts", href: "/finance/chart-of-accounts" },
-      { title: "Periods", href: "/finance/periods" },
-      { title: "Trial Balance", href: "/finance/trial-balance" },
-      { title: "Journal Entries", href: "/finance/journal-entries" },
-      { title: "Profit & Loss", href: "/finance/profit-loss" },
-      { title: "Balance Sheet", href: "/finance/balance-sheet" },
-      { title: "Cash Flow", href: "/finance/cash-flow" },
-      { title: "Accounts Receivable", href: "/finance/accounts-receivable" },
-    ],
-  },
+  // Legacy "Finance Reports" section removed — those pages query the empty
+  // finance_* tables. All accounting data now flows through the new
+  // accounting_* schema and is surfaced under the Accounting module below.
+  // Routes are retained (in App.tsx) so any old bookmarks still resolve.
   {
     title: "Accounting",
     icon: Receipt,
