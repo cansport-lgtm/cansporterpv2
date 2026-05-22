@@ -42,20 +42,18 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
   });
 
   const { data: items } = useQuery({
-    queryKey: ["invoice-view-dialog-items", invoice?.dispatch_id],
+    queryKey: ["invoice-view-dialog-items", invoiceId],
     queryFn: async () => {
-      if (!invoice?.dispatch_id) return [];
+      if (!invoiceId) return [];
       const { data, error } = await sb
-        .from("sales_dispatch_items")
-        .select(`
-          id, quantity_dozens, packing_type,
-          order_item:sales_order_items(price_per_dozen, product:products(code, name), grade:grades(name))
-        `)
-        .eq("dispatch_id", invoice.dispatch_id);
+        .from("domestic_invoice_items")
+        .select("*")
+        .eq("invoice_id", invoiceId)
+        .order("line_order");
       if (error) throw error;
       return data || [];
     },
-    enabled: !!invoice?.dispatch_id,
+    enabled: !!invoiceId,
   });
 
   return (
@@ -92,11 +90,11 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
               <TableBody>
                 {items?.map((it: any) => (
                   <TableRow key={it.id}>
-                    <TableCell className="text-xs">{it.order_item?.product?.name}</TableCell>
-                    <TableCell className="text-xs">{it.order_item?.grade?.name || "—"}</TableCell>
+                    <TableCell className="text-xs">{it.description || "—"}</TableCell>
+                    <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>
                     <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-xs">Rs. {Number(it.order_item?.price_per_dozen || 0).toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-xs font-medium">Rs. {(Number(it.quantity_dozens) * Number(it.order_item?.price_per_dozen || 0)).toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-xs">Rs. {Number(it.price_per_dozen).toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-xs font-medium">Rs. {Number(it.amount).toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
