@@ -12,9 +12,7 @@ export interface PostGRNResult {
   error?: string;
 }
 
-// Default ON. Set VITE_ENABLE_ACC_AUTOPOST="false" to opt out (e.g. local dev
-// against a DB without the accounting schema).
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
+import { isAccAutopostEnabled } from "./appSettings";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
@@ -60,7 +58,7 @@ const getOrCreateAccountingParty = async (supplier: { id: string; name: string; 
  */
 export async function postGRNVoucher(grnId: string): Promise<PostGRNResult> {
   try {
-    if (!isFlagOn()) return { ok: true, skipped: "flag_off" };
+    if (!(await isAccAutopostEnabled())) return { ok: true, skipped: "flag_off" };
 
     // 1) Load GRN + related supplier + PO category
     const { data: grn, error: gErr } = await sb

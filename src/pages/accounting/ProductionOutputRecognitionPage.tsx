@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Factory, Wallet, CheckCircle, AlertTriangle } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
+import { useAppSetting } from "@/hooks/useAppSetting";
 import { postProductionOutput } from "@/lib/accounting/postProductionOutput";
 
 const sb = supabase as any;
@@ -71,7 +72,7 @@ export default function ProductionOutputRecognitionPage() {
       queryClient.invalidateQueries({ queryKey: ["acc-output-history"] });
       queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
       if (result.skipped === "flag_off") {
-        toast({ title: "Auto-post flag is OFF", description: "Enable VITE_ENABLE_ACC_AUTOPOST=true", variant: "destructive" });
+        toast({ title: "Auto-post flag is OFF", description: "Enable it from Accounting Settings (super-admin).", variant: "destructive" });
       } else if (result.skipped === "already_posted") {
         toast({ title: "Already posted", description: result.voucherNumber });
       } else if (result.skipped === "nothing_to_post") {
@@ -87,7 +88,7 @@ export default function ProductionOutputRecognitionPage() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST === "true";
+  const { value: flagEnabled } = useAppSetting<boolean>("accounting_autopost_enabled", true);
 
   return (
     <ERPLayout>

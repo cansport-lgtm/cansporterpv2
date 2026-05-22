@@ -12,7 +12,7 @@ export interface PostOutputResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
+import { isAccAutopostEnabled } from "./appSettings";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
@@ -31,7 +31,7 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
  */
 export async function postProductionOutput(date: string, amount: number, note?: string): Promise<PostOutputResult> {
   try {
-    if (!isFlagOn()) return { ok: true, skipped: "flag_off" };
+    if (!(await isAccAutopostEnabled())) return { ok: true, skipped: "flag_off" };
     if (!amount || amount <= 0) return { ok: true, skipped: "nothing_to_post" };
 
     // Idempotency check

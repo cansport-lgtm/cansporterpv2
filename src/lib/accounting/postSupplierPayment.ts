@@ -20,7 +20,7 @@ export interface PostPaymentResult {
   error?: string;
 }
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
+import { isAccAutopostEnabled } from "./appSettings";
 
 const getDefaultAccount = async (key: string): Promise<string | null> => {
   const { data } = await sb.from("accounting_default_accounts").select("account_id").eq("key", key).maybeSingle();
@@ -37,7 +37,7 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
  */
 export async function postSupplierPayment(input: PostPaymentInput): Promise<PostPaymentResult> {
   try {
-    if (!isFlagOn()) return { ok: true, skipped: "flag_off" };
+    if (!(await isAccAutopostEnabled())) return { ok: true, skipped: "flag_off" };
     if (!input.partyId) return { ok: false, error: "Missing party" };
     if (!input.amount || input.amount <= 0) return { ok: false, error: "Amount must be > 0" };
 

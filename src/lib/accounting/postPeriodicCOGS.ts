@@ -38,7 +38,7 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
   return data?.account_id ?? null;
 };
 
-const isFlagOn = () => import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
+import { isAccAutopostEnabled } from "./appSettings";
 
 /**
  * Compute periodic COGS using both stock-closing sources + RM purchases.
@@ -111,7 +111,7 @@ export interface PostPeriodicCOGSResult {
 
 export async function postPeriodicCOGS(fromDate: string, toDate: string, note?: string): Promise<PostPeriodicCOGSResult> {
   try {
-    if (!isFlagOn()) return { ok: true, skipped: "flag_off" };
+    if (!(await isAccAutopostEnabled())) return { ok: true, skipped: "flag_off" };
 
     const preview = await previewPeriodicCOGS(fromDate, toDate);
     if (preview.alreadyPosted) return { ok: true, skipped: "already_posted", voucherNumber: preview.existingVoucherNumber };

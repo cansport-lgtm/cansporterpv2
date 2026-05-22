@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { Calculator, AlertTriangle, CheckCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { previewPeriodicCOGS, postPeriodicCOGS } from "@/lib/accounting/postPeriodicCOGS";
+import { useAppSetting } from "@/hooks/useAppSetting";
 
 export default function PeriodicCOGSPage() {
   const queryClient = useQueryClient();
@@ -46,8 +47,8 @@ export default function PeriodicCOGSPage() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Auto-post flag is default-ON since PR #10 — opt out by setting VITE_ENABLE_ACC_AUTOPOST="false".
-  const flagEnabled = import.meta.env.VITE_ENABLE_ACC_AUTOPOST !== "false";
+  // Auto-post flag is now a runtime setting (super-admin can toggle via /accounting/settings).
+  const { value: flagEnabled } = useAppSetting<boolean>("accounting_autopost_enabled", true);
   const p = preview;
   const variance = p?.variance ?? 0;
   const cogs = p?.calculatedCOGS ?? 0;
