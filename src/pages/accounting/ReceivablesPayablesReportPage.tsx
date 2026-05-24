@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, ArrowUpRight, ArrowDownRight, Scale } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import * as XLSX from "xlsx";
 
 const sb = supabase as any;
@@ -23,28 +23,48 @@ type PartyRow = {
 } & Bucket;
 
 function daysBetween(a: string, b: string): number {
-  const ms = new Date(b).getTime() - new Date(a).getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
+  return differenceInCalendarDays(parseISO(b), parseISO(a));
 }
 
 /**
- * FIFO open-item aging. For an AR party we treat debits as "opens"
- * (outstanding invoices) and credits as settlements. Walk lines in
- * chronological order, settle oldest opens first, and bucket what's
- * left by days from voucher date to as-of date.
+ * FIFO open-item aging, reconciled against the net GL balance.
+ *
+ * For an AR party: debits are "opens" (outstanding invoices), credits are
+ * settlements. Walk lines in chronological order, FIFO-settle oldest opens
+ * first, then bucket what's left by days from voucher date to as-of date.
+ *
+ * Two corrections vs. the original implementation:
+ *
+ *  1. We also track the **net GL balance** (sum of debits minus credits for AR,
+ *     credits minus debits for AP) and use it as the SOURCE OF TRUTH for the
+ *     party's outstanding amount. The FIFO queue tells us how to bucket the
+ *     balance by age; the net balance tells us the total. A party with net ≤ 0
+ *     is fully paid (or overpaid) and is hidden from the report.
+ *
+ *     Without this, the previous implementation lost over-settlement amounts
+ *     and could subsequently mis-classify a brand-new credit as fully
+ *     outstanding even when the running balance was actually a debit (i.e.
+ *     the party had been overpaid).
+ *
+ *  2. Same-day lines are sub-sorted by voucher_number to make the order
+ *     deterministic; before, two same-day transactions could process in
+ *     either order, giving inconsistent aging on repeat loads.
  */
 function ageParty(lines: any[], asOfDate: string, isAR: boolean): Bucket & { total: number } {
   const sorted = [...lines].sort((a, b) => {
     const ad = a.voucher?.voucher_date || "";
     const bd = b.voucher?.voucher_date || "";
-    return ad < bd ? -1 : ad > bd ? 1 : 0;
+    if (ad !== bd) return ad < bd ? -1 : 1;
+    return (a.voucher?.voucher_number || "").localeCompare(b.voucher?.voucher_number || "");
   });
 
   const opens: { date: string; remaining: number }[] = [];
+  let net = 0;
 
   for (const l of sorted) {
     const open = isAR ? Number(l.debit_amount || 0) : Number(l.credit_amount || 0);
     let settle = isAR ? Number(l.credit_amount || 0) : Number(l.debit_amount || 0);
+    net += open - settle;
 
     if (open > 0) opens.push({ date: l.voucher?.voucher_date || asOfDate, remaining: open });
     while (settle > 0 && opens.length) {
@@ -60,13 +80,29 @@ function ageParty(lines: any[], asOfDate: string, isAR: boolean): Bucket & { tot
   }
 
   const out: Bucket & { total: number } = { b0_30: 0, b31_60: 0, b61_90: 0, b90p: 0, total: 0 };
+  // Party is fully paid (or overpaid) — nothing outstanding to report.
+  if (net <= 0.005) return out;
+
+  // Bucket the FIFO opens but cap the cumulative amount at the net GL balance.
+  // This guarantees the row total reconciles to the trial-balance figure.
+  let remaining = net;
   for (const o of opens) {
+    if (remaining <= 0) break;
+    const amt = Math.min(o.remaining, remaining);
     const days = daysBetween(o.date, asOfDate);
-    if (days <= 30) out.b0_30 += o.remaining;
-    else if (days <= 60) out.b31_60 += o.remaining;
-    else if (days <= 90) out.b61_90 += o.remaining;
-    else out.b90p += o.remaining;
-    out.total += o.remaining;
+    if (days <= 30) out.b0_30 += amt;
+    else if (days <= 60) out.b31_60 += amt;
+    else if (days <= 90) out.b61_90 += amt;
+    else out.b90p += amt;
+    out.total += amt;
+    remaining -= amt;
+  }
+  // Defensive: if the FIFO opens didn't cover the full net balance (would only
+  // happen with bad data), drop whatever's left into the current bucket so the
+  // row total still equals the GL balance.
+  if (remaining > 0.005) {
+    out.b0_30 += remaining;
+    out.total += remaining;
   }
   return out;
 }
