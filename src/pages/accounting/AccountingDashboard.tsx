@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, Landmark, FileText, Plus, BookOpen, Package, AlertTriangle, CheckCircle, ArrowRight } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 const sb = supabase as any;
 
@@ -200,7 +200,7 @@ export default function AccountingDashboard() {
                 {(recentVouchers || []).map((v: any) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-mono text-xs">{v.voucher_number}</TableCell>
-                    <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-xs">{format(parseISO(v.voucher_date), "dd MMM yyyy")}</TableCell>
                     <TableCell><Badge variant="outline">{v.voucher_type}</Badge></TableCell>
                     <TableCell className="text-xs max-w-[200px] truncate">{v.narration || v.party?.name || "—"}</TableCell>
                     <TableCell className="text-right text-xs">Rs. {Number(v.total_amount).toLocaleString()}</TableCell>

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, subDays } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
 
@@ -189,7 +189,7 @@ export default function PartyLedgerPage() {
                 <div className="font-bold">{selectedParty.name}</div>
                 <div className="text-xs">{selectedParty.code || ""}</div>
                 <div className="text-xs capitalize">{selectedParty.party_type}</div>
-                <div className="text-xs mt-1">Period: {format(new Date(fromDate), "dd MMM yyyy")} to {format(new Date(toDate), "dd MMM yyyy")}</div>
+                <div className="text-xs mt-1">Period: {format(parseISO(fromDate), "dd MMM yyyy")} to {format(parseISO(toDate), "dd MMM yyyy")}</div>
               </div>
             </div>
 
@@ -215,7 +215,7 @@ export default function PartyLedgerPage() {
                 )}
                 {rows.map((r: any) => (
                   <tr key={r.id} className="border-b border-gray-200">
-                    <td className="py-1.5">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</td>
+                    <td className="py-1.5">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}</td>
                     <td className="py-1.5">
                       <span className="font-mono mr-1">{r.voucher?.voucher_type}</span>
                       {r.voucher?.voucher_number}
@@ -320,7 +320,7 @@ export default function PartyLedgerPage() {
               const sourceTitle = sourceDoc?.kind === "grn" ? "Open purchase invoice (GRN)" : "Open source invoice";
               return (
               <TableRow key={r.id}>
-                <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
                   {sourceDoc ? (

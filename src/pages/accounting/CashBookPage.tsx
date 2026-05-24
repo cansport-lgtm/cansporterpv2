@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { toast } from "@/hooks/use-toast";
 import { ArrowDownCircle, ArrowUpCircle, Zap } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
 
@@ -438,7 +438,7 @@ export default function CashBookPage() {
             {!rows.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No transactions in this range</TableCell></TableRow>}
             {rows.map((r: any) => (
               <TableRow key={r.id}>
-                <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM")}</TableCell>
+                <TableCell className="text-xs">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
                   {r.voucher?.voucher_number}

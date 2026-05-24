@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { CreditCard } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { postSupplierPayment } from "@/lib/accounting/postSupplierPayment";
 
 const sb = supabase as any;
@@ -63,7 +63,7 @@ export default function SupplierPaymentsPage() {
         const net = Number(l.credit_amount || 0) - Number(l.debit_amount || 0);
         map[pid].total += net;
         if (net !== 0) {
-          const d = new Date(l.voucher.voucher_date);
+          const d = parseISO(l.voucher.voucher_date);
           const days = Math.floor((today.getTime() - d.getTime()) / 86400000);
           if (days <= 30) map[pid].b0_30 += net;
           else if (days <= 60) map[pid].b31_60 += net;

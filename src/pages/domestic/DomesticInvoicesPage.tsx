@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Printer, FileText, Eye, Pencil } from "lucide-react";
-import { format, addDays, startOfMonth } from "date-fns";
+import { format, addDays, startOfMonth, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 const sb = supabase as any;
@@ -157,7 +157,7 @@ export default function DomesticInvoicesPage() {
   const dueDate = (() => {
     const m = paymentTerms.match(/Net (\d+)/);
     if (!m) return invoiceDate;
-    return format(addDays(new Date(invoiceDate), parseInt(m[1])), "yyyy-MM-dd");
+    return format(addDays(parseISO(invoiceDate), parseInt(m[1])), "yyyy-MM-dd");
   })();
 
   // === Create ===
@@ -325,8 +325,8 @@ export default function DomesticInvoicesPage() {
               </div>
               <div className="text-right text-sm">
                 <div className="font-bold">{printInvoice.invoice_number}</div>
-                <div>Date: {format(new Date(printInvoice.invoice_date), "dd MMM yyyy")}</div>
-                {printInvoice.due_date && <div>Due: {format(new Date(printInvoice.due_date), "dd MMM yyyy")}</div>}
+                <div>Date: {format(parseISO(printInvoice.invoice_date), "dd MMM yyyy")}</div>
+                {printInvoice.due_date && <div>Due: {format(parseISO(printInvoice.due_date), "dd MMM yyyy")}</div>}
               </div>
             </div>
 
@@ -432,8 +432,8 @@ export default function DomesticInvoicesPage() {
             {invoices?.map((inv: any) => (
               <TableRow key={inv.id}>
                 <TableCell className="font-mono text-xs">{inv.invoice_number}</TableCell>
-                <TableCell className="text-xs">{format(new Date(inv.invoice_date), "dd MMM yyyy")}</TableCell>
-                <TableCell className="text-xs">{inv.due_date ? format(new Date(inv.due_date), "dd MMM yyyy") : "—"}</TableCell>
+                <TableCell className="text-xs">{format(parseISO(inv.invoice_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{inv.due_date ? format(parseISO(inv.due_date), "dd MMM yyyy") : "—"}</TableCell>
                 <TableCell className="text-xs">{inv.customer?.name}</TableCell>
                 <TableCell className="font-mono text-xs">{inv.dispatch?.dispatch_number}</TableCell>
                 <TableCell className="text-xs">{inv.payment_terms || "—"}</TableCell>
@@ -479,7 +479,7 @@ export default function DomesticInvoicesPage() {
                     return (
                       <SelectItem key={d.id} value={d.id}>
                         <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
-                        {format(new Date(d.dispatch_date), "dd MMM")} · {cust || "(no customer)"}{more}
+                        {format(parseISO(d.dispatch_date), "dd MMM")} · {cust || "(no customer)"}{more}
                       </SelectItem>
                     );
                   })}

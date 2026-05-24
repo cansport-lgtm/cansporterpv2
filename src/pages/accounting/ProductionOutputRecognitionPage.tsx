@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Factory, Wallet, CheckCircle, AlertTriangle } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, parseISO } from "date-fns";
 import { useAppSetting } from "@/hooks/useAppSetting";
 import { postProductionOutput } from "@/lib/accounting/postProductionOutput";
 
@@ -168,7 +168,7 @@ export default function ProductionOutputRecognitionPage() {
                 {history?.map((v: any) => (
                   <TableRow key={v.voucher_number}>
                     <TableCell className="font-mono text-xs">{v.voucher_number}</TableCell>
-                    <TableCell className="text-xs">{v.voucher_date && format(new Date(v.voucher_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-xs">{v.voucher_date && format(parseISO(v.voucher_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-right text-xs">Rs. {Number(v.total_amount).toLocaleString()}</TableCell>
                     <TableCell className="text-xs max-w-[240px] truncate">{v.narration}</TableCell>
                   </TableRow>

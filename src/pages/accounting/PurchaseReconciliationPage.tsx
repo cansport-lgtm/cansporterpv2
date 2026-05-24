@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, parseISO } from "date-fns";
 import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
 
 const sb = supabase as any;
@@ -182,7 +182,7 @@ export default function PurchaseReconciliationPage() {
             {rows.map((r: any) => (
               <TableRow key={r.id}>
                 <TableCell className="font-mono text-xs">{r.grn_number}</TableCell>
-                <TableCell className="text-xs">{r.receipt_date && format(new Date(r.receipt_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{r.receipt_date && format(parseISO(r.receipt_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">{r.supplier?.name || "—"}</TableCell>
                 <TableCell className="font-mono text-xs">{r.purchase_order?.po_number || "—"}</TableCell>
                 <TableCell className="text-xs"><Badge variant="outline" className="text-[10px]">{r.purchase_order?.category || "—"}</Badge></TableCell>

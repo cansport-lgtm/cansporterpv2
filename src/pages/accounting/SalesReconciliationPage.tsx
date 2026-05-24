@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, parseISO } from "date-fns";
 import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
 
 const sb = supabase as any;
@@ -194,7 +194,7 @@ export default function SalesReconciliationPage() {
             {rows.map((r: any) => (
               <TableRow key={r.id}>
                 <TableCell className="font-mono text-xs">{r.dispatch_number}</TableCell>
-                <TableCell className="text-xs">{r.dispatch_date && format(new Date(r.dispatch_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{r.dispatch_date && format(parseISO(r.dispatch_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">{r.customers || "—"}</TableCell>
                 <TableCell className="text-xs">{r.orders || "—"}</TableCell>
                 <TableCell className="text-right text-xs">Rs. {r.expectedAmount.toLocaleString()}</TableCell>
