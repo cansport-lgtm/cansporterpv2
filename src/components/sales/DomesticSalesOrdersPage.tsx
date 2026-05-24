@@ -20,6 +20,7 @@ import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-500',
@@ -880,16 +881,15 @@ export default function DomesticSalesOrdersPage() {
                                 formData.items.map((item, index) => (
                                   <TableRow key={index}>
                                     <TableCell>
-                                      <Select value={item.product_id} onValueChange={(v) => updateItem(index, 'product_id', v)}>
-                                        <SelectTrigger className="w-48">
-                                          <SelectValue placeholder="Select Product" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {products?.map((p) => (
-                                            <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                      <SearchableSelect
+                                        value={item.product_id}
+                                        onValueChange={(v) => updateItem(index, 'product_id', v)}
+                                        placeholder="Select Product"
+                                        triggerClassName="w-48"
+                                        options={(products || []).map((p: any) => ({
+                                          value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
+                                        }))}
+                                      />
                                     </TableCell>
                                     <TableCell>
                                       <Select value={item.packing_type} onValueChange={(v) => updateItem(index, 'packing_type', v)}>
@@ -1331,16 +1331,15 @@ export default function DomesticSalesOrdersPage() {
                           editFormData.items.map((item, index) => (
                             <TableRow key={index}>
                               <TableCell>
-                                <Select value={item.product_id} onValueChange={(v) => updateEditItem(index, 'product_id', v)}>
-                                  <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Select Product" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {products?.map((p) => (
-                                      <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <SearchableSelect
+                                  value={item.product_id}
+                                  onValueChange={(v) => updateEditItem(index, 'product_id', v)}
+                                  placeholder="Select Product"
+                                  triggerClassName="w-48"
+                                  options={(products || []).map((p: any) => ({
+                                    value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
+                                  }))}
+                                />
                               </TableCell>
                               <TableCell>
                                 <Select value={item.packing_type} onValueChange={(v) => updateEditItem(index, 'packing_type', v)}>
