@@ -303,12 +303,10 @@ export default function DailyEntryPage() {
     ...(user ? [{
       key: 'actions', header: 'Actions',
       render: (item: any) => {
-        const entryDate = new Date(item.entry_date);
-        const now = new Date();
-        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        const isCurrentMonth = entryDate >= currentMonthStart && entryDate <= currentMonthEnd;
-        const canEdit = hasRole('super_admin') || isCurrentMonth;
+        const EDIT_WINDOW_MS = 72 * 60 * 60 * 1000;
+        const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
+        const withinWindow = createdAt > 0 && (Date.now() - createdAt) <= EDIT_WINDOW_MS;
+        const canEdit = hasRole('super_admin') || withinWindow;
         const canDelete = hasRole('super_admin');
         if (!canEdit && !canDelete) return null;
         return (
@@ -332,6 +330,11 @@ export default function DailyEntryPage() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingEntry) throw new Error('No entry selected for editing');
+      const EDIT_WINDOW_MS = 72 * 60 * 60 * 1000;
+      if (!hasRole('super_admin') && editingEntry.created_at) {
+        const elapsed = Date.now() - new Date(editingEntry.created_at).getTime();
+        if (elapsed > EDIT_WINDOW_MS) throw new Error('Editing window expired (72 hours). Contact a Super Admin.');
+      }
       const { error: entryError } = await supabase.from('production_entries').update({
         entry_date: formData.entry_date, shift: formData.shift, department_id: formData.department_id,
         sub_department_id: formData.sub_department_id || null,
