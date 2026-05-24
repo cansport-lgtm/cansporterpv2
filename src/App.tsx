@@ -87,6 +87,15 @@ import HRPunctualityAnalyticsPage from "./pages/hr/HRPunctualityAnalyticsPage";
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
 import CustomersPage from "./pages/sales/CustomersPage";
+// Private Label Sales v1 additions
+import PrivateLabelCustomersPage from "./pages/sales/PrivateLabelCustomersPage";
+import CustomerCategoriesMasterPage from "./pages/sales/CustomerCategoriesMasterPage";
+import CitiesMasterPage from "./pages/sales/CitiesMasterPage";
+import AreasMasterPage from "./pages/sales/AreasMasterPage";
+import SalesFuelTripsPage from "./pages/sales/SalesFuelTripsPage";
+import SalesFuelPayoutsPage from "./pages/sales/SalesFuelPayoutsPage";
+import SalesFuelVehiclesPage from "./pages/sales/SalesFuelVehiclesPage";
+import SalesFuelPricesPage from "./pages/sales/SalesFuelPricesPage";
 import CustomerLogosPage from "./pages/sales/CustomerLogosPage";
 import QuotationsPage from "./pages/sales/QuotationsPage";
 import SalesOrdersPage from "./pages/sales/SalesOrdersPage";
@@ -456,13 +465,20 @@ const App = () => (
 
             {/* Sales Routes */}
             <Route path="/sales/dashboard" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
-            <Route path="/sales/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+            <Route path="/sales/customers" element={<ProtectedRoute><PrivateLabelCustomersPage /></ProtectedRoute>} />
             <Route path="/sales/customer-logos" element={<ProtectedRoute><CustomerLogosPage /></ProtectedRoute>} />
+            <Route path="/sales/categories" element={<ProtectedRoute><CustomerCategoriesMasterPage /></ProtectedRoute>} />
+            <Route path="/sales/cities" element={<ProtectedRoute><CitiesMasterPage /></ProtectedRoute>} />
+            <Route path="/sales/areas" element={<ProtectedRoute><AreasMasterPage /></ProtectedRoute>} />
             <Route path="/sales/quotations" element={<ProtectedRoute><QuotationsPage /></ProtectedRoute>} />
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/trips" element={<ProtectedRoute><SalesFuelTripsPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/payouts" element={<ProtectedRoute><SalesFuelPayoutsPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/vehicles" element={<ProtectedRoute><SalesFuelVehiclesPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/prices" element={<ProtectedRoute><SalesFuelPricesPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 

@@ -37,6 +37,7 @@ interface Customer {
   is_active: boolean;
   logo_url: string | null;
   sales_segment: SalesSegment;
+  customer_category?: string | null;
 }
 
 interface CustomerFormData {
@@ -53,6 +54,7 @@ interface CustomerFormData {
   credit_limit: string;
   payment_terms: string;
   is_active: boolean;
+  customer_category: string;
 }
 
 const initialFormData: CustomerFormData = {
@@ -69,6 +71,7 @@ const initialFormData: CustomerFormData = {
   credit_limit: '',
   payment_terms: '30',
   is_active: true,
+  customer_category: '',
 };
 
 interface CustomersPageBaseProps {
@@ -80,6 +83,8 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
   const queryClient = useQueryClient();
   const { hasModulePermission, roles } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [areaFilter, setAreaFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
@@ -112,6 +117,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
       <table>
         <thead><tr>
           <th>#</th><th>Code</th><th>Name</th><th>Billing Customer</th>
+          ${segment === 'private_label' ? '<th>Category</th>' : ''}
           <th>Contact</th><th>Phone</th><th>City</th><th>Area</th>
           <th>Credit Limit</th><th>Status</th>
         </tr></thead>
@@ -121,6 +127,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
             <td>${c.code}</td>
             <td>${c.name}</td>
             <td class="billing">${c.billing_customer || '-'}</td>
+            ${segment === 'private_label' ? `<td>${c.customer_category || '-'}</td>` : ''}
             <td>${c.contact_person || '-'}</td>
             <td>${c.phone || '-'}</td>
             <td>${c.city || '-'}</td>
@@ -152,22 +159,56 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
     },
   });
 
-  // Predefined cities list
-  const predefinedCities = ['Karachi', 'Lahore', 'Rawalpindi', 'Hyderabad', 'Sukkur'];
+  // Master cities/areas
+  const { data: masterCities } = useQuery({
+    queryKey: ["sales_cities_master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sales_cities" as any).select("id,name,is_active").order("name");
+      if (error) throw error;
+      return data as unknown as { id: string; name: string; is_active: boolean }[];
+    },
+  });
+  const { data: masterAreas } = useQuery({
+    queryKey: ["sales_areas_master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sales_areas" as any).select("id,name,city_id,is_active").order("name");
+      if (error) throw error;
+      return data as unknown as { id: string; name: string; city_id: string | null; is_active: boolean }[];
+    },
+  });
 
   const existingCities = useMemo(() => {
+    const masterNames = (masterCities || []).filter(c => c.is_active).map(c => c.name);
     const customerCities = customers?.map(c => c.city).filter(Boolean) || [];
-    const allCities = [...predefinedCities, ...customerCities];
-    return [...new Set(allCities)].sort() as string[];
-  }, [customers]);
+    return [...new Set([...masterNames, ...customerCities])].sort() as string[];
+  }, [customers, masterCities]);
 
-  const predefinedAreas = ['Light House'];
+  const selectedCityId = useMemo(() => masterCities?.find(c => c.name === formData.city)?.id, [masterCities, formData.city]);
 
   const existingAreas = useMemo(() => {
+    const masterFiltered = (masterAreas || []).filter(a => a.is_active && (!selectedCityId || !a.city_id || a.city_id === selectedCityId));
+    const masterNames = masterFiltered.map(a => a.name);
     const customerAreas = customers?.map(c => c.area).filter(Boolean) || [];
-    const allAreas = [...predefinedAreas, ...customerAreas];
-    return [...new Set(allAreas)].sort() as string[];
-  }, [customers]);
+    return [...new Set([...masterNames, ...customerAreas])].sort() as string[];
+  }, [customers, masterAreas, selectedCityId]);
+
+  const { data: masterCategories } = useQuery({
+    queryKey: ["sales_customer_categories_master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sales_customer_categories" as any).select("id,name,is_active").order("name");
+      if (error) throw error;
+      return data as unknown as { id: string; name: string; is_active: boolean }[];
+    },
+    enabled: segment === 'private_label',
+  });
+
+  const existingCategories = useMemo(() => {
+    const masterNames = (masterCategories || []).filter(c => c.is_active).map(c => c.name);
+    const customerCats = customers?.map(c => c.customer_category).filter(Boolean) as string[] || [];
+    const merged = [...new Set([...masterNames, ...customerCats])];
+    return merged.length ? merged.sort() : ['A', 'B', 'C', 'D'];
+  }, [customers, masterCategories]);
+
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -187,6 +228,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
         payment_terms: data.payment_terms ? parseInt(data.payment_terms) : null,
         is_active: data.is_active,
         sales_segment: segment,
+        ...(segment === 'private_label' ? { customer_category: data.customer_category || null } : {}),
       };
 
       if (editingCustomer) {
@@ -252,6 +294,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
       credit_limit: customer.credit_limit?.toString() || '',
       payment_terms: customer.payment_terms?.toString() || '30',
       is_active: customer.is_active ?? true,
+      customer_category: customer.customer_category || '',
     });
     setIsDialogOpen(true);
   };
@@ -265,11 +308,15 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
     saveMutation.mutate(formData);
   };
 
-  const filteredCustomers = customers?.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCustomers = customers?.filter(c => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.contact_person?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCity = cityFilter === 'all' || (c.city || '') === cityFilter;
+    const matchesArea = areaFilter === 'all' || (c.area || '') === areaFilter;
+    return matchesSearch && matchesCity && matchesArea;
+  });
 
   return (
     <ERPLayout>
@@ -289,6 +336,28 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                   Print
                 </Button>
               )}
+              <Select value={cityFilter} onValueChange={setCityFilter}>
+                <SelectTrigger className="w-36 bg-background">
+                  <SelectValue placeholder="All cities" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">All Cities</SelectItem>
+                  {existingCities.map((city) => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={areaFilter} onValueChange={setAreaFilter}>
+                <SelectTrigger className="w-36 bg-background">
+                  <SelectValue placeholder="All areas" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">All Areas</SelectItem>
+                  {existingAreas.map((area) => (
+                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -411,6 +480,26 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                         />
                       </div>
 
+                      {segment === 'private_label' && (
+                        <div className="space-y-2">
+                          <Label>Customer Category</Label>
+                          <Select
+                            value={formData.customer_category || 'none'}
+                            onValueChange={(value) => setFormData({ ...formData, customer_category: value === 'none' ? '' : value })}
+                          >
+                            <SelectTrigger className="bg-background">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="none">— None —</SelectItem>
+                              {existingCategories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>GST Number</Label>
@@ -474,6 +563,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                     <TableHead>Code</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Billing Customer</TableHead>
+                    {segment === 'private_label' && <TableHead>Category</TableHead>}
                     <TableHead>Contact</TableHead>
                     <TableHead>City</TableHead>
                     <TableHead>Credit Limit</TableHead>
@@ -484,11 +574,11 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
+                      <TableCell colSpan={segment === 'private_label' ? 10 : 9} className="text-center py-8">Loading...</TableCell>
                     </TableRow>
                   ) : filteredCustomers?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={segment === 'private_label' ? 10 : 9} className="text-center py-8 text-muted-foreground">
                         No customers found
                       </TableCell>
                     </TableRow>
@@ -507,6 +597,13 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                         <TableCell className="font-mono">{customer.code}</TableCell>
                         <TableCell className="font-medium">{customer.name}</TableCell>
                         <TableCell className="text-blue-600 font-medium">{(customer as any).billing_customer || '-'}</TableCell>
+                        {segment === 'private_label' && (
+                          <TableCell>
+                            {customer.customer_category ? (
+                              <Badge variant="outline" className="font-mono">{customer.customer_category}</Badge>
+                            ) : '-'}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="text-sm">
                             {customer.contact_person && <div>{customer.contact_person}</div>}
