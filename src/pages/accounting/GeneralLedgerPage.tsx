@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, subDays } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
 
@@ -176,7 +176,7 @@ export default function GeneralLedgerPage() {
             {!rows.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No transactions in this range</TableCell></TableRow>}
             {rows.map((r: any) => (
               <TableRow key={r.id}>
-                <TableCell className="text-xs">{r.voucher?.voucher_date && format(new Date(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
                   {r.voucher?.voucher_number}

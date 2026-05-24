@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { ArrowUpLeft } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { postPurchaseReturn } from "@/lib/accounting/postPurchaseReturn";
 
 const sb = supabase as any;
@@ -142,7 +142,7 @@ export default function PurchaseReturnPage() {
                 {history?.map((v: any) => (
                   <TableRow key={v.voucher_number}>
                     <TableCell className="font-mono text-xs">{v.voucher_number}</TableCell>
-                    <TableCell className="text-xs">{v.voucher_date && format(new Date(v.voucher_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-xs">{v.voucher_date && format(parseISO(v.voucher_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-xs">{v.party?.name || "—"}</TableCell>
                     <TableCell className="text-right text-xs">Rs. {Number(v.total_amount).toLocaleString()}</TableCell>
                   </TableRow>

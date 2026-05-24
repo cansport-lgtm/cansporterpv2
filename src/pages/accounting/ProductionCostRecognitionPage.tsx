@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { Calculator, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useAppSetting } from "@/hooks/useAppSetting";
 import { previewProductionConsumption, postProductionConsumption } from "@/lib/accounting/postProductionConsumption";
 
@@ -92,7 +92,7 @@ export default function ProductionCostRecognitionPage() {
 
       <div className="border rounded-lg mb-4">
         <div className="px-4 py-3 border-b bg-muted/40 flex items-center justify-between">
-          <div className="font-semibold text-sm">Posting Preview — {format(new Date(date), "dd MMM yyyy")}</div>
+          <div className="font-semibold text-sm">Posting Preview — {format(parseISO(date), "dd MMM yyyy")}</div>
           <div className="text-xs text-muted-foreground">
             Dr Raw Material Consumed (5101) Rs. {totalAmount.toLocaleString()} → Cr Inventory Raw Material (1130) Rs. {totalAmount.toLocaleString()}
           </div>

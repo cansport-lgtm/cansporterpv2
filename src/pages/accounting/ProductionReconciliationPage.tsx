@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCw, CheckCircle, AlertTriangle, ExternalLink } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 import { postProductionConsumption } from "@/lib/accounting/postProductionConsumption";
 
 const sb = supabase as any;
@@ -186,7 +186,7 @@ export default function ProductionReconciliationPage() {
               const diff = r.consumptionAmount - r.voucherAmount;
               return (
                 <TableRow key={r.date}>
-                  <TableCell className="text-xs">{format(new Date(r.date), "dd MMM yyyy")}</TableCell>
+                  <TableCell className="text-xs">{format(parseISO(r.date), "dd MMM yyyy")}</TableCell>
                   <TableCell className="text-right text-xs">{r.rowCount}</TableCell>
                   <TableCell className="text-right text-xs">Rs. {r.consumptionAmount.toLocaleString()}</TableCell>
                   <TableCell className="text-right text-xs">Rs. {r.voucherAmount.toLocaleString()}</TableCell>

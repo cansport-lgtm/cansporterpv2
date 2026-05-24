@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Eye, Download, Search } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import * as XLSX from "xlsx";
 
@@ -169,7 +169,7 @@ export default function AccountingVouchersPage() {
             {filteredVouchers?.map((v: any) => (
               <TableRow key={v.id}>
                 <TableCell className="font-mono text-xs">{v.voucher_number}</TableCell>
-                <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd MMM yyyy")}</TableCell>
+                <TableCell className="text-xs">{format(parseISO(v.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell>{typeBadge(v.voucher_type)}</TableCell>
                 <TableCell className="text-xs">{v.party?.name || "—"}</TableCell>
                 <TableCell className="text-xs max-w-[280px] truncate">{v.narration || "—"}</TableCell>
@@ -203,7 +203,7 @@ export default function AccountingVouchersPage() {
           {selectedVoucher && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Date:</span> <strong>{format(new Date(selectedVoucher.voucher_date), "dd MMM yyyy")}</strong></div>
+                <div><span className="text-muted-foreground">Date:</span> <strong>{format(parseISO(selectedVoucher.voucher_date), "dd MMM yyyy")}</strong></div>
                 <div><span className="text-muted-foreground">Party:</span> <strong>{selectedVoucher.party?.name || "—"}</strong></div>
                 <div><span className="text-muted-foreground">Amount:</span> <strong>Rs. {Number(selectedVoucher.total_amount).toLocaleString()}</strong></div>
               </div>
@@ -242,7 +242,7 @@ export default function AccountingVouchersPage() {
             <div className="space-y-3 text-sm">
               <div className="border rounded-md p-3 bg-muted/30 space-y-1">
                 <div className="flex justify-between"><span className="text-muted-foreground">Voucher #</span><strong className="font-mono">{reverseTargetVoucher.voucher_number}</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Date</span><strong>{format(new Date(reverseTargetVoucher.voucher_date), "dd MMM yyyy")}</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Date</span><strong>{format(parseISO(reverseTargetVoucher.voucher_date), "dd MMM yyyy")}</strong></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span>{typeBadge(reverseTargetVoucher.voucher_type)}</div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><strong>Rs. {Number(reverseTargetVoucher.total_amount).toLocaleString()}</strong></div>
                 {reverseTargetVoucher.narration && <div className="text-xs text-muted-foreground pt-1 border-t mt-1">{reverseTargetVoucher.narration}</div>}

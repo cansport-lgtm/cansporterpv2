@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 const sb = supabase as any;
 
@@ -69,7 +69,7 @@ export default function DayBookPage() {
           </TableHeader>
           <TableBody>
             {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && !vouchers?.length && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No vouchers on {format(new Date(date), "dd MMM yyyy")}</TableCell></TableRow>}
+            {!isLoading && !vouchers?.length && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No vouchers on {format(parseISO(date), "dd MMM yyyy")}</TableCell></TableRow>}
             {vouchers?.map((v: any) => {
               const drLines = (v.lines || []).filter((l: any) => Number(l.debit_amount) > 0);
               const crLines = (v.lines || []).filter((l: any) => Number(l.credit_amount) > 0);
