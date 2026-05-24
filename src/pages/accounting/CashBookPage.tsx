@@ -85,6 +85,44 @@ export default function CashBookPage() {
     [postableAccounts, accountId]
   );
 
+  // Default account slots — used to detect when the user picked AR or AP as the contra,
+  // so the party dropdown can auto-filter to the relevant party type.
+  const { data: defaultAccountSlots } = useQuery({
+    queryKey: ["acc-cashbook-default-slots"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_default_accounts")
+        .select("key, account_id")
+        .in("key", ["accounts_receivable", "accounts_payable"]);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { if (r.account_id) map[r.key] = r.account_id; });
+      return map;
+    },
+  });
+
+  // Decide which party_type (if any) to restrict the dropdown to, based on contra.
+  const partyTypeFilter: "customer" | "supplier" | null = useMemo(() => {
+    if (!qeContraId || !defaultAccountSlots) return null;
+    if (qeContraId === defaultAccountSlots.accounts_receivable) return "customer";
+    if (qeContraId === defaultAccountSlots.accounts_payable) return "supplier";
+    return null;
+  }, [qeContraId, defaultAccountSlots]);
+
+  const filteredParties = useMemo(() => {
+    if (!parties) return [];
+    if (!partyTypeFilter) return parties;
+    return parties.filter((p: any) => p.party_type === partyTypeFilter);
+  }, [parties, partyTypeFilter]);
+
+  // If the currently selected party doesn't match the new filter, clear it.
+  useEffect(() => {
+    if (qePartyId === "none") return;
+    if (!partyTypeFilter || !parties) return;
+    const ok = parties.some((p: any) => p.id === qePartyId && p.party_type === partyTypeFilter);
+    if (!ok) setQePartyId("none");
+  }, [partyTypeFilter, parties, qePartyId]);
+
   const resetQuickEntry = () => {
     setQeContraId("");
     setQePartyId("none");
@@ -206,25 +244,30 @@ export default function CashBookPage() {
     enabled: !!accountId,
   });
 
-  // For each ledger row, fetch the "contra account" — i.e. the other side of the voucher
+  // For each ledger row, fetch the "contra account" — i.e. the other side of the voucher.
+  // We also pull the party_id+name from the contra line so the Cash Book row shows the
+  // counterparty even though the cash line itself has no party_id (correct accounting:
+  // cash doesn't "belong to" a customer; the AR/AP line does).
   const voucherIds = useMemo(() => Array.from(new Set((lines || []).map((l: any) => l.voucher_id))), [lines]);
   const { data: contraData } = useQuery({
     queryKey: ["acc-cashbook-contra", voucherIds.join(",")],
     queryFn: async () => {
-      if (!voucherIds.length) return {};
+      if (!voucherIds.length) return { accountMap: {} as Record<string, string>, partyMap: {} as Record<string, string> };
       const { data, error } = await sb
         .from("accounting_voucher_lines")
-        .select("voucher_id, account_id, debit_amount, credit_amount, account:accounting_chart_of_accounts(name)")
+        .select("voucher_id, account_id, party_id, debit_amount, credit_amount, account:accounting_chart_of_accounts(name), party:accounting_parties(name)")
         .in("voucher_id", voucherIds);
       if (error) throw error;
-      // group by voucher_id, exclude the cash account itself, return labels
-      const map: Record<string, string> = {};
+      const accountMap: Record<string, string> = {};
+      const partyMap: Record<string, string> = {};
       (data || []).forEach((l: any) => {
         if (l.account_id === accountId) return;
-        if (!map[l.voucher_id]) map[l.voucher_id] = l.account?.name || "";
-        else if (!map[l.voucher_id].includes(l.account?.name)) map[l.voucher_id] += ", " + l.account?.name;
+        if (!accountMap[l.voucher_id]) accountMap[l.voucher_id] = l.account?.name || "";
+        else if (!accountMap[l.voucher_id].includes(l.account?.name)) accountMap[l.voucher_id] += ", " + l.account?.name;
+        const pname = l.party?.name;
+        if (pname && !partyMap[l.voucher_id]) partyMap[l.voucher_id] = pname;
       });
-      return map;
+      return { accountMap, partyMap };
     },
     enabled: voucherIds.length > 0,
   });
@@ -318,7 +361,14 @@ export default function CashBookPage() {
               />
             </div>
             <div className="col-span-2">
-              <Label className="text-xs">Party (optional)</Label>
+              <Label className="text-xs flex items-center gap-1">
+                Party (optional)
+                {partyTypeFilter && (
+                  <span className="text-[10px] text-muted-foreground italic">
+                    — filtered to {partyTypeFilter}s
+                  </span>
+                )}
+              </Label>
               <SearchableSelect
                 value={qePartyId}
                 onValueChange={setQePartyId}
@@ -326,10 +376,10 @@ export default function CashBookPage() {
                 triggerClassName="h-9 w-full"
                 options={[
                   { value: "none", label: "— None —" },
-                  ...(parties || []).map((p: any) => ({
+                  ...filteredParties.map((p: any) => ({
                     value: p.id,
                     label: p.name,
-                    secondary: `(${p.party_type})`,
+                    secondary: partyTypeFilter ? undefined : `(${p.party_type})`,
                   })),
                 ]}
               />
@@ -393,8 +443,8 @@ export default function CashBookPage() {
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
                   {r.voucher?.voucher_number}
                 </TableCell>
-                <TableCell className="text-xs">{contraData?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
-                <TableCell className="text-xs">{r.party?.name || "—"}</TableCell>
+                <TableCell className="text-xs">{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
+                <TableCell className="text-xs">{contraData?.partyMap?.[r.voucher_id] || r.party?.name || "—"}</TableCell>
                 <TableCell className="text-right text-xs">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs font-medium">Rs. {r.runningBalance.toLocaleString()}</TableCell>
