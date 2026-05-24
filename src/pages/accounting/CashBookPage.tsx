@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { toast } from "@/hooks/use-toast";
 import { ArrowDownCircle, ArrowUpCircle, Zap } from "lucide-react";
 import { format, subDays } from "date-fns";
@@ -303,30 +304,35 @@ export default function CashBookPage() {
             </div>
             <div className="col-span-3">
               <Label className="text-xs">{qeMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
-              <Select value={qeContraId} onValueChange={setQeContraId}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select account" /></SelectTrigger>
-                <SelectContent>
-                  {otherSideAccounts.map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono text-xs mr-2">{a.code}</span>{a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={qeContraId}
+                onValueChange={setQeContraId}
+                placeholder="Select account"
+                triggerClassName="h-9 w-full"
+                options={otherSideAccounts.map((a: any) => ({
+                  value: a.id,
+                  label: a.name,
+                  secondary: `(${a.code})`,
+                  search: a.code,
+                }))}
+              />
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Party (optional)</Label>
-              <Select value={qePartyId} onValueChange={setQePartyId}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  {(parties || []).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} <span className="text-xs text-muted-foreground">({p.party_type})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={qePartyId}
+                onValueChange={setQePartyId}
+                placeholder="— None —"
+                triggerClassName="h-9 w-full"
+                options={[
+                  { value: "none", label: "— None —" },
+                  ...(parties || []).map((p: any) => ({
+                    value: p.id,
+                    label: p.name,
+                    secondary: `(${p.party_type})`,
+                  })),
+                ]}
+              />
             </div>
             <div className="col-span-1">
               <Label className="text-xs">Amount</Label>

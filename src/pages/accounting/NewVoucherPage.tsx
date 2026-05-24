@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2, CheckCircle, AlertTriangle, ArrowLeft, Wallet, Landmark, BookOpen, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 const sb = supabase as any;
 
@@ -257,15 +258,19 @@ export default function NewVoucherPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Reference Party (optional, header-level)</Label>
-                <Select value={partyId} onValueChange={setPartyId}>
-                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— None —</SelectItem>
-                    {(parties || []).map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-xs text-muted-foreground">({p.party_type})</span></SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={partyId}
+                  onValueChange={setPartyId}
+                  placeholder="— None —"
+                  options={[
+                    { value: "none", label: "— None —" },
+                    ...(parties || []).map((p: any) => ({
+                      value: p.id,
+                      label: p.name,
+                      secondary: `(${p.party_type})`,
+                    })),
+                  ]}
+                />
               </div>
               <div>
                 <Label>Narration</Label>
@@ -307,23 +312,27 @@ export default function NewVoucherPage() {
                       {secondaryLines.map((line, i) => (
                         <TableRow key={i}>
                           <TableCell>
-                            <Select value={line.account_id} onValueChange={(v) => updateSecondary(i, { account_id: v })}>
-                              <SelectTrigger className="h-8"><SelectValue placeholder="Select account" /></SelectTrigger>
-                              <SelectContent>
-                                {otherSideAccounts.map((a: any) => (
-                                  <SelectItem key={a.id} value={a.id}><span className="font-mono text-xs mr-2">{a.code}</span>{a.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              value={line.account_id}
+                              onValueChange={(v) => updateSecondary(i, { account_id: v })}
+                              placeholder="Select account"
+                              triggerClassName="h-8 w-full"
+                              options={otherSideAccounts.map((a: any) => ({
+                                value: a.id, label: a.name, secondary: `(${a.code})`, search: a.code,
+                              }))}
+                            />
                           </TableCell>
                           <TableCell>
-                            <Select value={line.party_id || "none"} onValueChange={(v) => updateSecondary(i, { party_id: v === "none" ? null : v })}>
-                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">—</SelectItem>
-                                {(parties || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              value={line.party_id || "none"}
+                              onValueChange={(v) => updateSecondary(i, { party_id: v === "none" ? null : v })}
+                              placeholder="—"
+                              triggerClassName="h-8 w-full"
+                              options={[
+                                { value: "none", label: "—" },
+                                ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                              ]}
+                            />
                           </TableCell>
                           <TableCell>
                             <Input type="number" className="h-8 text-right" value={line.credit_amount || ""}
@@ -378,23 +387,27 @@ export default function NewVoucherPage() {
                       {secondaryLines.map((line, i) => (
                         <TableRow key={i}>
                           <TableCell>
-                            <Select value={line.account_id} onValueChange={(v) => updateSecondary(i, { account_id: v })}>
-                              <SelectTrigger className="h-8"><SelectValue placeholder="Select account" /></SelectTrigger>
-                              <SelectContent>
-                                {otherSideAccounts.map((a: any) => (
-                                  <SelectItem key={a.id} value={a.id}><span className="font-mono text-xs mr-2">{a.code}</span>{a.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              value={line.account_id}
+                              onValueChange={(v) => updateSecondary(i, { account_id: v })}
+                              placeholder="Select account"
+                              triggerClassName="h-8 w-full"
+                              options={otherSideAccounts.map((a: any) => ({
+                                value: a.id, label: a.name, secondary: `(${a.code})`, search: a.code,
+                              }))}
+                            />
                           </TableCell>
                           <TableCell>
-                            <Select value={line.party_id || "none"} onValueChange={(v) => updateSecondary(i, { party_id: v === "none" ? null : v })}>
-                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">—</SelectItem>
-                                {(parties || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              value={line.party_id || "none"}
+                              onValueChange={(v) => updateSecondary(i, { party_id: v === "none" ? null : v })}
+                              placeholder="—"
+                              triggerClassName="h-8 w-full"
+                              options={[
+                                { value: "none", label: "—" },
+                                ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                              ]}
+                            />
                           </TableCell>
                           <TableCell>
                             <Input type="number" className="h-8 text-right" value={line.debit_amount || ""}
@@ -469,23 +482,27 @@ export default function NewVoucherPage() {
                     {journalLines.map((line, i) => (
                       <TableRow key={i}>
                         <TableCell>
-                          <Select value={line.account_id} onValueChange={(v) => updateJournal(i, { account_id: v })}>
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Select account" /></SelectTrigger>
-                            <SelectContent>
-                              {postableAccounts.map((a: any) => (
-                                <SelectItem key={a.id} value={a.id}><span className="font-mono text-xs mr-2">{a.code}</span>{a.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            value={line.account_id}
+                            onValueChange={(v) => updateJournal(i, { account_id: v })}
+                            placeholder="Select account"
+                            triggerClassName="h-8 w-full"
+                            options={postableAccounts.map((a: any) => ({
+                              value: a.id, label: a.name, secondary: `(${a.code})`, search: a.code,
+                            }))}
+                          />
                         </TableCell>
                         <TableCell>
-                          <Select value={line.party_id || "none"} onValueChange={(v) => updateJournal(i, { party_id: v === "none" ? null : v })}>
-                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">—</SelectItem>
-                              {(parties || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            value={line.party_id || "none"}
+                            onValueChange={(v) => updateJournal(i, { party_id: v === "none" ? null : v })}
+                            placeholder="—"
+                            triggerClassName="h-8 w-full"
+                            options={[
+                              { value: "none", label: "—" },
+                              ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                            ]}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input type="number" className="h-8 text-right" value={line.debit_amount || ""}

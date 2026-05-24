@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -185,24 +186,26 @@ export default function CustomerPricingPage() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Select value={customerFilter} onValueChange={setCustomerFilter}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Customer" /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">
-            <SelectItem value="all">All customers</SelectItem>
-            {customers?.map((c: any) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={productFilter} onValueChange={setProductFilter}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Product" /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">
-            <SelectItem value="all">All products</SelectItem>
-            {products?.map((p: any) => (
-              <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={customerFilter}
+          onValueChange={setCustomerFilter}
+          placeholder="Customer"
+          triggerClassName="w-[220px]"
+          options={[
+            { value: "all", label: "All customers" },
+            ...(customers || []).map((c: any) => ({ value: c.id, label: c.name, search: c.code })),
+          ]}
+        />
+        <SearchableSelect
+          value={productFilter}
+          onValueChange={setProductFilter}
+          placeholder="Product"
+          triggerClassName="w-[220px]"
+          options={[
+            { value: "all", label: "All products" },
+            ...(products || []).map((p: any) => ({ value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code })),
+          ]}
+        />
         <Select value={activeFilter} onValueChange={(v: any) => setActiveFilter(v)}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -277,25 +280,25 @@ export default function CustomerPricingPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Customer *</Label>
-                <Select value={form.customer_id} onValueChange={(v) => setForm({ ...form, customer_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pick customer" /></SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {customers?.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name} <span className="text-xs text-muted-foreground">({c.code})</span></SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.customer_id}
+                  onValueChange={(v) => setForm({ ...form, customer_id: v })}
+                  placeholder="Pick customer"
+                  options={(customers || []).map((c: any) => ({
+                    value: c.id, label: c.name, secondary: `(${c.code})`, search: c.code,
+                  }))}
+                />
               </div>
               <div>
                 <Label>Product *</Label>
-                <Select value={form.product_id} onValueChange={(v) => setForm({ ...form, product_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {products?.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}><span className="font-mono text-xs mr-2">{p.code}</span>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.product_id}
+                  onValueChange={(v) => setForm({ ...form, product_id: v })}
+                  placeholder="Pick product"
+                  options={(products || []).map((p: any) => ({
+                    value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
+                  }))}
+                />
               </div>
             </div>
 
