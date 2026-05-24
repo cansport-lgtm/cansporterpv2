@@ -107,23 +107,29 @@ export default function DailyClosingDashboard() {
     if (!closingData) return [] as Array<{
       name: string;
       qty: number;
+      enteredQty: number;
       value: number;
       items: number;
-      rows: Array<{ code: string; name: string; unit: string; qty: number; value: number }>;
+      rows: Array<{ code: string; name: string; unit: string; enteredQty: number; multiplier: number; qty: number; value: number }>;
     }>;
-    const map: Record<string, { name: string; qty: number; value: number; items: number; rows: Array<{ code: string; name: string; unit: string; qty: number; value: number }> }> = {};
+    const map: Record<string, { name: string; qty: number; enteredQty: number; value: number; items: number; rows: Array<{ code: string; name: string; unit: string; enteredQty: number; multiplier: number; qty: number; value: number }> }> = {};
     closingData.forEach((row: any) => {
       const deptName = row.production_departments?.name || "Unassigned";
       const qty = Number(row.closing_quantity) || 0;
+      const enteredQty = row.entered_quantity != null ? Number(row.entered_quantity) : qty;
+      const multiplier = row.multiplier != null ? Number(row.multiplier) : 1;
       const cv = Number(row.planning_items?.costing_value) || 0;
-      if (!map[deptName]) map[deptName] = { name: deptName, qty: 0, value: 0, items: 0, rows: [] };
+      if (!map[deptName]) map[deptName] = { name: deptName, qty: 0, enteredQty: 0, value: 0, items: 0, rows: [] };
       map[deptName].qty += qty;
+      map[deptName].enteredQty += enteredQty;
       map[deptName].value += qty * cv;
       map[deptName].items += 1;
       map[deptName].rows.push({
         code: row.planning_items?.code || "—",
         name: row.planning_items?.name || "—",
         unit: row.planning_items?.unit || "",
+        enteredQty,
+        multiplier,
         qty,
         value: qty * cv,
       });
@@ -137,12 +143,16 @@ export default function DailyClosingDashboard() {
     return [...closingData]
       .map((row: any) => {
         const qty = Number(row.closing_quantity) || 0;
+        const enteredQty = row.entered_quantity != null ? Number(row.entered_quantity) : qty;
+        const multiplier = row.multiplier != null ? Number(row.multiplier) : 1;
         const cv = Number(row.planning_items?.costing_value) || 0;
         return {
           code: row.planning_items?.code || "—",
           name: row.planning_items?.name || "—",
           unit: row.planning_items?.unit || "",
           department: row.production_departments?.name || "Unassigned",
+          enteredQty,
+          multiplier,
           qty,
           value: qty * cv,
         };
@@ -402,6 +412,7 @@ export default function DailyClosingDashboard() {
                     <TableHead className="w-10" />
                     <TableHead>Department</TableHead>
                     <TableHead className="text-right">Items</TableHead>
+                    <TableHead className="text-right">Entered Qty</TableHead>
                     <TableHead className="text-right">Total Qty</TableHead>
                     {isSuperAdmin && <TableHead className="text-right">Stock Value</TableHead>}
                   </TableRow>
@@ -409,13 +420,13 @@ export default function DailyClosingDashboard() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center text-muted-foreground py-6">
                         Loading…
                       </TableCell>
                     </TableRow>
                   ) : departmentBreakdown.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center text-muted-foreground py-6">
                         No closing entries for this date.
                       </TableCell>
                     </TableRow>
@@ -451,6 +462,7 @@ export default function DailyClosingDashboard() {
                             </TableCell>
                             <TableCell className="font-medium">{d.name}</TableCell>
                             <TableCell className="text-right">{fmtNum(d.items)}</TableCell>
+                            <TableCell className="text-right">{fmtNum(d.enteredQty)}</TableCell>
                             <TableCell className="text-right">{fmtNum(d.qty)}</TableCell>
                             {isSuperAdmin && (
                               <TableCell className="text-right font-semibold">{fmtCurrency(d.value)}</TableCell>
@@ -458,7 +470,7 @@ export default function DailyClosingDashboard() {
                           </TableRow>
                           {isOpen && (
                             <TableRow key={`${d.name}-details`} className="bg-muted/30 hover:bg-muted/30">
-                              <TableCell colSpan={isSuperAdmin ? 5 : 4} className="p-0">
+                              <TableCell colSpan={isSuperAdmin ? 6 : 5} className="p-0">
                                 <div className="overflow-x-auto p-3">
                                   <Table>
                                     <TableHeader>
@@ -466,6 +478,8 @@ export default function DailyClosingDashboard() {
                                         <TableHead className="text-xs uppercase">Code</TableHead>
                                         <TableHead className="text-xs uppercase">Item</TableHead>
                                         <TableHead className="text-xs uppercase">Unit</TableHead>
+                                        <TableHead className="text-xs uppercase text-right">Entered Qty</TableHead>
+                                        <TableHead className="text-xs uppercase text-right">× Mult</TableHead>
                                         <TableHead className="text-xs uppercase text-right">Closing Qty</TableHead>
                                         {isSuperAdmin && (
                                           <TableHead className="text-xs uppercase text-right">Stock Value</TableHead>
@@ -478,6 +492,8 @@ export default function DailyClosingDashboard() {
                                           <TableCell className="font-mono text-xs">{r.code}</TableCell>
                                           <TableCell className="font-medium">{r.name}</TableCell>
                                           <TableCell className="text-muted-foreground text-sm">{r.unit}</TableCell>
+                                          <TableCell className="text-right">{fmtNum(r.enteredQty)}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground">{r.multiplier}</TableCell>
                                           <TableCell className="text-right">{fmtNum(r.qty)}</TableCell>
                                           {isSuperAdmin && (
                                             <TableCell className="text-right font-semibold">
@@ -517,6 +533,8 @@ export default function DailyClosingDashboard() {
                     <TableHead>Code</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead className="text-right">Entered Qty</TableHead>
+                    <TableHead className="text-right">× Mult</TableHead>
                     <TableHead className="text-right">Closing Qty</TableHead>
                     {isSuperAdmin && <TableHead className="text-right">Stock Value</TableHead>}
                   </TableRow>
@@ -524,7 +542,7 @@ export default function DailyClosingDashboard() {
                 <TableBody>
                   {topItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={isSuperAdmin ? 7 : 6} className="text-center text-muted-foreground py-6">
                         No items to display.
                       </TableCell>
                     </TableRow>
@@ -534,6 +552,8 @@ export default function DailyClosingDashboard() {
                         <TableCell className="font-mono text-xs">{it.code}</TableCell>
                         <TableCell className="font-medium">{it.name}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{it.department}</TableCell>
+                        <TableCell className="text-right">{fmtNum(it.enteredQty)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{it.multiplier}</TableCell>
                         <TableCell className="text-right">
                           {fmtNum(it.qty)} <span className="text-xs text-muted-foreground">{it.unit}</span>
                         </TableCell>
