@@ -35,7 +35,7 @@ const MODULES = [
   { key: "master_data", label: "Master Data" },
   { key: "online_sales", label: "Online Sales" },
   { key: "five_s", label: "5S Audit" },
-  { key: "finance", label: "Finance Reports" },
+  { key: "accounting", label: "Accounting" },
   { key: "projects", label: "Project Management" },
   { key: "hourly_production", label: "Hourly Production" },
   { key: "rd", label: "Product Dev & R&D" },
