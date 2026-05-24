@@ -19,7 +19,10 @@ import { format } from "date-fns";
 
 export default function LabourProductivityEditRequestsPage() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isSuperAdmin = hasRole('super_admin');
+  const isHR01 = user?.user_id === 'HR01';
+  const canReview = isSuperAdmin || isHR01;
   const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectNotes, setRejectNotes] = useState("");
 
@@ -443,7 +446,7 @@ export default function LabourProductivityEditRequestsPage() {
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading…</div>
             ) : (
-              renderTable(pendingRequests, true)
+              renderTable(pendingRequests, canReview)
             )}
           </TabsContent>
 

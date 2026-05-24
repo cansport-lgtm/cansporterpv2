@@ -1,13 +1,18 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Factory, BarChart3, Users } from "lucide-react";
+import { Clock, Factory, BarChart3, Users, CalendarIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const HOUR_LABELS: Record<number, string> = {};
 for (let i = 0; i < 24; i++) {
@@ -17,7 +22,10 @@ for (let i = 0; i < 24; i++) {
 }
 
 export default function HourlyProductionDashboard() {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const today = format(selectedDate, "yyyy-MM-dd");
+  const isToday = today === format(new Date(), "yyyy-MM-dd");
+  const dateLabel = isToday ? "Today" : format(selectedDate, "PPP");
 
   const { data: entries = [] } = useQuery({
     queryKey: ["hourly-production-entries-today", today],
@@ -120,15 +128,38 @@ export default function HourlyProductionDashboard() {
       <div className="space-y-6">
         <PageHeader title="Hourly Production Monitoring" description="Real-time hourly production tracking dashboard" icon={Clock} iconColor="bg-violet-600 text-white" />
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("justify-start text-left font-normal w-[240px]")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedDate, "PPP")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(d) => d && setSelectedDate(d)}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          {!isToday && (
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>Today</Button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Today's Total" value={totalProduction.toLocaleString()} icon={BarChart3} iconColor="text-blue-500" />
+          <MetricCard title={`${dateLabel} Total`} value={totalProduction.toLocaleString()} icon={BarChart3} iconColor="text-blue-500" />
           <MetricCard title="Active Processes" value={uniqueProcesses} icon={Factory} iconColor="text-green-500" />
-          <MetricCard title="Entries Today" value={entries.length} icon={Clock} iconColor="text-amber-500" />
+          <MetricCard title="Entries" value={entries.length} icon={Clock} iconColor="text-amber-500" />
           <MetricCard title="Workers Tracked" value={uniqueWorkers} icon={Users} iconColor="text-purple-500" />
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Hourly Production Trend — Today</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Hourly Production Trend — {dateLabel}</CardTitle></CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">

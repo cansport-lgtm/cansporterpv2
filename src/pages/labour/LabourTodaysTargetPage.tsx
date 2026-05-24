@@ -32,12 +32,23 @@ interface TargetEntry {
   remarks: string | null;
   check_in: string | null;
   check_out: string | null;
+  entry_by: string;
+  entry_time: string | null;
 }
 
 const fmtTime = (t: string | null) => {
   if (!t) return "-";
   const m = /^(\d{2}):(\d{2})/.exec(t);
   return m ? `${m[1]}:${m[2]}` : t;
+};
+
+const fmtDateTime = (t: string | null) => {
+  if (!t) return "-";
+  try {
+    return format(new Date(t), "dd MMM HH:mm");
+  } catch {
+    return "-";
+  }
 };
 
 export default function LabourTodaysTargetPage() {
@@ -48,14 +59,16 @@ export default function LabourTodaysTargetPage() {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["todays-target", dateStr],
     queryFn: async () => {
-      const targetsRes = await (supabase.from("labour_productivity_targets") as any).select("id, employee_id, department_id, process_id, shift, target_quantity, todays_target, actual_quantity, mph, remarks, check_in, check_out").eq("target_date", dateStr).limit(5000);
+      const targetsRes = await (supabase.from("labour_productivity_targets") as any).select("id, employee_id, department_id, process_id, shift, target_quantity, todays_target, actual_quantity, mph, remarks, check_in, check_out, created_by, created_at").eq("target_date", dateStr).limit(5000);
       const employeesRes = await supabase.from("labour_employees").select("id, full_name, employee_code, photo_url, category").eq("is_active", true);
       const deptsRes = await supabase.from("production_departments").select("id, name");
       const processesRes = await supabase.from("qa_processes").select("id, name");
+      const usersRes = await supabase.from("app_users").select("id, full_name, user_id");
 
       const empMap = new Map((employeesRes.data || []).map(e => [e.id, e]));
       const deptMap = new Map((deptsRes.data || []).map(d => [d.id, d.name]));
       const procMap = new Map((processesRes.data || []).map(p => [p.id, p.name]));
+      const userMap = new Map((usersRes.data || []).map((u: any) => [u.id, u.full_name || u.user_id]));
 
       return (targetsRes.data || []).map((t: any): TargetEntry => {
         const emp: any = empMap.get(t.employee_id);
@@ -78,6 +91,8 @@ export default function LabourTodaysTargetPage() {
           remarks: t.remarks,
           check_in: t.check_in ?? null,
           check_out: t.check_out ?? null,
+          entry_by: (t.created_by ? userMap.get(t.created_by) : null) || "-",
+          entry_time: t.created_at ?? null,
         };
       });
     },
@@ -149,7 +164,17 @@ export default function LabourTodaysTargetPage() {
   const totalStdTarget = entries.reduce((s, e) => s + e.target_quantity, 0);
   const totalTodaysTarget = entries.reduce((s, e) => s + (e.todays_target || 0), 0);
   const totalActual = entries.reduce((s, e) => s + e.actual_quantity, 0);
-  const totalMPH = entries.reduce((s, e) => s + e.mph, 0);
+  const cappedDailyMPH = (items: TargetEntry[]) => {
+    const m = new Map<string, number>();
+    items.forEach((e) => {
+      if (!e.employee_id) return;
+      m.set(e.employee_id, (m.get(e.employee_id) || 0) + (e.mph || 0));
+    });
+    let total = 0;
+    m.forEach((v) => { total += Math.min(12, v); });
+    return total;
+  };
+  const totalMPH = cappedDailyMPH(entries as TargetEntry[]);
   const overallEff = totalTodaysTarget > 0 ? Math.round((totalActual / totalTodaysTarget) * 100) : totalStdTarget > 0 ? Math.round((totalActual / totalStdTarget) * 100) : 0;
   const totalTargetProd = Object.values(prodData as Record<string, { targetProd: number; produced: number }>).reduce((s, d) => s + d.targetProd, 0);
   const totalTargetMPH = Object.values(targetMPHByDept).reduce((s, v) => s + v, 0);
@@ -184,13 +209,13 @@ export default function LabourTodaysTargetPage() {
         .map((dept) => {
           const items = grouped[dept];
           if (!items || items.length === 0) return "";
-          let deptStd = 0, deptToday = 0, deptActual = 0, deptMPH = 0;
+          let deptStd = 0, deptToday = 0, deptActual = 0;
           for (const e of items) {
             deptStd += e.target_quantity;
             deptToday += e.todays_target || 0;
             deptActual += e.actual_quantity;
-            deptMPH += e.mph;
           }
+          const deptMPH = cappedDailyMPH(items);
           const deptId = items[0]?.department_id || "";
           const deptProd = (prodData as Record<string, { targetProd: number; produced: number }>)[deptId];
           const deptTargetProd = deptProd?.targetProd || 0;
@@ -372,7 +397,7 @@ export default function LabourTodaysTargetPage() {
             const deptStd = items.reduce((s, e) => s + e.target_quantity, 0);
             const deptToday = items.reduce((s, e) => s + (e.todays_target || 0), 0);
             const deptActual = items.reduce((s, e) => s + e.actual_quantity, 0);
-            const deptMPH = items.reduce((s, e) => s + e.mph, 0);
+            const deptMPH = cappedDailyMPH(items);
             const deptId = items[0]?.department_id || "";
             const deptProd = (prodData as Record<string, { targetProd: number; produced: number }>)[deptId];
             const deptTargetProd = deptProd?.targetProd || 0;
@@ -415,6 +440,8 @@ export default function LabourTodaysTargetPage() {
                             <TableHead className="text-right">Actual</TableHead>
                             <TableHead className="text-center">Efficiency</TableHead>
                             <TableHead>Remarks</TableHead>
+                            <TableHead>Entry By</TableHead>
+                            <TableHead>Entry Time</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -440,6 +467,8 @@ export default function LabourTodaysTargetPage() {
                                 {getEffBadge(entry.actual_quantity, entry.todays_target || entry.target_quantity)}
                               </TableCell>
                               <TableCell className="max-w-[200px] truncate">{entry.remarks || "-"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{entry.entry_by}</TableCell>
+                              <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDateTime(entry.entry_time)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

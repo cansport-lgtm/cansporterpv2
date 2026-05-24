@@ -97,15 +97,21 @@ const LabourProductivityEntryPage = () => {
   const canImportExport = isSuperAdmin || (hasRole("manager") && hasModulePermission("labour", "view"));
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const importTimesFileInputRef = useRef<HTMLInputElement>(null);
+  const importCheckInFileInputRef = useRef<HTMLInputElement>(null);
+  const importCheckOutFileInputRef = useRef<HTMLInputElement>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showImportTimesDialog, setShowImportTimesDialog] = useState(false);
+  const [showImportCheckInDialog, setShowImportCheckInDialog] = useState(false);
+  const [showImportCheckOutDialog, setShowImportCheckOutDialog] = useState(false);
   const [exportFromDate, setExportFromDate] = useState<Date>(new Date());
   const [exportToDate, setExportToDate] = useState<Date>(new Date());
   const [importDate, setImportDate] = useState<Date>(new Date());
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isImportingTimes, setIsImportingTimes] = useState(false);
+  const [isImportingCheckIn, setIsImportingCheckIn] = useState(false);
+  const [isImportingCheckOut, setIsImportingCheckOut] = useState(false);
 
   const [formData, setFormData] = useState({
     employee_id: "",
@@ -922,6 +928,134 @@ const LabourProductivityEntryPage = () => {
     XLSX.writeFile(wb, "Labour_Times_Sample.xlsx");
   };
 
+  const downloadCheckInSample = () => {
+    const sample = [
+      { "Employee Code": "EMP001", "Employee Name": "John Doe", "Date": format(new Date(), "yyyy-MM-dd"), "Check In": "09:00" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CheckIn");
+    XLSX.writeFile(wb, "Labour_CheckIn_Sample.xlsx");
+  };
+
+  const downloadCheckOutSample = () => {
+    const sample = [
+      { "Employee Code": "EMP001", "Employee Name": "John Doe", "Date": format(new Date(), "yyyy-MM-dd"), "Check Out": "18:00" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CheckOut");
+    XLSX.writeFile(wb, "Labour_CheckOut_Sample.xlsx");
+  };
+
+  // Single-column time importer (check_in OR check_out)
+  const handleImportSingleTime = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: "check_in" | "check_out",
+  ) => {
+    const file = e.target.files?.[0];
+    const inputRef = field === "check_in" ? importCheckInFileInputRef : importCheckOutFileInputRef;
+    const setBusy = field === "check_in" ? setIsImportingCheckIn : setIsImportingCheckOut;
+    const setDialogOpen = field === "check_in" ? setShowImportCheckInDialog : setShowImportCheckOutDialog;
+    const colKeyA = field === "check_in" ? "Check In" : "Check Out";
+    const colKeyB = field;
+    const label = field === "check_in" ? "Check In" : "Check Out";
+
+    if (!file) return;
+    setBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws);
+
+      if (rows.length === 0) {
+        toast.error("No data found in file");
+        setBusy(false);
+        if (inputRef.current) inputRef.current.value = "";
+        return;
+      }
+
+      const { data: empList } = await (supabase as any)
+        .from("labour_employees")
+        .select("id, employee_code");
+      const empMap = new Map<string, string>();
+      (empList || []).forEach((emp: any) => {
+        if (emp.employee_code) empMap.set(String(emp.employee_code).trim().toLowerCase(), emp.id);
+      });
+
+      const parseTime = (v: any): string | null => {
+        if (v === null || v === undefined || v === "") return null;
+        if (typeof v === "number") {
+          const totalSec = Math.round(v * 24 * 60 * 60);
+          const hh = Math.floor(totalSec / 3600) % 24;
+          const mm = Math.floor((totalSec % 3600) / 60);
+          const ss = totalSec % 60;
+          return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+        }
+        const s = String(v).trim();
+        const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(s);
+        if (!m) return null;
+        return `${m[1].padStart(2, "0")}:${m[2]}:${m[3] || "00"}`;
+      };
+
+      let updated = 0;
+      let skippedNoEntry = 0;
+      let skippedUnknownEmp = 0;
+      let skippedNoTime = 0;
+
+      for (const row of rows) {
+        const code = String(row["Employee Code"] || row["employee_code"] || "").trim().toLowerCase();
+        if (!code) { skippedUnknownEmp++; continue; }
+        const empId = empMap.get(code);
+        if (!empId) { skippedUnknownEmp++; continue; }
+
+        const dateVal = row["Date"] || row["date"];
+        let targetDate: string | null = null;
+        if (dateVal && typeof dateVal === "number") {
+          const d = XLSX.SSF.parse_date_code(dateVal);
+          targetDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+        } else if (dateVal && String(dateVal).trim()) {
+          const parsed = new Date(String(dateVal).trim());
+          if (!isNaN(parsed.getTime())) targetDate = format(parsed, "yyyy-MM-dd");
+        }
+        if (!targetDate) { skippedNoEntry++; continue; }
+
+        const timeVal = parseTime(row[colKeyA] ?? row[colKeyB]);
+        if (!timeVal) { skippedNoTime++; continue; }
+
+        const { data: existing } = await (supabase as any)
+          .from("labour_productivity_targets")
+          .select("id")
+          .eq("employee_id", empId)
+          .eq("target_date", targetDate);
+
+        if (!existing || existing.length === 0) { skippedNoEntry++; continue; }
+
+        const ids = existing.map((r: any) => r.id);
+        const { error } = await (supabase as any)
+          .from("labour_productivity_targets")
+          .update({ [field]: timeVal })
+          .in("id", ids);
+        if (error) { skippedNoEntry++; } else { updated += ids.length; }
+      }
+
+      toast.success(
+        `${label} updated: ${updated} · No entry: ${skippedNoEntry} · Unknown employee: ${skippedUnknownEmp} · No time: ${skippedNoTime}`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["labour-productivity-entries"] });
+      setDialogOpen(false);
+    } catch (err: any) {
+      toast.error("Import failed: " + (err?.message || "Unknown error"));
+    }
+    setBusy(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleImportCheckIn = (e: React.ChangeEvent<HTMLInputElement>) => handleImportSingleTime(e, "check_in");
+  const handleImportCheckOut = (e: React.ChangeEvent<HTMLInputElement>) => handleImportSingleTime(e, "check_out");
+
+
   const handlePrint = () => {
     const dateLabel = filterMode === "date" 
       ? format(new Date(filterDate), "dd MMM yyyy") 
@@ -1490,9 +1624,13 @@ const LabourProductivityEntryPage = () => {
           </Button>
           {canImportExport && (
             <>
-              <Button variant="outline" onClick={() => setShowImportTimesDialog(true)} className="flex-1 sm:flex-none">
+              <Button variant="outline" onClick={() => setShowImportCheckInDialog(true)} className="flex-1 sm:flex-none">
                 <Clock className="h-4 w-4 mr-2" />
-                Import Times
+                Import Check In
+              </Button>
+              <Button variant="outline" onClick={() => setShowImportCheckOutDialog(true)} className="flex-1 sm:flex-none">
+                <Clock className="h-4 w-4 mr-2" />
+                Import Check Out
               </Button>
               <input
                 ref={importFileInputRef}
@@ -1507,6 +1645,20 @@ const LabourProductivityEntryPage = () => {
                 accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleImportTimes}
+              />
+              <input
+                ref={importCheckInFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImportCheckIn}
+              />
+              <input
+                ref={importCheckOutFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImportCheckOut}
               />
             </>
           )}
@@ -2010,7 +2162,66 @@ const LabourProductivityEntryPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Request Edit Dialog — for fields other than Actual Qty / Remarks */}
+      {/* Import Check In Dialog */}
+      <Dialog open={showImportCheckInDialog} onOpenChange={setShowImportCheckInDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Import Check-In Times</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Excel columns: <strong>Employee Code, Date, Check In</strong>.
+              Only updates the <strong>Check In</strong> field on existing entries — Check Out and all other fields are preserved.
+              Rows without a matching entry are skipped.
+            </p>
+            <button
+              type="button"
+              onClick={downloadCheckInSample}
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              Download sample file
+            </button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowImportCheckInDialog(false)}>Cancel</Button>
+              <Button onClick={() => importCheckInFileInputRef.current?.click()} disabled={isImportingCheckIn}>
+                <Upload className="h-4 w-4 mr-2" />
+                {isImportingCheckIn ? "Importing..." : "Select File"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Check Out Dialog */}
+      <Dialog open={showImportCheckOutDialog} onOpenChange={setShowImportCheckOutDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Import Check-Out Times</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Excel columns: <strong>Employee Code, Date, Check Out</strong>.
+              Only updates the <strong>Check Out</strong> field on existing entries — Check In and all other fields are preserved.
+              Rows without a matching entry are skipped.
+            </p>
+            <button
+              type="button"
+              onClick={downloadCheckOutSample}
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              Download sample file
+            </button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowImportCheckOutDialog(false)}>Cancel</Button>
+              <Button onClick={() => importCheckOutFileInputRef.current?.click()} disabled={isImportingCheckOut}>
+                <Upload className="h-4 w-4 mr-2" />
+                {isImportingCheckOut ? "Importing..." : "Select File"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!requestEditEntry} onOpenChange={(open) => { if (!open) { setRequestEditEntry(null); setRequestEditReason(""); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>

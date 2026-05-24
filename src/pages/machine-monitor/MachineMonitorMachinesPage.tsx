@@ -10,10 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Monitor, Plus, X, Pencil, Trash2, QrCode, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  splitReasonGroups,
+  joinReasonGroups,
+  DEFAULT_BREAKDOWN_REASONS,
+  DEFAULT_PERFORMANCE_REASONS,
+  parseStatus,
+  statusColorClass,
+} from "./statusUtils";
 
 interface Machine {
   id: string;
@@ -28,8 +37,6 @@ interface Machine {
   created_at: string;
 }
 
-const DEFAULT_STATUSES = ["Running", "Stopped", "Idle", "Breakdown"];
-
 export default function MachineMonitorMachinesPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,10 +49,12 @@ export default function MachineMonitorMachinesPage() {
     department: "",
     location: "",
     sort_order: 0,
-    custom_statuses: [...DEFAULT_STATUSES],
+    breakdown_reasons: [...DEFAULT_BREAKDOWN_REASONS],
+    performance_issue_reasons: [...DEFAULT_PERFORMANCE_REASONS],
     is_active: true,
   });
-  const [newStatusInput, setNewStatusInput] = useState("");
+  const [newBreakdownReason, setNewBreakdownReason] = useState("");
+  const [newPerfReason, setNewPerfReason] = useState("");
 
   const { data: machines = [], isLoading } = useQuery({
     queryKey: ["machine-monitor-machines"],
@@ -60,6 +69,19 @@ export default function MachineMonitorMachinesPage() {
     },
   });
 
+  const { data: departments = [] } = useQuery({
+    queryKey: ["production-departments-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_departments")
+        .select("id, name, code")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as { id: string; name: string; code: string }[];
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form & { id?: string }) => {
       const payload = {
@@ -68,7 +90,7 @@ export default function MachineMonitorMachinesPage() {
         department: values.department || null,
         location: values.location || null,
         sort_order: values.sort_order,
-        custom_statuses: values.custom_statuses,
+        custom_statuses: joinReasonGroups(values.breakdown_reasons, values.performance_issue_reasons),
         is_active: values.is_active,
       };
       if (values.id) {
@@ -110,19 +132,30 @@ export default function MachineMonitorMachinesPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", code: "", department: "", location: "", sort_order: 0, custom_statuses: [...DEFAULT_STATUSES], is_active: true });
+    setForm({
+      name: "",
+      code: "",
+      department: "",
+      location: "",
+      sort_order: 0,
+      breakdown_reasons: [...DEFAULT_BREAKDOWN_REASONS],
+      performance_issue_reasons: [...DEFAULT_PERFORMANCE_REASONS],
+      is_active: true,
+    });
     setDialogOpen(true);
   };
 
   const openEdit = (m: Machine) => {
     setEditing(m);
+    const groups = splitReasonGroups(m.custom_statuses);
     setForm({
       name: m.name,
       code: m.code,
       department: m.department || "",
       location: m.location || "",
       sort_order: m.sort_order,
-      custom_statuses: m.custom_statuses,
+      breakdown_reasons: groups.breakdown_reasons,
+      performance_issue_reasons: groups.performance_issue_reasons,
       is_active: m.is_active,
     });
     setDialogOpen(true);
@@ -131,20 +164,29 @@ export default function MachineMonitorMachinesPage() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditing(null);
-    setNewStatusInput("");
+    setNewBreakdownReason("");
+    setNewPerfReason("");
   };
 
-  const addCustomStatus = () => {
-    const trimmed = newStatusInput.trim();
-    if (trimmed && !form.custom_statuses.includes(trimmed)) {
-      setForm({ ...form, custom_statuses: [...form.custom_statuses, trimmed] });
+  const addBreakdownReason = () => {
+    const t = newBreakdownReason.trim();
+    if (t && !form.breakdown_reasons.includes(t)) {
+      setForm({ ...form, breakdown_reasons: [...form.breakdown_reasons, t] });
     }
-    setNewStatusInput("");
+    setNewBreakdownReason("");
   };
-
-  const removeCustomStatus = (s: string) => {
-    if (form.custom_statuses.length <= 1) return;
-    setForm({ ...form, custom_statuses: form.custom_statuses.filter((x) => x !== s) });
+  const removeBreakdownReason = (s: string) => {
+    setForm({ ...form, breakdown_reasons: form.breakdown_reasons.filter((x) => x !== s) });
+  };
+  const addPerfReason = () => {
+    const t = newPerfReason.trim();
+    if (t && !form.performance_issue_reasons.includes(t)) {
+      setForm({ ...form, performance_issue_reasons: [...form.performance_issue_reasons, t] });
+    }
+    setNewPerfReason("");
+  };
+  const removePerfReason = (s: string) => {
+    setForm({ ...form, performance_issue_reasons: form.performance_issue_reasons.filter((x) => x !== s) });
   };
 
   const handleSave = () => {
@@ -163,30 +205,28 @@ export default function MachineMonitorMachinesPage() {
     {
       key: "current_status",
       header: "Current Status",
-      render: (row: Machine) => {
-        const colorMap: Record<string, string> = {
-          Running: "bg-green-100 text-green-700",
-          Stopped: "bg-slate-100 text-slate-600",
-          Idle: "bg-yellow-100 text-yellow-700",
-          Breakdown: "bg-red-100 text-red-700",
-        };
-        return (
-          <Badge className={colorMap[row.current_status] || "bg-muted text-muted-foreground"}>
-            {row.current_status}
-          </Badge>
-        );
-      },
+      render: (row: Machine) => (
+        <Badge className={`${statusColorClass(row.current_status)} border`}>
+          {row.current_status}
+        </Badge>
+      ),
     },
     {
       key: "custom_statuses",
-      header: "Statuses",
-      render: (row: Machine) => (
-        <div className="flex flex-wrap gap-1">
-          {row.custom_statuses.map((s) => (
-            <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
-          ))}
-        </div>
-      ),
+      header: "Reason Add-ons",
+      render: (row: Machine) => {
+        const g = splitReasonGroups(row.custom_statuses);
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[260px]">
+            <Badge variant="outline" className="text-[10px] bg-red-50 border-red-200 text-red-700">
+              Breakdown: {g.breakdown_reasons.length}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] bg-yellow-50 border-yellow-200 text-yellow-700">
+              Performance: {g.performance_issue_reasons.length}
+            </Badge>
+          </div>
+        );
+      },
     },
     {
       key: "is_active",
@@ -276,7 +316,20 @@ export default function MachineMonitorMachinesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Department</Label>
-                <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+                <Select
+                  value={form.department || "none"}
+                  onValueChange={(v) => setForm({ ...form, department: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— None —</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Location</Label>
@@ -288,28 +341,59 @@ export default function MachineMonitorMachinesPage() {
               <Input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} />
             </div>
 
-            {/* Custom Statuses */}
+            {/* Breakdown reasons */}
             <div>
-              <Label>Custom Statuses</Label>
+              <Label className="text-red-700">Breakdown Reasons</Label>
               <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
-                {form.custom_statuses.map((s) => (
-                  <Badge key={s} variant="secondary" className="gap-1 pr-1">
+                {form.breakdown_reasons.map((s) => (
+                  <Badge key={s} variant="secondary" className="gap-1 pr-1 bg-red-50 text-red-700 border border-red-200">
                     {s}
-                    <button onClick={() => removeCustomStatus(s)} className="ml-1 hover:text-destructive">
+                    <button onClick={() => removeBreakdownReason(s)} className="ml-1 hover:text-destructive">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
                 ))}
+                {form.breakdown_reasons.length === 0 && (
+                  <span className="text-xs text-muted-foreground">No breakdown reasons added.</span>
+                )}
               </div>
               <div className="flex gap-2">
                 <Input
-                  value={newStatusInput}
-                  onChange={(e) => setNewStatusInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomStatus())}
-                  placeholder="Add custom status..."
+                  value={newBreakdownReason}
+                  onChange={(e) => setNewBreakdownReason(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addBreakdownReason())}
+                  placeholder="e.g. Wire Break, Motor Failure..."
                   className="flex-1"
                 />
-                <Button type="button" size="sm" variant="outline" onClick={addCustomStatus}>Add</Button>
+                <Button type="button" size="sm" variant="outline" onClick={addBreakdownReason}>Add</Button>
+              </div>
+            </div>
+
+            {/* Performance Issue reasons */}
+            <div>
+              <Label className="text-yellow-700">Performance Issue Reasons</Label>
+              <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
+                {form.performance_issue_reasons.map((s) => (
+                  <Badge key={s} variant="secondary" className="gap-1 pr-1 bg-yellow-50 text-yellow-700 border border-yellow-200">
+                    {s}
+                    <button onClick={() => removePerfReason(s)} className="ml-1 hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {form.performance_issue_reasons.length === 0 && (
+                  <span className="text-xs text-muted-foreground">No performance issue reasons added.</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newPerfReason}
+                  onChange={(e) => setNewPerfReason(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addPerfReason())}
+                  placeholder="e.g. Cooling Delay, Slow Speed..."
+                  className="flex-1"
+                />
+                <Button type="button" size="sm" variant="outline" onClick={addPerfReason}>Add</Button>
               </div>
             </div>
 

@@ -22,7 +22,7 @@ const roleDescriptions: Record<AppRole, string> = {
   maintenance_manager: "Full access to Maintenance module only",
   sales_executive: "Access to Sales module for order management",
   order_management: "View access to Domestic Sales and Production dashboards only",
-  floor_incharge: "Access to Labour Productivity Entry page only",
+  floor_incharge: "Labour Productivity Entry, plus Hourly Production & Machine Monitor when authorized",
   private_label_distributor: "View-only access to Private Label Sales module",
   pettycash_handler: "Access to Petty Cash page only with entry creation",
   store_operator: "Access to Stock Closing page in Material Consumption module only",

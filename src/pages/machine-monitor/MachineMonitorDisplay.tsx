@@ -30,12 +30,19 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; 
   Stopped: { bg: "bg-slate-500/20", text: "text-slate-400", border: "border-slate-500" },
   Idle: { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500" },
   Breakdown: { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500", pulse: true },
+  "Performance Issue": { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500" },
   Maintenance: { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500" },
   Setup: { bg: "bg-purple-500/20", text: "text-purple-400", border: "border-purple-500" },
 };
 
+const parseBase = (status: string): string => {
+  const idx = status.indexOf(" — ");
+  return idx > 0 ? status.substring(0, idx) : status;
+};
+
 const getStatusStyle = (status: string) => {
-  return STATUS_COLORS[status] || { bg: "bg-muted/50", text: "text-muted-foreground", border: "border-muted" };
+  const base = parseBase(status);
+  return STATUS_COLORS[base] || { bg: "bg-yellow-500/20", text: "text-yellow-400", border: "border-yellow-500" };
 };
 
 export default function MachineMonitorDisplay() {
@@ -74,7 +81,21 @@ export default function MachineMonitorDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  const departments = [...new Set(machines.map((m) => m.department).filter(Boolean))] as string[];
+  const [departments, setDepartments] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("machine_monitor_machines")
+        .select("department");
+      if (data) {
+        const names = Array.from(
+          new Set((data as any[]).map((d) => d.department).filter(Boolean))
+        ).sort((a, b) => String(a).localeCompare(String(b)));
+        setDepartments(names as string[]);
+      }
+    })();
+  }, []);
 
   const filteredMachines = selectedDepartment === "all"
     ? machines
@@ -122,11 +143,14 @@ export default function MachineMonitorDisplay() {
     localStorage.setItem("machine-monitor-dept", dept);
   };
 
-  // Stats
-  const running = filteredMachines.filter((m) => m.current_status === "Running").length;
-  const stopped = filteredMachines.filter((m) => m.current_status === "Stopped").length;
-  const breakdown = filteredMachines.filter((m) => m.current_status === "Breakdown").length;
-  const idle = filteredMachines.filter((m) => m.current_status === "Idle").length;
+  // Stats (use base status, ignoring reason add-on)
+  const baseOf = (s: string) => parseBase(s);
+  const running = filteredMachines.filter((m) => baseOf(m.current_status) === "Running").length;
+  const breakdown = filteredMachines.filter((m) => baseOf(m.current_status) === "Breakdown").length;
+  const performance = filteredMachines.filter((m) => {
+    const b = baseOf(m.current_status);
+    return b !== "Running" && b !== "Breakdown";
+  }).length;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4">
@@ -189,12 +213,12 @@ export default function MachineMonitorDisplay() {
           <div className="text-xs text-red-400/70 uppercase tracking-wider">Breakdown</div>
         </div>
         <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-center">
-          <div className="text-3xl font-bold text-yellow-400">{idle + stopped}</div>
-          <div className="text-xs text-yellow-400/70 uppercase tracking-wider">Idle/Stopped</div>
+          <div className="text-3xl font-bold text-yellow-400">{performance}</div>
+          <div className="text-xs text-yellow-400/70 uppercase tracking-wider">Performance Issue</div>
         </div>
       </div>
 
-      {/* Machine Grid */}
+      {/* Machine Grid grouped by Department */}
       {filteredMachines.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
           <Monitor className="h-16 w-16 mx-auto mb-4 opacity-30" />
@@ -202,37 +226,71 @@ export default function MachineMonitorDisplay() {
           <p className="text-sm">Add machines from the Machine Master page</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {filteredMachines.map((machine) => {
-            const style = getStatusStyle(machine.current_status);
-            const timeSince = formatDistanceToNow(new Date(machine.current_status_since), { addSuffix: false });
-            return (
-              <button
-                key={machine.id}
-                onClick={() => openChangeDialog(machine)}
-                className={cn(
-                  "rounded-xl border-2 p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]",
-                  style.bg, style.border,
-                  style.pulse && "animate-pulse"
-                )}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono text-slate-400">{machine.code}</span>
-                  {machine.department && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{machine.department}</span>
-                  )}
-                </div>
-                <div className="text-sm font-semibold mb-3 leading-tight">{machine.name}</div>
-                <div className={cn("text-2xl font-bold uppercase tracking-wider mb-1", style.text)}>
-                  {machine.current_status}
-                </div>
-                <div className="text-[10px] text-slate-500">{timeSince}</div>
-                {machine.current_remarks && (
-                  <div className="mt-2 text-[10px] text-slate-400 truncate">{machine.current_remarks}</div>
-                )}
-              </button>
-            );
-          })}
+        <div className="space-y-8">
+          {(() => {
+            const grouped = filteredMachines.reduce<Record<string, Machine[]>>((acc, m) => {
+              const key = m.department || "Unassigned";
+              (acc[key] ||= []).push(m);
+              return acc;
+            }, {});
+            const sortedKeys = Object.keys(grouped).sort((a, b) => {
+              if (a === "Unassigned") return 1;
+              if (b === "Unassigned") return -1;
+              return a.localeCompare(b);
+            });
+            return sortedKeys.map((dept) => {
+              const list = grouped[dept];
+              const deptRunning = list.filter((m) => parseBase(m.current_status) === "Running").length;
+              return (
+                <section key={dept}>
+                  <div className="flex items-end justify-between mb-3 pb-2 border-b-2 border-cyan-500/40">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-1.5 bg-cyan-400 rounded-full" />
+                      <h2 className="text-3xl font-bold uppercase tracking-wider text-white">{dept}</h2>
+                      <span className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                        {list.length} machine{list.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      <span className="text-green-400 font-semibold">{deptRunning}</span> running / {list.length}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {list.map((machine) => {
+                      const style = getStatusStyle(machine.current_status);
+                      const timeSince = formatDistanceToNow(new Date(machine.current_status_since), { addSuffix: false });
+                      return (
+                        <button
+                          key={machine.id}
+                          onClick={() => openChangeDialog(machine)}
+                          className={cn(
+                            "rounded-xl border-2 p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]",
+                            style.bg, style.border,
+                            style.pulse && "animate-pulse"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-mono text-slate-400">{machine.code}</span>
+                            {machine.department && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{machine.department}</span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold mb-3 leading-tight">{machine.name}</div>
+                          <div className={cn("text-2xl font-bold uppercase tracking-wider mb-1", style.text)}>
+                            {machine.current_status}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{timeSince}</div>
+                          {machine.current_remarks && (
+                            <div className="mt-2 text-[10px] text-slate-400 truncate">{machine.current_remarks}</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -247,12 +305,24 @@ export default function MachineMonitorDisplay() {
               <label className="text-sm text-slate-400 mb-1 block">New Status</label>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="bg-slate-800 border-slate-700">
-                  <SelectValue />
+                  <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {changingMachine?.custom_statuses.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
+                  <SelectItem value="Running">Running</SelectItem>
+                  {(changingMachine?.custom_statuses || [])
+                    .filter((s) => typeof s === "string" && s.startsWith("breakdown:"))
+                    .map((s) => {
+                      const r = s.substring("breakdown:".length);
+                      const v = `Breakdown — ${r}`;
+                      return <SelectItem key={v} value={v}>{v}</SelectItem>;
+                    })}
+                  {(changingMachine?.custom_statuses || [])
+                    .filter((s) => typeof s === "string" && s.startsWith("perf:"))
+                    .map((s) => {
+                      const r = s.substring("perf:".length);
+                      const v = `Performance Issue — ${r}`;
+                      return <SelectItem key={v} value={v}>{v}</SelectItem>;
+                    })}
                 </SelectContent>
               </Select>
             </div>

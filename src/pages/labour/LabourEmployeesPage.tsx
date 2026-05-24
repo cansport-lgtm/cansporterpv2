@@ -45,6 +45,12 @@ interface LabourEmployee {
 const LabourEmployeesPage = () => {
   const { user, hasRole } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
+  const canEditCode =
+    isSuperAdmin ||
+    hasRole('admin') ||
+    hasRole('manager') ||
+    hasRole('operational_manager') ||
+    user?.user_id === 'HR01';
   const queryClient = useQueryClient();
   
   // Floor incharge cannot add/edit/delete employees
@@ -380,7 +386,7 @@ const LabourEmployeesPage = () => {
         </Badge>
       ),
     },
-    ...(isSuperAdmin ? [{
+    ...((isSuperAdmin || user?.user_id === 'HR01') ? [{
       key: "actions",
       header: "Actions",
       render: (item: LabourEmployee) => (
@@ -388,9 +394,11 @@ const LabourEmployeesPage = () => {
           <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} title="Edit">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)} title="Delete">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {isSuperAdmin && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)} title="Delete">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     }] : []),
@@ -451,7 +459,7 @@ const LabourEmployeesPage = () => {
                   value={formData.employee_code}
                   onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
                   placeholder="e.g., LAB-001"
-                  disabled={!!editingEmployee && !isSuperAdmin}
+                  disabled={!!editingEmployee && !canEditCode}
                   required
                 />
               </div>
