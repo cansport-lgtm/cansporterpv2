@@ -291,6 +291,37 @@ import CRMContactsPage from "./pages/crm/CRMContactsPage";
 import CRMDealsPipelinePage from "./pages/crm/CRMDealsPipelinePage";
 import CRMActivitiesPage from "./pages/crm/CRMActivitiesPage";
 import CRMContentPage from "./pages/crm/CRMContentPage";
+// CRM v1 additions
+import CRMProductBrandPage from "./pages/crm/CRMProductBrandPage";
+import CRMDailyClosingPage from "./pages/crm/CRMDailyClosingPage";
+import CRMMarketingKPIsPage from "./pages/crm/CRMMarketingKPIsPage";
+import CRMReactivationPage from "./pages/crm/CRMReactivationPage";
+import AeroCourtsKanbanPage from "./pages/crm/aero/AeroCourtsKanbanPage";
+import AeroCourtsInsightsPage from "./pages/crm/aero/AeroCourtsInsightsPage";
+import CRMSampleItemsMasterPage from "./pages/crm/CRMSampleItemsMasterPage";
+import CRMSampleInventoryPage from "./pages/crm/CRMSampleInventoryPage";
+import CRMSampleRequestsPage from "./pages/crm/CRMSampleRequestsPage";
+// Hourly Production v1 additions
+import HourlyProductionAnalysisPage from "./pages/hourly-production/HourlyProductionAnalysisPage";
+import HourlyProductionLiveOverviewPage from "./pages/hourly-production/HourlyProductionLiveOverviewPage";
+import HourlyProductionLossEntryPage from "./pages/hourly-production/HourlyProductionLossEntryPage";
+import HourlyProductionLossLogsPage from "./pages/hourly-production/HourlyProductionLossLogsPage";
+import HPMaterialMasterPage from "./pages/hourly-production/HPMaterialMasterPage";
+import HPMaterialIssuancePage from "./pages/hourly-production/HPMaterialIssuancePage";
+import HPMaterialConsumptionPage from "./pages/hourly-production/HPMaterialConsumptionPage";
+import HPMaterialAnalysisPage from "./pages/hourly-production/HPMaterialAnalysisPage";
+// Machine Monitor v1 additions
+import MachineMonitorBreakdownLogsPage from "./pages/machine-monitor/MachineMonitorBreakdownLogsPage";
+import MachineMonitorPerformanceLogsPage from "./pages/machine-monitor/MachineMonitorPerformanceLogsPage";
+// Labour v1 additions
+import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
+// Master v1 additions
+import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
+// Online Sales v1 additions
+import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPage";
+// Planning v1 additions
+import JobOrdersPage from "./pages/planning/JobOrdersPage";
+import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
 
 const queryClient = new QueryClient();
 
@@ -491,6 +522,7 @@ const App = () => (
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
+            <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
             <Route path="/master/*" element={<ProtectedRoute><ComingSoon title="Master Data" /></ProtectedRoute>} />
 
             {/* Labour Productivity Routes */}
@@ -509,6 +541,7 @@ const App = () => (
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRole="super_admin"><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
+            <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}
@@ -537,6 +570,8 @@ const App = () => (
             <Route path="/planning/stock-closing" element={<ProtectedRoute><DailyStockClosingPage /></ProtectedRoute>} />
             <Route path="/planning/closing-dashboard" element={<ProtectedRoute><DailyClosingDashboard /></ProtectedRoute>} />
             <Route path="/planning/skilled-labour" element={<ProtectedRoute><SkilledLabourPlanningPage /></ProtectedRoute>} />
+            <Route path="/planning/job-orders" element={<ProtectedRoute><JobOrdersPage /></ProtectedRoute>} />
+            <Route path="/planning/job-order-departments" element={<ProtectedRoute><JobOrderDepartmentsPage /></ProtectedRoute>} />
             <Route path="/planning/*" element={<ProtectedRoute><ComingSoon title="Production Planning" /></ProtectedRoute>} />
  
             {/* Material Consumption Routes */}
@@ -583,6 +618,7 @@ const App = () => (
             
             <Route path="/online-sales/returns" element={<ProtectedRoute><OnlineReturnsPage /></ProtectedRoute>} />
             
+            <Route path="/online-sales/analysis" element={<ProtectedRoute><OnlineSalesAnalysisPage /></ProtectedRoute>} />
             <Route path="/online-sales/*" element={<ProtectedRoute><ComingSoon title="Online Sales" /></ProtectedRoute>} />
 
             {/* Project Management Routes */}
@@ -606,6 +642,14 @@ const App = () => (
             <Route path="/hourly-production/entry" element={<ProtectedRoute><HourlyProductionEntryPage /></ProtectedRoute>} />
             <Route path="/hourly-production/reports" element={<ProtectedRoute><HourlyProductionReportsPage /></ProtectedRoute>} />
             <Route path="/hourly-production/process-master" element={<ProtectedRoute requiredRole="super_admin"><HourlyProductionProcessMasterPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/analysis" element={<ProtectedRoute><HourlyProductionAnalysisPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/live-overview" element={<HourlyProductionLiveOverviewPage />} />
+            <Route path="/hourly-production/loss-entry" element={<ProtectedRoute><HourlyProductionLossEntryPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/loss-logs" element={<ProtectedRoute><HourlyProductionLossLogsPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/materials" element={<ProtectedRoute requiredRole="super_admin"><HPMaterialMasterPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-issuance" element={<ProtectedRoute><HPMaterialIssuancePage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-consumption" element={<ProtectedRoute><HPMaterialConsumptionPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-analysis" element={<ProtectedRoute><HPMaterialAnalysisPage /></ProtectedRoute>} />
             <Route path="/hourly-production/*" element={<ProtectedRoute><ComingSoon title="Hourly Production" /></ProtectedRoute>} />
 
             {/* Machine Monitor - Display and QR Scan are public */}
@@ -613,6 +657,8 @@ const App = () => (
             <Route path="/machine-monitor/scan" element={<MachineQRScanPage />} />
             <Route path="/machine-monitor/entry" element={<ProtectedRoute><MachineStatusEntryPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/machines" element={<ProtectedRoute><MachineMonitorMachinesPage /></ProtectedRoute>} />
+            <Route path="/machine-monitor/breakdown-logs" element={<ProtectedRoute><MachineMonitorBreakdownLogsPage /></ProtectedRoute>} />
+            <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
@@ -653,6 +699,15 @@ const App = () => (
             <Route path="/crm/deals" element={<ProtectedRoute><CRMDealsPipelinePage /></ProtectedRoute>} />
             <Route path="/crm/activities" element={<ProtectedRoute><CRMActivitiesPage /></ProtectedRoute>} />
             <Route path="/crm/content" element={<ProtectedRoute requiredModule="crm"><CRMContentPage /></ProtectedRoute>} />
+            <Route path="/crm/product-brand" element={<ProtectedRoute requiredModule="crm"><CRMProductBrandPage /></ProtectedRoute>} />
+            <Route path="/crm/daily-closing" element={<ProtectedRoute requiredModule="crm"><CRMDailyClosingPage /></ProtectedRoute>} />
+            <Route path="/crm/marketing-kpis" element={<ProtectedRoute requiredModule="crm"><CRMMarketingKPIsPage /></ProtectedRoute>} />
+            <Route path="/crm/reactivation" element={<ProtectedRoute requiredModule="crm"><CRMReactivationPage /></ProtectedRoute>} />
+            <Route path="/crm/aero-courts" element={<ProtectedRoute requiredModule="crm"><AeroCourtsKanbanPage /></ProtectedRoute>} />
+            <Route path="/crm/aero-courts/insights" element={<ProtectedRoute requiredModule="crm"><AeroCourtsInsightsPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-items" element={<ProtectedRoute requiredModule="crm"><CRMSampleItemsMasterPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-inventory" element={<ProtectedRoute requiredModule="crm"><CRMSampleInventoryPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-requests" element={<ProtectedRoute requiredModule="crm"><CRMSampleRequestsPage /></ProtectedRoute>} />
             <Route path="/crm/*" element={<ProtectedRoute><ComingSoon title="CRM" /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
