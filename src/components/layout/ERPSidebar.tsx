@@ -247,6 +247,10 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/purchase/dashboard" },
     ],
   },
+  // "Store & Inventory" and "Floor Inventory" modules removed from the sidebar —
+  // not in use per user request (2026-05-24). Routes remain in App.tsx so old
+  // bookmarks still resolve. Restore the entries below if the modules come back.
+  /*
   {
     title: "Store & Inventory",
     icon: Warehouse,
@@ -277,6 +281,7 @@ const navigationItems: NavItem[] = [
       { title: "Locations", href: "/floor-inventory/locations" },
     ],
   },
+  */
   {
     title: "Fixed Assets",
     icon: Building,
