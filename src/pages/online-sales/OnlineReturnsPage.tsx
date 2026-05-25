@@ -62,7 +62,7 @@ export default function OnlineReturnsPage() {
     setLoading(true);
     const [rRes, oRes, raRes] = await Promise.all([
       supabase.from("online_returns").select("*, online_orders(order_number, customer_name, platform, order_value, tracking_number)").order("created_at", { ascending: false }),
-      supabase.from("online_orders").select("id, order_number, customer_name, order_value, tracking_number").in("status", ["dispatched", "delivered", "return_awaited"]),
+      supabase.from("online_orders").select("id, order_number, customer_name, order_value, tracking_number").in("status", ["sent_to_courier", "dispatched", "delivered", "return_awaited"]),
       supabase.from("online_orders").select("*").eq("status", "return_awaited").order("created_at", { ascending: false }),
     ]);
     setReturns(rRes.data || []);
@@ -155,7 +155,7 @@ export default function OnlineReturnsPage() {
       return;
     }
 
-    const receivableStatuses = ["dispatched", "delivered", "return_awaited"];
+    const receivableStatuses = ["sent_to_courier", "dispatched", "delivered", "return_awaited"];
     if (!order.status || !receivableStatuses.includes(order.status)) {
       toast.error(`Cannot receive ${order.order_number}: status is "${order.status ?? "unknown"}"`);
       setRecentReceives(prev => [
