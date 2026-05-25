@@ -26,6 +26,9 @@ import ProductionOrderDashboard from "./pages/production/ProductionOrderDashboar
 import ProductionTargetDashboard from "./pages/production/ProductionTargetDashboard";
 import ProductionEntryListPage from "./pages/production/ProductionEntryListPage";
 import MPHMasterPage from "./pages/production/MPHMasterPage";
+import WIPSequencePage from "./pages/production/WIPSequencePage";
+import WIPLedgerPage from "./pages/production/WIPLedgerPage";
+import WIPReconciliationPage from "./pages/production/WIPReconciliationPage";
 import AuditLogPage from "./pages/settings/AuditLogPage";
 import SystemAlertsPage from "./pages/settings/SystemAlertsPage";
 
@@ -392,6 +395,9 @@ const App = () => (
             <Route path="/production/target-dashboard" element={<ProtectedRoute><ProductionTargetDashboard /></ProtectedRoute>} />
             <Route path="/production/entry-list" element={<ProtectedRoute><ProductionEntryListPage /></ProtectedRoute>} />
             <Route path="/production/mph-master" element={<ProtectedRoute><MPHMasterPage /></ProtectedRoute>} />
+            <Route path="/production/wip-sequence" element={<ProtectedRoute><WIPSequencePage /></ProtectedRoute>} />
+            <Route path="/production/wip-ledger" element={<ProtectedRoute><WIPLedgerPage /></ProtectedRoute>} />
+            <Route path="/production/wip-reconciliation" element={<ProtectedRoute><WIPReconciliationPage /></ProtectedRoute>} />
             <Route path="/production/*" element={<ProtectedRoute><ComingSoon title="Production Module" /></ProtectedRoute>} />
 
             {/* QA Floor Display - Public route for production floor devices */}
