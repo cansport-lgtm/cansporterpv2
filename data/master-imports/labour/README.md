@@ -20,21 +20,21 @@ Apply in the order listed. Tables with `Loaded` are already in v2; the rest need
 | 10 | `labour_salary_snapshots` | 453 | ⚠️ Partial (100/453) | Apply remaining 4 chunks from `salary_snapshots_chunks/` |
 | 11 | `labour_productivity_edit_requests` | 109 | ⏳ Pending | Apply AFTER step 9 (FK → productivity_targets) |
 
-## How to apply remaining chunks
+## How to apply remaining data — recommended path
 
-Open https://supabase.com/dashboard/project/ojejlhnthhdvgbgpsgvi/sql in your browser, then for each `.sql` file:
+Open https://supabase.com/dashboard/project/ojejlhnthhdvgbgpsgvi/sql, then paste each of these in order and click **Run**:
 
-1. **Productivity targets** (must do before edit_requests):
-   - Apply `productivity_targets_chunks/chunk_001.sql` through `chunk_085.sql` in numerical order (`chunk_000.sql` already loaded).
-   - Open each file, copy contents, paste into SQL Editor, click **Run**.
+1. `productivity_targets_remaining.sql` — 8 410 rows (3 MB). **Required before step 3.**
+2. `salary_snapshots_remaining.sql` — 353 rows (~100 KB).
+3. `labour_productivity_edit_requests.sql` — 109 rows (FK → productivity_targets).
 
-2. **Salary snapshots**:
-   - Apply `salary_snapshots_chunks/chunk_01.sql` through `chunk_04.sql` (`chunk_00.sql` already loaded).
+All statements use `ON CONFLICT DO NOTHING`, so re-running is safe if a paste partially completes.
 
-3. **Edit requests** (last):
-   - Apply `labour_productivity_edit_requests.sql` once all productivity_targets chunks are loaded.
+### Fallback: smaller chunks
 
-All chunks use `ON CONFLICT DO NOTHING` so re-running a chunk is safe.
+If the SQL Editor rejects the 3 MB paste, apply the chunks one-by-one instead:
+- `productivity_targets_chunks/chunk_001.sql` → `chunk_085.sql` (~35 KB each)
+- `salary_snapshots_chunks/chunk_01.sql` → `chunk_04.sql`
 
 ## Notes
 
