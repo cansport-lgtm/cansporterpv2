@@ -721,16 +721,16 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <img 
-              src={cansportLogo} 
-              alt="Cansport Global Industries" 
+            <img
+              src={cansportLogo}
+              alt="Cansport Global Industries"
               className="h-10 w-auto object-contain"
             />
           </div>
@@ -745,100 +745,119 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)]">
-          <div className="space-y-1">
-            {filteredNavigationItems.map((item) => (
-              <div key={item.title}>
-                {item.href ? (
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                      isActiveRoute(item.href)
-                        ? "bg-brand-gradient text-primary-foreground shadow-soft"
-                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <item.icon className={cn("h-5 w-5", item.color)} />
-                    {item.title}
-                  </Link>
-                ) : (
-                  <Collapsible
-                    open={expandedItems.includes(item.title)}
-                    onOpenChange={() => toggleExpanded(item.title)}
-                  >
-                    <CollapsibleTrigger className="w-full">
-                      <div
+        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)] scrollbar-thin">
+          <div className="space-y-0.5">
+            {filteredNavigationItems.map((item) => {
+              const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
+              return (
+                <div key={item.title}>
+                  {item.href ? (
+                    <Link
+                      to={item.href}
+                      className={cn(
+                        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                        itemActive
+                          ? "bg-brand-gradient text-primary-foreground shadow-soft"
+                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      {itemActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary-foreground/80" />
+                      )}
+                      <item.icon
                         className={cn(
-                          "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                          isParentActive(item.children)
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          "h-5 w-5 transition-transform group-hover:scale-110",
+                          itemActive ? "text-primary-foreground" : item.color,
                         )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon className={cn("h-5 w-5", item.color)} />
-                          {item.title}
-                        </div>
-                        <ChevronDown
+                      />
+                      {item.title}
+                    </Link>
+                  ) : (
+                    <Collapsible
+                      open={expandedItems.includes(item.title)}
+                      onOpenChange={() => toggleExpanded(item.title)}
+                    >
+                      <CollapsibleTrigger className="w-full">
+                        <div
                           className={cn(
-                            "h-4 w-4 transition-transform",
-                            expandedItems.includes(item.title) && "rotate-180"
+                            "group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            itemActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                           )}
-                        />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pl-11 space-y-1 mt-1">
-                      {/* Quick Action Button for Floor Inventory */}
-                      {item.hasQuickAction && item.title === "Floor Inventory" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsAddRawMaterialOpen(true);
-                          }}
-                          className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm transition-colors text-primary hover:bg-sidebar-accent font-medium"
                         >
-                          <Plus className="h-4 w-4" />
-                          Add Raw Material
-                        </button>
-                      )}
-                      {item.children?.map((child, idx) =>
-                        child.isHeader ? (
-                          <div
-                            key={`hdr-${child.title}-${idx}`}
-                            className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none"
-                          >
-                            {child.title}
+                          {itemActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
+                          )}
+                          <div className="flex items-center gap-3">
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 transition-transform group-hover:scale-110",
+                                item.color,
+                              )}
+                            />
+                            {item.title}
                           </div>
-                        ) : (
-                          <Link
-                            key={child.title}
-                            to={child.href}
-                            state={child.state}
+                          <ChevronDown
                             className={cn(
-                              "block rounded-lg px-3 py-2 text-sm transition-all",
-                              isActiveRoute(child.href) && !child.state
-                                ? "bg-brand-gradient text-primary-foreground shadow-soft font-medium"
-                                : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                              "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
+                              expandedItems.includes(item.title) && "rotate-180 text-sidebar-foreground"
                             )}
+                          />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="relative pl-7 ml-3.5 mt-1 mb-1 border-l border-sidebar-border/80 space-y-0.5">
+                        {/* Quick Action Button for Floor Inventory */}
+                        {item.hasQuickAction && item.title === "Floor Inventory" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsAddRawMaterialOpen(true);
+                            }}
+                            className="flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors text-primary hover:bg-sidebar-accent font-medium"
                           >
-                            {child.title}
-                          </Link>
-                        )
-                      )}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-              </div>
-            ))}
+                            <Plus className="h-4 w-4" />
+                            Add Raw Material
+                          </button>
+                        )}
+                        {item.children?.map((child, idx) =>
+                          child.isHeader ? (
+                            <div
+                              key={`hdr-${child.title}-${idx}`}
+                              className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none"
+                            >
+                              {child.title}
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.title}
+                              to={child.href}
+                              state={child.state}
+                              className={cn(
+                                "relative block rounded-lg px-3 py-1.5 text-sm transition-all duration-200",
+                                isActiveRoute(child.href) && !child.state
+                                  ? "bg-primary/10 text-primary font-semibold ring-1 ring-inset ring-primary/15"
+                                  : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/70"
+                              )}
+                            >
+                              {child.title}
+                            </Link>
+                          )
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-3 bg-sidebar/80">
           <Button
             variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4 mr-3" />
             Logout
