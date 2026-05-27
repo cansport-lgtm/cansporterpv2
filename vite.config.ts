@@ -15,30 +15,30 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon-v2.png", "pwa-192x192-v2.png", "pwa-512x512-v2.png"],
+      includeAssets: ["favicon-v3.png", "pwa-192x192-v3.png", "pwa-512x512-v3.png"],
       manifest: {
         name: "Cansport ERP",
         short_name: "Cansport ERP",
         description: "Enterprise Resource Planning System for Cansport Global Industries",
-        theme_color: "#15803d",
-        background_color: "#052e16",
+        theme_color: "#0d2a17",
+        background_color: "#0d2a17",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/",
         icons: [
           {
-            src: "pwa-192x192-v2.png",
+            src: "pwa-192x192-v3.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "pwa-512x512-v2.png",
+            src: "pwa-512x512-v3.png",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "pwa-512x512-v2.png",
+            src: "pwa-512x512-v3.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
