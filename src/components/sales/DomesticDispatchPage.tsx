@@ -41,6 +41,7 @@ interface OrderItem {
   packing_type: string;
   customer_name: string;
   customer_code: string;
+  price_per_dozen: number;
 }
 
 export default function DomesticDispatchPage() {
@@ -166,7 +167,7 @@ export default function DomesticDispatchPage() {
       if (selectedOrders.length === 0) return [];
       const { data, error } = await supabase
         .from('sales_order_items')
-        .select(`id, order_id, quantity_dozens, quantity_dispatched, products(code), sales_orders(order_number, customers(name, code))`)
+        .select(`id, order_id, quantity_dozens, quantity_dispatched, price_per_dozen, products(code), sales_orders(order_number, customers(name, code))`)
         .in('order_id', selectedOrders);
 
       if (error) throw error;
@@ -466,6 +467,7 @@ export default function DomesticDispatchPage() {
           packing_type: '12dz ctn',
           customer_name: (item.sales_orders as any)?.customers?.name || '-',
           customer_code: (item.sales_orders as any)?.customers?.code || '-',
+          price_per_dozen: Number(item.price_per_dozen) || 0,
         })),
       }));
     }
@@ -486,6 +488,18 @@ export default function DomesticDispatchPage() {
     const hasItems = formData.items.some(item => parseInt(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
+      return;
+    }
+    const zeroPriceItems = formData.items.filter(
+      item => parseInt(item.quantity_dozens) > 0 && !(item.price_per_dozen > 0),
+    );
+    if (zeroPriceItems.length > 0) {
+      const refs = zeroPriceItems
+        .map(i => `${i.order_number} / ${i.product_code}`)
+        .join(', ');
+      toast.error(
+        `Cannot dispatch items with zero unit price: ${refs}. Fix the order rate first.`,
+      );
       return;
     }
     saveMutation.mutate({ ...formData, selectedOrders });
