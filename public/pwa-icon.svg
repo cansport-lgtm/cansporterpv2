@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Deep pine gradient (green-500 → green-700 → green-950) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="55%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#052e16"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dy="6"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded-square (squircle) background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- Diagonal sheen highlight -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#sheen)"/>
+
+  <!-- Lucide Factory glyph at the top, scaled 6× (≈ 144 px tall) -->
+  <g transform="translate(184 80) scale(6)" filter="url(#softShadow)">
+    <g fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/>
+      <path d="M17 18h1"/>
+      <path d="M12 18h1"/>
+      <path d="M7 18h1"/>
+    </g>
+  </g>
+
+  <!-- Wordmark "CANSPORT" centered below the glyph -->
+  <text
+    x="256"
+    y="400"
+    text-anchor="middle"
+    font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif"
+    font-weight="bold"
+    font-size="82"
+    letter-spacing="4"
+    textLength="400"
+    lengthAdjust="spacingAndGlyphs"
+    fill="#ffffff"
+    filter="url(#softShadow)"
+  >CANSPORT</text>
+</svg>
