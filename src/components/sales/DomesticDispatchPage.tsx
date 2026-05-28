@@ -258,6 +258,12 @@ export default function DomesticDispatchPage() {
         } else if (!arResult.ok) {
           toast.error(`AR auto-post failed: ${arResult.error}`);
         }
+        if (arResult.zeroPriceOrders && arResult.zeroPriceOrders.length > 0) {
+          toast.warning(
+            `AR posted with Rs. 0 line(s) for order(s) ${arResult.zeroPriceOrders.join(', ')}. Fix the order rate to reflect real revenue.`,
+            { duration: 10000 },
+          );
+        }
 
         const cogsResult = await postCOGSForDispatch(newDispatch.id);
         if (cogsResult.ok && cogsResult.voucherNumber && !cogsResult.skipped) {
@@ -489,6 +495,18 @@ export default function DomesticDispatchPage() {
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
       return;
+    }
+    const zeroPriceItems = formData.items.filter(
+      item => parseInt(item.quantity_dozens) > 0 && !(item.price_per_dozen > 0),
+    );
+    if (zeroPriceItems.length > 0) {
+      const refs = Array.from(
+        new Set(zeroPriceItems.map(i => `${i.order_number} / ${i.product_code}`)),
+      ).join(', ');
+      toast.warning(
+        `Dispatching item(s) with no unit price: ${refs}. AR voucher will post Rs. 0 until the order rate is fixed.`,
+        { duration: 8000 },
+      );
     }
     saveMutation.mutate({ ...formData, selectedOrders });
   };

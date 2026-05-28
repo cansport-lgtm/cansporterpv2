@@ -7,6 +7,7 @@ export interface PostDispatchResult {
   ok: boolean;
   skipped?: "flag_off" | "already_posted";
   vouchers?: { customerId: string; voucherId: string; amount: number }[];
+  zeroPriceOrders?: string[];
   error?: string;
 }
 
@@ -96,6 +97,7 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       orderNumbers: Set<string>;
     };
     const byCustomer = new Map<string, Grouped>();
+    const zeroPriceOrders = new Set<string>();
 
     for (const item of items as any[]) {
       const oi = item.order_item;
@@ -105,6 +107,7 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       if (!customer) continue;
 
       const lineAmount = Number(item.quantity_dozens || 0) * Number(oi.price_per_dozen || 0);
+      if (lineAmount <= 0 && order?.order_number) zeroPriceOrders.add(order.order_number);
 
       const existing = byCustomer.get(customer.id);
       if (existing) {
@@ -124,7 +127,9 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       }
     }
 
-    if (byCustomer.size === 0) return { ok: true, vouchers: [] };
+    if (byCustomer.size === 0) {
+      return { ok: true, vouchers: [], zeroPriceOrders: Array.from(zeroPriceOrders) };
+    }
 
     // 4) Look up default accounts
     const arAccountId = await getDefaultAccount("accounts_receivable");
@@ -197,7 +202,7 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       results.push({ customerId, voucherId: voucher.id, amount: group.amount });
     }
 
-    return { ok: true, vouchers: results };
+    return { ok: true, vouchers: results, zeroPriceOrders: Array.from(zeroPriceOrders) };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
