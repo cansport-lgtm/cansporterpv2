@@ -93,6 +93,7 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       orderNumbers: Set<string>;
     };
     const byCustomer = new Map<string, Grouped>();
+    const zeroPriceLines: string[] = [];
 
     for (const item of items as any[]) {
       const oi = item.order_item;
@@ -102,7 +103,10 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
       if (!customer) continue;
 
       const lineAmount = Number(item.quantity_dozens || 0) * Number(oi.price_per_dozen || 0);
-      if (lineAmount <= 0) continue;
+      if (lineAmount <= 0) {
+        zeroPriceLines.push(`${order?.order_number || "?"} (${customer.name})`);
+        continue;
+      }
 
       const existing = byCustomer.get(customer.id);
       if (existing) {
@@ -120,6 +124,14 @@ export async function postDispatchVoucher(dispatchId: string): Promise<PostDispa
           orderNumbers: new Set(order.order_number ? [order.order_number] : []),
         });
       }
+    }
+
+    if (zeroPriceLines.length > 0) {
+      const refs = Array.from(new Set(zeroPriceLines)).join(", ");
+      return {
+        ok: false,
+        error: `Dispatch has line(s) with zero unit price: ${refs}. Fix the order rate and re-post.`,
+      };
     }
 
     if (byCustomer.size === 0) return { ok: true, vouchers: [] };
