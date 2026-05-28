@@ -490,18 +490,6 @@ export default function DomesticDispatchPage() {
       toast.error('Please add dispatch quantities');
       return;
     }
-    const zeroPriceItems = formData.items.filter(
-      item => parseInt(item.quantity_dozens) > 0 && !(item.price_per_dozen > 0),
-    );
-    if (zeroPriceItems.length > 0) {
-      const refs = zeroPriceItems
-        .map(i => `${i.order_number} / ${i.product_code}`)
-        .join(', ');
-      toast.error(
-        `Cannot dispatch items with zero unit price: ${refs}. Fix the order rate first.`,
-      );
-      return;
-    }
     saveMutation.mutate({ ...formData, selectedOrders });
   };
 
