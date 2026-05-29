@@ -1,13 +1,15 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, Layers, AlertTriangle } from "lucide-react";
 import { format, startOfYear, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 
@@ -48,6 +50,31 @@ export default function ProfitLossPage() {
     },
   });
 
+  // Diagnostic: domestic dispatches in the period that have no COGS voucher.
+  // This makes a silently-skipped COGS posting (e.g. zero standard_cost, or a
+  // manually backfilled sale) visible instead of just showing a blank line.
+  const { data: cogsDiag } = useQuery({
+    queryKey: ["acc-pl-cogs-diag", fromDate, toDate],
+    queryFn: async () => {
+      const { data: disp, error: e1 } = await sb
+        .from("sales_dispatches")
+        .select("id, dispatch_number, dispatch_date, sales_segment")
+        .gte("dispatch_date", fromDate)
+        .lte("dispatch_date", toDate);
+      if (e1) throw e1;
+      const domestic = (disp || []).filter((d: any) => !d.sales_segment || d.sales_segment === "domestic");
+      if (!domestic.length) return { missing: [] as any[] };
+      const { data: vouchers, error: e2 } = await sb
+        .from("accounting_vouchers")
+        .select("source_reference_id")
+        .eq("source_module", "domestic_sales_cogs");
+      if (e2) throw e2;
+      const posted = new Set((vouchers || []).map((v: any) => v.source_reference_id));
+      const missing = domestic.filter((d: any) => !posted.has(d.id));
+      return { missing };
+    },
+  });
+
   const computed = useMemo(() => {
     const totals: Record<string, { dr: number; cr: number }> = {};
     (lines || []).forEach((l: any) => {
@@ -65,29 +92,46 @@ export default function ProfitLossPage() {
       })
       .filter((r: any) => r.net !== 0);
 
-    const expenseRows = (accounts || [])
-      .filter((a: any) => a.account_type === "expense")
+    // COGS gets its own section and is ALWAYS shown (even at Rs 0) so a missing
+    // cost-of-sale can never silently disappear from the statement.
+    const cogsRows = (accounts || [])
+      .filter((a: any) => a.account_type === "expense" && a.sub_category === "COGS")
       .map((a: any) => {
         const t = totals[a.id] || { dr: 0, cr: 0 };
-        // Expense normal: Dr - Cr
+        return { ...a, net: t.dr - t.cr };
+      });
+
+    // Operating (non-COGS) expenses — hidden when zero, as before.
+    const opexRows = (accounts || [])
+      .filter((a: any) => a.account_type === "expense" && a.sub_category !== "COGS")
+      .map((a: any) => {
+        const t = totals[a.id] || { dr: 0, cr: 0 };
         return { ...a, net: t.dr - t.cr };
       })
       .filter((r: any) => r.net !== 0);
 
     const totalRevenue = revenueRows.reduce((s: number, r: any) => s + r.net, 0);
-    const totalExpense = expenseRows.reduce((s: number, r: any) => s + r.net, 0);
-    const netIncome = totalRevenue - totalExpense;
+    const totalCOGS = cogsRows.reduce((s: number, r: any) => s + r.net, 0);
+    const grossProfit = totalRevenue - totalCOGS;
+    const totalOpex = opexRows.reduce((s: number, r: any) => s + r.net, 0);
+    const netIncome = grossProfit - totalOpex;
 
-    // group expenses by sub-category for collapsible-style render
-    const expensesByGroup: Record<string, any[]> = {};
-    expenseRows.forEach((r: any) => {
+    // group operating expenses by sub-category for collapsible-style render
+    const opexByGroup: Record<string, any[]> = {};
+    opexRows.forEach((r: any) => {
       const key = r.sub_category || "Other";
-      if (!expensesByGroup[key]) expensesByGroup[key] = [];
-      expensesByGroup[key].push(r);
+      if (!opexByGroup[key]) opexByGroup[key] = [];
+      opexByGroup[key].push(r);
     });
 
-    return { revenueRows, expenseRows, expensesByGroup, totalRevenue, totalExpense, netIncome };
+    return { revenueRows, cogsRows, opexRows, opexByGroup, totalRevenue, totalCOGS, grossProfit, totalOpex, netIncome };
   }, [accounts, lines]);
+
+  const missingCogs = cogsDiag?.missing || [];
+  // Warn when there's revenue but the cost side is empty — the classic symptom
+  // of unset product standard_cost or an unposted COGS voucher.
+  const cogsLooksMissing = computed.totalRevenue > 0 && computed.totalCOGS === 0;
+  const showCogsWarning = cogsLooksMissing || missingCogs.length > 0;
 
   const handleExport = () => {
     const data: any[] = [];
@@ -95,9 +139,15 @@ export default function ProfitLossPage() {
     computed.revenueRows.forEach((r: any) => data.push({ Section: "", Code: r.code, Account: r.name, Amount: r.net }));
     data.push({ Section: "Total Revenue", Code: "", Account: "", Amount: computed.totalRevenue });
     data.push({ Section: "", Code: "", Account: "", Amount: "" });
-    data.push({ Section: "EXPENSES", Code: "", Account: "", Amount: "" });
-    computed.expenseRows.forEach((r: any) => data.push({ Section: "", Code: r.code, Account: r.name, Amount: r.net }));
-    data.push({ Section: "Total Expenses", Code: "", Account: "", Amount: computed.totalExpense });
+    data.push({ Section: "COST OF GOODS SOLD", Code: "", Account: "", Amount: "" });
+    computed.cogsRows.forEach((r: any) => data.push({ Section: "", Code: r.code, Account: r.name, Amount: r.net }));
+    data.push({ Section: "Total COGS", Code: "", Account: "", Amount: computed.totalCOGS });
+    data.push({ Section: "", Code: "", Account: "", Amount: "" });
+    data.push({ Section: "GROSS PROFIT", Code: "", Account: "", Amount: computed.grossProfit });
+    data.push({ Section: "", Code: "", Account: "", Amount: "" });
+    data.push({ Section: "OPERATING EXPENSES", Code: "", Account: "", Amount: "" });
+    computed.opexRows.forEach((r: any) => data.push({ Section: "", Code: r.code, Account: r.name, Amount: r.net }));
+    data.push({ Section: "Total Operating Expenses", Code: "", Account: "", Amount: computed.totalOpex });
     data.push({ Section: "", Code: "", Account: "", Amount: "" });
     data.push({ Section: "NET INCOME", Code: "", Account: "", Amount: computed.netIncome });
 
@@ -109,7 +159,7 @@ export default function ProfitLossPage() {
 
   return (
     <ERPLayout>
-      <PageHeader title="Profit & Loss" description="Revenue minus expenses for the selected period">
+      <PageHeader title="Profit & Loss" description="Revenue minus cost of goods sold and expenses for the selected period">
         <div className="flex gap-2">
           <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[160px]" />
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[160px]" />
@@ -117,24 +167,65 @@ export default function ProfitLossPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      {showCogsWarning && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Cost of Goods Sold may be understated</AlertTitle>
+          <AlertDescription>
+            <div className="space-y-1">
+              {cogsLooksMissing && (
+                <p>
+                  This period has <strong>Rs. {computed.totalRevenue.toLocaleString()}</strong> of revenue but
+                  {" "}<strong>Rs. 0</strong> of COGS. Gross profit shown below equals revenue, which is almost
+                  certainly wrong.
+                </p>
+              )}
+              {missingCogs.length > 0 && (
+                <p>
+                  <strong>{missingCogs.length}</strong> domestic dispatch{missingCogs.length === 1 ? "" : "es"} in this
+                  period {missingCogs.length === 1 ? "has" : "have"} no COGS voucher
+                  {missingCogs.length <= 6 && (
+                    <> ({missingCogs.map((d: any) => d.dispatch_number || d.id.slice(0, 8)).join(", ")})</>
+                  )}.
+                </p>
+              )}
+              <p className="text-xs">
+                Common causes: products have no <code>standard_cost</code> set (perpetual COGS posts Rs. 0 and is
+                skipped), or a sale was backfilled manually without its cost entry. Set product costs, then post the
+                cost of sale from{" "}
+                <Link to="/accounting/periodic-cogs" className="underline font-medium">Periodic COGS</Link>{" "}
+                or re-trigger the dispatch posting. Account mappings can be checked at{" "}
+                <Link to="/accounting/default-accounts" className="underline font-medium">Default Accounts</Link>.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" />Total Revenue</div>
           <div className="text-2xl font-semibold text-green-600">Rs. {computed.totalRevenue.toLocaleString()}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <div className="text-xs text-muted-foreground flex items-center gap-1"><TrendingDown className="h-3 w-3" />Total Expenses</div>
-          <div className="text-2xl font-semibold text-red-600">Rs. {computed.totalExpense.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1"><Layers className="h-3 w-3" />Cost of Goods Sold</div>
+          <div className="text-2xl font-semibold text-amber-600">Rs. {computed.totalCOGS.toLocaleString()}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <div className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" />Net {computed.netIncome >= 0 ? "Profit" : "Loss"}</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" />Gross Profit</div>
+          <div className={`text-2xl font-semibold ${computed.grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+            Rs. {Math.abs(computed.grossProfit).toLocaleString()}
+          </div>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground flex items-center gap-1"><TrendingDown className="h-3 w-3" />Net {computed.netIncome >= 0 ? "Profit" : "Loss"}</div>
           <div className={`text-2xl font-semibold ${computed.netIncome >= 0 ? "text-green-600" : "text-red-600"}`}>
             Rs. {Math.abs(computed.netIncome).toLocaleString()}
           </div>
         </CardContent></Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="space-y-4">
         {/* Revenue */}
         <div className="border rounded-lg">
           <div className="px-4 py-3 border-b bg-green-50 dark:bg-green-950/20 font-semibold text-sm">REVENUE</div>
@@ -163,9 +254,9 @@ export default function ProfitLossPage() {
           </Table>
         </div>
 
-        {/* Expenses */}
+        {/* Cost of Goods Sold — always rendered so a missing cost can't hide */}
         <div className="border rounded-lg">
-          <div className="px-4 py-3 border-b bg-red-50 dark:bg-red-950/20 font-semibold text-sm">EXPENSES</div>
+          <div className="px-4 py-3 border-b bg-amber-50 dark:bg-amber-950/20 font-semibold text-sm">COST OF GOODS SOLD</div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -175,8 +266,46 @@ export default function ProfitLossPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!computed.expenseRows.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No expense postings in this period</TableCell></TableRow>}
-              {Object.entries(computed.expensesByGroup).map(([group, rows]) => (
+              {!computed.cogsRows.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No COGS accounts configured</TableCell></TableRow>}
+              {computed.cogsRows.map((r: any) => (
+                <TableRow key={r.id} className={r.net === 0 ? "text-muted-foreground" : ""}>
+                  <TableCell className="font-mono text-xs">{r.code}</TableCell>
+                  <TableCell className="text-sm">{r.name}</TableCell>
+                  <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="bg-muted/40 font-semibold">
+                <TableCell colSpan={2}>Total COGS</TableCell>
+                <TableCell className="text-right">Rs. {computed.totalCOGS.toLocaleString()}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Gross Profit */}
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="text-base font-semibold">Gross Profit (Revenue − COGS)</div>
+            <div className={`text-xl font-bold ${computed.grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              Rs. {Math.abs(computed.grossProfit).toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Operating Expenses */}
+        <div className="border rounded-lg">
+          <div className="px-4 py-3 border-b bg-red-50 dark:bg-red-950/20 font-semibold text-sm">OPERATING EXPENSES</div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-24">Code</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead className="text-right w-36">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!computed.opexRows.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No operating expense postings in this period</TableCell></TableRow>}
+              {Object.entries(computed.opexByGroup).map(([group, rows]) => (
                 <>
                   <TableRow key={`g-${group}`} className="bg-muted/20">
                     <TableCell colSpan={3} className="text-xs font-medium text-muted-foreground">{group}</TableCell>
@@ -191,8 +320,8 @@ export default function ProfitLossPage() {
                 </>
               ))}
               <TableRow className="bg-muted/40 font-semibold">
-                <TableCell colSpan={2}>Total Expenses</TableCell>
-                <TableCell className="text-right">Rs. {computed.totalExpense.toLocaleString()}</TableCell>
+                <TableCell colSpan={2}>Total Operating Expenses</TableCell>
+                <TableCell className="text-right">Rs. {computed.totalOpex.toLocaleString()}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
