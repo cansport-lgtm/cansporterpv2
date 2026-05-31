@@ -155,6 +155,55 @@ export default function Dashboard() {
     },
   });
 
+  // Net Sales (matches the accounting Sales Report): dispatch-based, all segments.
+  // Dispatches in the selected period.
+  const { data: salesDispatches } = useQuery({
+    queryKey: ["ceo-sales-dispatches", dateRange],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_dispatches")
+        .select("id, dispatch_date, sales_segment")
+        .gte("dispatch_date", dateRange.start)
+        .lte("dispatch_date", dateRange.end)
+        .limit(5000);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Dispatch line items priced via the linked order item (qty_dozens × price_per_dozen).
+  const { data: salesDispatchItems } = useQuery({
+    queryKey: ["ceo-sales-dispatch-items", salesDispatches?.map(d => d.id)],
+    queryFn: async () => {
+      const ids = (salesDispatches || []).map(d => d.id);
+      if (!ids.length) return [];
+      const { data, error } = await supabase
+        .from("sales_dispatch_items")
+        .select("dispatch_id, quantity_dozens, order_item:sales_order_items(price_per_dozen)")
+        .in("dispatch_id", ids)
+        .limit(20000);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!salesDispatches,
+  });
+
+  // Posted sales returns in the period.
+  const { data: salesReturns } = useQuery({
+    queryKey: ["ceo-sales-returns", dateRange],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_returns")
+        .select("total_amount, return_date, status")
+        .gte("return_date", dateRange.start)
+        .lte("return_date", dateRange.end)
+        .eq("status", "posted")
+        .limit(5000);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Active employees
   const { data: employeesData } = useQuery({
     queryKey: ["ceo-employees"],
@@ -791,9 +840,20 @@ export default function Dashboard() {
     return { total, passed, failed, passRate, byProcess };
   }, [qaInspections, selectedQAProcessIds]);
 
-  const monthlySales = useMemo(() => {
-    return (salesOrders || []).reduce((s, o) => s + (o.total_amount || 0), 0);
-  }, [salesOrders]);
+  // Net Sales matching the accounting Sales Report (dispatch-based, all segments).
+  const netSalesStats = useMemo(() => {
+    const items = (salesDispatchItems || []) as any[];
+    const gross = items.reduce(
+      (s, i) => s + Number(i.quantity_dozens || 0) * Number(i.order_item?.price_per_dozen || 0), 0
+    );
+    const dozens = items.reduce((s, i) => s + Number(i.quantity_dozens || 0), 0);
+    const returns = (salesReturns || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+    return {
+      net: gross - returns,
+      dozens,
+      dispatches: (salesDispatches || []).length,
+    };
+  }, [salesDispatchItems, salesReturns, salesDispatches]);
 
   const totalExpenses = useMemo(() => {
     const pc = (pettyCash || []).reduce((s, e) => s + (e.amount || 0), 0);
@@ -1350,10 +1410,10 @@ export default function Dashboard() {
             iconColor="bg-green-100 text-green-600"
           />
           <MetricCard
-            title="Sales Value"
-            value={formatCurrency(monthlySales)}
+            title="Net Sales"
+            value={formatCurrency(netSalesStats.net)}
             icon={ShoppingCart}
-            description={`${salesOrders?.length || 0} orders`}
+            description={`${netSalesStats.dozens.toLocaleString()} dz across ${netSalesStats.dispatches} dispatch(es)`}
             iconColor="bg-cyan-100 text-cyan-600"
           />
           <MetricCard
