@@ -23,6 +23,7 @@ import {
   IndianRupee, Zap, Truck, CalendarIcon, Beaker, ChevronsUpDown, X,
   FolderKanban, FlaskConical, Rocket, TestTube, Lightbulb, ArrowRight,
   Code, Hammer, ChevronDown, ChevronRight, ShoppingBag, RotateCcw,
+  TrendingUp, Wallet, Landmark, Receipt,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -251,6 +252,51 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+  });
+
+  // Accounting: fiscal months overlapping the selected date range
+  const financePeriodKeys = useMemo(() => {
+    const start = new Date(dateRange.start + "T00:00:00");
+    const end = new Date(dateRange.end + "T00:00:00");
+    const keys: { year: number; month: number }[] = [];
+    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cur <= end) {
+      keys.push({ year: cur.getFullYear(), month: cur.getMonth() + 1 });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return keys;
+  }, [dateRange]);
+
+  // Accounting: fiscal periods for the overlapping months
+  const { data: financePeriods } = useQuery({
+    queryKey: ["ceo-finance-periods", financePeriodKeys],
+    queryFn: async () => {
+      const years = [...new Set(financePeriodKeys.map(k => k.year))];
+      const months = [...new Set(financePeriodKeys.map(k => k.month))];
+      const { data, error } = await supabase
+        .from("finance_periods")
+        .select("id, year, month, period_name")
+        .in("year", years)
+        .in("month", months);
+      if (error) throw error;
+      return (data || []).filter(p => financePeriodKeys.some(k => k.year === p.year && k.month === p.month));
+    },
+  });
+
+  // Accounting: trial balance entries for those periods
+  const { data: financeTrialEntries } = useQuery({
+    queryKey: ["ceo-finance-tb", financePeriods?.map(p => p.id)],
+    queryFn: async () => {
+      const ids = (financePeriods || []).map(p => p.id);
+      if (!ids.length) return [];
+      const { data, error } = await supabase
+        .from("finance_trial_balance_entries")
+        .select("debit_amount, credit_amount, period_id, account:finance_chart_of_accounts(account_type, sub_category)")
+        .in("period_id", ids);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!financePeriods,
   });
 
   // Labour productivity
@@ -759,6 +805,24 @@ export default function Dashboard() {
     const ub = (utilityBills || []).reduce((s, e) => s + (e.total_amount || 0), 0);
     return pc + ge + ub;
   }, [pettyCash, generalExpenses, utilityBills]);
+
+  // Accounting KPIs derived from trial balance (GL) entries
+  const financeKPIs = useMemo(() => {
+    const entries = (financeTrialEntries || []) as any[];
+    const revenue = entries
+      .filter(e => e.account?.account_type === "revenue")
+      .reduce((s, e) => s + Number(e.credit_amount || 0) - Number(e.debit_amount || 0), 0);
+    const expenses = entries
+      .filter(e => e.account?.account_type === "expense")
+      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
+    const cogs = entries
+      .filter(e => e.account?.account_type === "expense" && e.account?.sub_category?.toLowerCase()?.includes("cost of"))
+      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
+    const assets = entries
+      .filter(e => e.account?.account_type === "asset")
+      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
+    return { revenue, expenses, grossProfit: revenue - cogs, netProfit: revenue - expenses, assets };
+  }, [financeTrialEntries]);
 
   const labourEfficiency = useMemo(() => {
     const entries = labourData || [];
@@ -1324,6 +1388,38 @@ export default function Dashboard() {
             value={`${labourEfficiency}%`}
             icon={Zap}
             iconColor="bg-pink-100 text-pink-600"
+          />
+        </div>
+
+        {/* Accounting KPI Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Revenue"
+            value={formatCurrency(financeKPIs.revenue)}
+            icon={Landmark}
+            description="From general ledger"
+            iconColor="bg-emerald-100 text-emerald-600"
+          />
+          <MetricCard
+            title="Gross Profit"
+            value={formatCurrency(financeKPIs.grossProfit)}
+            icon={TrendingUp}
+            description={financeKPIs.revenue > 0 ? `${((financeKPIs.grossProfit / financeKPIs.revenue) * 100).toFixed(0)}% margin` : undefined}
+            iconColor="bg-teal-100 text-teal-600"
+          />
+          <MetricCard
+            title="Net Profit"
+            value={formatCurrency(financeKPIs.netProfit)}
+            icon={Receipt}
+            description={financeKPIs.revenue > 0 ? `${((financeKPIs.netProfit / financeKPIs.revenue) * 100).toFixed(0)}% margin` : undefined}
+            iconColor={financeKPIs.netProfit >= 0 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}
+          />
+          <MetricCard
+            title="Total Assets"
+            value={formatCurrency(financeKPIs.assets)}
+            icon={Wallet}
+            description="Latest ledger balance"
+            iconColor="bg-slate-100 text-slate-600"
           />
         </div>
 
