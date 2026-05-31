@@ -254,32 +254,28 @@ export default function Dashboard() {
     },
   });
 
-  // Accounting: fiscal months overlapping the selected date range
-  const financePeriodKeys = useMemo(() => {
-    const start = new Date(dateRange.start + "T00:00:00");
-    const end = new Date(dateRange.end + "T00:00:00");
-    const keys: { year: number; month: number }[] = [];
-    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
-    while (cur <= end) {
-      keys.push({ year: cur.getFullYear(), month: cur.getMonth() + 1 });
-      cur.setMonth(cur.getMonth() + 1);
-    }
-    return keys;
+  // Accounting: the fiscal month at the end of the selected date range
+  const rangeEndYM = useMemo(() => {
+    const d = new Date(dateRange.end + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
   }, [dateRange]);
 
-  // Accounting: fiscal periods for the overlapping months
+  // Accounting: fiscal periods on or before the selected range end, newest first.
+  // GL data is sparse/monthly, so the KPIs show the latest period that has data
+  // rather than tying strictly to the day/week selector (which would read zero).
   const { data: financePeriods } = useQuery({
-    queryKey: ["ceo-finance-periods", financePeriodKeys],
+    queryKey: ["ceo-finance-periods", rangeEndYM],
     queryFn: async () => {
-      const years = [...new Set(financePeriodKeys.map(k => k.year))];
-      const months = [...new Set(financePeriodKeys.map(k => k.month))];
       const { data, error } = await supabase
         .from("finance_periods")
         .select("id, year, month, period_name")
-        .in("year", years)
-        .in("month", months);
+        .order("year", { ascending: false })
+        .order("month", { ascending: false })
+        .limit(60);
       if (error) throw error;
-      return (data || []).filter(p => financePeriodKeys.some(k => k.year === p.year && k.month === p.month));
+      return (data || []).filter(p =>
+        p.year < rangeEndYM.year || (p.year === rangeEndYM.year && p.month <= rangeEndYM.month)
+      );
     },
   });
 
@@ -806,9 +802,13 @@ export default function Dashboard() {
     return pc + ge + ub;
   }, [pettyCash, generalExpenses, utilityBills]);
 
-  // Accounting KPIs derived from trial balance (GL) entries
+  // Accounting KPIs derived from trial balance (GL) entries.
+  // financePeriods is sorted newest-first; use the latest period that has data.
   const financeKPIs = useMemo(() => {
-    const entries = (financeTrialEntries || []) as any[];
+    const periods = financePeriods || [];
+    const allEntries = (financeTrialEntries || []) as any[];
+    const activePeriod = periods.find(p => allEntries.some(e => e.period_id === p.id));
+    const entries = activePeriod ? allEntries.filter(e => e.period_id === activePeriod.id) : [];
     const revenue = entries
       .filter(e => e.account?.account_type === "revenue")
       .reduce((s, e) => s + Number(e.credit_amount || 0) - Number(e.debit_amount || 0), 0);
@@ -821,8 +821,11 @@ export default function Dashboard() {
     const assets = entries
       .filter(e => e.account?.account_type === "asset")
       .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
-    return { revenue, expenses, grossProfit: revenue - cogs, netProfit: revenue - expenses, assets };
-  }, [financeTrialEntries]);
+    return {
+      revenue, expenses, grossProfit: revenue - cogs, netProfit: revenue - expenses, assets,
+      periodName: activePeriod?.period_name ?? null,
+    };
+  }, [financePeriods, financeTrialEntries]);
 
   const labourEfficiency = useMemo(() => {
     const entries = labourData || [];
@@ -1397,7 +1400,7 @@ export default function Dashboard() {
             title="Revenue"
             value={formatCurrency(financeKPIs.revenue)}
             icon={Landmark}
-            description="From general ledger"
+            description={financeKPIs.periodName ? `As of ${financeKPIs.periodName}` : "No ledger data"}
             iconColor="bg-emerald-100 text-emerald-600"
           />
           <MetricCard
@@ -1418,7 +1421,7 @@ export default function Dashboard() {
             title="Total Assets"
             value={formatCurrency(financeKPIs.assets)}
             icon={Wallet}
-            description="Latest ledger balance"
+            description={financeKPIs.periodName ? `As of ${financeKPIs.periodName}` : "No ledger data"}
             iconColor="bg-slate-100 text-slate-600"
           />
         </div>
