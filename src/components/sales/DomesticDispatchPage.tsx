@@ -257,6 +257,10 @@ export default function DomesticDispatchPage() {
         } else if (!arResult.ok) {
           toast.error(`AR auto-post failed: ${arResult.error}`);
         }
+        if (arResult.skippedNoBilling && arResult.skippedNoBilling.length > 0) {
+          const names = arResult.skippedNoBilling.map((s) => s.name).join(", ");
+          toast.warning(`AR not posted — no billing customer set for: ${names}`);
+        }
 
         const cogsResult = await postCOGSForDispatch(newDispatch.id);
         if (cogsResult.ok && cogsResult.voucherNumber && !cogsResult.skipped) {

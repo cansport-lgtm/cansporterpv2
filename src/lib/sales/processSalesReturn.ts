@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { postSalesReturn } from "@/lib/accounting/postSalesReturn";
+import { resolveBillingCustomerParty } from "@/lib/accounting/getCustomerBillingParty";
 
 const sb = supabase as any;
 
@@ -29,29 +30,26 @@ export async function processSalesReturn(returnId: string): Promise<ProcessSales
     }
     if (!r.customer_id) return { ok: false, error: "Return has no customer" };
 
-    // Resolve the customer's accounting_party_id; create one if missing (mirrors the
-    // dispatch auto-post behavior so AR/return postings line up against the same party).
+    // Resolve the customer's BILLING customer party (mirrors the dispatch
+    // auto-post behavior so AR/return postings line up against the same party).
+    // Ship-to shops with no billing customer are skipped rather than posted.
     const { data: customer } = await sb
       .from("customers")
-      .select("id, name, code, accounting_party_id")
+      .select("id, name, code, accounting_party_id, billing_customer")
       .eq("id", r.customer_id)
       .maybeSingle();
     if (!customer) return { ok: false, error: "Customer not found" };
 
-    let partyId: string | null = customer.accounting_party_id;
+    const { partyId, skipped } = await resolveBillingCustomerParty(customer);
     if (!partyId) {
-      const { data: newParty, error: pErr } = await sb
-        .from("accounting_parties")
-        .insert({ name: customer.name, code: customer.code || null, party_type: "customer", is_active: true })
-        .select("id")
-        .single();
-      if (pErr) return { ok: false, error: pErr.message };
-      partyId = newParty.id;
-      await sb.from("customers").update({ accounting_party_id: partyId }).eq("id", customer.id);
+      if (skipped === "no_billing_customer") {
+        return { ok: true, skipped: "no_billing_customer" };
+      }
+      return { ok: false, error: "Could not resolve a billing customer for this return." };
     }
 
     const result = await postSalesReturn({
-      partyId: partyId!,
+      partyId,
       returnDate: r.return_date,
       salesAmount: Number(r.total_amount || 0),
       cogsAmount: Number(r.cogs_amount || 0),
