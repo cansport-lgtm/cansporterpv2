@@ -73,12 +73,15 @@ export default function CustomerReceiptsPage() {
           else map[pid].b90p += net;
         }
       });
-      // Include every customer in the list, even with no AR activity / zero
-      // balance, so receipts (e.g. advances) can be recorded against any of them.
+      // Include every active billing customer in the list, even with no AR
+      // activity / zero balance, so receipts (e.g. advances) can be recorded
+      // against any of them. Inactive parties (e.g. ship-to records that roll
+      // up to a billing customer) are excluded.
       const { data: allCustomers } = await sb
         .from("accounting_parties")
         .select("id, name")
-        .eq("party_type", "customer");
+        .eq("party_type", "customer")
+        .eq("is_active", true);
       (allCustomers || []).forEach((p: any) => {
         if (!map[p.id]) map[p.id] = { partyId: p.id, name: p.name || "?", total: 0, b0_30: 0, b31_60: 0, b61_90: 0, b90p: 0 };
       });

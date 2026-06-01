@@ -71,12 +71,14 @@ export default function SupplierPaymentsPage() {
           else map[pid].b90p += net;
         }
       });
-      // Include every supplier in the list, even with no AP activity / zero
-      // balance, so payments (e.g. advances) can be recorded against any of them.
+      // Include every active supplier in the list, even with no AP activity /
+      // zero balance, so payments (e.g. advances) can be recorded against any
+      // of them. Inactive parties are excluded.
       const { data: allSuppliers } = await sb
         .from("accounting_parties")
         .select("id, name")
-        .eq("party_type", "supplier");
+        .eq("party_type", "supplier")
+        .eq("is_active", true);
       (allSuppliers || []).forEach((p: any) => {
         if (!map[p.id]) map[p.id] = { partyId: p.id, name: p.name || "?", total: 0, b0_30: 0, b31_60: 0, b61_90: 0, b90p: 0 };
       });
