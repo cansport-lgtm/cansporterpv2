@@ -207,7 +207,7 @@ export default function DomesticSalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, name, address, payment_terms')
+        .select('id, code, name, address, payment_terms, billing_customer')
         .eq('is_active', true)
         .eq('sales_segment', 'domestic')
         .order('name');
@@ -535,6 +535,16 @@ export default function DomesticSalesOrdersPage() {
       toast.error('Please select a customer');
       return;
     }
+    // The order's customer must roll up to a billing customer.
+    const selectedCustomer = customers?.find(c => c.id === editFormData.customer_id);
+    const billingCustomer = ((selectedCustomer as any)?.billing_customer || '').trim();
+    if (!billingCustomer) {
+      toast.error(
+        `Cannot save order: "${selectedCustomer?.name || 'This customer'}" has no Billing Customer set. ` +
+        `Update the customer's billing customer first.`
+      );
+      return;
+    }
     if (!editFormData.expected_dispatch_date) {
       toast.error('Dispatch Deadline is required');
       return;
@@ -704,6 +714,17 @@ export default function DomesticSalesOrdersPage() {
     e.preventDefault();
     if (!formData.customer_id) {
       toast.error('Please select a customer');
+      return;
+    }
+    // A sales order must roll up to a billing customer (the real accounting
+    // customer). Block creation until the customer has a billing customer set.
+    const selectedCustomer = customers?.find(c => c.id === formData.customer_id);
+    const billingCustomer = ((selectedCustomer as any)?.billing_customer || '').trim();
+    if (!billingCustomer) {
+      toast.error(
+        `Cannot create order: "${selectedCustomer?.name || 'This customer'}" has no Billing Customer set. ` +
+        `Update the customer's billing customer first.`
+      );
       return;
     }
     if (!formData.expected_dispatch_date) {
