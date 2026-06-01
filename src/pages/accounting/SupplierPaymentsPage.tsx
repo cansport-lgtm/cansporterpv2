@@ -71,7 +71,18 @@ export default function SupplierPaymentsPage() {
           else map[pid].b90p += net;
         }
       });
-      return Object.values(map).filter((r: any) => Math.abs(r.total) > 0.01).sort((a: any, b: any) => b.total - a.total);
+      // Include every supplier in the list, even with no AP activity / zero
+      // balance, so payments (e.g. advances) can be recorded against any of them.
+      const { data: allSuppliers } = await sb
+        .from("accounting_parties")
+        .select("id, name")
+        .eq("party_type", "supplier");
+      (allSuppliers || []).forEach((p: any) => {
+        if (!map[p.id]) map[p.id] = { partyId: p.id, name: p.name || "?", total: 0, b0_30: 0, b31_60: 0, b61_90: 0, b90p: 0 };
+      });
+      // Outstanding balances first (largest to smallest), then zero-balance
+      // suppliers alphabetically.
+      return Object.values(map).sort((a: any, b: any) => b.total - a.total || a.name.localeCompare(b.name));
     },
     enabled: !!apAccount,
   });
