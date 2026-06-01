@@ -169,6 +169,18 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
     return [...new Set(allAreas)].sort() as string[];
   }, [customers]);
 
+  // Billing customer can only be an EXISTING customer (in this segment) — no
+  // free-form names. We list active customer names; the currently-saved value
+  // is also included so existing records remain editable without data loss.
+  const billingCustomerOptions = useMemo(() => {
+    const names = (customers || [])
+      .filter(c => c.is_active && c.name)
+      .map(c => c.name);
+    const current = (formData.billing_customer || '').trim();
+    if (current && !names.includes(current)) names.push(current);
+    return [...new Set(names)].sort();
+  }, [customers, formData.billing_customer]);
+
   // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (data: CustomerFormData) => {
@@ -404,11 +416,20 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
 
                       <div className="space-y-2">
                         <Label>Billing Customer</Label>
-                        <Input
-                          value={formData.billing_customer}
-                          onChange={(e) => setFormData({ ...formData, billing_customer: e.target.value })}
-                          placeholder="Billing customer name"
-                        />
+                        <Select
+                          value={formData.billing_customer || 'none'}
+                          onValueChange={(value) => setFormData({ ...formData, billing_customer: value === 'none' ? '' : value })}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue placeholder="Select billing customer" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background z-50">
+                            <SelectItem value="none">— None —</SelectItem>
+                            {billingCustomerOptions.map((name) => (
+                              <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
