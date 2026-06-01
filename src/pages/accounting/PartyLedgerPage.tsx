@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { FileText, Printer } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
+import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -146,6 +147,7 @@ export default function PartyLedgerPage() {
 
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [viewGRNId, setViewGRNId] = useState<string | null>(null);
+  const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     if (!lines) return [];
@@ -323,18 +325,23 @@ export default function PartyLedgerPage() {
                 <TableCell className="text-xs">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
-                  {sourceDoc ? (
+                  <button
+                    type="button"
+                    onClick={() => setViewVoucherId(r.voucher_id)}
+                    className="text-primary hover:underline"
+                    title="Open voucher"
+                  >
+                    {r.voucher?.voucher_number}
+                  </button>
+                  {sourceDoc && (
                     <button
                       type="button"
                       onClick={openSource}
-                      className="text-primary hover:underline inline-flex items-center gap-1"
+                      className="text-primary hover:underline inline-flex items-center ml-1 align-middle"
                       title={sourceTitle}
                     >
-                      {r.voucher?.voucher_number}
                       <FileText className="h-3 w-3" />
                     </button>
-                  ) : (
-                    r.voucher?.voucher_number
                   )}
                 </TableCell>
                 <TableCell className="text-xs">{r.account?.name || "—"}</TableCell>
@@ -362,6 +369,10 @@ export default function PartyLedgerPage() {
       <GRNViewDialog
         grnId={viewGRNId}
         onOpenChange={(o) => !o && setViewGRNId(null)}
+      />
+      <VoucherViewDialog
+        voucherId={viewVoucherId}
+        onOpenChange={(o) => !o && setViewVoucherId(null)}
       />
       </div>
     </ERPLayout>

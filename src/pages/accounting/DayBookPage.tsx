@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { format, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -26,6 +27,7 @@ const typeBadge = (t: string) => {
 
 export default function DayBookPage() {
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
 
   const { data: vouchers, isLoading } = useQuery({
     queryKey: ["acc-daybook", date],
@@ -75,7 +77,16 @@ export default function DayBookPage() {
               const crLines = (v.lines || []).filter((l: any) => Number(l.credit_amount) > 0);
               return (
                 <TableRow key={v.id}>
-                  <TableCell className="font-mono text-xs align-top">{v.voucher_number}</TableCell>
+                  <TableCell className="font-mono text-xs align-top">
+                    <button
+                      type="button"
+                      onClick={() => setViewVoucherId(v.id)}
+                      className="text-primary hover:underline"
+                      title="Open voucher"
+                    >
+                      {v.voucher_number}
+                    </button>
+                  </TableCell>
                   <TableCell className="align-top">{typeBadge(v.voucher_type)}</TableCell>
                   <TableCell className="text-xs align-top">{v.party?.name || "—"}</TableCell>
                   <TableCell className="text-xs">
@@ -100,6 +111,8 @@ export default function DayBookPage() {
           </TableBody>
         </Table>
       </div>
+
+      <VoucherViewDialog voucherId={viewVoucherId} onOpenChange={(o) => !o && setViewVoucherId(null)} />
     </ERPLayout>
   );
 }

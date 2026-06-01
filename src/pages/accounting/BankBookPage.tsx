@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -16,6 +17,7 @@ export default function BankBookPage() {
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountId, setAccountId] = useState<string>("");
+  const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
 
   const { data: bankAccounts } = useQuery({
     queryKey: ["acc-bankbook-accounts"],
@@ -152,7 +154,14 @@ export default function BankBookPage() {
                 <TableCell className="text-xs">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM")}</TableCell>
                 <TableCell className="text-xs">
                   <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
-                  {r.voucher?.voucher_number}
+                  <button
+                    type="button"
+                    onClick={() => setViewVoucherId(r.voucher_id)}
+                    className="text-primary hover:underline"
+                    title="Open voucher"
+                  >
+                    {r.voucher?.voucher_number}
+                  </button>
                 </TableCell>
                 <TableCell className="text-xs">{contraData?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
                 <TableCell className="text-xs">{r.party?.name || "—"}</TableCell>
@@ -170,6 +179,8 @@ export default function BankBookPage() {
           </TableBody>
         </Table>
       </div>
+
+      <VoucherViewDialog voucherId={viewVoucherId} onOpenChange={(o) => !o && setViewVoucherId(null)} />
     </ERPLayout>
   );
 }
