@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Printer } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
+import { InvoicePrintView } from "@/components/sales/InvoicePrintView";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -148,6 +149,7 @@ export default function PartyLedgerPage() {
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [viewGRNId, setViewGRNId] = useState<string | null>(null);
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
+  const [printInvoiceId, setPrintInvoiceId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     if (!lines) return [];
@@ -179,7 +181,8 @@ export default function PartyLedgerPage() {
   return (
     <ERPLayout>
       {/* === PRINT VIEW (only visible when printing) === */}
-      {selectedParty && (
+      {/* Suppressed while printing a single invoice so only the invoice prints. */}
+      {selectedParty && !printInvoiceId && (
         <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:p-8 print:z-50 print:text-foreground">
           <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-gray-800">
@@ -365,6 +368,11 @@ export default function PartyLedgerPage() {
       <InvoiceViewDialog
         invoiceId={viewInvoiceId}
         onOpenChange={(o) => !o && setViewInvoiceId(null)}
+        onPrint={(id) => { setViewInvoiceId(null); setPrintInvoiceId(id); }}
+      />
+      <InvoicePrintView
+        invoiceId={printInvoiceId}
+        onAfterPrint={() => setPrintInvoiceId(null)}
       />
       <GRNViewDialog
         grnId={viewGRNId}
