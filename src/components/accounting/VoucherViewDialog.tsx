@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
+import { Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -63,9 +64,51 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
     enabled: !!voucherId,
   });
 
+  // Item-level detail for vouchers that originate from a source document.
+  //   - domestic_sales: source_reference_id is a dispatch id; resolve it to the
+  //     invoice, then read its line items.
+  //   - purchase:       source_reference_id IS the GRN id; read its received items.
+  // Returns null for manual / non-itemised vouchers (JV adjustments, CRV, etc.).
+  const srcModule = voucher?.source_module as string | undefined;
+  const srcRefId = voucher?.source_reference_id as string | undefined;
+  const itemsEnabled = !!voucherId && !!srcRefId && (srcModule === "domestic_sales" || srcModule === "purchase");
+
+  const { data: itemDetail } = useQuery({
+    queryKey: ["voucher-view-dialog-items", voucherId, srcModule, srcRefId],
+    queryFn: async () => {
+      if (!srcRefId) return null;
+      if (srcModule === "domestic_sales") {
+        const { data: inv, error: invErr } = await sb
+          .from("domestic_invoices")
+          .select("id, invoice_number")
+          .eq("dispatch_id", srcRefId)
+          .maybeSingle();
+        if (invErr) throw invErr;
+        if (!inv?.id) return null;
+        const { data: items, error: itErr } = await sb
+          .from("domestic_invoice_items")
+          .select("*")
+          .eq("invoice_id", inv.id)
+          .order("line_order");
+        if (itErr) throw itErr;
+        return { kind: "invoice" as const, docNumber: inv.invoice_number as string | null, items: items || [] };
+      }
+      if (srcModule === "purchase") {
+        const { data: items, error: itErr } = await sb
+          .from("grn_items")
+          .select("*, items(code, name)")
+          .eq("grn_id", srcRefId);
+        if (itErr) throw itErr;
+        return { kind: "grn" as const, docNumber: null, items: items || [] };
+      }
+      return null;
+    },
+    enabled: itemsEnabled,
+  });
+
   return (
     <Dialog open={!!voucherId} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {voucher?.voucher_number || "Voucher"} {typeBadge(voucher?.voucher_type)}
@@ -111,6 +154,68 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
                 ))}
               </TableBody>
             </Table>
+
+            {/* Source-document item details (sales invoice / purchase GRN) */}
+            {itemDetail && itemDetail.items.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  Item Details
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {itemDetail.kind === "invoice"
+                      ? `Invoice ${itemDetail.docNumber || ""}`.trim()
+                      : "Goods Receipt"}
+                  </span>
+                </div>
+                {itemDetail.kind === "invoice" ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Grade</TableHead>
+                        <TableHead className="text-right">Qty (Dz)</TableHead>
+                        <TableHead className="text-right">Rate/Dz</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {itemDetail.items.map((it: any) => (
+                        <TableRow key={it.id}>
+                          <TableCell className="text-xs">{it.description || "—"}</TableCell>
+                          <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>
+                          <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-xs">Rs. {Number(it.price_per_dozen).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-xs font-medium">Rs. {Number(it.amount).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Received</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {itemDetail.items.map((it: any) => (
+                        <TableRow key={it.id}>
+                          <TableCell className="text-xs font-mono">{it.items?.code || "—"}</TableCell>
+                          <TableCell className="text-xs">{it.description || it.items?.name || "—"}</TableCell>
+                          <TableCell className="text-right text-xs">{Number(it.quantity_received || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-xs">Rs. {Number(it.unit_price || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-xs font-medium">Rs. {Number(it.amount || 0).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
