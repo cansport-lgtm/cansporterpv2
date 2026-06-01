@@ -11,9 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { ArrowDownCircle, ArrowUpCircle, Zap } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Zap, Pencil } from "lucide-react";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
+import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -22,10 +24,21 @@ type QEMode = "receipt" | "payment";
 
 export default function CashBookPage() {
   const queryClient = useQueryClient();
+  const { roles } = useAuth();
+  const isSuperAdmin = roles.some((r) => r.role === "super_admin");
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountId, setAccountId] = useState<string>("");
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
+
+  // ----- Edit-voucher state (super admin only; manual cash vouchers) -----
+  const [editVoucherId, setEditVoucherId] = useState<string | null>(null);
+  const [edMode, setEdMode] = useState<QEMode>("receipt");
+  const [edDate, setEdDate] = useState("");
+  const [edContraId, setEdContraId] = useState<string>("");
+  const [edPartyId, setEdPartyId] = useState<string>("none");
+  const [edAmount, setEdAmount] = useState<string>("");
+  const [edNote, setEdNote] = useState<string>("");
 
   // ----- Quick-entry state -----
   const [qeMode, setQeMode] = useState<QEMode>("receipt");
@@ -230,7 +243,7 @@ export default function CashBookPage() {
       if (!accountId) return [];
       const { data, error } = await sb
         .from("accounting_voucher_lines")
-        .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, party_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
+        .select("*, voucher:accounting_vouchers!inner(id, voucher_number, voucher_type, voucher_date, narration, party_id, source_module, status, reverses_voucher_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
         .eq("account_id", accountId)
         .gte("voucher.voucher_date", fromDate)
         .lte("voucher.voucher_date", toDate);
@@ -254,7 +267,7 @@ export default function CashBookPage() {
   const { data: contraData } = useQuery({
     queryKey: ["acc-cashbook-contra", voucherIds.join(",")],
     queryFn: async () => {
-      if (!voucherIds.length) return { accountMap: {} as Record<string, string>, partyMap: {} as Record<string, string> };
+      if (!voucherIds.length) return { accountMap: {} as Record<string, string>, partyMap: {} as Record<string, string>, lineCountMap: {} as Record<string, number>, contraMap: {} as Record<string, { accountId: string; partyId: string | null }> };
       const { data, error } = await sb
         .from("accounting_voucher_lines")
         .select("voucher_id, account_id, party_id, debit_amount, credit_amount, account:accounting_chart_of_accounts(name), party:accounting_parties(name)")
@@ -262,14 +275,19 @@ export default function CashBookPage() {
       if (error) throw error;
       const accountMap: Record<string, string> = {};
       const partyMap: Record<string, string> = {};
+      const lineCountMap: Record<string, number> = {};
+      const contraMap: Record<string, { accountId: string; partyId: string | null }> = {};
       (data || []).forEach((l: any) => {
+        lineCountMap[l.voucher_id] = (lineCountMap[l.voucher_id] || 0) + 1;
         if (l.account_id === accountId) return;
         if (!accountMap[l.voucher_id]) accountMap[l.voucher_id] = l.account?.name || "";
         else if (!accountMap[l.voucher_id].includes(l.account?.name)) accountMap[l.voucher_id] += ", " + l.account?.name;
         const pname = l.party?.name;
         if (pname && !partyMap[l.voucher_id]) partyMap[l.voucher_id] = pname;
+        // The "other side" line — used to pre-fill the edit form.
+        if (!contraMap[l.voucher_id]) contraMap[l.voucher_id] = { accountId: l.account_id, partyId: l.party_id || null };
       });
-      return { accountMap, partyMap };
+      return { accountMap, partyMap, lineCountMap, contraMap };
     },
     enabled: voucherIds.length > 0,
   });
@@ -289,6 +307,108 @@ export default function CashBookPage() {
   const closing = Number(opening || 0) + totalDr - totalCr;
 
   const selectedAccount = cashAccounts?.find((a: any) => a.id === accountId);
+
+  // Only simple, manually-entered cash vouchers are editable in place: a posted
+  // CRV/CPV with exactly two lines (cash + one contra), not a reversal/reversed.
+  // Auto-posted vouchers (sales, receipts, etc.) must be corrected via reversal
+  // so they stay in sync with their source document.
+  const isRowEditable = (r: any): boolean => {
+    if (!isSuperAdmin) return false;
+    const v = r.voucher;
+    if (!v) return false;
+    if (!["CRV", "CPV"].includes(v.voucher_type)) return false;
+    if (v.source_module !== "manual") return false;
+    if (v.status !== "posted") return false;
+    if (v.reverses_voucher_id) return false;
+    if ((contraData?.lineCountMap?.[r.voucher_id] ?? 0) !== 2) return false;
+    return true;
+  };
+
+  const openEdit = (r: any) => {
+    const contra = contraData?.contraMap?.[r.voucher_id];
+    setEditVoucherId(r.voucher_id);
+    setEdMode(Number(r.debit_amount) > 0 ? "receipt" : "payment");
+    setEdDate(r.voucher?.voucher_date || format(new Date(), "yyyy-MM-dd"));
+    setEdAmount(String(Number(r.debit_amount) || Number(r.credit_amount) || ""));
+    setEdContraId(contra?.accountId || "");
+    setEdPartyId(contra?.partyId || "none");
+    setEdNote(r.voucher?.narration || "");
+  };
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      const amount = parseFloat(edAmount);
+      if (!editVoucherId) throw new Error("No voucher selected");
+      if (!accountId) throw new Error("Select a cash account");
+      if (!edContraId) throw new Error("Select the other-side account");
+      if (edContraId === accountId) throw new Error("Other-side account cannot be the cash account itself");
+      if (!(amount > 0)) throw new Error("Amount must be greater than zero");
+      if (!edDate) throw new Error("Date is required");
+
+      // Re-fetch the voucher's lines so we update in place (preserves line ids /
+      // audit trail) and re-validate it is still a simple 2-line cash voucher.
+      const { data: existing, error: exErr } = await sb
+        .from("accounting_voucher_lines")
+        .select("id, account_id")
+        .eq("voucher_id", editVoucherId)
+        .order("line_order");
+      if (exErr) throw exErr;
+      if (!existing || existing.length !== 2) throw new Error("This voucher can no longer be edited here (structure changed).");
+      const cashLine = existing.find((l: any) => l.account_id === accountId);
+      const contraLine = existing.find((l: any) => l.id !== cashLine?.id);
+      if (!cashLine || !contraLine) throw new Error("Could not resolve cash / contra line for this voucher.");
+
+      const isReceipt = edMode === "receipt";
+      const voucherType = isReceipt ? "CRV" : "CPV";
+
+      const { error: vErr } = await sb
+        .from("accounting_vouchers")
+        .update({
+          voucher_type: voucherType,
+          voucher_date: edDate,
+          party_id: edPartyId === "none" ? null : edPartyId,
+          narration: edNote,
+          total_amount: amount,
+        })
+        .eq("id", editVoucherId);
+      if (vErr) throw vErr;
+
+      const { error: cashErr } = await sb
+        .from("accounting_voucher_lines")
+        .update({
+          debit_amount: isReceipt ? amount : 0,
+          credit_amount: isReceipt ? 0 : amount,
+          line_narration: isReceipt ? "Received" : "Paid",
+        })
+        .eq("id", cashLine.id);
+      if (cashErr) throw cashErr;
+
+      const { error: contraErr } = await sb
+        .from("accounting_voucher_lines")
+        .update({
+          account_id: edContraId,
+          party_id: edPartyId === "none" ? null : edPartyId,
+          debit_amount: isReceipt ? 0 : amount,
+          credit_amount: isReceipt ? amount : 0,
+          line_narration: edNote || "",
+        })
+        .eq("id", contraLine.id);
+      if (contraErr) throw contraErr;
+    },
+    onSuccess: () => {
+      toast({ title: "Voucher updated" });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-opening"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-lines"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-cashbook-contra"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["voucher-view-dialog"] });
+      queryClient.invalidateQueries({ queryKey: ["voucher-view-dialog-lines"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-dash-lines"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-dash-recent"] });
+      setEditVoucherId(null);
+    },
+    onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
+  });
 
   return (
     <ERPLayout>
@@ -451,6 +571,18 @@ export default function CashBookPage() {
                   >
                     {r.voucher?.voucher_number}
                   </button>
+                  {isRowEditable(r) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 ml-1 align-middle"
+                      onClick={() => openEdit(r)}
+                      title="Edit voucher (super admin)"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
                 <TableCell className="text-xs">{contraData?.partyMap?.[r.voucher_id] || r.party?.name || "—"}</TableCell>
@@ -470,6 +602,92 @@ export default function CashBookPage() {
       </div>
 
       <VoucherViewDialog voucherId={viewVoucherId} onOpenChange={(o) => !o && setViewVoucherId(null)} />
+
+      {/* Edit voucher (super admin only — manual cash vouchers) */}
+      <Dialog open={!!editVoucherId} onOpenChange={(o) => { if (!o) setEditVoucherId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Cash Voucher</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Type</Label>
+              <div className="flex rounded-md border overflow-hidden h-9">
+                <button
+                  type="button"
+                  onClick={() => setEdMode("receipt")}
+                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${edMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
+                >
+                  <ArrowDownCircle className="h-3 w-3" />Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEdMode("payment")}
+                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${edMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
+                >
+                  <ArrowUpCircle className="h-3 w-3" />Payment
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={edDate} onChange={(e) => setEdDate(e.target.value)} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">{edMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
+              <SearchableSelect
+                value={edContraId}
+                onValueChange={setEdContraId}
+                placeholder="Select account"
+                triggerClassName="h-9 w-full"
+                options={otherSideAccounts.map((a: any) => ({
+                  value: a.id,
+                  label: a.name,
+                  secondary: `(${a.code})`,
+                  search: a.code,
+                }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Party (optional)</Label>
+              <SearchableSelect
+                value={edPartyId}
+                onValueChange={setEdPartyId}
+                placeholder="— None —"
+                triggerClassName="h-9 w-full"
+                options={[
+                  { value: "none", label: "— None —" },
+                  ...(parties || []).map((p: any) => ({ value: p.id, label: p.name, secondary: `(${p.party_type})` })),
+                ]}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Amount</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={edAmount}
+                onChange={(e) => setEdAmount(e.target.value)}
+                className="h-9 text-right"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Note (optional)</Label>
+              <Input value={edNote} onChange={(e) => setEdNote(e.target.value)} className="h-9" placeholder="Narration" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setEditVoucherId(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                disabled={editMutation.isPending || !edContraId || !(parseFloat(edAmount) > 0)}
+                onClick={() => editMutation.mutate()}
+              >
+                {editMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </ERPLayout>
   );
 }
