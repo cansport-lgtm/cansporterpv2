@@ -24,26 +24,29 @@ export function MetricCard({
   iconColor = "text-primary",
 }: MetricCardProps) {
   return (
-    <div className={cn("metric-card", className)}>
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
+    <div className={cn("metric-card group", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2 min-w-0">
           <p className="metric-label">{title}</p>
           <p className="metric-value">{value}</p>
           {trend && (
             <div className="flex items-center gap-1 text-sm">
-              {trend.isPositive ? (
-                <TrendingUp className="h-4 w-4 text-green-600" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-red-600" />
-              )}
               <span
                 className={cn(
-                  trend.isPositive ? "text-green-600" : "text-red-600"
+                  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold",
+                  trend.isPositive
+                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200/70"
+                    : "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200/70",
                 )}
               >
+                {trend.isPositive ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
                 {trend.value}%
               </span>
-              <span className="text-muted-foreground">vs last period</span>
+              <span className="text-xs text-muted-foreground">vs last period</span>
             </div>
           )}
           {description && (
@@ -52,8 +55,8 @@ export function MetricCard({
         </div>
         <div
           className={cn(
-            "h-11 w-11 rounded-xl flex items-center justify-center bg-primary/10",
-            iconColor
+            "relative h-11 w-11 shrink-0 rounded-xl bg-brand-gradient-soft flex items-center justify-center ring-1 ring-inset ring-primary/15 transition-transform duration-300 group-hover:scale-105 group-hover:rotate-3",
+            iconColor,
           )}
         >
           <Icon className="h-5 w-5" />

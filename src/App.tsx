@@ -26,6 +26,9 @@ import ProductionOrderDashboard from "./pages/production/ProductionOrderDashboar
 import ProductionTargetDashboard from "./pages/production/ProductionTargetDashboard";
 import ProductionEntryListPage from "./pages/production/ProductionEntryListPage";
 import MPHMasterPage from "./pages/production/MPHMasterPage";
+import WIPSequencePage from "./pages/production/WIPSequencePage";
+import WIPLedgerPage from "./pages/production/WIPLedgerPage";
+import WIPReconciliationPage from "./pages/production/WIPReconciliationPage";
 import AuditLogPage from "./pages/settings/AuditLogPage";
 import SystemAlertsPage from "./pages/settings/SystemAlertsPage";
 
@@ -106,6 +109,7 @@ import DomesticItemOpeningPage from "./pages/domestic/DomesticItemOpeningPage";
 import DomesticNewItemPage from "./pages/domestic/DomesticNewItemPage";
 import DomesticOrderStatusPage from "./pages/domestic/DomesticOrderStatusPage";
 import DomesticDeadlineRequestsPage from "./pages/domestic/DomesticDeadlineRequestsPage";
+import DomesticInvoicesPage from "./pages/domestic/DomesticInvoicesPage";
 
 // Export Sales pages
 import ExportDashboard from "./pages/export/ExportDashboard";
@@ -119,7 +123,6 @@ import GradesPage from "./pages/master/GradesPage";
 import ProductsPage from "./pages/master/ProductsPage";
 import UnitsPage from "./pages/master/UnitsPage";
 import ReasonsPage from "./pages/master/ReasonsPage";
-import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
 import ItemsPage from "./pages/master/ItemsPage";
 
 // Purchase pages
@@ -211,15 +214,6 @@ import FiveSCheckpointsPage from "./pages/five-s/FiveSCheckpointsPage";
 import FiveSDepartmentsPage from "./pages/five-s/FiveSDepartmentsPage";
 
 // Finance Reports pages
-import FinanceDashboard from "./pages/finance/FinanceDashboard";
-import ChartOfAccountsPage from "./pages/finance/ChartOfAccountsPage";
-import PeriodsPage from "./pages/finance/PeriodsPage";
-import TrialBalancePage from "./pages/finance/TrialBalancePage";
-import JournalEntriesPage from "./pages/finance/JournalEntriesPage";
-import ProfitLossPage from "./pages/finance/ProfitLossPage";
-import BalanceSheetPage from "./pages/finance/BalanceSheetPage";
-import CashFlowPage from "./pages/finance/CashFlowPage";
-import AccountsReceivablePage from "./pages/finance/AccountsReceivablePage";
 
 // Six Sigma pages
 import SixSigmaDashboard from "./pages/six-sigma/SixSigmaDashboard";
@@ -252,20 +246,49 @@ import RDExperimentsPage from "./pages/rd/RDExperimentsPage";
 import HourlyProductionDashboard from "./pages/hourly-production/HourlyProductionDashboard";
 import HourlyProductionEntryPage from "./pages/hourly-production/HourlyProductionEntryPage";
 import HourlyProductionReportsPage from "./pages/hourly-production/HourlyProductionReportsPage";
-import HourlyProductionAnalysisPage from "./pages/hourly-production/HourlyProductionAnalysisPage";
 import HourlyProductionFloorDisplay from "./pages/hourly-production/HourlyProductionFloorDisplay";
-import HourlyProductionLiveOverviewPage from "./pages/hourly-production/HourlyProductionLiveOverviewPage";
 import HourlyProductionProcessMasterPage from "./pages/hourly-production/HourlyProductionProcessMasterPage";
-import HourlyProductionLossEntryPage from "./pages/hourly-production/HourlyProductionLossEntryPage";
-import HourlyProductionLossLogsPage from "./pages/hourly-production/HourlyProductionLossLogsPage";
 
 // Machine Monitor pages
 import MachineMonitorDisplay from "./pages/machine-monitor/MachineMonitorDisplay";
 import MachineMonitorMachinesPage from "./pages/machine-monitor/MachineMonitorMachinesPage";
 import MachineStatusEntryPage from "./pages/machine-monitor/MachineStatusEntryPage";
 import MachineQRScanPage from "./pages/machine-monitor/MachineQRScanPage";
-import MachineMonitorBreakdownLogsPage from "./pages/machine-monitor/MachineMonitorBreakdownLogsPage";
-import MachineMonitorPerformanceLogsPage from "./pages/machine-monitor/MachineMonitorPerformanceLogsPage";
+
+// Accounting (Standalone) pages
+import AccountingDashboard from "./pages/accounting/AccountingDashboard";
+import AccountingCoAPage from "./pages/accounting/AccountingCoAPage";
+import AccountingPartiesPage from "./pages/accounting/AccountingPartiesPage";
+import AccountingVouchersPage from "./pages/accounting/AccountingVouchersPage";
+import NewVoucherPage from "./pages/accounting/NewVoucherPage";
+import DayBookPage from "./pages/accounting/DayBookPage";
+import CashBookPage from "./pages/accounting/CashBookPage";
+import BankBookPage from "./pages/accounting/BankBookPage";
+import GeneralLedgerPage from "./pages/accounting/GeneralLedgerPage";
+import PartyLedgerPage from "./pages/accounting/PartyLedgerPage";
+import ReceivablesPayablesReportPage from "./pages/accounting/ReceivablesPayablesReportPage";
+import AccountingTrialBalancePage from "./pages/accounting/TrialBalancePage";
+import AccountingProfitLossPage from "./pages/accounting/ProfitLossPage";
+import AccountingBalanceSheetPage from "./pages/accounting/BalanceSheetPage";
+import DefaultAccountsPage from "./pages/accounting/DefaultAccountsPage";
+import SalesReconciliationPage from "./pages/accounting/SalesReconciliationPage";
+import AccountingSalesReportPage from "./pages/accounting/SalesReportPage";
+import AccountingSalesAnalysisPage from "./pages/accounting/SalesAnalysisPage";
+import ProductionCostRecognitionPage from "./pages/accounting/ProductionCostRecognitionPage";
+import ProductionReconciliationPage from "./pages/accounting/ProductionReconciliationPage";
+import PurchaseReconciliationPage from "./pages/accounting/PurchaseReconciliationPage";
+import ProductionOutputRecognitionPage from "./pages/accounting/ProductionOutputRecognitionPage";
+import CustomerReceiptsPage from "./pages/accounting/CustomerReceiptsPage";
+import SupplierPaymentsPage from "./pages/accounting/SupplierPaymentsPage";
+import SalesReturnPage from "./pages/accounting/SalesReturnPage";
+import PurchaseReturnPage from "./pages/accounting/PurchaseReturnPage";
+import SalesReturnsPage from "./pages/sales/SalesReturnsPage";
+import CustomerPricingPage from "./pages/sales/CustomerPricingPage";
+import PurchaseReturnsPage from "./pages/purchase/PurchaseReturnsPage";
+import PeriodClosePage from "./pages/accounting/PeriodClosePage";
+import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
+import AccountingAuditLogPage from "./pages/accounting/AuditLogPage";
+import AccountingSettingsPage from "./pages/accounting/AccountingSettingsPage";
 
 // CRM pages
 import CRMDashboard from "./pages/crm/CRMDashboard";
@@ -274,8 +297,37 @@ import CRMContactsPage from "./pages/crm/CRMContactsPage";
 import CRMDealsPipelinePage from "./pages/crm/CRMDealsPipelinePage";
 import CRMActivitiesPage from "./pages/crm/CRMActivitiesPage";
 import CRMContentPage from "./pages/crm/CRMContentPage";
+// CRM v1 additions
 import CRMProductBrandPage from "./pages/crm/CRMProductBrandPage";
 import CRMDailyClosingPage from "./pages/crm/CRMDailyClosingPage";
+import CRMMarketingKPIsPage from "./pages/crm/CRMMarketingKPIsPage";
+import CRMReactivationPage from "./pages/crm/CRMReactivationPage";
+import AeroCourtsKanbanPage from "./pages/crm/aero/AeroCourtsKanbanPage";
+import AeroCourtsInsightsPage from "./pages/crm/aero/AeroCourtsInsightsPage";
+import CRMSampleItemsMasterPage from "./pages/crm/CRMSampleItemsMasterPage";
+import CRMSampleInventoryPage from "./pages/crm/CRMSampleInventoryPage";
+import CRMSampleRequestsPage from "./pages/crm/CRMSampleRequestsPage";
+// Hourly Production v1 additions
+import HourlyProductionAnalysisPage from "./pages/hourly-production/HourlyProductionAnalysisPage";
+import HourlyProductionLiveOverviewPage from "./pages/hourly-production/HourlyProductionLiveOverviewPage";
+import HourlyProductionLossEntryPage from "./pages/hourly-production/HourlyProductionLossEntryPage";
+import HourlyProductionLossLogsPage from "./pages/hourly-production/HourlyProductionLossLogsPage";
+import HPMaterialMasterPage from "./pages/hourly-production/HPMaterialMasterPage";
+import HPMaterialIssuancePage from "./pages/hourly-production/HPMaterialIssuancePage";
+import HPMaterialConsumptionPage from "./pages/hourly-production/HPMaterialConsumptionPage";
+import HPMaterialAnalysisPage from "./pages/hourly-production/HPMaterialAnalysisPage";
+// Machine Monitor v1 additions
+import MachineMonitorBreakdownLogsPage from "./pages/machine-monitor/MachineMonitorBreakdownLogsPage";
+import MachineMonitorPerformanceLogsPage from "./pages/machine-monitor/MachineMonitorPerformanceLogsPage";
+// Labour v1 additions
+import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
+// Master v1 additions
+import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
+// Online Sales v1 additions
+import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPage";
+// Planning v1 additions
+import JobOrdersPage from "./pages/planning/JobOrdersPage";
+import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
 
 const queryClient = new QueryClient();
 
@@ -346,6 +398,9 @@ const App = () => (
             <Route path="/production/target-dashboard" element={<ProtectedRoute><ProductionTargetDashboard /></ProtectedRoute>} />
             <Route path="/production/entry-list" element={<ProtectedRoute><ProductionEntryListPage /></ProtectedRoute>} />
             <Route path="/production/mph-master" element={<ProtectedRoute><MPHMasterPage /></ProtectedRoute>} />
+            <Route path="/production/wip-sequence" element={<ProtectedRoute><WIPSequencePage /></ProtectedRoute>} />
+            <Route path="/production/wip-ledger" element={<ProtectedRoute><WIPLedgerPage /></ProtectedRoute>} />
+            <Route path="/production/wip-reconciliation" element={<ProtectedRoute><WIPReconciliationPage /></ProtectedRoute>} />
             <Route path="/production/*" element={<ProtectedRoute><ComingSoon title="Production Module" /></ProtectedRoute>} />
 
             {/* QA Floor Display - Public route for production floor devices */}
@@ -416,6 +471,8 @@ const App = () => (
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
             <Route path="/sales/cogs" element={<ProtectedRoute><COGSPage /></ProtectedRoute>} />
+            <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
+            <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
@@ -431,6 +488,7 @@ const App = () => (
             <Route path="/domestic/dispatch-dashboard" element={<ProtectedRoute><DomesticDispatchDashboard /></ProtectedRoute>} />
             <Route path="/domestic/dispatch-acknowledgement" element={<ProtectedRoute><DomesticDispatchAcknowledgementPage /></ProtectedRoute>} />
             <Route path="/domestic/deadline-requests" element={<ProtectedRoute requiredRole="super_admin"><DomesticDeadlineRequestsPage /></ProtectedRoute>} />
+            <Route path="/domestic/invoices" element={<ProtectedRoute><DomesticInvoicesPage /></ProtectedRoute>} />
             <Route path="/domestic/*" element={<ProtectedRoute><ComingSoon title="Domestic Sales" /></ProtectedRoute>} />
 
             {/* Export Sales Routes */}
@@ -445,6 +503,7 @@ const App = () => (
             <Route path="/purchase/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
             <Route path="/purchase/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
             <Route path="/purchase/grn" element={<ProtectedRoute><GoodsReceiptPage /></ProtectedRoute>} />
+            <Route path="/purchase/returns" element={<ProtectedRoute><PurchaseReturnsPage /></ProtectedRoute>} />
             <Route path="/purchase/*" element={<ProtectedRoute><ComingSoon title="Purchase Module" /></ProtectedRoute>} />
 
             {/* Inventory Routes */}
@@ -472,8 +531,8 @@ const App = () => (
             <Route path="/master/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
-            <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
+            <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
             <Route path="/master/*" element={<ProtectedRoute><ComingSoon title="Master Data" /></ProtectedRoute>} />
 
             {/* Labour Productivity Routes */}
@@ -491,7 +550,8 @@ const App = () => (
             <Route path="/labour/public-holidays" element={<ProtectedRoute><LabourPublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
-            <Route path="/labour/edit-requests" element={<ProtectedRoute><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
+            <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRole="super_admin"><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
+            <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}
@@ -520,6 +580,8 @@ const App = () => (
             <Route path="/planning/stock-closing" element={<ProtectedRoute><DailyStockClosingPage /></ProtectedRoute>} />
             <Route path="/planning/closing-dashboard" element={<ProtectedRoute><DailyClosingDashboard /></ProtectedRoute>} />
             <Route path="/planning/skilled-labour" element={<ProtectedRoute><SkilledLabourPlanningPage /></ProtectedRoute>} />
+            <Route path="/planning/job-orders" element={<ProtectedRoute><JobOrdersPage /></ProtectedRoute>} />
+            <Route path="/planning/job-order-departments" element={<ProtectedRoute><JobOrderDepartmentsPage /></ProtectedRoute>} />
             <Route path="/planning/*" element={<ProtectedRoute><ComingSoon title="Production Planning" /></ProtectedRoute>} />
  
             {/* Material Consumption Routes */}
@@ -549,16 +611,7 @@ const App = () => (
             <Route path="/five-s/*" element={<ProtectedRoute><ComingSoon title="5S Module" /></ProtectedRoute>} />
 
             {/* Finance Reports Routes */}
-            <Route path="/finance/dashboard" element={<ProtectedRoute><FinanceDashboard /></ProtectedRoute>} />
-            <Route path="/finance/chart-of-accounts" element={<ProtectedRoute><ChartOfAccountsPage /></ProtectedRoute>} />
-            <Route path="/finance/periods" element={<ProtectedRoute><PeriodsPage /></ProtectedRoute>} />
-            <Route path="/finance/trial-balance" element={<ProtectedRoute><TrialBalancePage /></ProtectedRoute>} />
-            <Route path="/finance/journal-entries" element={<ProtectedRoute><JournalEntriesPage /></ProtectedRoute>} />
-            <Route path="/finance/profit-loss" element={<ProtectedRoute><ProfitLossPage /></ProtectedRoute>} />
-            <Route path="/finance/balance-sheet" element={<ProtectedRoute><BalanceSheetPage /></ProtectedRoute>} />
-            <Route path="/finance/cash-flow" element={<ProtectedRoute><CashFlowPage /></ProtectedRoute>} />
-            <Route path="/finance/accounts-receivable" element={<ProtectedRoute><AccountsReceivablePage /></ProtectedRoute>} />
-            <Route path="/finance/*" element={<ProtectedRoute><ComingSoon title="Finance Reports" /></ProtectedRoute>} />
+            {/* Legacy /finance/* routes removed — module discontinued. Use Accounting instead. */}
 
             {/* Six Sigma Routes */}
             <Route path="/six-sigma/dashboard" element={<ProtectedRoute><SixSigmaDashboard /></ProtectedRoute>} />
@@ -575,6 +628,7 @@ const App = () => (
             
             <Route path="/online-sales/returns" element={<ProtectedRoute><OnlineReturnsPage /></ProtectedRoute>} />
             
+            <Route path="/online-sales/analysis" element={<ProtectedRoute><OnlineSalesAnalysisPage /></ProtectedRoute>} />
             <Route path="/online-sales/*" element={<ProtectedRoute><ComingSoon title="Online Sales" /></ProtectedRoute>} />
 
             {/* Project Management Routes */}
@@ -597,11 +651,15 @@ const App = () => (
             <Route path="/hourly-production/dashboard" element={<ProtectedRoute><HourlyProductionDashboard /></ProtectedRoute>} />
             <Route path="/hourly-production/entry" element={<ProtectedRoute><HourlyProductionEntryPage /></ProtectedRoute>} />
             <Route path="/hourly-production/reports" element={<ProtectedRoute><HourlyProductionReportsPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/process-master" element={<ProtectedRoute requiredRole="super_admin"><HourlyProductionProcessMasterPage /></ProtectedRoute>} />
             <Route path="/hourly-production/analysis" element={<ProtectedRoute><HourlyProductionAnalysisPage /></ProtectedRoute>} />
             <Route path="/hourly-production/live-overview" element={<HourlyProductionLiveOverviewPage />} />
-            <Route path="/hourly-production/process-master" element={<ProtectedRoute requiredRole="super_admin"><HourlyProductionProcessMasterPage /></ProtectedRoute>} />
             <Route path="/hourly-production/loss-entry" element={<ProtectedRoute><HourlyProductionLossEntryPage /></ProtectedRoute>} />
             <Route path="/hourly-production/loss-logs" element={<ProtectedRoute><HourlyProductionLossLogsPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/materials" element={<ProtectedRoute requiredRole="super_admin"><HPMaterialMasterPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-issuance" element={<ProtectedRoute><HPMaterialIssuancePage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-consumption" element={<ProtectedRoute><HPMaterialConsumptionPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/material-analysis" element={<ProtectedRoute><HPMaterialAnalysisPage /></ProtectedRoute>} />
             <Route path="/hourly-production/*" element={<ProtectedRoute><ComingSoon title="Hourly Production" /></ProtectedRoute>} />
 
             {/* Machine Monitor - Display and QR Scan are public */}
@@ -613,6 +671,39 @@ const App = () => (
             <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
 
+            {/* Accounting (Standalone) Routes */}
+            <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />
+            <Route path="/accounting/chart-of-accounts" element={<ProtectedRoute><AccountingCoAPage /></ProtectedRoute>} />
+            <Route path="/accounting/parties" element={<ProtectedRoute><AccountingPartiesPage /></ProtectedRoute>} />
+            <Route path="/accounting/vouchers" element={<ProtectedRoute><AccountingVouchersPage /></ProtectedRoute>} />
+            <Route path="/accounting/vouchers/new" element={<ProtectedRoute><NewVoucherPage /></ProtectedRoute>} />
+            <Route path="/accounting/day-book" element={<ProtectedRoute><DayBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/cash-book" element={<ProtectedRoute><CashBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/bank-book" element={<ProtectedRoute><BankBookPage /></ProtectedRoute>} />
+            <Route path="/accounting/general-ledger" element={<ProtectedRoute><GeneralLedgerPage /></ProtectedRoute>} />
+            <Route path="/accounting/party-ledger" element={<ProtectedRoute><PartyLedgerPage /></ProtectedRoute>} />
+            <Route path="/accounting/ar-ap-report" element={<ProtectedRoute><ReceivablesPayablesReportPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-report" element={<ProtectedRoute><AccountingSalesReportPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-analysis" element={<ProtectedRoute><AccountingSalesAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
+            <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
+            <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />
+            <Route path="/accounting/default-accounts" element={<ProtectedRoute><DefaultAccountsPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-reconciliation" element={<ProtectedRoute><SalesReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-cost-recognition" element={<ProtectedRoute><ProductionCostRecognitionPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-reconciliation" element={<ProtectedRoute><ProductionReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/purchase-reconciliation" element={<ProtectedRoute><PurchaseReconciliationPage /></ProtectedRoute>} />
+            <Route path="/accounting/production-output-recognition" element={<ProtectedRoute><ProductionOutputRecognitionPage /></ProtectedRoute>} />
+            <Route path="/accounting/customer-receipts" element={<ProtectedRoute><CustomerReceiptsPage /></ProtectedRoute>} />
+            <Route path="/accounting/supplier-payments" element={<ProtectedRoute><SupplierPaymentsPage /></ProtectedRoute>} />
+            <Route path="/accounting/sales-return" element={<ProtectedRoute><SalesReturnPage /></ProtectedRoute>} />
+            <Route path="/accounting/purchase-return" element={<ProtectedRoute><PurchaseReturnPage /></ProtectedRoute>} />
+            <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
+            <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
+            <Route path="/accounting/audit-log" element={<ProtectedRoute><AccountingAuditLogPage /></ProtectedRoute>} />
+            <Route path="/accounting/settings" element={<ProtectedRoute requiredRole="super_admin"><AccountingSettingsPage /></ProtectedRoute>} />
+            <Route path="/accounting/*" element={<ProtectedRoute><ComingSoon title="Accounting (Standalone)" /></ProtectedRoute>} />
+
             {/* CRM Routes */}
             <Route path="/crm/dashboard" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />
             <Route path="/crm/leads" element={<ProtectedRoute><CRMLeadsPage /></ProtectedRoute>} />
@@ -622,6 +713,13 @@ const App = () => (
             <Route path="/crm/content" element={<ProtectedRoute requiredModule="crm"><CRMContentPage /></ProtectedRoute>} />
             <Route path="/crm/product-brand" element={<ProtectedRoute requiredModule="crm"><CRMProductBrandPage /></ProtectedRoute>} />
             <Route path="/crm/daily-closing" element={<ProtectedRoute requiredModule="crm"><CRMDailyClosingPage /></ProtectedRoute>} />
+            <Route path="/crm/marketing-kpis" element={<ProtectedRoute requiredModule="crm"><CRMMarketingKPIsPage /></ProtectedRoute>} />
+            <Route path="/crm/reactivation" element={<ProtectedRoute requiredModule="crm"><CRMReactivationPage /></ProtectedRoute>} />
+            <Route path="/crm/aero-courts" element={<ProtectedRoute requiredModule="crm"><AeroCourtsKanbanPage /></ProtectedRoute>} />
+            <Route path="/crm/aero-courts/insights" element={<ProtectedRoute requiredModule="crm"><AeroCourtsInsightsPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-items" element={<ProtectedRoute requiredModule="crm"><CRMSampleItemsMasterPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-inventory" element={<ProtectedRoute requiredModule="crm"><CRMSampleInventoryPage /></ProtectedRoute>} />
+            <Route path="/crm/sample-requests" element={<ProtectedRoute requiredModule="crm"><CRMSampleRequestsPage /></ProtectedRoute>} />
             <Route path="/crm/*" element={<ProtectedRoute><ComingSoon title="CRM" /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

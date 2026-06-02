@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Clock, Save, Plus, ChevronsUpDown, Check, Trash2 } from "lucide-react";
+import { Clock, Save, Plus, ChevronsUpDown, Check, Trash2, TrendingDown, Lock } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
@@ -33,6 +33,8 @@ interface EntryRow {
   worker_name: string;
   quantity: string;
   remarks: string;
+  entered_by_name?: string;
+  entered_at?: string;
 }
 
 export default function HourlyProductionEntryPage() {
@@ -88,18 +90,96 @@ export default function HourlyProductionEntryPage() {
     },
   });
 
+  const { data: masterDefaults = [] } = useQuery({
+    queryKey: ["hourly-process-master-defaults"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("hourly_production_processes")
+        .select("name, target_per_hour, unit");
+      if (error) return [];
+      return (data || []) as any[];
+    },
+  });
+
+  const { data: dailyTargets = [], refetch: refetchTargets } = useQuery({
+    queryKey: ["hourly-daily-targets", selectedDate],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("hourly_production_daily_targets")
+        .select("process_id, target_per_hour")
+        .eq("entry_date", selectedDate);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const masterDefaultMap = new Map<string, number>(
+    masterDefaults.map((m: any) => [m.name, Number(m.target_per_hour) || 0])
+  );
+  const dailyTargetMap = new Map<string, number>(
+    dailyTargets.map((t: any) => [t.process_id, Number(t.target_per_hour)])
+  );
+  const [targetDrafts, setTargetDrafts] = useState<Record<string, string>>({});
+  useEffect(() => { setTargetDrafts({}); }, [selectedDate]);
+
+  const upsertTargetMutation = useMutation({
+    mutationFn: async ({ processId, value }: { processId: string; value: number }) => {
+      const { error } = await (supabase as any)
+        .from("hourly_production_daily_targets")
+        .upsert(
+          { entry_date: selectedDate, process_id: processId, target_per_hour: value },
+          { onConflict: "entry_date,process_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Target saved");
+      refetchTargets();
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to save target"),
+  });
+
   const { data: existingEntries = [] } = useQuery({
     queryKey: ["hourly-entries", selectedDate, selectedHour],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("hourly_production_entries")
-        .select("*")
+        .select("*, created_at, created_by")
         .eq("entry_date", selectedDate)
         .eq("hour_slot", selectedHour);
       if (error) throw error;
       return (data || []) as any[];
     },
+    refetchInterval: 60000,
   });
+
+  const { data: appUsers = [] } = useQuery({
+    queryKey: ["app-users-for-hourly-entry"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("app_users")
+        .select("id, full_name");
+      if (error) return [];
+      return (data || []) as any[];
+    },
+  });
+  const userMap = new Map<string, string>(appUsers.map((u: any) => [u.id, u.full_name]));
+
+  // Per-process lock: only processes already posted for this date+hour are locked.
+  // Non-super-admin users can still enter processes that haven't been posted yet.
+  const hasPostedEntries = existingEntries.length > 0;
+  const lockedKeys = new Set<string>(
+    existingEntries.map((e: any) =>
+      trackWorkers ? `${e.process_name}::${e.worker_name || ""}` : e.process_name
+    )
+  );
+  const isRowLocked = (row: EntryRow) => {
+    if (isSuperAdmin) return false;
+    const key = trackWorkers ? `${row.process_name}::${row.worker_name || ""}` : row.process_name;
+    return lockedKeys.has(key);
+  };
+  const allLocked = !isSuperAdmin && hasPostedEntries && rows.length > 0 && rows.every(isRowLocked);
+  const someLocked = !isSuperAdmin && hasPostedEntries && !allLocked;
 
   // Fetch all entries for the day to auto-load worker assignments for new hours
   const { data: allDayEntries = [] } = useQuery({
@@ -123,6 +203,8 @@ export default function HourlyProductionEntryPage() {
         worker_name: e.worker_name || "",
         quantity: String(e.quantity || 0),
         remarks: e.remarks || "",
+        entered_by_name: e.created_by ? (userMap.get(e.created_by) || "Unknown") : undefined,
+        entered_at: e.created_at,
       }));
 
       // Worker name must always be selected manually by the user
@@ -141,23 +223,44 @@ export default function HourlyProductionEntryPage() {
           worker_name: "",
           quantity: existing ? String(existing.quantity) : "",
           remarks: existing?.remarks || "",
+          entered_by_name: existing?.created_by ? (userMap.get(existing.created_by) || "Unknown") : undefined,
+          entered_at: existing?.created_at,
         };
       });
       setRows(processRows);
     }
-  }, [processes, existingEntries, allDayEntries, trackWorkers]);
+  }, [processes, existingEntries, allDayEntries, trackWorkers, appUsers]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const validRows = rows.filter((r) => r.quantity && Number(r.quantity) > 0);
-      if (validRows.length === 0) throw new Error("No entries to save");
+      if (allLocked) throw new Error("All processes for this hour are already posted. Contact a Super Admin to change them.");
 
-      await (supabase as any)
-        .from("hourly_production_entries")
-        .delete()
-        .eq("entry_date", selectedDate)
-        .eq("hour_slot", selectedHour);
+      if (isSuperAdmin) {
+        // Super Admin: replace whole hour
+        const validRows = rows.filter((r) => r.quantity && Number(r.quantity) > 0);
+        if (validRows.length === 0) throw new Error("No entries to save");
+        await (supabase as any)
+          .from("hourly_production_entries")
+          .delete()
+          .eq("entry_date", selectedDate)
+          .eq("hour_slot", selectedHour);
+        const inserts = validRows.map((r) => ({
+          entry_date: selectedDate,
+          hour_slot: selectedHour,
+          process_name: r.process_name,
+          worker_name: r.worker_name || null,
+          quantity: Number(r.quantity),
+          remarks: r.remarks || null,
+          created_by: user?.id || null,
+        }));
+        const { error } = await (supabase as any).from("hourly_production_entries").insert(inserts);
+        if (error) throw error;
+        return;
+      }
 
+      // Non-super-admin: only insert rows for processes that haven't been posted yet
+      const validRows = rows.filter((r) => !isRowLocked(r) && r.quantity && Number(r.quantity) > 0);
+      if (validRows.length === 0) throw new Error("No new entries to save");
       const inserts = validRows.map((r) => ({
         entry_date: selectedDate,
         hour_slot: selectedHour,
@@ -167,7 +270,6 @@ export default function HourlyProductionEntryPage() {
         remarks: r.remarks || null,
         created_by: user?.id || null,
       }));
-
       const { error } = await (supabase as any).from("hourly_production_entries").insert(inserts);
       if (error) throw error;
     },
@@ -211,7 +313,14 @@ export default function HourlyProductionEntryPage() {
   return (
     <ERPLayout>
       <div className="space-y-6">
-        <PageHeader title="Hourly Production Entry" description="Enter hourly production data for each process" icon={Clock} iconColor="bg-violet-600 text-white" />
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <PageHeader title="Hourly Production Entry" description="Enter hourly production data for each process" icon={Clock} iconColor="bg-violet-600 text-white" />
+          <Button variant="outline" asChild>
+            <a href={`/hourly-production/loss-entry?date=${selectedDate}&hour=${selectedHour}${selectedDepartment !== "all" ? `&department=${selectedDepartment}` : ""}`}>
+              <TrendingDown className="h-4 w-4 mr-2" /> Log Hour Loss
+            </a>
+          </Button>
+        </div>
 
         <Card>
           <CardHeader><CardTitle>Select Date & Hour</CardTitle></CardHeader>
@@ -252,6 +361,27 @@ export default function HourlyProductionEntryPage() {
           </CardContent>
         </Card>
 
+        {hasPostedEntries && (
+          allLocked ? (
+            <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+              <Lock className="h-4 w-4" />
+              <span className="text-sm">
+                Locked — all processes for this hour are already posted. Contact a Super Admin to change them.
+              </span>
+            </div>
+          ) : someLocked ? (
+            <div className="flex items-center gap-2 rounded-md border border-muted bg-muted/50 px-4 py-2 text-muted-foreground">
+              <Lock className="h-4 w-4" />
+              <span className="text-sm">Some processes are already posted and locked. You can still enter the remaining processes for this hour.</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-muted bg-muted/50 px-4 py-2 text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span className="text-sm">Super Admin override — you can edit this posted hour.</span>
+            </div>
+          )
+        )}
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Production Entries</CardTitle>
@@ -267,17 +397,21 @@ export default function HourlyProductionEntryPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Process</TableHead>
+                    <TableHead className="w-40">Target / Hr</TableHead>
                     {trackWorkers && <TableHead>Worker Name</TableHead>}
                     <TableHead className="w-32">Quantity</TableHead>
                     <TableHead>Remarks</TableHead>
+                    <TableHead className="w-40">Entered By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row, idx) => (
+                  {rows.map((row, idx) => {
+                    const rowLocked = isRowLocked(row);
+                    return (
                     <TableRow key={idx}>
                       <TableCell>
                         {trackWorkers ? (
-                          <Select value={row.process_name} onValueChange={(v) => updateRow(idx, "process_name", v)}>
+                          <Select value={row.process_name} onValueChange={(v) => updateRow(idx, "process_name", v)} disabled={rowLocked}>
                             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {processes.map((p: any) => (
@@ -289,11 +423,49 @@ export default function HourlyProductionEntryPage() {
                           <span className="font-medium">{row.process_name}</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const proc = processes.find((p: any) => p.name === row.process_name);
+                          const procId = proc?.id;
+                          const hasDaily = procId ? dailyTargetMap.has(procId) : false;
+                          const effective = procId && hasDaily
+                            ? dailyTargetMap.get(procId)!
+                            : masterDefaultMap.get(row.process_name) || 0;
+                          const draftKey = procId || row.process_name;
+                          const draftVal = targetDrafts[draftKey];
+                          const displayVal = draftVal !== undefined ? draftVal : (effective ? String(effective) : "");
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                value={displayVal}
+                                onChange={(e) => setTargetDrafts((p) => ({ ...p, [draftKey]: e.target.value }))}
+                                onBlur={() => {
+                                  if (!procId) return;
+                                  const v = Number(displayVal);
+                                  if (!v || v <= 0) return;
+                                  if (v === effective && hasDaily) return;
+                                  upsertTargetMutation.mutate({ processId: procId, value: v });
+                                }}
+                                placeholder="0"
+                                className="w-20"
+                                disabled={!procId}
+                              />
+                              <span className={cn(
+                                "text-[10px] px-1.5 py-0.5 rounded",
+                                hasDaily ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                              )}>
+                                {hasDaily ? "Custom" : "Default"}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       {trackWorkers && (
                         <TableCell>
                           <Popover>
                             <PopoverTrigger asChild>
-                              <Button variant="outline" role="combobox" className="w-48 justify-between font-normal">
+                              <Button variant="outline" role="combobox" className="w-48 justify-between font-normal" disabled={rowLocked}>
                                 {row.worker_name
                                   ? labourWorkers.find((w: any) => w.full_name === row.worker_name)
                                     ? `${labourWorkers.find((w: any) => w.full_name === row.worker_name).employee_code} - ${row.worker_name}`
@@ -325,12 +497,23 @@ export default function HourlyProductionEntryPage() {
                           </Popover>
                         </TableCell>
                       )}
-                      <TableCell><Input type="number" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", e.target.value)} placeholder="0" className="w-28" /></TableCell>
-                      <TableCell><Input value={row.remarks} onChange={(e) => updateRow(idx, "remarks", e.target.value)} placeholder="Optional" className="w-40" /></TableCell>
+                      <TableCell><Input type="number" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", e.target.value)} placeholder="0" className="w-28" disabled={rowLocked} /></TableCell>
+                      <TableCell><Input value={row.remarks} onChange={(e) => updateRow(idx, "remarks", e.target.value)} placeholder="Optional" className="w-40" disabled={rowLocked} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {row.entered_by_name ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground">{row.entered_by_name}</span>
+                            {row.entered_at && <span>{format(new Date(row.entered_at), "h:mm a")}</span>}
+                          </div>
+                        ) : (
+                          <span>—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                   {rows.length === 0 && (
-                    <TableRow><TableCell colSpan={trackWorkers ? 4 : 3} className="text-center text-muted-foreground">No processes configured. Add a process first.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={trackWorkers ? 6 : 5} className="text-center text-muted-foreground">No processes configured. Add a process first.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -357,7 +540,7 @@ export default function HourlyProductionEntryPage() {
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}><Save className="h-4 w-4 mr-2" /> Save All Entries</Button>
+              <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || allLocked}><Save className="h-4 w-4 mr-2" /> Save All Entries</Button>
             </div>
           </CardContent>
         </Card>

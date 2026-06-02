@@ -77,11 +77,15 @@ export default function DailyStockClosingPage() {
     planningItems.forEach((item: any) => {
       const existing = existingData?.find((e: any) => e.planning_item_id === item.id);
       const unit = item.unit || "pcs";
-      // Default multiplier is always 1 for new entries; preserve saved multiplier when row exists
-      const multiplier = 1;
       const closingDozens = Number(existing?.closing_quantity || 0);
-      // Back-fill qty so qty * multiplier reconciles to stored dozens
-      const qty = existing ? (multiplier ? closingDozens / multiplier : 0) : 0;
+      // Prefer saved entered_quantity & multiplier; fallback assumes multiplier=1
+      const savedMultiplier = existing?.multiplier != null ? Number(existing.multiplier) : 1;
+      const multiplier = savedMultiplier || 1;
+      const qty = existing
+        ? (existing.entered_quantity != null
+            ? Number(existing.entered_quantity)
+            : (multiplier ? closingDozens / multiplier : 0))
+        : 0;
 
       entries[item.id] = {
         planning_item_id: item.id,
@@ -140,6 +144,8 @@ export default function DailyStockClosingPage() {
         closing_date: dateStr,
         department_id: entry.department_id,
         planning_item_id: entry.planning_item_id,
+        entered_quantity: Number(entry.qty) || 0,
+        multiplier: Number(entry.multiplier) || 0,
         closing_quantity: (Number(entry.qty) || 0) * (Number(entry.multiplier) || 0),
         remarks: entry.remarks || null,
       }));
@@ -340,6 +346,20 @@ export default function DailyStockClosingPage() {
                         );
                       })}
                     </tbody>
+                    <tfoot>
+                      {(() => {
+                        const totalDozens = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.multiplier) || 0), 0);
+                        const totalValue = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.multiplier) || 0) * (Number(it.costing_value) || 0), 0);
+                        return (
+                          <tr className="border-t bg-muted/40 font-semibold">
+                            <td className="py-2 px-2" colSpan={5}>Department Total ({items.length} items)</td>
+                            <td className="py-2 px-2 text-right">{totalDozens.toFixed(2)}</td>
+                            {isSuperAdmin && <td className="py-2 px-2 text-right">{totalValue.toFixed(2)}</td>}
+                            <td />
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
                   </table>
                 </div>
 
@@ -407,6 +427,19 @@ export default function DailyStockClosingPage() {
                       </div>
                     );
                   })}
+                  {(() => {
+                    const totalDozens = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.multiplier) || 0), 0);
+                    const totalValue = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.multiplier) || 0) * (Number(it.costing_value) || 0), 0);
+                    return (
+                      <div className="border rounded-lg p-3 bg-muted/40 font-semibold flex justify-between">
+                        <span>Total ({items.length} items)</span>
+                        <span className="text-right">
+                          {totalDozens.toFixed(2)} dz
+                          {isSuperAdmin && <span className="block text-xs">Value: {totalValue.toFixed(2)}</span>}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

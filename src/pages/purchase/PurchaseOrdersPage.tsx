@@ -394,12 +394,12 @@ export default function PurchaseOrdersPage() {
                 <Plus className="mr-2 h-4 w-4" /> New PO
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Purchase Order</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Category *</Label>
                     <Select
@@ -442,7 +442,7 @@ export default function PurchaseOrdersPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Order Date *</Label>
                     <Input
@@ -482,69 +482,138 @@ export default function PurchaseOrdersPage() {
                 <div className="space-y-2">
                   <Label>Items</Label>
                   
+                  {/* Desktop / tablet: table layout */}
                   {formData.category && formData.items.length > 0 && (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="w-24">Qty</TableHead>
-                          <TableHead className="w-32">Unit Price</TableHead>
-                          <TableHead className="w-32">Amount</TableHead>
-                          <TableHead className="w-12"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {formData.items.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Select
-                                value={item.item_id}
-                                onValueChange={(value) => updateItem(index, 'item_id', value)}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select item" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {items?.map(i => (
-                                    <SelectItem key={i.id} value={i.id}>{i.code} - {i.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.description}
-                                onChange={(e) => updateItem(index, 'description', e.target.value)}
-                                placeholder="Description"
-                              />
-                            </TableCell>
-                            <TableCell>
+                    <div className="hidden md:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="w-24">Qty</TableHead>
+                            <TableHead className="w-32">Unit Price</TableHead>
+                            <TableHead className="w-32">Amount</TableHead>
+                            <TableHead className="w-12"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {formData.items.map((item, index) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <Select
+                                  value={item.item_id}
+                                  onValueChange={(value) => updateItem(index, 'item_id', value)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select item" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {items?.map(i => (
+                                      <SelectItem key={i.id} value={i.id}>{i.code} - {i.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={item.description}
+                                  onChange={(e) => updateItem(index, 'description', e.target.value)}
+                                  placeholder="Description"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={item.unit_price}
+                                  onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                Rs. {parseFloat(item.amount || '0').toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {/* Mobile: stacked card layout with full-width fields */}
+                  {formData.category && formData.items.length > 0 && (
+                    <div className="space-y-4 md:hidden">
+                      {formData.items.map((item, index) => (
+                        <div key={index} className="rounded-lg border p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              Item {index + 1}
+                            </span>
+                            <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Item</Label>
+                            <Select
+                              value={item.item_id}
+                              onValueChange={(value) => updateItem(index, 'item_id', value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select item" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {items?.map(i => (
+                                  <SelectItem key={i.id} value={i.id}>{i.code} - {i.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Description</Label>
+                            <Input
+                              value={item.description}
+                              onChange={(e) => updateItem(index, 'description', e.target.value)}
+                              placeholder="Description"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Qty</Label>
                               <Input
                                 type="number"
+                                inputMode="decimal"
                                 value={item.quantity}
                                 onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                               />
-                            </TableCell>
-                            <TableCell>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Unit Price</Label>
                               <Input
                                 type="number"
+                                inputMode="decimal"
                                 value={item.unit_price}
                                 onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
                               />
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              Rs. {parseFloat(item.amount || '0').toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                            </div>
+                          </div>
+                          <div className="flex justify-between border-t pt-2 text-sm font-medium">
+                            <span className="text-muted-foreground">Amount</span>
+                            <span>Rs. {parseFloat(item.amount || '0').toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {formData.items.filter(item => item.item_id).length > 0 && (

@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LabourEmployee {
@@ -40,6 +42,7 @@ const LabourAttendancePage = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("monthly");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -58,6 +61,16 @@ const LabourAttendancePage = () => {
       return data as LabourEmployee[];
     },
   });
+
+  const filteredEmployees = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return employees;
+    return employees.filter(
+      (e) =>
+        e.full_name.toLowerCase().includes(q) ||
+        e.employee_code.toLowerCase().includes(q)
+    );
+  }, [employees, searchQuery]);
 
   // Fetch public holidays for the current year
   const { data: publicHolidays = [] } = useQuery({
@@ -278,7 +291,7 @@ const LabourAttendancePage = () => {
     if (viewMode === "daily") {
       const dateKey = format(selectedDate, "yyyy-MM-dd");
       const isPH = isPublicHoliday(dateKey);
-      const tableRows = employees.map((employee) => {
+      const tableRows = filteredEmployees.map((employee) => {
         if (isPH) {
           return `
             <tr>
@@ -334,7 +347,7 @@ const LabourAttendancePage = () => {
         </body></html>
       `);
     } else {
-      const tableRows = employees.map((employee) => {
+      const tableRows = filteredEmployees.map((employee) => {
         const summary = getEmployeeSummary(employee.id);
         const dayCells = daysInMonth.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
@@ -509,6 +522,24 @@ const LabourAttendancePage = () => {
         </div>
       </div>
 
+      {/* Labour search */}
+      <div className="mb-4 flex items-center gap-2 max-w-md">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search labour by name or code..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {searchQuery && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {filteredEmployees.length} of {employees.length}
+          </span>
+        )}
+      </div>
+
       {viewMode === "monthly" ? (
         <>
           {/* Month Navigation */}
@@ -605,7 +636,7 @@ const LabourAttendancePage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {employees.map((employee) => {
+                      {filteredEmployees.map((employee) => {
                         const summary = getEmployeeSummary(employee.id);
                         return (
                           <tr key={employee.id} className="border-b hover:bg-muted/50">
@@ -721,7 +752,7 @@ const LabourAttendancePage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((employee) => {
+                  {filteredEmployees.map((employee) => {
                     const attendance = getDailyAttendance(employee.id);
                     const isFuture = selectedDate > new Date();
                     const dateKey = format(selectedDate, "yyyy-MM-dd");

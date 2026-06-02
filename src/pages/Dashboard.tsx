@@ -303,45 +303,50 @@ export default function Dashboard() {
     },
   });
 
-  // Accounting: the fiscal month at the end of the selected date range
-  const rangeEndYM = useMemo(() => {
-    const d = new Date(dateRange.end + "T00:00:00");
-    return { year: d.getFullYear(), month: d.getMonth() + 1 };
-  }, [dateRange]);
-
-  // Accounting: fiscal periods on or before the selected range end, newest first.
-  // GL data is sparse/monthly, so the KPIs show the latest period that has data
-  // rather than tying strictly to the day/week selector (which would read zero).
-  const { data: financePeriods } = useQuery({
-    queryKey: ["ceo-finance-periods", rangeEndYM],
+  // Accounting KPIs read the live accounting module (the same source as the
+  // Profit & Loss and Balance Sheet reports) so the dashboard always agrees with
+  // those statements. The old finance_* trial-balance tables are deprecated and
+  // essentially empty, which is why these cards previously showed zero.
+  const { data: accountingAccounts } = useQuery({
+    queryKey: ["ceo-acc-accounts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("finance_periods")
-        .select("id, year, month, period_name")
-        .order("year", { ascending: false })
-        .order("month", { ascending: false })
-        .limit(60);
-      if (error) throw error;
-      return (data || []).filter(p =>
-        p.year < rangeEndYM.year || (p.year === rangeEndYM.year && p.month <= rangeEndYM.month)
-      );
-    },
-  });
-
-  // Accounting: trial balance entries for those periods
-  const { data: financeTrialEntries } = useQuery({
-    queryKey: ["ceo-finance-tb", financePeriods?.map(p => p.id)],
-    queryFn: async () => {
-      const ids = (financePeriods || []).map(p => p.id);
-      if (!ids.length) return [];
-      const { data, error } = await supabase
-        .from("finance_trial_balance_entries")
-        .select("debit_amount, credit_amount, period_id, account:finance_chart_of_accounts(account_type, sub_category)")
-        .in("period_id", ids);
+      const { data, error } = await (supabase as any)
+        .from("accounting_chart_of_accounts")
+        .select("id, account_type, sub_category")
+        .eq("is_active", true)
+        .not("sub_category", "is", null);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!financePeriods,
+  });
+
+  // P&L lines: vouchers dated within the selected period (revenue / COGS / opex).
+  const { data: accountingPLLines } = useQuery({
+    queryKey: ["ceo-acc-pl-lines", dateRange],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("accounting_voucher_lines")
+        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+        .gte("voucher.voucher_date", dateRange.start)
+        .lte("voucher.voucher_date", dateRange.end)
+        .limit(20000);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Balance-sheet lines: everything up to the range end (cumulative) for assets.
+  const { data: accountingBSLines } = useQuery({
+    queryKey: ["ceo-acc-bs-lines", dateRange.end],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("accounting_voucher_lines")
+        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+        .lte("voucher.voucher_date", dateRange.end)
+        .limit(50000);
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   // Labour productivity
@@ -862,30 +867,39 @@ export default function Dashboard() {
     return pc + ge + ub;
   }, [pettyCash, generalExpenses, utilityBills]);
 
-  // Accounting KPIs derived from trial balance (GL) entries.
-  // financePeriods is sorted newest-first; use the latest period that has data.
+  // Accounting KPIs — identical math to the accounting Profit & Loss report
+  // (revenue = Cr−Dr, expense = Dr−Cr, COGS = expense accounts sub_category
+  // "COGS") and Balance Sheet (assets = Dr−Cr, cumulative). Keeps the dashboard
+  // in lockstep with those statements for the same date range.
   const financeKPIs = useMemo(() => {
-    const periods = financePeriods || [];
-    const allEntries = (financeTrialEntries || []) as any[];
-    const activePeriod = periods.find(p => allEntries.some(e => e.period_id === p.id));
-    const entries = activePeriod ? allEntries.filter(e => e.period_id === activePeriod.id) : [];
-    const revenue = entries
-      .filter(e => e.account?.account_type === "revenue")
-      .reduce((s, e) => s + Number(e.credit_amount || 0) - Number(e.debit_amount || 0), 0);
-    const expenses = entries
-      .filter(e => e.account?.account_type === "expense")
-      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
-    const cogs = entries
-      .filter(e => e.account?.account_type === "expense" && e.account?.sub_category?.toLowerCase()?.includes("cost of"))
-      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
-    const assets = entries
-      .filter(e => e.account?.account_type === "asset")
-      .reduce((s, e) => s + Number(e.debit_amount || 0) - Number(e.credit_amount || 0), 0);
-    return {
-      revenue, expenses, grossProfit: revenue - cogs, netProfit: revenue - expenses, assets,
-      periodName: activePeriod?.period_name ?? null,
-    };
-  }, [financePeriods, financeTrialEntries]);
+    const meta: Record<string, { type: string; sub: string }> = {};
+    ((accountingAccounts || []) as any[]).forEach(a => {
+      meta[a.id] = { type: a.account_type, sub: a.sub_category };
+    });
+
+    const sumPL = (pred: (m: { type: string; sub: string }) => boolean, expense: boolean) =>
+      ((accountingPLLines || []) as any[]).reduce((s, l) => {
+        const m = meta[l.account_id];
+        if (!m || !pred(m)) return s;
+        const dr = Number(l.debit_amount || 0);
+        const cr = Number(l.credit_amount || 0);
+        return s + (expense ? dr - cr : cr - dr);
+      }, 0);
+
+    const revenue = sumPL(m => m.type === "revenue", false);
+    const cogs = sumPL(m => m.type === "expense" && m.sub === "COGS", true);
+    const opex = sumPL(m => m.type === "expense" && m.sub !== "COGS", true);
+    const grossProfit = revenue - cogs;
+    const netProfit = grossProfit - opex;
+
+    const assets = ((accountingBSLines || []) as any[]).reduce((s, l) => {
+      const m = meta[l.account_id];
+      if (!m || m.type !== "asset") return s;
+      return s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0);
+    }, 0);
+
+    return { revenue, cogs, opex, grossProfit, netProfit, assets };
+  }, [accountingAccounts, accountingPLLines, accountingBSLines]);
 
   const labourEfficiency = useMemo(() => {
     const entries = labourData || [];
@@ -1316,6 +1330,10 @@ export default function Dashboard() {
     return `Rs. ${val.toLocaleString()}`;
   };
 
+  // Like formatCurrency but keeps the sign visible for values that can go
+  // negative (gross profit / net profit can be a loss).
+  const signedCurrency = (val: number) => (val < 0 ? `-${formatCurrency(Math.abs(val))}` : formatCurrency(val));
+
   const STATUS_COLORS: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
     confirmed: "bg-blue-500 text-white",
@@ -1460,19 +1478,19 @@ export default function Dashboard() {
             title="Revenue"
             value={formatCurrency(financeKPIs.revenue)}
             icon={Landmark}
-            description={financeKPIs.periodName ? `As of ${financeKPIs.periodName}` : "No ledger data"}
+            description={`COGS ${signedCurrency(financeKPIs.cogs)}`}
             iconColor="bg-emerald-100 text-emerald-600"
           />
           <MetricCard
             title="Gross Profit"
-            value={formatCurrency(financeKPIs.grossProfit)}
+            value={signedCurrency(financeKPIs.grossProfit)}
             icon={TrendingUp}
             description={financeKPIs.revenue > 0 ? `${((financeKPIs.grossProfit / financeKPIs.revenue) * 100).toFixed(0)}% margin` : undefined}
-            iconColor="bg-teal-100 text-teal-600"
+            iconColor={financeKPIs.grossProfit >= 0 ? "bg-teal-100 text-teal-600" : "bg-red-100 text-red-600"}
           />
           <MetricCard
             title="Net Profit"
-            value={formatCurrency(financeKPIs.netProfit)}
+            value={signedCurrency(financeKPIs.netProfit)}
             icon={Receipt}
             description={financeKPIs.revenue > 0 ? `${((financeKPIs.netProfit / financeKPIs.revenue) * 100).toFixed(0)}% margin` : undefined}
             iconColor={financeKPIs.netProfit >= 0 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}
@@ -1481,7 +1499,7 @@ export default function Dashboard() {
             title="Total Assets"
             value={formatCurrency(financeKPIs.assets)}
             icon={Wallet}
-            description={financeKPIs.periodName ? `As of ${financeKPIs.periodName}` : "No ledger data"}
+            description="As of period end"
             iconColor="bg-slate-100 text-slate-600"
           />
         </div>

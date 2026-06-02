@@ -18,6 +18,8 @@ import { Plus, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
+import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 
 type PurchaseCategory = Database["public"]["Enums"]["purchase_category"];
 
@@ -54,7 +56,7 @@ export default function GoodsReceiptPage() {
   const queryClient = useQueryClient();
   const { user, hasModulePermission, hasPurchaseCategoryPermission } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewGRN, setViewGRN] = useState<any>(null);
+  const [viewGRNId, setViewGRNId] = useState<string | null>(null);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [formData, setFormData] = useState({
     purchase_order_id: '',
@@ -84,21 +86,6 @@ export default function GoodsReceiptPage() {
       if (error) throw error;
       return data;
     },
-  });
-
-  // Fetch GRN items for viewing
-  const { data: grnItems } = useQuery({
-    queryKey: ['grn-items', viewGRN?.id],
-    queryFn: async () => {
-      if (!viewGRN?.id) return [];
-      const { data, error } = await supabase
-        .from('grn_items')
-        .select(`*, items(code, name)`)
-        .eq('grn_id', viewGRN.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!viewGRN?.id,
   });
 
   // Fetch approved POs that haven't been fully received
@@ -204,11 +191,22 @@ export default function GoodsReceiptPage() {
 
       return newGRN;
     },
-    onSuccess: () => {
+    onSuccess: async (newGRN: any) => {
       queryClient.invalidateQueries({ queryKey: ['goods-receipt-notes'] });
       queryClient.invalidateQueries({ queryKey: ['approved-purchase-orders'] });
       toast.success('Goods receipt created');
       resetForm();
+
+      // Phase 2B: auto-post AP/Inventory voucher (gated by VITE_ENABLE_ACC_AUTOPOST).
+      // Non-blocking: GRN is already saved. Failures surface as warnings only.
+      if (newGRN?.id) {
+        const result = await postGRNVoucher(newGRN.id);
+        if (result.ok && result.voucherNumber && !result.skipped) {
+          toast.success(`Accounting voucher posted: ${result.voucherNumber}`);
+        } else if (!result.ok) {
+          toast.error(`Accounting auto-post failed: ${result.error}. Use Purchase Reconciliation to repost.`);
+        }
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create goods receipt');
@@ -300,7 +298,7 @@ export default function GoodsReceiptPage() {
       key: 'id',
       header: 'Actions',
       render: (grn) => (
-        <Button variant="ghost" size="icon" onClick={() => setViewGRN(grn)}>
+        <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
           <Eye className="h-4 w-4" />
         </Button>
       ),
@@ -481,64 +479,11 @@ export default function GoodsReceiptPage() {
         />
       )}
 
-      {/* View GRN Dialog */}
-      <Dialog open={!!viewGRN} onOpenChange={() => setViewGRN(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Goods Receipt: {viewGRN?.grn_number}</DialogTitle>
-          </DialogHeader>
-          {viewGRN && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><strong>PO #:</strong> {viewGRN.purchase_orders?.po_number}</div>
-                <div><strong>Supplier:</strong> {viewGRN.suppliers?.name}</div>
-                <div><strong>Receipt Date:</strong> {format(new Date(viewGRN.receipt_date), 'dd/MM/yyyy')}</div>
-                <div><strong>Invoice #:</strong> {viewGRN.invoice_number || '-'}</div>
-                <div><strong>Invoice Amount:</strong> {viewGRN.invoice_amount ? `Rs. ${viewGRN.invoice_amount.toLocaleString()}` : '-'}</div>
-                <div><strong>Total Received:</strong> Rs. {viewGRN.total_amount?.toLocaleString()}</div>
-              </div>
+      <GRNViewDialog
+        grnId={viewGRNId}
+        onOpenChange={(o) => !o && setViewGRNId(null)}
+      />
 
-              {grnItems && grnItems.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Ordered</TableHead>
-                      <TableHead className="text-right">Received</TableHead>
-                      <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {grnItems.map((item: any) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.items?.code || '-'}</TableCell>
-                        <TableCell>{item.description || item.items?.name}</TableCell>
-                        <TableCell className="text-right">{item.quantity_ordered}</TableCell>
-                        <TableCell className="text-right">{item.quantity_received}</TableCell>
-                        <TableCell className="text-right">Rs. {item.unit_price?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">Rs. {item.amount?.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-
-              {viewGRN.notes && (
-                <div>
-                  <strong>Notes:</strong>
-                  <p className="text-muted-foreground">{viewGRN.notes}</p>
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setViewGRN(null)}>Close</Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </ERPLayout>
   );
 }

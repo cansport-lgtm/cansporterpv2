@@ -396,26 +396,27 @@ const LabourSalaryPage = () => {
     const empEntries = allEmpEntries.filter((e) => e.target_date >= effectiveStartDate && e.target_date <= effectiveEndDate);
     const totalMph = empEntries.reduce((sum, e) => sum + Number(e.mph || 0), 0);
 
-    // Group half-day entries by date: two half-days on same date = one full day
+    // Cap each calendar date at 1.0 day:
+    //  - any full_day on a date => 1 full day (extra entries on same date ignored for pay)
+    //  - else two+ half_days on same date => 1 full day
+    //  - else single half_day => 0.5 day
+    const fullDayDates = new Set<string>();
     const halfDaysByDate = new Map<string, number>();
-    let rawFullDays = 0;
     empEntries.forEach((e) => {
       if (e.work_type === "full_day") {
-        rawFullDays++;
+        fullDayDates.add(e.target_date);
       } else if (e.work_type === "half_day") {
         halfDaysByDate.set(e.target_date, (halfDaysByDate.get(e.target_date) || 0) + 1);
       }
     });
-    // Convert paired half-days into full days
-    let mergedFullDays = 0;
-    let remainingHalfDays = 0;
-    halfDaysByDate.forEach((count) => {
-      mergedFullDays += Math.floor(count / 2);
-      remainingHalfDays += count % 2;
+    let fullDays = fullDayDates.size;
+    let halfDays = 0;
+    halfDaysByDate.forEach((count, date) => {
+      if (fullDayDates.has(date)) return; // already counted as full day
+      if (count >= 2) fullDays += 1;
+      else halfDays += 1; // single half_day on that date => count as 1 half (= 0.5 day)
     });
-    const fullDays = rawFullDays + mergedFullDays;
-    const halfDays = remainingHalfDays;
-    const daysWorked = fullDays + halfDays;
+    const daysWorked = fullDays + halfDays * 0.5;
     
     // Calculate total overtime amount
     const totalOvertime = empEntries.reduce((sum, e) => sum + Number(e.overtime_amount || 0), 0);

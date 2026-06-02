@@ -15,30 +15,30 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "pwa-192x192.png", "pwa-512x512.png"],
+      includeAssets: ["favicon-v3.png", "pwa-192x192-v3.png", "pwa-512x512-v3.png"],
       manifest: {
         name: "Cansport ERP",
         short_name: "Cansport ERP",
         description: "Enterprise Resource Planning System for Cansport Global Industries",
-        theme_color: "#1e293b",
-        background_color: "#0f172a",
+        theme_color: "#0d2a17",
+        background_color: "#0d2a17",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/",
         icons: [
           {
-            src: "pwa-192x192.png",
+            src: "pwa-192x192-v3.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "pwa-512x512.png",
+            src: "pwa-512x512-v3.png",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "pwa-512x512.png",
+            src: "pwa-512x512-v3.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
@@ -47,7 +47,10 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
+        // App bundle currently builds to ~8 MiB on Vercel; raise the cap until
+        // route-level code splitting (React.lazy) lands. Below this the PWA
+        // plugin aborts the build.
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
@@ -71,7 +74,7 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /^https:\/\/nkkzxnihjpqdalzerrhk\.supabase\.co\/.*/i,
+            urlPattern: /^https:\/\/ojejlhnthhdvgbgpsgvi\.supabase\.co\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-cache",

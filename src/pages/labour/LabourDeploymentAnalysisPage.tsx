@@ -151,16 +151,20 @@ const computeDeptStats = (snapshot: DaySnapshot, deptName: string): DeptStats | 
   const items = snapshot.entries.filter((e) => e.department_name === deptName);
   if (items.length === 0) return null;
   let workers = new Set(items.map((i) => i.employee_id)).size;
-  let mph = 0,
-    stdTgt = 0,
+  let stdTgt = 0,
     todaysTgt = 0,
     actual = 0;
+  const mphPerEmp = new Map<string, number>();
   for (const e of items) {
-    mph += e.mph;
     stdTgt += e.target_quantity;
     todaysTgt += e.todays_target || 0;
     actual += e.actual_quantity;
+    if (e.employee_id) {
+      mphPerEmp.set(e.employee_id, (mphPerEmp.get(e.employee_id) || 0) + (e.mph || 0));
+    }
   }
+  let mph = 0;
+  mphPerEmp.forEach((v) => { mph += Math.min(12, v); });
   const deptId = items[0]?.department_id || "";
   const targetProd = snapshot.prodData[deptId]?.targetProd || 0;
   const production = snapshot.prodData[deptId]?.produced || 0;
@@ -192,7 +196,13 @@ const computeOverall = (snapshot: DaySnapshot) => {
   const stdTgt = snapshot.entries.reduce((s, e) => s + e.target_quantity, 0);
   const todaysTgt = snapshot.entries.reduce((s, e) => s + (e.todays_target || 0), 0);
   const actual = snapshot.entries.reduce((s, e) => s + e.actual_quantity, 0);
-  const mph = snapshot.entries.reduce((s, e) => s + e.mph, 0);
+  const mphPerEmp = new Map<string, number>();
+  snapshot.entries.forEach((e) => {
+    if (!e.employee_id) return;
+    mphPerEmp.set(e.employee_id, (mphPerEmp.get(e.employee_id) || 0) + (e.mph || 0));
+  });
+  let mph = 0;
+  mphPerEmp.forEach((v) => { mph += Math.min(12, v); });
   const targetProd = Object.values(snapshot.prodData).reduce((s, d) => s + d.targetProd, 0);
   const production = Object.values(snapshot.prodData).reduce((s, d) => s + d.produced, 0);
   const targetMPH = Math.round(

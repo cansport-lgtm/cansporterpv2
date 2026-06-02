@@ -50,9 +50,12 @@ interface NavChild {
   href: string;
   superAdminOnly?: boolean;
   requiresApprove?: string; // module name; only show if user has approve permission for this module
-  managerWithModule?: string; // module name; show for super_admin OR (role=manager AND view permission on module)
   excludeRoles?: AppRole[];
   state?: Record<string, any>;
+  // When true, this entry renders as a non-clickable section header inside the
+  // module's children. Used to group long modules (e.g. Accounting) into
+  // standard-practice sections — Masters / Entries / Books / Ledgers / Reports etc.
+  isHeader?: boolean;
 }
 
 interface NavItem {
@@ -82,6 +85,8 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/planning/dashboard" },
       { title: "Weekly Planning", href: "/planning/weekly" },
+      { title: "Job Orders", href: "/planning/job-orders" },
+      { title: "Job Order Departments", href: "/planning/job-order-departments", superAdminOnly: true },
       { title: "Daily Stock Closing", href: "/planning/stock-closing" },
       { title: "Daily Closing Dashboard", href: "/planning/closing-dashboard" },
       { title: "Item Master", href: "/planning/items" },
@@ -100,6 +105,9 @@ const navigationItems: NavItem[] = [
       { title: "Daily Entry", href: "/production/daily-entry" },
       { title: "Entry List", href: "/production/entry-list" },
       { title: "WIP Tracking", href: "/production/wip" },
+      { title: "WIP Ledger", href: "/production/wip-ledger" },
+      { title: "WIP Reconciliation", href: "/production/wip-reconciliation" },
+      { title: "WIP Sequence", href: "/production/wip-sequence", superAdminOnly: true },
       { title: "Dashboard", href: "/production/dashboard" },
       { title: "Target Dashboard", href: "/production/target-dashboard" },
       { title: "MPH Master", href: "/production/mph-master", superAdminOnly: true },
@@ -191,9 +199,11 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Customers", href: "/sales/customers" },
       { title: "Customer Logos", href: "/sales/customer-logos" },
+      { title: "Customer Pricing", href: "/sales/customer-pricing" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
       { title: "COGS", href: "/sales/cogs" },
+      { title: "Sales Returns", href: "/sales/returns" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },
     ],
@@ -202,7 +212,7 @@ const navigationItems: NavItem[] = [
     title: "Domestic Sales",
     icon: ShoppingCart,
     color: "text-orange-400",
-    module: "domestic",
+    module: "sales",
     children: [
       { title: "Customers", href: "/domestic/customers" },
       { title: "Sales Orders", href: "/domestic/orders" },
@@ -210,6 +220,7 @@ const navigationItems: NavItem[] = [
       { title: "New Item", href: "/domestic/new-item" },
       { title: "Pending Dispatch", href: "/domestic/pending-dispatch" },
       { title: "Dispatch", href: "/domestic/dispatch" },
+      { title: "Invoices", href: "/domestic/invoices" },
       { title: "Dispatch Acknowledgement", href: "/domestic/dispatch-acknowledgement" },
       { title: "Dispatch Dashboard", href: "/domestic/dispatch-dashboard" },
       { title: "Deadline Requests", href: "/domestic/deadline-requests", superAdminOnly: true },
@@ -220,7 +231,7 @@ const navigationItems: NavItem[] = [
     title: "Export Sales",
     icon: ShoppingCart,
     color: "text-teal-400",
-    module: "export",
+    module: "sales",
     children: [
       { title: "Customers", href: "/export/customers" },
       { title: "Sales Orders", href: "/export/orders" },
@@ -238,9 +249,14 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Requests", href: "/purchase/requests" },
       { title: "Purchase Orders", href: "/purchase/orders" },
       { title: "Goods Receipt", href: "/purchase/grn" },
+      { title: "Purchase Returns", href: "/purchase/returns" },
       { title: "Dashboard", href: "/purchase/dashboard" },
     ],
   },
+  // "Store & Inventory" and "Floor Inventory" modules removed from the sidebar —
+  // not in use per user request (2026-05-24). Routes remain in App.tsx so old
+  // bookmarks still resolve. Restore the entries below if the modules come back.
+  /*
   {
     title: "Store & Inventory",
     icon: Warehouse,
@@ -271,6 +287,7 @@ const navigationItems: NavItem[] = [
       { title: "Locations", href: "/floor-inventory/locations" },
     ],
   },
+  */
   {
     title: "Fixed Assets",
     icon: Building,
@@ -328,6 +345,7 @@ const navigationItems: NavItem[] = [
     module: "labour",
     children: [
       { title: "Daily Entry", href: "/labour/entry" },
+      { title: "Missing Entries", href: "/labour/missing-entries" },
       { title: "Process Targets", href: "/labour/process-targets" },
       { title: "Todays Labour Deployment & Targets", href: "/labour/todays-target" },
       { title: "Deployment & Target Analysis", href: "/labour/deployment-analysis", requiresApprove: "labour" },
@@ -340,7 +358,7 @@ const navigationItems: NavItem[] = [
       { title: "Individual Performance", href: "/labour/individual-performance" },
       { title: "Public Holidays", href: "/labour/public-holidays" },
       { title: "MPH Management", href: "/labour/mph-management" },
-      { title: "Edit Requests", href: "/labour/edit-requests", managerWithModule: "labour_productivity" },
+      { title: "Edit Requests", href: "/labour/edit-requests", superAdminOnly: true },
       { title: "Dashboard", href: "/labour/dashboard" },
     ],
   },
@@ -376,6 +394,7 @@ const navigationItems: NavItem[] = [
     module: "online_sales",
     children: [
       { title: "Dashboard", href: "/online-sales/dashboard" },
+      { title: "Sales Analysis", href: "/online-sales/analysis" },
       { title: "Platform Master", href: "/online-sales/platforms" },
       { title: "Item Master", href: "/online-sales/items" },
       { title: "Orders", href: "/online-sales/orders" },
@@ -384,21 +403,60 @@ const navigationItems: NavItem[] = [
       
     ],
   },
+  // Legacy "Finance Reports" section removed — those pages query the empty
+  // finance_* tables. All accounting data now flows through the new
+  // accounting_* schema and is surfaced under the Accounting module below.
+  // Routes are retained (in App.tsx) so any old bookmarks still resolve.
   {
-    title: "Finance Reports",
-    icon: BookOpen,
-    color: "text-emerald-500",
-    module: "finance",
+    title: "Accounting",
+    icon: Receipt,
+    color: "text-teal-500",
+    module: "accounting",
     children: [
-      { title: "Dashboard", href: "/finance/dashboard" },
-      { title: "Chart of Accounts", href: "/finance/chart-of-accounts" },
-      { title: "Periods", href: "/finance/periods" },
-      { title: "Trial Balance", href: "/finance/trial-balance" },
-      { title: "Journal Entries", href: "/finance/journal-entries" },
-      { title: "Profit & Loss", href: "/finance/profit-loss" },
-      { title: "Balance Sheet", href: "/finance/balance-sheet" },
-      { title: "Cash Flow", href: "/finance/cash-flow" },
-      { title: "Accounts Receivable", href: "/finance/accounts-receivable" },
+      { title: "Dashboard", href: "/accounting/dashboard" },
+
+      { title: "Masters", href: "", isHeader: true },
+      { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
+      { title: "Parties", href: "/accounting/parties" },
+      { title: "Default Accounts", href: "/accounting/default-accounts" },
+
+      { title: "Entries", href: "", isHeader: true },
+      { title: "New Voucher", href: "/accounting/vouchers/new" },
+      { title: "Customer Receipts", href: "/accounting/customer-receipts" },
+      { title: "Supplier Payments", href: "/accounting/supplier-payments" },
+      // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
+
+      { title: "Books", href: "", isHeader: true },
+      { title: "Day Book", href: "/accounting/day-book" },
+      { title: "Voucher Register", href: "/accounting/vouchers" },
+      { title: "Cash Book", href: "/accounting/cash-book" },
+      { title: "Bank Book", href: "/accounting/bank-book" },
+
+      { title: "Ledgers", href: "", isHeader: true },
+      { title: "General Ledger", href: "/accounting/general-ledger" },
+      { title: "Customer Ledger", href: "/accounting/party-ledger?type=customer" },
+      { title: "Vendor Ledger", href: "/accounting/party-ledger?type=supplier" },
+
+      { title: "Reports", href: "", isHeader: true },
+      { title: "Trial Balance", href: "/accounting/trial-balance" },
+      { title: "Profit & Loss", href: "/accounting/profit-loss" },
+      { title: "Balance Sheet", href: "/accounting/balance-sheet" },
+      { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
+      { title: "Sales Report", href: "/accounting/sales-report" },
+      { title: "Sales Analysis", href: "/accounting/sales-analysis" },
+
+      { title: "Reconciliation", href: "", isHeader: true },
+      { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
+      { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
+      { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
+      { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
+      { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
+      { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
+
+      { title: "Period & Audit", href: "", isHeader: true },
+      { title: "Period Close", href: "/accounting/period-close" },
+      { title: "Audit Log", href: "/accounting/audit-log" },
+      { title: "Settings", href: "/accounting/settings", superAdminOnly: true },
     ],
   },
   {
@@ -437,6 +495,13 @@ const navigationItems: NavItem[] = [
       { title: "Content & Creatives", href: "/crm/content" },
       { title: "Product & Brand", href: "/crm/product-brand" },
       { title: "Daily Closing", href: "/crm/daily-closing" },
+      { title: "Marketing KPIs", href: "/crm/marketing-kpis" },
+      { title: "Reactivation", href: "/crm/reactivation" },
+      { title: "Aero Padel Courts", href: "/crm/aero-courts" },
+      { title: "Aero Courts Insights", href: "/crm/aero-courts/insights" },
+      { title: "Sample Items", href: "/crm/sample-items" },
+      { title: "Sample Inventory", href: "/crm/sample-inventory" },
+      { title: "Sample Requests", href: "/crm/sample-requests" },
     ],
   },
   {
@@ -452,6 +517,10 @@ const navigationItems: NavItem[] = [
       { title: "Live Overview", href: "/hourly-production/live-overview" },
       { title: "Loss Entry", href: "/hourly-production/loss-entry" },
       { title: "Loss Logs", href: "/hourly-production/loss-logs" },
+      { title: "Material Issuance", href: "/hourly-production/material-issuance" },
+      { title: "Material Consumption", href: "/hourly-production/material-consumption" },
+      { title: "Material Analysis", href: "/hourly-production/material-analysis" },
+      { title: "Material Master", href: "/hourly-production/materials", superAdminOnly: true },
       { title: "Process Master", href: "/hourly-production/process-master", superAdminOnly: true },
     ],
   },
@@ -504,8 +573,7 @@ interface ERPSidebarProps {
 
 export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
   const location = useLocation();
-  const { canAccessModule, canAccessRoute, roles, hasModulePermission, user } = useAuth();
-  const isHR01 = user?.user_id === 'HR01';
+  const { canAccessModule, canAccessRoute, roles, hasModulePermission } = useAuth();
   const [isAddRawMaterialOpen, setIsAddRawMaterialOpen] = useState(false);
 
   // Check if user is super_admin
@@ -521,10 +589,9 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       return item.children.filter((child) => {
         if (child.superAdminOnly && !isSuperAdmin) return false;
 
-        if (child.managerWithModule) {
-          const isManager = userRoleNames.includes('manager');
-          if (!isSuperAdmin && !isHR01 && !(isManager && hasModulePermission(child.managerWithModule, 'view'))) return false;
-        }
+        // Section headers are always visible alongside their group (we drop
+        // dangling headers later, after route-level filtering).
+        if (child.isHeader) return true;
 
         if (child.requiresApprove && !hasModulePermission(child.requiresApprove, "approve")) {
           return false;
@@ -537,8 +604,33 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
           return false;
         }
 
-        return canAccessRoute(child.href);
+        // child.href may carry a default query string (e.g. ?type=customer);
+        // the role-restriction list only knows pathnames, so strip the query.
+        return canAccessRoute(child.href.split("?")[0]);
       });
+    };
+
+    // Drop section headers that have no following link entries (e.g. when every
+    // route in that section was hidden by permissions). Headers are dangling
+    // when no non-header child sits between them and the next header / end.
+    const dropDanglingHeaders = (kids: NavChild[] | undefined): NavChild[] | undefined => {
+      if (!kids) return kids;
+      const out: NavChild[] = [];
+      for (let i = 0; i < kids.length; i++) {
+        const c = kids[i];
+        if (c.isHeader) {
+          // Look ahead until next header or end; keep header only if any link follows.
+          let hasLink = false;
+          for (let j = i + 1; j < kids.length; j++) {
+            if (kids[j].isHeader) break;
+            hasLink = true;
+            break;
+          }
+          if (!hasLink) continue;
+        }
+        out.push(c);
+      }
+      return out;
     };
 
     return navigationItems
@@ -556,7 +648,7 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
 
           return {
             ...item,
-            children: visibleChildren,
+            children: dropDanglingHeaders(visibleChildren),
           };
         }
 
@@ -569,10 +661,14 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       .filter((item) => !item.children || item.children.length > 0);
   }, [isSuperAdmin, roles, canAccessModule, canAccessRoute, hasModulePermission]);
 
+  // Some sidebar entries carry a default query string (e.g. ?type=customer on the
+  // ledger views) so we compare only the path portion when locating the active module.
+  const hrefPath = (href: string) => href.split("?")[0];
+
   // Find which module contains the current route
   const getActiveModuleTitle = () => {
     for (const item of filteredNavigationItems) {
-      if (item.children?.some(child => location.pathname.startsWith(child.href))) {
+      if (item.children?.some(child => !child.isHeader && location.pathname.startsWith(hrefPath(child.href)))) {
         return item.title;
       }
     }
@@ -601,9 +697,19 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
     );
   };
 
-  const isActiveRoute = (href: string) => location.pathname === href;
-  const isParentActive = (children?: { href: string }[]) =>
-    children?.some((child) => location.pathname.startsWith(child.href));
+  const isActiveRoute = (href: string) => {
+    const [path, query] = href.split("?");
+    if (location.pathname !== path) return false;
+    if (!query) return true;
+    const want = new URLSearchParams(query);
+    const have = new URLSearchParams(location.search);
+    for (const [k, v] of want) {
+      if (have.get(k) !== v) return false;
+    }
+    return true;
+  };
+  const isParentActive = (children?: { href: string; isHeader?: boolean }[]) =>
+    children?.some((child) => !child.isHeader && location.pathname.startsWith(hrefPath(child.href)));
 
   return (
     <>
@@ -618,16 +724,16 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <img 
-              src={cansportLogo} 
-              alt="Cansport Global Industries" 
+            <img
+              src={cansportLogo}
+              alt="Cansport Global Industries"
               className="h-10 w-auto object-contain"
             />
           </div>
@@ -642,91 +748,119 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)]">
-          <div className="space-y-1">
-            {filteredNavigationItems.map((item) => (
-              <div key={item.title}>
-                {item.href ? (
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                      isActiveRoute(item.href)
-                        ? "bg-brand-gradient text-primary-foreground shadow-soft"
-                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <item.icon className={cn("h-5 w-5", item.color)} />
-                    {item.title}
-                  </Link>
-                ) : (
-                  <Collapsible
-                    open={expandedItems.includes(item.title)}
-                    onOpenChange={() => toggleExpanded(item.title)}
-                  >
-                    <CollapsibleTrigger className="w-full">
-                      <div
-                        className={cn(
-                          "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                          isParentActive(item.children)
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon className={cn("h-5 w-5", item.color)} />
-                          {item.title}
-                        </div>
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            expandedItems.includes(item.title) && "rotate-180"
-                          )}
-                        />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pl-11 space-y-1 mt-1">
-                      {/* Quick Action Button for Floor Inventory */}
-                      {item.hasQuickAction && item.title === "Floor Inventory" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsAddRawMaterialOpen(true);
-                          }}
-                          className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm transition-colors text-primary hover:bg-sidebar-accent font-medium"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add Raw Material
-                        </button>
+        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)] scrollbar-thin">
+          <div className="space-y-0.5">
+            {filteredNavigationItems.map((item) => {
+              const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
+              return (
+                <div key={item.title}>
+                  {item.href ? (
+                    <Link
+                      to={item.href}
+                      className={cn(
+                        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                        itemActive
+                          ? "bg-brand-gradient text-primary-foreground shadow-soft"
+                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       )}
-                      {item.children?.map((child) => (
-                        <Link
-                          key={child.title}
-                          to={child.href}
-                          state={child.state}
+                    >
+                      {itemActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary-foreground/80" />
+                      )}
+                      <item.icon
+                        className={cn(
+                          "h-5 w-5 transition-transform group-hover:scale-110",
+                          itemActive ? "text-primary-foreground" : item.color,
+                        )}
+                      />
+                      {item.title}
+                    </Link>
+                  ) : (
+                    <Collapsible
+                      open={expandedItems.includes(item.title)}
+                      onOpenChange={() => toggleExpanded(item.title)}
+                    >
+                      <CollapsibleTrigger className="w-full">
+                        <div
                           className={cn(
-                            "block rounded-lg px-3 py-2 text-sm transition-all",
-                            isActiveRoute(child.href) && !child.state
-                              ? "bg-brand-gradient text-primary-foreground shadow-soft font-medium"
-                              : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                            "group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            itemActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                           )}
                         >
-                          {child.title}
-                        </Link>
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-              </div>
-            ))}
+                          {itemActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
+                          )}
+                          <div className="flex items-center gap-3">
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 transition-transform group-hover:scale-110",
+                                item.color,
+                              )}
+                            />
+                            {item.title}
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
+                              expandedItems.includes(item.title) && "rotate-180 text-sidebar-foreground"
+                            )}
+                          />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="relative pl-7 ml-3.5 mt-1 mb-1 border-l border-sidebar-border/80 space-y-0.5">
+                        {/* Quick Action Button for Floor Inventory */}
+                        {item.hasQuickAction && item.title === "Floor Inventory" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsAddRawMaterialOpen(true);
+                            }}
+                            className="flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors text-primary hover:bg-sidebar-accent font-medium"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Raw Material
+                          </button>
+                        )}
+                        {item.children?.map((child, idx) =>
+                          child.isHeader ? (
+                            <div
+                              key={`hdr-${child.title}-${idx}`}
+                              className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none"
+                            >
+                              {child.title}
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.title}
+                              to={child.href}
+                              state={child.state}
+                              className={cn(
+                                "relative block rounded-lg px-3 py-1.5 text-sm transition-all duration-200",
+                                isActiveRoute(child.href) && !child.state
+                                  ? "bg-primary/10 text-primary font-semibold ring-1 ring-inset ring-primary/15"
+                                  : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/70"
+                              )}
+                            >
+                              {child.title}
+                            </Link>
+                          )
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-3 bg-sidebar/80">
           <Button
             variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4 mr-3" />
             Logout
