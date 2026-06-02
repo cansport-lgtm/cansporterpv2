@@ -45,6 +45,7 @@ interface OrderItemRel {
   price_per_dozen: number | null;
   products: { code: string | null; name: string | null } | null;
   grades: { code: string | null; name: string | null } | null;
+  sales_orders: { order_number: string | null; customers: { name: string | null; code: string | null } | null } | null;
 }
 interface DispatchItemRel {
   id: string;
@@ -90,7 +91,8 @@ export default function COGSPage() {
             sales_order_items (
               product_id, grade_id, price_per_dozen,
               products ( code, name ),
-              grades ( code, name )
+              grades ( code, name ),
+              sales_orders ( order_number, customers ( name, code ) )
             )
           )
         `)
@@ -211,7 +213,12 @@ export default function COGSPage() {
         status,
         margin,
         marginPct: liveSales > 0 ? (margin / liveSales) * 100 : 0,
-        customer: d.sales_orders?.customers?.name || "—",
+        customer:
+          d.sales_orders?.customers?.name ||
+          (d.sales_dispatch_items ?? [])
+            .map((it) => it.sales_order_items?.sales_orders?.customers?.name)
+            .find(Boolean) ||
+          "—",
       };
     });
   }, [dispatches, costMap, snapshotByDispatch]);
