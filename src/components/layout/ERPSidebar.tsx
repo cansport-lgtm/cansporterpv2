@@ -202,6 +202,7 @@ const navigationItems: NavItem[] = [
       { title: "Customer Pricing", href: "/sales/customer-pricing" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
+      { title: "COGS", href: "/sales/cogs" },
       { title: "Sales Returns", href: "/sales/returns" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },

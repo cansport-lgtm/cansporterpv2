@@ -95,6 +95,7 @@ import QuotationsPage from "./pages/sales/QuotationsPage";
 import SalesOrdersPage from "./pages/sales/SalesOrdersPage";
 import CustomerVisitDashboard from "./pages/sales/CustomerVisitDashboard";
 import DispatchPage from "./pages/sales/DispatchPage";
+import COGSPage from "./pages/sales/COGSPage";
 
 // Domestic Sales pages
 import DomesticDashboard from "./pages/domestic/DomesticDashboard";
@@ -469,6 +470,7 @@ const App = () => (
             <Route path="/sales/quotations" element={<ProtectedRoute><QuotationsPage /></ProtectedRoute>} />
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
+            <Route path="/sales/cogs" element={<ProtectedRoute><COGSPage /></ProtectedRoute>} />
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
