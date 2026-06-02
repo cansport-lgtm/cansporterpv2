@@ -13,14 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calculator, Search, Eye, RefreshCw, DollarSign, TrendingUp, Percent, AlertTriangle } from "lucide-react";
+import { Calculator, Search, Eye, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 
-// ---- Helpers ----
-const NULL_GRADE = "00000000-0000-0000-0000-000000000000";
-const costKey = (productId: string | null | undefined, gradeId: string | null | undefined) =>
-  `${productId ?? "none"}|${gradeId ?? "none"}`;
+// COGS = quantity_dozens x products.standard_cost. This is the SAME cost master that the
+// accounting module posts to the GL/P&L (postCOGSForDispatch), so figures here stay consistent
+// with the Profit & Loss statement. Computed live — editing a cost updates everywhere.
+
 const fmt = (n: number) => `Rs. ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const segmentLabel = (s: string) =>
   ({ private_label: "Private Label", domestic: "Domestic", export: "Export" } as Record<string, string>)[s] || s;
@@ -29,16 +29,13 @@ const STATUS_COLORS: Record<string, string> = {
   costed: "bg-green-500",
   partial: "bg-amber-500",
   uncosted: "bg-slate-400",
-  stale: "bg-blue-500",
 };
 const STATUS_LABELS: Record<string, string> = {
   costed: "Costed",
   partial: "Partial",
   uncosted: "Uncosted",
-  stale: "Stale",
 };
 
-// ---- Query result shapes (hand-typed for the nested select) ----
 interface OrderItemRel {
   product_id: string | null;
   grade_id: string | null;
@@ -65,19 +62,17 @@ interface CogsDispatch {
 
 export default function COGSPage() {
   const queryClient = useQueryClient();
-  const { user, hasModulePermission } = useAuth();
+  const { hasModulePermission } = useAuth();
   const canEdit = hasModulePermission("accounting", "edit");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("");
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [costMasterSearch, setCostMasterSearch] = useState("");
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
 
-  // ---- Queries ----
   const { data: dispatches, isLoading } = useQuery({
     queryKey: ["cogs-dispatches", segmentFilter],
     queryFn: async () => {
@@ -104,34 +99,13 @@ export default function COGSPage() {
     },
   });
 
-  const { data: standardCosts } = useQuery({
-    queryKey: ["standard-costs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("standard_costs")
-        .select("id, product_id, grade_id, cost_per_dozen, is_active, products(code,name), grades(code,name)");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: cogsSnapshots } = useQuery({
-    queryKey: ["dispatch-cogs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dispatch_item_cogs")
-        .select("dispatch_id, dispatch_item_id, cost_per_dozen_snapshot, cogs_amount");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
+  // products.standard_cost is the single cost master (also drives accounting/P&L COGS).
   const { data: products } = useQuery({
-    queryKey: ["products-for-cogs"],
+    queryKey: ["cogs-products"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, code, name, grade_id, is_active, grades(code,name)")
+        .select("id, code, name, grade_id, is_active, standard_cost, grades(code,name)")
         .eq("is_active", true)
         .order("code", { ascending: true });
       if (error) throw error;
@@ -139,39 +113,21 @@ export default function COGSPage() {
     },
   });
 
-  // ---- Lookup maps ----
   const costMap = useMemo(() => {
     const m = new Map<string, number>();
-    (standardCosts ?? []).forEach((c) => {
-      if (c.is_active) m.set(costKey(c.product_id, c.grade_id), Number(c.cost_per_dozen) || 0);
-    });
+    (products ?? []).forEach((p: any) => m.set(p.id, Number(p.standard_cost) || 0));
     return m;
-  }, [standardCosts]);
+  }, [products]);
 
-  const snapshotByDispatch = useMemo(() => {
-    const m = new Map<string, { total: number; lineCount: number; anyZero: boolean }>();
-    (cogsSnapshots ?? []).forEach((s) => {
-      const cur = m.get(s.dispatch_id) ?? { total: 0, lineCount: 0, anyZero: false };
-      cur.total += Number(s.cogs_amount) || 0;
-      cur.lineCount += 1;
-      if ((Number(s.cost_per_dozen_snapshot) || 0) === 0) cur.anyZero = true;
-      m.set(s.dispatch_id, cur);
-    });
-    return m;
-  }, [cogsSnapshots]);
-
-  // ---- Per-dispatch derived rows ----
   const rows = useMemo(() => {
     return (dispatches ?? []).map((d) => {
       const lines = (d.sales_dispatch_items ?? []).map((it) => {
         const oi = it.sales_order_items;
         const qty = Number(it.quantity_dozens) || 0;
         const price = Number(oi?.price_per_dozen) || 0;
-        const cost = costMap.get(costKey(oi?.product_id, oi?.grade_id)) ?? 0;
+        const cost = oi?.product_id ? costMap.get(oi.product_id) ?? 0 : 0;
         return {
-          dispatchItemId: it.id,
           productId: oi?.product_id ?? null,
-          gradeId: oi?.grade_id ?? null,
           productLabel: oi?.products?.code
             ? `${oi.products.code}${oi.products.name ? ` — ${oi.products.name}` : ""}`
             : "—",
@@ -186,30 +142,19 @@ export default function COGSPage() {
       });
       const liveSales = lines.reduce((s, l) => s + l.lineSales, 0);
       const liveCogs = lines.reduce((s, l) => s + l.lineCogs, 0);
-      const snap = snapshotByDispatch.get(d.id);
-      const hasSnapshot = !!snap;
-      const savedCogs = snap?.total ?? 0;
-      const displayCogs = hasSnapshot ? savedCogs : liveCogs;
+      const costedLines = lines.filter((l) => l.hasCost).length;
 
       let status: keyof typeof STATUS_LABELS;
-      if (!hasSnapshot) {
-        status = "uncosted";
-      } else if (Math.round(liveCogs) !== Math.round(savedCogs)) {
-        status = "stale"; // standard cost changed since last Update
-      } else if (snap!.lineCount < lines.length || snap!.anyZero) {
-        status = "partial";
-      } else {
-        status = "costed";
-      }
+      if (lines.length === 0 || costedLines === 0) status = "uncosted";
+      else if (costedLines < lines.length) status = "partial";
+      else status = "costed";
 
-      const margin = liveSales - displayCogs;
+      const margin = liveSales - liveCogs;
       return {
         d,
         lines,
         liveSales,
         liveCogs,
-        hasSnapshot,
-        displayCogs,
         status,
         margin,
         marginPct: liveSales > 0 ? (margin / liveSales) * 100 : 0,
@@ -221,7 +166,7 @@ export default function COGSPage() {
           "—",
       };
     });
-  }, [dispatches, costMap, snapshotByDispatch]);
+  }, [dispatches, costMap]);
 
   const filteredRows = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -237,12 +182,11 @@ export default function COGSPage() {
     });
   }, [rows, searchTerm, statusFilter, monthFilter]);
 
-  // ---- KPIs ----
   const kpis = useMemo(() => {
     const totalSales = filteredRows.reduce((s, r) => s + r.liveSales, 0);
-    const totalCogs = filteredRows.reduce((s, r) => s + r.displayCogs, 0);
+    const totalCogs = filteredRows.reduce((s, r) => s + r.liveCogs, 0);
     const margin = totalSales - totalCogs;
-    const needsAttention = filteredRows.filter((r) => r.status === "uncosted" || r.status === "partial" || r.status === "stale").length;
+    const needsAttention = filteredRows.filter((r) => r.status === "uncosted" || r.status === "partial").length;
     return {
       totalSales,
       totalCogs,
@@ -252,101 +196,45 @@ export default function COGSPage() {
     };
   }, [filteredRows]);
 
-  // ---- Mutations ----
-  const recomputeMutation = useMutation({
-    mutationFn: async (dispatchId: string) => {
-      const { error } = await supabase.rpc("recompute_dispatch_cogs", {
-        p_dispatch_id: dispatchId,
-        p_user: user?.id,
-      });
+  const updateCostMutation = useMutation({
+    mutationFn: async ({ productId, cost }: { productId: string; cost: number }) => {
+      const { error } = await supabase.from("products").update({ standard_cost: cost }).eq("id", productId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dispatch-cogs"] });
-      toast.success("COGS updated for dispatch");
-    },
-    onError: (e: Error) => toast.error(e.message),
-    onSettled: () => setUpdatingId(null),
-  });
-
-  const upsertCostMutation = useMutation({
-    mutationFn: async ({ productId, gradeId, cost }: { productId: string; gradeId: string | null; cost: number }) => {
-      const { error } = await supabase.rpc("upsert_standard_cost", {
-        p_product: productId,
-        p_grade: gradeId, // pass null (not undefined) so the param isn't stripped from the request
-        p_cost: cost,
-        p_user: user?.id ?? undefined,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["standard-costs"] });
-      toast.success("Standard cost saved");
+      queryClient.invalidateQueries({ queryKey: ["cogs-products"] });
+      toast.success("Standard cost updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const handleUpdate = (dispatchId: string) => {
-    setUpdatingId(dispatchId);
-    recomputeMutation.mutate(dispatchId);
-  };
-
-  // ---- Cost Master rows (products ∪ existing standard costs) ----
-  const costMasterRows = useMemo(() => {
-    const map = new Map<
-      string,
-      { productId: string; gradeId: string | null; productLabel: string; gradeLabel: string; cost: number }
-    >();
-    (products ?? []).forEach((p) => {
-      const k = costKey(p.id, p.grade_id);
-      map.set(k, {
-        productId: p.id,
-        gradeId: p.grade_id,
-        productLabel: `${p.code}${p.name ? ` — ${p.name}` : ""}`,
-        gradeLabel: p.grades?.code || p.grades?.name || "—",
-        cost: costMap.get(k) ?? 0,
-      });
-    });
-    (standardCosts ?? []).forEach((c) => {
-      const k = costKey(c.product_id, c.grade_id);
-      if (!map.has(k) && c.product_id) {
-        map.set(k, {
-          productId: c.product_id,
-          gradeId: c.grade_id,
-          productLabel: c.products?.code ? `${c.products.code}${c.products.name ? ` — ${c.products.name}` : ""}` : "—",
-          gradeLabel: c.grades?.code || c.grades?.name || "—",
-          cost: Number(c.cost_per_dozen) || 0,
-        });
-      }
-    });
-    const term = costMasterSearch.toLowerCase();
-    return Array.from(map.values())
-      .filter((r) => !term || r.productLabel.toLowerCase().includes(term) || r.gradeLabel.toLowerCase().includes(term))
-      .sort((a, b) => a.productLabel.localeCompare(b.productLabel));
-  }, [products, standardCosts, costMap, costMasterSearch]);
-
-  const commitCost = (productId: string, gradeId: string | null, raw: string) => {
-    const k = costKey(productId, gradeId);
+  const commitCost = (productId: string, raw: string) => {
     const parsed = parseFloat(raw);
     if (isNaN(parsed) || parsed < 0) return;
-    const existing = costMap.get(k) ?? 0;
-    if (parsed === existing) return;
-    upsertCostMutation.mutate({ productId, gradeId, cost: parsed });
-    setCostDrafts((prev) => {
-      const next = { ...prev };
-      delete next[k];
-      return next;
-    });
+    if (parsed === (costMap.get(productId) ?? 0)) return;
+    updateCostMutation.mutate({ productId, cost: parsed });
   };
 
-  const detailRow = useMemo(() => filteredRows.find((r) => r.d.id === detailId) || rows.find((r) => r.d.id === detailId), [filteredRows, rows, detailId]);
+  const costMasterRows = useMemo(() => {
+    const term = costMasterSearch.toLowerCase();
+    return (products ?? [])
+      .map((p: any) => ({
+        productId: p.id as string,
+        productLabel: `${p.code}${p.name ? ` — ${p.name}` : ""}`,
+        gradeLabel: p.grades?.code || p.grades?.name || "—",
+        cost: Number(p.standard_cost) || 0,
+      }))
+      .filter((r) => !term || r.productLabel.toLowerCase().includes(term) || r.gradeLabel.toLowerCase().includes(term));
+  }, [products, costMasterSearch]);
+
+  const detailRow = useMemo(() => rows.find((r) => r.d.id === detailId), [rows, detailId]);
 
   return (
     <ERPLayout>
       <div className="space-y-6">
         <PageHeader
-          title="COGS"
-          description="Cost of Goods Sold by dispatch invoice"
+          title="COGS (Invoice-wise)"
+          description="Cost of Goods Sold per dispatch, from product standard cost (same basis as the P&L)"
           icon={Calculator}
         />
 
@@ -365,7 +253,7 @@ export default function COGSPage() {
             value={kpis.needsAttention}
             icon={AlertTriangle}
             iconColor="text-red-500"
-            description="Uncosted / partial / stale"
+            description="Uncosted / partial dispatches"
           />
         </div>
 
@@ -375,7 +263,6 @@ export default function COGSPage() {
             <TabsTrigger value="cost-master">Cost Master</TabsTrigger>
           </TabsList>
 
-          {/* ---- Invoices / COGS ---- */}
           <TabsContent value="invoices">
             <Card>
               <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 space-y-0">
@@ -390,12 +277,7 @@ export default function COGSPage() {
                       className="pl-9 w-56"
                     />
                   </div>
-                  <Input
-                    type="month"
-                    value={monthFilter}
-                    onChange={(e) => setMonthFilter(e.target.value)}
-                    className="w-40"
-                  />
+                  <Input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="w-40" />
                   <Select value={segmentFilter} onValueChange={setSegmentFilter}>
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Segment" />
@@ -415,7 +297,6 @@ export default function COGSPage() {
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="uncosted">Uncosted</SelectItem>
                       <SelectItem value="partial">Partial</SelectItem>
-                      <SelectItem value="stale">Stale</SelectItem>
                       <SelectItem value="costed">Costed</SelectItem>
                     </SelectContent>
                   </Select>
@@ -436,7 +317,7 @@ export default function COGSPage() {
                         <TableHead className="text-right">Margin</TableHead>
                         <TableHead className="text-right">Margin %</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="text-right">Detail</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -459,31 +340,16 @@ export default function COGSPage() {
                             <TableCell>{segmentLabel(r.d.sales_segment)}</TableCell>
                             <TableCell className="text-right">{r.lines.length}</TableCell>
                             <TableCell className="text-right">{fmt(r.liveSales)}</TableCell>
-                            <TableCell className={`text-right ${r.hasSnapshot ? "" : "text-muted-foreground italic"}`}>
-                              {fmt(r.displayCogs)}
-                            </TableCell>
+                            <TableCell className="text-right">{fmt(r.liveCogs)}</TableCell>
                             <TableCell className="text-right">{fmt(r.margin)}</TableCell>
                             <TableCell className="text-right">{r.marginPct.toFixed(1)}%</TableCell>
                             <TableCell>
                               <Badge className={STATUS_COLORS[r.status]}>{STATUS_LABELS[r.status]}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => setDetailId(r.d.id)} title="View detail">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                {canEdit && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={updatingId === r.d.id}
-                                    onClick={() => handleUpdate(r.d.id)}
-                                  >
-                                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${updatingId === r.d.id ? "animate-spin" : ""}`} />
-                                    Update
-                                  </Button>
-                                )}
-                              </div>
+                              <Button variant="ghost" size="icon" onClick={() => setDetailId(r.d.id)} title="View detail">
+                                <Eye className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))
@@ -495,11 +361,10 @@ export default function COGSPage() {
             </Card>
           </TabsContent>
 
-          {/* ---- Cost Master ---- */}
           <TabsContent value="cost-master">
             <Card>
               <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 space-y-0">
-                <CardTitle className="text-lg">Standard Cost Master (per dozen)</CardTitle>
+                <CardTitle className="text-lg">Product Standard Cost (Rs. per dozen)</CardTitle>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -511,6 +376,9 @@ export default function COGSPage() {
                 </div>
               </CardHeader>
               <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  This is the same standard cost the accounting module uses to post COGS to the GL / Profit &amp; Loss.
+                </p>
                 <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -529,10 +397,9 @@ export default function COGSPage() {
                         </TableRow>
                       ) : (
                         costMasterRows.map((r) => {
-                          const k = costKey(r.productId, r.gradeId);
-                          const draft = costDrafts[k];
+                          const draft = costDrafts[r.productId];
                           return (
-                            <TableRow key={k}>
+                            <TableRow key={r.productId}>
                               <TableCell>{r.productLabel}</TableCell>
                               <TableCell>{r.gradeLabel}</TableCell>
                               <TableCell className="text-right">
@@ -544,8 +411,15 @@ export default function COGSPage() {
                                   value={draft !== undefined ? draft : r.cost === 0 ? "" : String(r.cost)}
                                   placeholder="0"
                                   className="w-40 ml-auto text-right"
-                                  onChange={(e) => setCostDrafts((prev) => ({ ...prev, [k]: e.target.value }))}
-                                  onBlur={(e) => commitCost(r.productId, r.gradeId, e.target.value)}
+                                  onChange={(e) => setCostDrafts((prev) => ({ ...prev, [r.productId]: e.target.value }))}
+                                  onBlur={(e) => {
+                                    commitCost(r.productId, e.target.value);
+                                    setCostDrafts((prev) => {
+                                      const next = { ...prev };
+                                      delete next[r.productId];
+                                      return next;
+                                    });
+                                  }}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                   }}
@@ -564,13 +438,10 @@ export default function COGSPage() {
         </Tabs>
       </div>
 
-      {/* ---- Detail dialog ---- */}
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              COGS Detail — {detailRow?.d.dispatch_number}
-            </DialogTitle>
+            <DialogTitle>COGS Detail — {detailRow?.d.dispatch_number}</DialogTitle>
           </DialogHeader>
           {detailRow && (
             <div className="space-y-4">
@@ -610,11 +481,10 @@ export default function COGSPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detailRow.lines.map((l) => {
-                      const k = costKey(l.productId, l.gradeId);
-                      const draft = costDrafts[`detail:${k}`];
+                    {detailRow.lines.map((l, i) => {
+                      const draft = l.productId ? costDrafts[`d:${l.productId}`] : undefined;
                       return (
-                        <TableRow key={l.dispatchItemId} className={l.hasCost ? "" : "bg-amber-50/50"}>
+                        <TableRow key={i} className={l.hasCost ? "" : "bg-amber-50/50"}>
                           <TableCell>{l.productLabel}</TableCell>
                           <TableCell>{l.gradeLabel}</TableCell>
                           <TableCell className="text-right">{l.qty}</TableCell>
@@ -632,14 +502,12 @@ export default function COGSPage() {
                                   value={draft !== undefined ? draft : l.cost === 0 ? "" : String(l.cost)}
                                   placeholder="0"
                                   className="w-28 ml-auto text-right h-8"
-                                  onChange={(e) =>
-                                    setCostDrafts((prev) => ({ ...prev, [`detail:${k}`]: e.target.value }))
-                                  }
+                                  onChange={(e) => setCostDrafts((prev) => ({ ...prev, [`d:${l.productId}`]: e.target.value }))}
                                   onBlur={(e) => {
-                                    commitCost(l.productId!, l.gradeId, e.target.value);
+                                    commitCost(l.productId!, e.target.value);
                                     setCostDrafts((prev) => {
                                       const next = { ...prev };
-                                      delete next[`detail:${k}`];
+                                      delete next[`d:${l.productId}`];
                                       return next;
                                     });
                                   }}
@@ -666,27 +534,13 @@ export default function COGSPage() {
                     <span className="font-medium">{fmt(detailRow.liveSales)}</span>
                   </p>
                   <p>
-                    <span className="text-muted-foreground">Saved COGS: </span>
-                    <span className="font-medium">{fmt(detailRow.displayCogs)}</span>
-                    {Math.round(detailRow.liveCogs) !== Math.round(detailRow.hasSnapshot ? detailRow.displayCogs : detailRow.liveCogs) && (
-                      <span className="text-blue-600"> (live: {fmt(detailRow.liveCogs)})</span>
-                    )}
+                    <span className="text-muted-foreground">COGS: </span>
+                    <span className="font-medium">{fmt(detailRow.liveCogs)}</span>
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setDetailId(null)}>
-                    Close
-                  </Button>
-                  {canEdit && (
-                    <Button
-                      disabled={updatingId === detailRow.d.id}
-                      onClick={() => handleUpdate(detailRow.d.id)}
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${updatingId === detailRow.d.id ? "animate-spin" : ""}`} />
-                      Update COGS
-                    </Button>
-                  )}
-                </div>
+                <Button variant="outline" onClick={() => setDetailId(null)}>
+                  Close
+                </Button>
               </div>
             </div>
           )}
