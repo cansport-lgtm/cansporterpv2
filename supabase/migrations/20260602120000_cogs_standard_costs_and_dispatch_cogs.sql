@@ -43,19 +43,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS dispatch_item_cogs_item_uniq ON public.dispatc
 CREATE INDEX IF NOT EXISTS dispatch_item_cogs_dispatch_idx ON public.dispatch_item_cogs (dispatch_id);
 CREATE INDEX IF NOT EXISTS dispatch_item_cogs_product_idx ON public.dispatch_item_cogs (product_id);
 
--- 3. RLS (project convention: 4 policies, authenticated, USING(true))
+-- 3. RLS: this app uses custom (app-layer) auth, so the Supabase client connects as anon/public.
+--    Match the app's existing convention (every table uses a single permissive "Allow all TO public"
+--    policy and relies on app-layer permission checks). Stricter TO authenticated policies would block
+--    the anon client and break the feature.
 ALTER TABLE public.standard_costs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dispatch_item_cogs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users can view standard costs"   ON public.standard_costs FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Authenticated users can insert standard costs" ON public.standard_costs FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Authenticated users can update standard costs" ON public.standard_costs FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users can delete standard costs" ON public.standard_costs FOR DELETE TO authenticated USING (true);
-
-CREATE POLICY "Authenticated users can view dispatch cogs"   ON public.dispatch_item_cogs FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Authenticated users can insert dispatch cogs" ON public.dispatch_item_cogs FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Authenticated users can update dispatch cogs" ON public.dispatch_item_cogs FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users can delete dispatch cogs" ON public.dispatch_item_cogs FOR DELETE TO authenticated USING (true);
+CREATE POLICY "Allow all for standard_costs"     ON public.standard_costs     FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for dispatch_item_cogs" ON public.dispatch_item_cogs FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- 4. upsert_standard_cost: COALESCE-aware update-else-insert (nullable grade)
 CREATE OR REPLACE FUNCTION public.upsert_standard_cost(
@@ -124,6 +120,6 @@ BEGIN
          posted_by = EXCLUDED.posted_by;
 END; $$;
 
--- recompute is SECURITY DEFINER: restrict execution to authenticated users only
-REVOKE EXECUTE ON FUNCTION public.recompute_dispatch_cogs(UUID, UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.recompute_dispatch_cogs(UUID, UUID) TO authenticated;
+-- App connects as anon (custom app-layer auth), so both functions must be executable by anon.
+GRANT EXECUTE ON FUNCTION public.recompute_dispatch_cogs(UUID, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_standard_cost(UUID, UUID, NUMERIC, UUID) TO anon, authenticated;

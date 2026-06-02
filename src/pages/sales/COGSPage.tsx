@@ -273,9 +273,9 @@ export default function COGSPage() {
     mutationFn: async ({ productId, gradeId, cost }: { productId: string; gradeId: string | null; cost: number }) => {
       const { error } = await supabase.rpc("upsert_standard_cost", {
         p_product: productId,
-        p_grade: gradeId ?? undefined,
+        p_grade: gradeId, // pass null (not undefined) so the param isn't stripped from the request
         p_cost: cost,
-        p_user: user?.id,
+        p_user: user?.id ?? undefined,
       });
       if (error) throw error;
     },
