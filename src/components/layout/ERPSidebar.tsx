@@ -202,7 +202,6 @@ const navigationItems: NavItem[] = [
       { title: "Customer Pricing", href: "/sales/customer-pricing" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
-      { title: "COGS", href: "/sales/cogs" },
       { title: "Sales Returns", href: "/sales/returns" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },
@@ -452,6 +451,7 @@ const navigationItems: NavItem[] = [
       { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
       { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
       { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
+      { title: "COGS (Invoice-wise)", href: "/accounting/cogs" },
 
       { title: "Period & Audit", href: "", isHeader: true },
       { title: "Period Close", href: "/accounting/period-close" },

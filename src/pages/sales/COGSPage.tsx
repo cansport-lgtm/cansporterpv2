@@ -66,7 +66,7 @@ interface CogsDispatch {
 export default function COGSPage() {
   const queryClient = useQueryClient();
   const { user, hasModulePermission } = useAuth();
-  const canEdit = hasModulePermission("sales", "edit");
+  const canEdit = hasModulePermission("accounting", "edit");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
