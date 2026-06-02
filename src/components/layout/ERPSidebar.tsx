@@ -50,6 +50,7 @@ interface NavChild {
   href: string;
   superAdminOnly?: boolean;
   requiresApprove?: string; // module name; only show if user has approve permission for this module
+  managerWithModule?: string; // module name; show for super_admin OR (role=manager AND view permission on module)
   excludeRoles?: AppRole[];
   state?: Record<string, any>;
 }
@@ -192,6 +193,7 @@ const navigationItems: NavItem[] = [
       { title: "Customer Logos", href: "/sales/customer-logos" },
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
+      { title: "COGS", href: "/sales/cogs" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },
     ],
@@ -200,7 +202,7 @@ const navigationItems: NavItem[] = [
     title: "Domestic Sales",
     icon: ShoppingCart,
     color: "text-orange-400",
-    module: "sales",
+    module: "domestic",
     children: [
       { title: "Customers", href: "/domestic/customers" },
       { title: "Sales Orders", href: "/domestic/orders" },
@@ -218,7 +220,7 @@ const navigationItems: NavItem[] = [
     title: "Export Sales",
     icon: ShoppingCart,
     color: "text-teal-400",
-    module: "sales",
+    module: "export",
     children: [
       { title: "Customers", href: "/export/customers" },
       { title: "Sales Orders", href: "/export/orders" },
@@ -338,7 +340,7 @@ const navigationItems: NavItem[] = [
       { title: "Individual Performance", href: "/labour/individual-performance" },
       { title: "Public Holidays", href: "/labour/public-holidays" },
       { title: "MPH Management", href: "/labour/mph-management" },
-      { title: "Edit Requests", href: "/labour/edit-requests", superAdminOnly: true },
+      { title: "Edit Requests", href: "/labour/edit-requests", managerWithModule: "labour_productivity" },
       { title: "Dashboard", href: "/labour/dashboard" },
     ],
   },
@@ -433,6 +435,8 @@ const navigationItems: NavItem[] = [
       { title: "Deals Pipeline", href: "/crm/deals" },
       { title: "Activities", href: "/crm/activities" },
       { title: "Content & Creatives", href: "/crm/content" },
+      { title: "Product & Brand", href: "/crm/product-brand" },
+      { title: "Daily Closing", href: "/crm/daily-closing" },
     ],
   },
   {
@@ -444,6 +448,10 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/hourly-production/dashboard" },
       { title: "Hourly Entry", href: "/hourly-production/entry" },
       { title: "Reports", href: "/hourly-production/reports" },
+      { title: "Analysis", href: "/hourly-production/analysis" },
+      { title: "Live Overview", href: "/hourly-production/live-overview" },
+      { title: "Loss Entry", href: "/hourly-production/loss-entry" },
+      { title: "Loss Logs", href: "/hourly-production/loss-logs" },
       { title: "Process Master", href: "/hourly-production/process-master", superAdminOnly: true },
     ],
   },
@@ -457,6 +465,8 @@ const navigationItems: NavItem[] = [
       { title: "Status Entry", href: "/machine-monitor/entry" },
       { title: "QR Scan", href: "/machine-monitor/scan" },
       { title: "Machines", href: "/machine-monitor/machines" },
+      { title: "Breakdown Logs", href: "/machine-monitor/breakdown-logs" },
+      { title: "Performance Issue Logs", href: "/machine-monitor/performance-logs" },
     ],
   },
   {
@@ -471,6 +481,7 @@ const navigationItems: NavItem[] = [
       { title: "Items", href: "/master/items" },
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
+      { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
     ],
   },
   {
@@ -493,7 +504,8 @@ interface ERPSidebarProps {
 
 export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
   const location = useLocation();
-  const { canAccessModule, canAccessRoute, roles, hasModulePermission } = useAuth();
+  const { canAccessModule, canAccessRoute, roles, hasModulePermission, user } = useAuth();
+  const isHR01 = user?.user_id === 'HR01';
   const [isAddRawMaterialOpen, setIsAddRawMaterialOpen] = useState(false);
 
   // Check if user is super_admin
@@ -508,6 +520,11 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
 
       return item.children.filter((child) => {
         if (child.superAdminOnly && !isSuperAdmin) return false;
+
+        if (child.managerWithModule) {
+          const isManager = userRoleNames.includes('manager');
+          if (!isSuperAdmin && !isHR01 && !(isManager && hasModulePermission(child.managerWithModule, 'view'))) return false;
+        }
 
         if (child.requiresApprove && !hasModulePermission(child.requiresApprove, "approve")) {
           return false;

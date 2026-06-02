@@ -92,6 +92,7 @@ import QuotationsPage from "./pages/sales/QuotationsPage";
 import SalesOrdersPage from "./pages/sales/SalesOrdersPage";
 import CustomerVisitDashboard from "./pages/sales/CustomerVisitDashboard";
 import DispatchPage from "./pages/sales/DispatchPage";
+import COGSPage from "./pages/sales/COGSPage";
 
 // Domestic Sales pages
 import DomesticDashboard from "./pages/domestic/DomesticDashboard";
@@ -118,6 +119,7 @@ import GradesPage from "./pages/master/GradesPage";
 import ProductsPage from "./pages/master/ProductsPage";
 import UnitsPage from "./pages/master/UnitsPage";
 import ReasonsPage from "./pages/master/ReasonsPage";
+import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
 import ItemsPage from "./pages/master/ItemsPage";
 
 // Purchase pages
@@ -250,14 +252,20 @@ import RDExperimentsPage from "./pages/rd/RDExperimentsPage";
 import HourlyProductionDashboard from "./pages/hourly-production/HourlyProductionDashboard";
 import HourlyProductionEntryPage from "./pages/hourly-production/HourlyProductionEntryPage";
 import HourlyProductionReportsPage from "./pages/hourly-production/HourlyProductionReportsPage";
+import HourlyProductionAnalysisPage from "./pages/hourly-production/HourlyProductionAnalysisPage";
 import HourlyProductionFloorDisplay from "./pages/hourly-production/HourlyProductionFloorDisplay";
+import HourlyProductionLiveOverviewPage from "./pages/hourly-production/HourlyProductionLiveOverviewPage";
 import HourlyProductionProcessMasterPage from "./pages/hourly-production/HourlyProductionProcessMasterPage";
+import HourlyProductionLossEntryPage from "./pages/hourly-production/HourlyProductionLossEntryPage";
+import HourlyProductionLossLogsPage from "./pages/hourly-production/HourlyProductionLossLogsPage";
 
 // Machine Monitor pages
 import MachineMonitorDisplay from "./pages/machine-monitor/MachineMonitorDisplay";
 import MachineMonitorMachinesPage from "./pages/machine-monitor/MachineMonitorMachinesPage";
 import MachineStatusEntryPage from "./pages/machine-monitor/MachineStatusEntryPage";
 import MachineQRScanPage from "./pages/machine-monitor/MachineQRScanPage";
+import MachineMonitorBreakdownLogsPage from "./pages/machine-monitor/MachineMonitorBreakdownLogsPage";
+import MachineMonitorPerformanceLogsPage from "./pages/machine-monitor/MachineMonitorPerformanceLogsPage";
 
 // CRM pages
 import CRMDashboard from "./pages/crm/CRMDashboard";
@@ -266,6 +274,8 @@ import CRMContactsPage from "./pages/crm/CRMContactsPage";
 import CRMDealsPipelinePage from "./pages/crm/CRMDealsPipelinePage";
 import CRMActivitiesPage from "./pages/crm/CRMActivitiesPage";
 import CRMContentPage from "./pages/crm/CRMContentPage";
+import CRMProductBrandPage from "./pages/crm/CRMProductBrandPage";
+import CRMDailyClosingPage from "./pages/crm/CRMDailyClosingPage";
 
 const queryClient = new QueryClient();
 
@@ -405,6 +415,7 @@ const App = () => (
             <Route path="/sales/quotations" element={<ProtectedRoute><QuotationsPage /></ProtectedRoute>} />
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
+            <Route path="/sales/cogs" element={<ProtectedRoute><COGSPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
@@ -461,6 +472,7 @@ const App = () => (
             <Route path="/master/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
+            <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
             <Route path="/master/*" element={<ProtectedRoute><ComingSoon title="Master Data" /></ProtectedRoute>} />
 
@@ -479,7 +491,7 @@ const App = () => (
             <Route path="/labour/public-holidays" element={<ProtectedRoute><LabourPublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
-            <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRole="super_admin"><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
+            <Route path="/labour/edit-requests" element={<ProtectedRoute><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}
@@ -585,7 +597,11 @@ const App = () => (
             <Route path="/hourly-production/dashboard" element={<ProtectedRoute><HourlyProductionDashboard /></ProtectedRoute>} />
             <Route path="/hourly-production/entry" element={<ProtectedRoute><HourlyProductionEntryPage /></ProtectedRoute>} />
             <Route path="/hourly-production/reports" element={<ProtectedRoute><HourlyProductionReportsPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/analysis" element={<ProtectedRoute><HourlyProductionAnalysisPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/live-overview" element={<HourlyProductionLiveOverviewPage />} />
             <Route path="/hourly-production/process-master" element={<ProtectedRoute requiredRole="super_admin"><HourlyProductionProcessMasterPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/loss-entry" element={<ProtectedRoute><HourlyProductionLossEntryPage /></ProtectedRoute>} />
+            <Route path="/hourly-production/loss-logs" element={<ProtectedRoute><HourlyProductionLossLogsPage /></ProtectedRoute>} />
             <Route path="/hourly-production/*" element={<ProtectedRoute><ComingSoon title="Hourly Production" /></ProtectedRoute>} />
 
             {/* Machine Monitor - Display and QR Scan are public */}
@@ -593,6 +609,8 @@ const App = () => (
             <Route path="/machine-monitor/scan" element={<MachineQRScanPage />} />
             <Route path="/machine-monitor/entry" element={<ProtectedRoute><MachineStatusEntryPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/machines" element={<ProtectedRoute><MachineMonitorMachinesPage /></ProtectedRoute>} />
+            <Route path="/machine-monitor/breakdown-logs" element={<ProtectedRoute><MachineMonitorBreakdownLogsPage /></ProtectedRoute>} />
+            <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
 
             {/* CRM Routes */}
@@ -602,6 +620,8 @@ const App = () => (
             <Route path="/crm/deals" element={<ProtectedRoute><CRMDealsPipelinePage /></ProtectedRoute>} />
             <Route path="/crm/activities" element={<ProtectedRoute><CRMActivitiesPage /></ProtectedRoute>} />
             <Route path="/crm/content" element={<ProtectedRoute requiredModule="crm"><CRMContentPage /></ProtectedRoute>} />
+            <Route path="/crm/product-brand" element={<ProtectedRoute requiredModule="crm"><CRMProductBrandPage /></ProtectedRoute>} />
+            <Route path="/crm/daily-closing" element={<ProtectedRoute requiredModule="crm"><CRMDailyClosingPage /></ProtectedRoute>} />
             <Route path="/crm/*" element={<ProtectedRoute><ComingSoon title="CRM" /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

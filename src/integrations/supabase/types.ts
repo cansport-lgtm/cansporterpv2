@@ -948,6 +948,168 @@ export type Database = {
           },
         ]
       }
+      crm_brand_positioning: {
+        Row: {
+          brand_pillars: string[] | null
+          created_at: string
+          id: string
+          key_messaging: string | null
+          product_id: string
+          tagline: string | null
+          target_segment: string | null
+          tone_of_voice: string | null
+          updated_at: string
+          usps: string[] | null
+          value_proposition: string | null
+        }
+        Insert: {
+          brand_pillars?: string[] | null
+          created_at?: string
+          id?: string
+          key_messaging?: string | null
+          product_id: string
+          tagline?: string | null
+          target_segment?: string | null
+          tone_of_voice?: string | null
+          updated_at?: string
+          usps?: string[] | null
+          value_proposition?: string | null
+        }
+        Update: {
+          brand_pillars?: string[] | null
+          created_at?: string
+          id?: string
+          key_messaging?: string | null
+          product_id?: string
+          tagline?: string | null
+          target_segment?: string | null
+          tone_of_voice?: string | null
+          updated_at?: string
+          usps?: string[] | null
+          value_proposition?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_brand_positioning_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_competitor_attributes: {
+        Row: {
+          attribute_name: string
+          created_at: string
+          id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          attribute_name: string
+          created_at?: string
+          id?: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          attribute_name?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_competitor_attributes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_competitor_values: {
+        Row: {
+          attribute_id: string
+          competitor_id: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          attribute_id: string
+          competitor_id?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          attribute_id?: string
+          competitor_id?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_competitor_values_attribute_id_fkey"
+            columns: ["attribute_id"]
+            isOneToOne: false
+            referencedRelation: "crm_competitor_attributes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_competitor_values_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "crm_competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_competitors: {
+        Row: {
+          competitor_name: string
+          created_at: string
+          id: string
+          logo_url: string | null
+          product_id: string
+          sort_order: number
+          source_url: string | null
+        }
+        Insert: {
+          competitor_name: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          product_id: string
+          sort_order?: number
+          source_url?: string | null
+        }
+        Update: {
+          competitor_name?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          product_id?: string
+          sort_order?: number
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_competitors_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_contacts: {
         Row: {
           company: string | null
@@ -1166,6 +1328,99 @@ export type Database = {
           },
         ]
       }
+      crm_daily_activities: {
+        Row: {
+          activity_date: string
+          activity_time: string
+          activity_type: string
+          channel: string | null
+          created_at: string
+          customer_name: string | null
+          id: string
+          metadata: Json | null
+          notes: string | null
+          outcome: string | null
+          related_deal_id: string | null
+          related_lead_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          activity_date?: string
+          activity_time?: string
+          activity_type: string
+          channel?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          outcome?: string | null
+          related_deal_id?: string | null
+          related_lead_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          activity_date?: string
+          activity_time?: string
+          activity_type?: string
+          channel?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          outcome?: string | null
+          related_deal_id?: string | null
+          related_lead_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: []
+      }
+      crm_daily_summaries: {
+        Row: {
+          accomplishments: string | null
+          created_at: string
+          id: string
+          issues_feedback: string | null
+          summary_date: string
+          tomorrow_plan: string | null
+          updated_at: string
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          accomplishments?: string | null
+          created_at?: string
+          id?: string
+          issues_feedback?: string | null
+          summary_date?: string
+          tomorrow_plan?: string | null
+          updated_at?: string
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          accomplishments?: string | null
+          created_at?: string
+          id?: string
+          issues_feedback?: string | null
+          summary_date?: string
+          tomorrow_plan?: string | null
+          updated_at?: string
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       crm_deals: {
         Row: {
           contact_id: string | null
@@ -1245,6 +1500,100 @@ export type Database = {
           },
         ]
       }
+      crm_launch_milestones: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          plan_id: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          plan_id: string
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          plan_id?: string
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_launch_milestones_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "crm_launch_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_launch_plans: {
+        Row: {
+          budget: number | null
+          channels: string[] | null
+          created_at: string
+          id: string
+          launch_date: string | null
+          name: string
+          notes: string | null
+          owner: string | null
+          product_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          budget?: number | null
+          channels?: string[] | null
+          created_at?: string
+          id?: string
+          launch_date?: string | null
+          name: string
+          notes?: string | null
+          owner?: string | null
+          product_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          budget?: number | null
+          channels?: string[] | null
+          created_at?: string
+          id?: string
+          launch_date?: string | null
+          name?: string
+          notes?: string | null
+          owner?: string | null
+          product_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_launch_plans_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_leads: {
         Row: {
           assigned_to: string | null
@@ -1307,6 +1656,148 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      crm_product_packaging: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          height_cm: number | null
+          id: string
+          image_url: string | null
+          length_cm: number | null
+          pack_type: string
+          product_id: string
+          units_per_pack: number | null
+          updated_at: string
+          weight_g: number | null
+          width_cm: number | null
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          image_url?: string | null
+          length_cm?: number | null
+          pack_type: string
+          product_id: string
+          units_per_pack?: number | null
+          updated_at?: string
+          weight_g?: number | null
+          width_cm?: number | null
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          image_url?: string | null
+          length_cm?: number | null
+          pack_type?: string
+          product_id?: string
+          units_per_pack?: number | null
+          updated_at?: string
+          weight_g?: number | null
+          width_cm?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_product_packaging_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_product_variants: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          mrp: number | null
+          product_id: string
+          size: string | null
+          sku: string | null
+          status: string
+          updated_at: string
+          variant_name: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          mrp?: number | null
+          product_id: string
+          size?: string | null
+          sku?: string | null
+          status?: string
+          updated_at?: string
+          variant_name: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          mrp?: number | null
+          product_id?: string
+          size?: string | null
+          sku?: string | null
+          status?: string
+          updated_at?: string
+          variant_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "crm_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_products: {
+        Row: {
+          brand: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          hero_image_url: string | null
+          id: string
+          name: string
+          sku_prefix: string | null
+          status: string
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          hero_image_url?: string | null
+          id?: string
+          name: string
+          sku_prefix?: string | null
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          hero_image_url?: string | null
+          id?: string
+          name?: string
+          sku_prefix?: string | null
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       customer_logos: {
         Row: {
@@ -1508,6 +1999,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           credit_limit: number | null
+          customer_category: string | null
           email: string | null
           gst_number: string | null
           id: string
@@ -1530,6 +2022,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          customer_category?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -1552,6 +2045,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          customer_category?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -3391,6 +3885,100 @@ export type Database = {
           },
         ]
       }
+      hourly_loss_reason_processes: {
+        Row: {
+          created_at: string
+          id: string
+          process_name: string
+          reason_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          process_name: string
+          reason_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          process_name?: string
+          reason_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hourly_loss_reason_processes_reason_id_fkey"
+            columns: ["reason_id"]
+            isOneToOne: false
+            referencedRelation: "hourly_loss_reasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hourly_loss_reasons: {
+        Row: {
+          category: string | null
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hourly_production_daily_targets: {
+        Row: {
+          created_at: string
+          entry_date: string
+          id: string
+          process_id: string
+          target_per_hour: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entry_date: string
+          id?: string
+          process_id: string
+          target_per_hour: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entry_date?: string
+          id?: string
+          process_id?: string
+          target_per_hour?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hourly_production_daily_targets_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "qa_processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hourly_production_entries: {
         Row: {
           created_at: string | null
@@ -3437,6 +4025,86 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hourly_production_losses: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          entry_date: string
+          hour_slot: number
+          id: string
+          loss_reason_id: string | null
+          lost_minutes: number
+          lost_quantity: number
+          process_name: string
+          reason_id: string | null
+          remarks: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          entry_date: string
+          hour_slot: number
+          id?: string
+          loss_reason_id?: string | null
+          lost_minutes?: number
+          lost_quantity?: number
+          process_name: string
+          reason_id?: string | null
+          remarks?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          entry_date?: string
+          hour_slot?: number
+          id?: string
+          loss_reason_id?: string | null
+          lost_minutes?: number
+          lost_quantity?: number
+          process_name?: string
+          reason_id?: string | null
+          remarks?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hourly_production_losses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hourly_production_losses_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hourly_production_losses_loss_reason_id_fkey"
+            columns: ["loss_reason_id"]
+            isOneToOne: false
+            referencedRelation: "hourly_loss_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hourly_production_losses_reason_id_fkey"
+            columns: ["reason_id"]
+            isOneToOne: false
+            referencedRelation: "downtime_reasons"
             referencedColumns: ["id"]
           },
         ]
@@ -4731,6 +5399,76 @@ export type Database = {
           },
         ]
       }
+      machine_monitor_breakdowns: {
+        Row: {
+          breakdown_ended_at: string | null
+          breakdown_ended_by: string | null
+          breakdown_remarks: string | null
+          breakdown_started_at: string
+          breakdown_started_by: string | null
+          created_at: string
+          downtime_minutes: number | null
+          id: string
+          machine_id: string
+          recovered_to_status: string | null
+          recovery_remarks: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          breakdown_ended_at?: string | null
+          breakdown_ended_by?: string | null
+          breakdown_remarks?: string | null
+          breakdown_started_at?: string
+          breakdown_started_by?: string | null
+          created_at?: string
+          downtime_minutes?: number | null
+          id?: string
+          machine_id: string
+          recovered_to_status?: string | null
+          recovery_remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          breakdown_ended_at?: string | null
+          breakdown_ended_by?: string | null
+          breakdown_remarks?: string | null
+          breakdown_started_at?: string
+          breakdown_started_by?: string | null
+          created_at?: string
+          downtime_minutes?: number | null
+          id?: string
+          machine_id?: string
+          recovered_to_status?: string | null
+          recovery_remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "machine_monitor_breakdowns_breakdown_ended_by_fkey"
+            columns: ["breakdown_ended_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "machine_monitor_breakdowns_breakdown_started_by_fkey"
+            columns: ["breakdown_started_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "machine_monitor_breakdowns_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machine_monitor_machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       machine_monitor_machines: {
         Row: {
           code: string
@@ -4775,6 +5513,57 @@ export type Database = {
           location?: string | null
           name?: string
           sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      machine_monitor_performance_issues: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          machine_id: string
+          recovered_to_status: string | null
+          recovery_remarks: string | null
+          start_reason: string | null
+          start_remarks: string | null
+          started_at: string
+          started_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          machine_id: string
+          recovered_to_status?: string | null
+          recovery_remarks?: string | null
+          start_reason?: string | null
+          start_remarks?: string | null
+          started_at?: string
+          started_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          machine_id?: string
+          recovered_to_status?: string | null
+          recovery_remarks?: string | null
+          start_reason?: string | null
+          start_remarks?: string | null
+          started_at?: string
+          started_by?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -10215,11 +11004,130 @@ export type Database = {
           },
         ]
       }
+      standard_costs: {
+        Row: {
+          cost_per_dozen: number
+          created_at: string | null
+          created_by: string | null
+          grade_id: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          product_id: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          cost_per_dozen?: number
+          created_at?: string | null
+          created_by?: string | null
+          grade_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          product_id: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          cost_per_dozen?: number
+          created_at?: string | null
+          created_by?: string | null
+          grade_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          product_id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standard_costs_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_costs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_item_cogs: {
+        Row: {
+          cogs_amount: number
+          cost_per_dozen_snapshot: number
+          created_at: string | null
+          dispatch_id: string
+          dispatch_item_id: string
+          grade_id: string | null
+          id: string
+          posted_at: string
+          posted_by: string | null
+          product_id: string | null
+          quantity_dozens: number
+        }
+        Insert: {
+          cogs_amount?: number
+          cost_per_dozen_snapshot?: number
+          created_at?: string | null
+          dispatch_id: string
+          dispatch_item_id: string
+          grade_id?: string | null
+          id?: string
+          posted_at?: string
+          posted_by?: string | null
+          product_id?: string | null
+          quantity_dozens?: number
+        }
+        Update: {
+          cogs_amount?: number
+          cost_per_dozen_snapshot?: number
+          created_at?: string | null
+          dispatch_id?: string
+          dispatch_item_id?: string
+          grade_id?: string | null
+          id?: string
+          posted_at?: string
+          posted_by?: string | null
+          product_id?: string | null
+          quantity_dozens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_item_cogs_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "sales_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_item_cogs_dispatch_item_id_fkey"
+            columns: ["dispatch_item_id"]
+            isOneToOne: true
+            referencedRelation: "sales_dispatch_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      recompute_dispatch_cogs: {
+        Args: { p_dispatch_id: string; p_user?: string }
+        Returns: undefined
+      }
+      upsert_standard_cost: {
+        Args: { p_product: string; p_grade?: string; p_cost: number; p_user?: string }
+        Returns: undefined
+      }
       create_app_user: {
         Args: {
           p_department_id?: string
