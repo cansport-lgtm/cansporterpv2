@@ -5,6 +5,7 @@ import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -134,14 +135,13 @@ export default function GeneralLedgerPage() {
               <SelectItem value="expense">Expense</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={accountId} onValueChange={setAccountId}>
-            <SelectTrigger className="w-[320px]"><SelectValue placeholder="Account" /></SelectTrigger>
-            <SelectContent className="max-h-[400px]">
-              {filteredAccountsList?.map((a: any) => (
-                <SelectItem key={a.id} value={a.id}><span className="font-mono text-xs mr-2">{a.code}</span>{a.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={accountId}
+            onValueChange={setAccountId}
+            options={(filteredAccountsList || []).map((a: any) => ({ value: a.id, label: `${a.code} — ${a.name}`, search: a.name }))}
+            placeholder="Account"
+            triggerClassName="w-[320px]"
+          />
           <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
         </div>
