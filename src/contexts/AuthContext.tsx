@@ -58,7 +58,6 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/accounting/bank-book',
     '/accounting/general-ledger',
     '/accounting/party-ledger',
-    '/accounting/chart-of-accounts',
     '/accounting/parties',
   ],
 };
