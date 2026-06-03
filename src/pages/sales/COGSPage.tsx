@@ -23,7 +23,7 @@ import { format } from "date-fns";
 
 const fmt = (n: number) => `Rs. ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const segmentLabel = (s: string) =>
-  ({ private_label: "Private Label", domestic: "Domestic", export: "Export" } as Record<string, string>)[s] || s;
+  ({ private_label: "Private Label", domestic: "Sales", export: "Export" } as Record<string, string>)[s] || s;
 
 const STATUS_COLORS: Record<string, string> = {
   costed: "bg-green-500",
@@ -285,7 +285,7 @@ export default function COGSPage() {
                     <SelectContent>
                       <SelectItem value="all">All Segments</SelectItem>
                       <SelectItem value="private_label">Private Label</SelectItem>
-                      <SelectItem value="domestic">Domestic</SelectItem>
+                      <SelectItem value="domestic">Sales</SelectItem>
                       <SelectItem value="export">Export</SelectItem>
                     </SelectContent>
                   </Select>

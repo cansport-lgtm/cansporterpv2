@@ -24,7 +24,7 @@ const MODULES = [
   { key: "performance", label: "Performance" },
   { key: "maintenance", label: "Maintenance" },
   { key: "sales", label: "Private Label Sales" },
-  { key: "domestic", label: "Domestic Sales" },
+  { key: "domestic", label: "Sales" },
   { key: "export", label: "Export Sales" },
   { key: "labour", label: "Labour Productivity" },
   { key: "floor_inventory", label: "Floor Inventory" },

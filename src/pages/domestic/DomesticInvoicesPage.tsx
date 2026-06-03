@@ -395,7 +395,7 @@ export default function DomesticInvoicesPage() {
 
       {/* === MAIN UI (hidden when printing) === */}
       <div className="print:hidden">
-      <PageHeader title="Domestic Invoices" description="Customer-facing tax invoices linked to dispatches. Accounting (AR/Sales) already posted from dispatch.">
+      <PageHeader title="Invoices" description="Customer-facing tax invoices linked to dispatches. Accounting (AR/Sales) already posted from dispatch.">
         <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" />New Invoice</Button>
       </PageHeader>
 

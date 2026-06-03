@@ -147,7 +147,7 @@ export default function SalesReconciliationPage() {
 
   return (
     <ERPLayout>
-      <PageHeader title="Sales Reconciliation" description="Domestic dispatches vs accounting vouchers — find & fix orphans">
+      <PageHeader title="Sales Reconciliation" description="Sales dispatches vs accounting vouchers — find & fix orphans">
         <div className="flex gap-2">
           <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[160px]" />
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[160px]" />

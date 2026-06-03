@@ -489,7 +489,7 @@ const App = () => (
             <Route path="/domestic/dispatch-acknowledgement" element={<ProtectedRoute><DomesticDispatchAcknowledgementPage /></ProtectedRoute>} />
             <Route path="/domestic/deadline-requests" element={<ProtectedRoute requiredRole="super_admin"><DomesticDeadlineRequestsPage /></ProtectedRoute>} />
             <Route path="/domestic/invoices" element={<ProtectedRoute><DomesticInvoicesPage /></ProtectedRoute>} />
-            <Route path="/domestic/*" element={<ProtectedRoute><ComingSoon title="Domestic Sales" /></ProtectedRoute>} />
+            <Route path="/domestic/*" element={<ProtectedRoute><ComingSoon title="Sales" /></ProtectedRoute>} />
 
             {/* Export Sales Routes */}
             <Route path="/export/dashboard" element={<ProtectedRoute><ExportDashboard /></ProtectedRoute>} />

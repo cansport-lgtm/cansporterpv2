@@ -690,7 +690,7 @@ export default function DomesticDispatchPage() {
     <ERPLayout>
       <div className="space-y-6">
         <PageHeader 
-          title="Domestic Dispatch"
+          title="Dispatch"
           description="Manage dispatches and track deliveries"
         />
 

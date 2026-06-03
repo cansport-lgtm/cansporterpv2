@@ -159,7 +159,7 @@ export default function DomesticDispatchDashboard() {
       <div className="space-y-6">
         <PageHeader
           title="Dispatch Dashboard"
-          description={isSuperAdmin ? "Domestic dispatch overview and analytics" : "Late dispatch tracking"}
+          description={isSuperAdmin ? "Dispatch overview and analytics" : "Late dispatch tracking"}
           icon={BarChart3}
           iconColor="bg-orange-500 text-white"
         />
