@@ -329,7 +329,7 @@ export default function SalesReportPage() {
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Segments</SelectItem>
-              <SelectItem value="domestic">Domestic</SelectItem>
+              <SelectItem value="domestic">Sales</SelectItem>
               <SelectItem value="export">Export</SelectItem>
               <SelectItem value="private_label">Private Label</SelectItem>
             </SelectContent>

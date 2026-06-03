@@ -220,7 +220,7 @@ export default function WIPLedgerPage() {
       }
       if (outQty > 0) {
         balance -= outQty;
-        rows.push({ date: d, ref: isLast ? "Domestic Sales" : (next ? `To ${next.label}` : "Produced"), inQty: 0, outQty, balance });
+        rows.push({ date: d, ref: isLast ? "Sales" : (next ? `To ${next.label}` : "Produced"), inQty: 0, outQty, balance });
       }
     }
     const totalIn = rows.reduce((s, r) => s + r.inQty, 0);
@@ -303,7 +303,7 @@ export default function WIPLedgerPage() {
                   </div>
                 ))}
                 <span className="px-3 py-1 rounded-md bg-green-500/10 text-green-600 text-sm font-medium">
-                  Domestic Sales
+                  Sales
                 </span>
               </div>
             </CardContent>

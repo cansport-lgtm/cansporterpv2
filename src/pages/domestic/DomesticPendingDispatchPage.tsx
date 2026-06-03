@@ -83,7 +83,7 @@ export default function DomesticPendingDispatchPage() {
       <div className="space-y-6">
         <PageHeader
           title="Orders Pending Dispatch"
-          description="Domestic sales orders with no dispatch order created"
+          description="Sales orders with no dispatch order created"
           icon={PackageX}
           iconColor="bg-orange-500 text-white"
         />

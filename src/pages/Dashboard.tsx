@@ -1655,7 +1655,7 @@ export default function Dashboard() {
           {/* Recent Domestic Sales Orders */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-display">Recent Domestic Orders</CardTitle>
+              <CardTitle className="text-lg font-display">Recent Sales Orders</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {recentOrders.length > 0 ? (

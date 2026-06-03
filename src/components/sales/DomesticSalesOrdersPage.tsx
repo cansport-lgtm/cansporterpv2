@@ -760,7 +760,7 @@ export default function DomesticSalesOrdersPage() {
     <ERPLayout>
       <div className="space-y-6">
         <PageHeader 
-          title="Domestic Sales Orders"
+          title="Sales Orders"
           description="Manage domestic sales orders"
         />
 
