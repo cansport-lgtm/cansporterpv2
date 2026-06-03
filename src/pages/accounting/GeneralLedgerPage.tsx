@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -19,6 +20,7 @@ export default function GeneralLedgerPage() {
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountId, setAccountId] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [searchParams] = useSearchParams();
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
 
   const { data: accounts } = useQuery({
@@ -39,6 +41,12 @@ export default function GeneralLedgerPage() {
     const list = accounts || [];
     return filterType === "all" ? list : list.filter((a: any) => a.account_type === filterType);
   }, [accounts, filterType]);
+
+  // Deep link: preselect an account from ?account=<id> (e.g. drill-down from Profit & Loss)
+  useEffect(() => {
+    const acc = searchParams.get("account");
+    if (acc) setAccountId(acc);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!accountId && filteredAccountsList?.length) setAccountId(filteredAccountsList[0].id);
