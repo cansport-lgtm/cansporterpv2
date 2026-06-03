@@ -889,12 +889,12 @@ export default function DomesticSalesOrdersPage() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Product *</TableHead>
+                                <TableHead>Details</TableHead>
                                 <TableHead>Packing</TableHead>
                                 <TableHead>No of Ctn/Bag</TableHead>
                                 <TableHead>Qty (Dz) *</TableHead>
                                 <TableHead>Rate / Dz *</TableHead>
                                 <TableHead>Production Instructions</TableHead>
-                                <TableHead>Details</TableHead>
                                 <TableHead className="w-12"></TableHead>
                               </TableRow>
                             </TableHeader>
@@ -917,6 +917,14 @@ export default function DomesticSalesOrdersPage() {
                                         options={(products || []).map((p: any) => ({
                                           value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                         }))}
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        value={item.details}
+                                        onChange={(e) => updateItem(index, 'details', e.target.value)}
+                                        className="w-44"
+                                        placeholder="Details (prints on invoice)"
                                       />
                                     </TableCell>
                                     <TableCell>
@@ -968,14 +976,6 @@ export default function DomesticSalesOrdersPage() {
                                         onChange={(e) => updateItem(index, 'production_instructions', e.target.value)}
                                         className="w-40"
                                         placeholder="Instructions..."
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                        value={item.details}
-                                        onChange={(e) => updateItem(index, 'details', e.target.value)}
-                                        className="w-44"
-                                        placeholder="Details (prints on invoice)"
                                       />
                                     </TableCell>
                                     <TableCell>
@@ -1348,12 +1348,12 @@ export default function DomesticSalesOrdersPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Product *</TableHead>
+                          <TableHead>Details</TableHead>
                           <TableHead>Packing</TableHead>
                           <TableHead>No of Ctn/Bag</TableHead>
                           <TableHead>Qty (Dz) *</TableHead>
                           <TableHead>Rate / Dz *</TableHead>
                           <TableHead>Production Instructions</TableHead>
-                          <TableHead>Details</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1376,6 +1376,14 @@ export default function DomesticSalesOrdersPage() {
                                   options={(products || []).map((p: any) => ({
                                     value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                   }))}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={item.details}
+                                  onChange={(e) => updateEditItem(index, 'details', e.target.value)}
+                                  className="w-44"
+                                  placeholder="Details (prints on invoice)"
                                 />
                               </TableCell>
                               <TableCell>
@@ -1427,14 +1435,6 @@ export default function DomesticSalesOrdersPage() {
                                   onChange={(e) => updateEditItem(index, 'production_instructions', e.target.value)}
                                   className="w-40"
                                   placeholder="Instructions..."
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  value={item.details}
-                                  onChange={(e) => updateEditItem(index, 'details', e.target.value)}
-                                  className="w-44"
-                                  placeholder="Details (prints on invoice)"
                                 />
                               </TableCell>
                               <TableCell>
