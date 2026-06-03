@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -271,14 +272,13 @@ export default function PartyLedgerPage() {
               <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={partyId} onValueChange={setPartyId}>
-            <SelectTrigger className="w-[280px]"><SelectValue placeholder="Party" /></SelectTrigger>
-            <SelectContent className="max-h-[400px]">
-              {filteredParties?.map((p: any) => (
-                <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-xs text-muted-foreground">({p.party_type})</span></SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={partyId}
+            onValueChange={setPartyId}
+            options={(filteredParties || []).map((p: any) => ({ value: p.id, label: p.name, secondary: `(${p.party_type})`, search: p.code || "" }))}
+            placeholder="Party"
+            triggerClassName="w-[280px]"
+          />
           <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
           <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selectedParty}>
