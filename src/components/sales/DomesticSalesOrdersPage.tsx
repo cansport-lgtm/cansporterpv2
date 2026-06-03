@@ -78,6 +78,7 @@ export default function DomesticSalesOrdersPage() {
       quantity_dozens: string;
       price_per_dozen: string;
       production_instructions: string;
+      details: string;
     }>,
   });
   const [formData, setFormData] = useState({
@@ -94,6 +95,7 @@ export default function DomesticSalesOrdersPage() {
       quantity_dozens: string;
       price_per_dozen: string;
       production_instructions: string;
+      details: string;
     }>,
   });
 
@@ -270,6 +272,7 @@ export default function DomesticSalesOrdersPage() {
               price_per_dozen: rate,
               amount: qty * rate,
               production_instructions: item.production_instructions || null,
+              details: item.details || null,
               remarks: null,
             };
           });
@@ -438,6 +441,7 @@ export default function DomesticSalesOrdersPage() {
             price_per_dozen: rate,
             amount: qty * rate,
             production_instructions: item.production_instructions || null,
+            details: item.details || null,
           }).eq('id', item.id);
         } else {
           await supabase.from('sales_order_items').insert([{
@@ -448,6 +452,7 @@ export default function DomesticSalesOrdersPage() {
             price_per_dozen: rate,
             amount: qty * rate,
             production_instructions: item.production_instructions || null,
+            details: item.details || null,
           }]);
         }
       }
@@ -477,6 +482,7 @@ export default function DomesticSalesOrdersPage() {
         quantity_dozens: (item.quantity_dozens || 0).toString(),
         price_per_dozen: (item.price_per_dozen || 0).toString(),
         production_instructions: item.production_instructions || '',
+        details: item.details || '',
       };
     });
     setEditFormData({
@@ -494,7 +500,7 @@ export default function DomesticSalesOrdersPage() {
   const addEditItem = () => {
     setEditFormData({
       ...editFormData,
-      items: [...editFormData.items, { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '' }],
+      items: [...editFormData.items, { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' }],
     });
   };
 
@@ -674,7 +680,7 @@ export default function DomesticSalesOrdersPage() {
       ...formData,
       items: [
         ...formData.items,
-        { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '' },
+        { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' },
       ],
     });
   };
@@ -888,13 +894,14 @@ export default function DomesticSalesOrdersPage() {
                                 <TableHead>Qty (Dz) *</TableHead>
                                 <TableHead>Rate / Dz *</TableHead>
                                 <TableHead>Production Instructions</TableHead>
+                                <TableHead>Details</TableHead>
                                 <TableHead className="w-12"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {formData.items.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
+                                  <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
                                     No items added
                                   </TableCell>
                                 </TableRow>
@@ -961,6 +968,14 @@ export default function DomesticSalesOrdersPage() {
                                         onChange={(e) => updateItem(index, 'production_instructions', e.target.value)}
                                         className="w-40"
                                         placeholder="Instructions..."
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        value={item.details}
+                                        onChange={(e) => updateItem(index, 'details', e.target.value)}
+                                        className="w-44"
+                                        placeholder="Details (prints on invoice)"
                                       />
                                     </TableCell>
                                     <TableCell>
@@ -1338,13 +1353,14 @@ export default function DomesticSalesOrdersPage() {
                           <TableHead>Qty (Dz) *</TableHead>
                           <TableHead>Rate / Dz *</TableHead>
                           <TableHead>Production Instructions</TableHead>
+                          <TableHead>Details</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {editFormData.items.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
                               No items added
                             </TableCell>
                           </TableRow>
@@ -1411,6 +1427,14 @@ export default function DomesticSalesOrdersPage() {
                                   onChange={(e) => updateEditItem(index, 'production_instructions', e.target.value)}
                                   className="w-40"
                                   placeholder="Instructions..."
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={item.details}
+                                  onChange={(e) => updateEditItem(index, 'details', e.target.value)}
+                                  className="w-44"
+                                  placeholder="Details (prints on invoice)"
                                 />
                               </TableCell>
                               <TableCell>

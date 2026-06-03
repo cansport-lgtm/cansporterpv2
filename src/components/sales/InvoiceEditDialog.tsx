@@ -24,6 +24,7 @@ interface LineForm {
   id?: string;
   product_id: string | null;
   description: string;
+  details: string;
   grade_name: string;
   packing_type: string;
   quantity_dozens: number;
@@ -99,6 +100,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
         id: it.id,
         product_id: it.product_id,
         description: it.description || "",
+        details: it.details || "",
         grade_name: it.grade_name || "",
         packing_type: it.packing_type || "",
         quantity_dozens: Number(it.quantity_dozens || 0),
@@ -150,6 +152,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
         invoice_id: invoiceId,
         product_id: l.product_id || null,
         description: l.description || null,
+        details: l.details || null,
         grade_name: l.grade_name || null,
         packing_type: l.packing_type || null,
         quantity_dozens: l.quantity_dozens,
@@ -218,7 +221,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-semibold">Line Items</Label>
-                <Button size="sm" variant="outline" onClick={() => setLines([...lines, { product_id: null, description: "", grade_name: "", packing_type: "", quantity_dozens: 0, price_per_dozen: 0 }])}>
+                <Button size="sm" variant="outline" onClick={() => setLines([...lines, { product_id: null, description: "", details: "", grade_name: "", packing_type: "", quantity_dozens: 0, price_per_dozen: 0 }])}>
                   <Plus className="h-3 w-3 mr-1" />Add Line
                 </Button>
               </div>
@@ -228,6 +231,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                     <TableRow>
                       <TableHead>Product</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead>Details</TableHead>
                       <TableHead>Grade</TableHead>
                       <TableHead>Packing</TableHead>
                       <TableHead className="text-right w-24">Qty</TableHead>
@@ -261,6 +265,11 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                         <TableCell>
                           <Input className="h-8 text-xs" value={l.description} onChange={(e) => {
                             const next = [...lines]; next[i] = { ...next[i], description: e.target.value }; setLines(next);
+                          }} />
+                        </TableCell>
+                        <TableCell>
+                          <Input className="h-8 text-xs" value={l.details} placeholder="Prints on invoice" onChange={(e) => {
+                            const next = [...lines]; next[i] = { ...next[i], details: e.target.value }; setLines(next);
                           }} />
                         </TableCell>
                         <TableCell>

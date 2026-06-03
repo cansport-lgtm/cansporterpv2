@@ -132,7 +132,7 @@ export default function DomesticInvoicesPage() {
       .from("sales_dispatch_items")
       .select(`
         id, quantity_dozens, packing_type,
-        order_item:sales_order_items(price_per_dozen, product:products(id, code, name), grade:grades(name))
+        order_item:sales_order_items(price_per_dozen, details, product:products(id, code, name), grade:grades(name))
       `)
       .eq("dispatch_id", dispatchId);
     if (error) throw error;
@@ -224,6 +224,7 @@ export default function DomesticInvoicesPage() {
           dispatch_item_id: it.id,
           product_id: product?.id || null,
           description: product ? `${product.code || ""} — ${product.name || ""}` : null,
+          details: it.order_item?.details || null,
           grade_name: it.order_item?.grade?.name || null,
           packing_type: it.packing_type || null,
           quantity_dozens: qty,

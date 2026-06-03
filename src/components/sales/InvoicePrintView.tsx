@@ -106,7 +106,10 @@ export function InvoicePrintView({ invoiceId, onAfterPrint }: InvoicePrintViewPr
             {items?.map((it: any, i: number) => (
               <tr key={it.id} className="border-b border-gray-200">
                 <td className="py-2">{i + 1}</td>
-                <td className="py-2">{it.description || "—"}</td>
+                <td className="py-2">
+                  {it.description || "—"}
+                  {it.details ? <div className="text-xs text-gray-600 mt-0.5">{it.details}</div> : null}
+                </td>
                 <td className="py-2 text-xs">{it.grade_name || ""}{it.packing_type ? ` / ${it.packing_type}` : ""}</td>
                 <td className="text-right py-2">{Number(it.quantity_dozens).toLocaleString()}</td>
                 <td className="text-right py-2">Rs. {Number(it.price_per_dozen).toLocaleString()}</td>
