@@ -9609,6 +9609,7 @@ export type Database = {
           order_id: string
           packing_type: string | null
           price_per_dozen: number
+          details: string | null
           product_id: string | null
           production_instructions: string | null
           quantity_dispatched: number | null
@@ -9624,6 +9625,7 @@ export type Database = {
           order_id: string
           packing_type?: string | null
           price_per_dozen: number
+          details?: string | null
           product_id?: string | null
           production_instructions?: string | null
           quantity_dispatched?: number | null
@@ -9639,6 +9641,7 @@ export type Database = {
           order_id?: string
           packing_type?: string | null
           price_per_dozen?: number
+          details?: string | null
           product_id?: string | null
           production_instructions?: string | null
           quantity_dispatched?: number | null

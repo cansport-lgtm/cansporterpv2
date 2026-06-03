@@ -90,7 +90,10 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
               <TableBody>
                 {items?.map((it: any) => (
                   <TableRow key={it.id}>
-                    <TableCell className="text-xs">{it.description || "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {it.description || "—"}
+                      {it.details ? <div className="text-muted-foreground">{it.details}</div> : null}
+                    </TableCell>
                     <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>
                     <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
                     <TableCell className="text-right text-xs">Rs. {Number(it.price_per_dozen).toLocaleString()}</TableCell>
