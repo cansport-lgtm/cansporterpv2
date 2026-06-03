@@ -208,7 +208,7 @@ const navigationItems: NavItem[] = [
     ],
   },
   {
-    title: "Domestic Sales",
+    title: "Sales",
     icon: ShoppingCart,
     color: "text-orange-400",
     module: "sales",
