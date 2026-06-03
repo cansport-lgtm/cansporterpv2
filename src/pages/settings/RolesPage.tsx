@@ -28,6 +28,9 @@ const roleDescriptions: Record<AppRole, string> = {
   store_operator: "Access to Stock Closing page in Material Consumption module only",
   project_manager: "Access to Project Management module – can only see assigned projects",
   online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",
+  accounting_poster: "Accounting – post vouchers/receipts/payments and review books & ledgers; no financial reports",
+  accounting_officer: "Accounting – full access except Profit & Loss and Balance Sheet",
+  accounting_manager: "Accounting – full access to all entries and reports, including approve",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -48,6 +51,9 @@ const roleColors: Record<AppRole, string> = {
   store_operator: "bg-sky-500/10 text-sky-500 border-sky-500/20",
   project_manager: "bg-violet-500/10 text-violet-500 border-violet-500/20",
   online_sales_packing: "bg-rose-500/10 text-rose-500 border-rose-500/20",
+  accounting_poster: "bg-teal-500/10 text-teal-500 border-teal-500/20",
+  accounting_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+  accounting_manager: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
 };
 
 export default function RolesPage() {
@@ -69,6 +75,9 @@ export default function RolesPage() {
     store_operator: 0,
     project_manager: 0,
     online_sales_packing: 0,
+    accounting_poster: 0,
+    accounting_officer: 0,
+    accounting_manager: 0,
   });
 
   useEffect(() => {
@@ -85,7 +94,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "accounting_poster", "accounting_officer", "accounting_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>

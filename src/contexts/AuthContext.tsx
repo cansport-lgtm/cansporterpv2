@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager';
 }
 
 // Define which modules each special role can access
@@ -29,6 +29,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   store_operator: ['material_consumption'], // Store operator: stock closing page only
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
   online_sales_packing: ['online_sales'], // Online sales packing: online orders page only (scan & weigh)
+  // Accounting access tiers — limited to the accounting module (+ dashboard landing)
+  accounting_poster: ['accounting', 'dashboard'],
+  accounting_officer: ['accounting', 'dashboard'],
+  accounting_manager: ['accounting', 'dashboard'],
 };
 
 // Define specific route restrictions for roles (only these exact routes are allowed)
@@ -40,6 +44,29 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
+  // Accounting Poster: post entries + review books/ledgers + read masters needed to post. NO reports.
+  accounting_poster: [
+    '/accounting/dashboard',
+    '/accounting/vouchers/new',
+    '/accounting/vouchers',
+    '/accounting/customer-receipts',
+    '/accounting/supplier-payments',
+    '/accounting/sales-return',
+    '/accounting/purchase-return',
+    '/accounting/day-book',
+    '/accounting/cash-book',
+    '/accounting/bank-book',
+    '/accounting/general-ledger',
+    '/accounting/party-ledger',
+    '/accounting/chart-of-accounts',
+    '/accounting/parties',
+  ],
+};
+
+// Routes a role is explicitly DENIED even though it otherwise has broad access to the module.
+// (Used for "see everything except these statements" tiers.)
+const ROLE_ROUTE_DENY: Record<string, string[]> = {
+  accounting_officer: ['/accounting/profit-loss', '/accounting/balance-sheet'],
 };
 
 const HARD_RESTRICTED_MODULE_ROLES = new Set([
@@ -54,6 +81,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'store_operator',
   'project_manager',
   'online_sales_packing',
+  'accounting_poster',
+  'accounting_officer',
+  'accounting_manager',
 ]);
 
 interface ModulePermission {
@@ -315,7 +345,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasModulePermission = (module: string, permission: 'view' | 'create' | 'edit' | 'delete' | 'approve'): boolean => {
     // Super admin has all permissions
     if (roles.some(r => r.role === 'super_admin')) return true;
-    
+
+    // Accounting access tiers (accounting module only; action perms implied by the role)
+    if (module === 'accounting') {
+      if (roles.some(r => r.role === 'accounting_manager')) return true; // full incl. delete + approve
+      if (roles.some(r => r.role === 'accounting_poster' || r.role === 'accounting_officer')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+    }
+
     // Floor incharge cannot approve any data (hard restriction)
     if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
       return false;
@@ -369,6 +407,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canAccessRoute = (route: string): boolean => {
     // Super admin has all access
     if (roles.some((r) => r.role === 'super_admin')) return true;
+
+    // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
+    if (
+      roles.some((r) =>
+        ROLE_ROUTE_DENY[r.role]?.some(
+          (denied) => route === denied || route.startsWith(denied + '/')
+        )
+      )
+    ) {
+      return false;
+    }
 
     const restrictedRoles = roles.filter((r) => ROLE_ROUTE_RESTRICTIONS[r.role]);
 

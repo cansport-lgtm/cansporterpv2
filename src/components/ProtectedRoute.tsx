@@ -67,6 +67,8 @@ export function ProtectedRoute({
         return 'online_sales';
       case 'finance':
         return 'finance';
+      case 'accounting':
+        return 'accounting';
       case 'projects':
         return 'projects';
       case 'rd':
