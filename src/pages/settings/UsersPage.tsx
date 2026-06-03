@@ -417,6 +417,9 @@ export default function UsersPage() {
       store_operator: "bg-sky-500/10 text-sky-500",
       project_manager: "bg-violet-500/10 text-violet-500",
       online_sales_packing: "bg-rose-500/10 text-rose-500",
+      accounting_poster: "bg-teal-500/10 text-teal-500",
+      accounting_officer: "bg-cyan-500/10 text-cyan-500",
+      accounting_manager: "bg-emerald-500/10 text-emerald-500",
     };
     return colors[role] || "";
   };
@@ -622,6 +625,9 @@ export default function UsersPage() {
                         <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
                         <SelectItem value="store_operator">Store Operator</SelectItem>
                         <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
+                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
+                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
+                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="operator">Operator</SelectItem>
@@ -743,6 +749,9 @@ export default function UsersPage() {
                         <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
                         <SelectItem value="store_operator">Store Operator</SelectItem>
                         <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
+                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
+                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
+                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="operator">Operator</SelectItem>
@@ -885,6 +894,9 @@ export default function UsersPage() {
                         <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
                         <SelectItem value="store_operator">Store Operator</SelectItem>
                         <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
+                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
+                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
+                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="operator">Operator</SelectItem>
