@@ -242,7 +242,11 @@ export default function ProfitLossPage() {
               {computed.revenueRows.map((r: any) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                  <TableCell className="text-sm">{r.name}</TableCell>
+                  <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                 </TableRow>
               ))}
@@ -270,7 +274,11 @@ export default function ProfitLossPage() {
               {computed.cogsRows.map((r: any) => (
                 <TableRow key={r.id} className={r.net === 0 ? "text-muted-foreground" : ""}>
                   <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                  <TableCell className="text-sm">{r.name}</TableCell>
+                  <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                 </TableRow>
               ))}
@@ -313,7 +321,11 @@ export default function ProfitLossPage() {
                   {(rows as any[]).map((r: any) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                      <TableCell className="text-sm">{r.name}</TableCell>
+                      <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                       <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
