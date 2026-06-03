@@ -49,8 +49,11 @@ export default function GeneralLedgerPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    // Don't auto-select the first account when a ?account= deep link is present —
+    // otherwise this effect can override the linked account on initial mount.
+    if (searchParams.get("account")) return;
     if (!accountId && filteredAccountsList?.length) setAccountId(filteredAccountsList[0].id);
-  }, [filteredAccountsList, accountId]);
+  }, [filteredAccountsList, accountId, searchParams]);
 
   const { data: opening } = useQuery({
     queryKey: ["acc-gl-opening", accountId, fromDate],
