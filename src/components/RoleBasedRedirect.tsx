@@ -100,8 +100,19 @@ export function RoleBasedRedirect() {
     return <Navigate to="/online-sales/orders" replace />;
   }
 
+  // Accounting Poster lands on New Voucher (post-only; no financial dashboard/reports)
+  if (roles.some(r => (r.role as string) === 'accounting_poster')) {
+    return <Navigate to="/accounting/vouchers/new" replace />;
+  }
+
+  // Accounting Officer / Manager land on the Accounting Dashboard
+  if (roles.some(r => (r.role as string) === 'accounting_officer' || (r.role as string) === 'accounting_manager')) {
+    return <Navigate to="/accounting/dashboard" replace />;
+  }
+
   // For other roles, find first accessible module
   const moduleDashboardRoutes: Record<string, string> = {
+    accounting: '/accounting/dashboard',
     production: '/production/dashboard',
     qa: '/qa/dashboard',
     sales: '/sales/dashboard',

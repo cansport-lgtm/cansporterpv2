@@ -44,9 +44,9 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
-  // Accounting Poster: post entries + review books/ledgers + read masters needed to post. NO reports.
+  // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
+  // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
-    '/accounting/dashboard',
     '/accounting/vouchers/new',
     '/accounting/vouchers',
     '/accounting/customer-receipts',
