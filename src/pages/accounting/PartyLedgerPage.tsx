@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { FileText, Printer, Pencil } from "lucide-react";
+import { FileText, Printer, Pencil, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
+import { buildLedgerPdf } from "@/lib/ledgerPdf";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
 import { InvoiceEditDialog } from "@/components/sales/InvoiceEditDialog";
 import { InvoicePrintView } from "@/components/sales/InvoicePrintView";
@@ -189,6 +191,87 @@ export default function PartyLedgerPage() {
     window.print();
   };
 
+  const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
+
+  // Build a self-contained PDF of the current ledger view.
+  const buildPdfFile = (): File | null => {
+    if (!selectedParty) return null;
+    const pdfRows = rows.map((r) => ({
+      date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
+      voucher: `${r.voucher?.voucher_type || ""} ${r.voucher?.voucher_number || ""}`.trim(),
+      against: r.account?.name || "-",
+      narration: r.line_narration || r.voucher?.narration || "-",
+      debit: Number(r.debit_amount) > 0 ? Number(r.debit_amount).toLocaleString() : "",
+      credit: Number(r.credit_amount) > 0 ? Number(r.credit_amount).toLocaleString() : "",
+      balance: r.runningBalance.toLocaleString(),
+    }));
+    const blob = buildLedgerPdf({
+      title: ledgerTitle,
+      partyName: selectedParty.name,
+      partyCode: selectedParty.code || undefined,
+      partyType: selectedParty.party_type || undefined,
+      period: periodLabel,
+      opening: `Rs. ${Number(opening || 0).toLocaleString()}`,
+      rows: pdfRows,
+      totalDr: `Rs. ${totalDr.toLocaleString()}`,
+      totalCr: `Rs. ${totalCr.toLocaleString()}`,
+      closing: `Rs. ${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`,
+      generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+    });
+    const safeName = `${ledgerTitle}-${selectedParty.name}-${format(parseISO(toDate), "yyyyMMdd")}`
+      .replace(/[^\w-]+/g, "_");
+    return new File([blob], `${safeName}.pdf`, { type: "application/pdf" });
+  };
+
+  const [sharing, setSharing] = useState(false);
+
+  // Share the ledger PDF. On mobile this opens the native share sheet (Web Share
+  // API level 2) where WhatsApp appears and the user can pick a contact. On
+  // desktop / unsupported browsers we fall back to downloading the PDF and
+  // opening WhatsApp with a summary note to attach it manually.
+  const handleShareWhatsApp = async () => {
+    if (!selectedParty) return;
+    try {
+      setSharing(true);
+      const file = buildPdfFile();
+      if (!file) return;
+      const summary =
+        `${ledgerTitle} - ${selectedParty.name}\n` +
+        `Period: ${periodLabel}\n` +
+        `Closing: Rs. ${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`;
+
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+        share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
+      };
+      if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], title: `${ledgerTitle} - ${selectedParty.name}`, text: summary });
+      } else {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        window.open(
+          `https://wa.me/?text=${encodeURIComponent(summary + "\n\n(Ledger PDF downloaded - attach it in WhatsApp)")}`,
+          "_blank"
+        );
+        toast.message("Ledger PDF downloaded", {
+          description: "Attach the downloaded PDF to your WhatsApp chat.",
+        });
+      }
+    } catch (e) {
+      // User dismissing the native share sheet throws AbortError - ignore it.
+      const err = e as { name?: string; message?: string };
+      if (err?.name !== "AbortError") toast.error(err?.message || "Failed to share ledger");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <ERPLayout>
       {/* === PRINT VIEW (only visible when printing) === */}
@@ -295,6 +378,16 @@ export default function PartyLedgerPage() {
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
           <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selectedParty}>
             <Printer className="h-4 w-4 mr-1" />Print
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleShareWhatsApp}
+            disabled={!selectedParty || sharing}
+            className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+            title="Share ledger PDF on WhatsApp"
+          >
+            <MessageCircle className="h-4 w-4 mr-1" />{sharing ? "Preparing…" : "WhatsApp"}
           </Button>
         </div>
       </PageHeader>
