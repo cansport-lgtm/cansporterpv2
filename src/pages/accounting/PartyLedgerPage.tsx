@@ -118,14 +118,14 @@ export default function PartyLedgerPage() {
   const { data: dispatchInvoiceMap } = useQuery({
     queryKey: ["acc-pl-dispatch-invoice-map", dispatchIdsToResolve],
     queryFn: async () => {
-      if (!dispatchIdsToResolve.length) return {} as Record<string, string>;
+      if (!dispatchIdsToResolve.length) return {} as Record<string, { id: string; notes: string | null }>;
       const { data, error } = await sb
         .from("domestic_invoices")
-        .select("id, dispatch_id")
+        .select("id, dispatch_id, notes")
         .in("dispatch_id", dispatchIdsToResolve);
       if (error) throw error;
-      const map: Record<string, string> = {};
-      (data || []).forEach((r: any) => { if (r.dispatch_id) map[r.dispatch_id] = r.id; });
+      const map: Record<string, { id: string; notes: string | null }> = {};
+      (data || []).forEach((r: any) => { if (r.dispatch_id) map[r.dispatch_id] = { id: r.id, notes: r.notes }; });
       return map;
     },
     enabled: dispatchIdsToResolve.length > 0,
@@ -139,11 +139,19 @@ export default function PartyLedgerPage() {
   const resolveSourceDoc = (v: any): SourceDoc => {
     if (!v?.source_reference_id) return null;
     if (v.source_module === "domestic_sales") {
-      const invoiceId = dispatchInvoiceMap?.[v.source_reference_id];
-      return invoiceId ? { kind: "invoice", id: invoiceId } : null;
+      const inv = dispatchInvoiceMap?.[v.source_reference_id];
+      return inv ? { kind: "invoice", id: inv.id } : null;
     }
     if (v.source_module === "purchase") {
       return { kind: "grn", id: v.source_reference_id };
+    }
+    return null;
+  };
+
+  // The sales-invoice note for a row (shown in the ledger so it's visible without opening the invoice).
+  const invoiceNoteFor = (v: any): string | null => {
+    if (v?.source_module === "domestic_sales" && v?.source_reference_id) {
+      return dispatchInvoiceMap?.[v.source_reference_id]?.notes || null;
     }
     return null;
   };
@@ -201,7 +209,7 @@ export default function PartyLedgerPage() {
               </div>
             </div>
 
-            <table className="w-full text-xs mb-4 border-collapse">
+            <table className="w-full text-xs mb-4 border-collapse [&_th]:px-2 [&_td]:px-2 [&_th]:align-bottom [&_td]:align-top">
               <thead>
                 <tr className="border-b-2 border-gray-800">
                   <th className="text-left py-1.5">Date</th>
@@ -229,7 +237,10 @@ export default function PartyLedgerPage() {
                       {r.voucher?.voucher_number}
                     </td>
                     <td className="py-1.5">{r.account?.name || "—"}</td>
-                    <td className="py-1.5">{r.line_narration || r.voucher?.narration || "—"}</td>
+                    <td className="py-1.5">
+                      {r.line_narration || r.voucher?.narration || "—"}
+                      {invoiceNoteFor(r.voucher) && <div className="text-[10px] text-gray-600">Note: {invoiceNoteFor(r.voucher)}</div>}
+                    </td>
                     <td className="text-right py-1.5">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</td>
                     <td className="text-right py-1.5">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</td>
                     <td className="text-right py-1.5">Rs. {r.runningBalance.toLocaleString()}</td>
@@ -358,9 +369,22 @@ export default function PartyLedgerPage() {
                       <Pencil className="h-3 w-3" />
                     </button>
                   )}
+                  {sourceDoc?.kind === "invoice" && (
+                    <button
+                      type="button"
+                      onClick={() => setPrintInvoiceId(sourceDoc.id)}
+                      className="text-primary hover:underline inline-flex items-center ml-1 align-middle"
+                      title="Print invoice"
+                    >
+                      <Printer className="h-3 w-3" />
+                    </button>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{r.account?.name || "—"}</TableCell>
-                <TableCell className="text-xs max-w-[260px] truncate">{r.line_narration || r.voucher?.narration || "—"}</TableCell>
+                <TableCell className="text-xs max-w-[260px]">
+                  <div className="truncate">{r.line_narration || r.voucher?.narration || "—"}</div>
+                  {invoiceNoteFor(r.voucher) && <div className="text-[11px] text-muted-foreground truncate">Note: {invoiceNoteFor(r.voucher)}</div>}
+                </TableCell>
                 <TableCell className="text-right text-xs">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs font-medium">Rs. {r.runningBalance.toLocaleString()}</TableCell>
