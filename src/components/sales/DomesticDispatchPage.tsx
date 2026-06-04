@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { toast } from "sonner";
 import { Plus, Search, Truck, Eye, X, Printer, Pencil, FileText } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -55,15 +56,7 @@ export default function DomesticDispatchPage() {
   const [editItems, setEditItems] = useState<Array<{ id: string; quantity_dozens: number; packages: number; packing_type: string; num_bags_ctn: number; product_code: string; product_name: string; order_number: string; customer_name: string }>>([]);
 
   // Packing options with their dozen multipliers
-  const PACKING_OPTIONS: Record<string, number> = {
-    '12dz ctn': 12,
-    '20dz bag': 20,
-    '60dz bag': 60,
-    '20 dz ctn': 20,
-    '6 dz ctn': 6,
-    '25dz bag': 25,
-    '15dz ctn': 15,
-  };
+  const { data: packingTypes = [] } = usePackingTypes();
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [formData, setFormData] = useState({
     dispatch_date: format(new Date(), 'yyyy-MM-dd'),
@@ -218,11 +211,11 @@ export default function DomesticDispatchPage() {
       // Insert dispatch items
       if (data.items.length > 0) {
         const items = data.items
-          .filter(item => parseInt(item.quantity_dozens) > 0)
+          .filter(item => parseFloat(item.quantity_dozens) > 0)
           .map(item => ({
             dispatch_id: newDispatch.id,
             order_item_id: item.order_item_id,
-            quantity_dozens: parseInt(item.quantity_dozens),
+            quantity_dozens: parseFloat(item.quantity_dozens),
             packages: parseInt(item.packages) || 1,
             packing_type: item.packing_type || null,
           }));
@@ -407,13 +400,13 @@ export default function DomesticDispatchPage() {
     if (field === 'packing_type') {
       item.packing_type = value as string;
       // Recalculate quantity based on new packing type
-      const multiplier = PACKING_OPTIONS[value as string] || 12;
+      const multiplier = dozensForLabel(value as string, packingTypes, 12);
       item.quantity_dozens = item.num_bags_ctn * multiplier;
     } else if (field === 'num_bags_ctn') {
       item.num_bags_ctn = value as number;
       item.packages = value as number;
       // Recalculate quantity based on packing type
-      const multiplier = PACKING_OPTIONS[item.packing_type] || 12;
+      const multiplier = dozensForLabel(item.packing_type, packingTypes, 12);
       item.quantity_dozens = (value as number) * multiplier;
     }
     
@@ -487,7 +480,7 @@ export default function DomesticDispatchPage() {
       toast.error('Please select at least one order');
       return;
     }
-    const hasItems = formData.items.some(item => parseInt(item.quantity_dozens) > 0);
+    const hasItems = formData.items.some(item => parseFloat(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
       return;
@@ -850,8 +843,8 @@ export default function DomesticDispatchPage() {
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                {Object.keys(PACKING_OPTIONS).map((option) => (
-                                                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                                                {packingTypes.map((option) => (
+                                                  <SelectItem key={option.id} value={option.label}>{option.label}</SelectItem>
                                                 ))}
                                               </SelectContent>
                                             </Select>
@@ -1171,8 +1164,8 @@ export default function DomesticDispatchPage() {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {Object.keys(PACKING_OPTIONS).map((option) => (
-                                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                                      {packingTypes.map((option) => (
+                                        <SelectItem key={option.id} value={option.label}>{option.label}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -1182,7 +1175,7 @@ export default function DomesticDispatchPage() {
                                     type="number"
                                     min="1"
                                     value={item.num_bags_ctn}
-                                    onChange={(e) => updateEditItem(index, 'num_bags_ctn', parseInt(e.target.value) || 1)}
+                                    onChange={(e) => updateEditItem(index, 'num_bags_ctn', parseFloat(e.target.value) || 1)}
                                     className="w-full h-8 text-right"
                                   />
                                 </TableCell>
