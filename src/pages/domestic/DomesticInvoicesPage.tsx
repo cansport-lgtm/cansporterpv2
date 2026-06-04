@@ -321,7 +321,7 @@ export default function DomesticInvoicesPage() {
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-800">
               <div>
-                <h1 className="text-2xl font-bold">TAX INVOICE</h1>
+                <h1 className="text-2xl font-bold">INVOICE</h1>
               </div>
               <div className="text-right text-sm">
                 <div className="font-bold">{printInvoice.invoice_number}</div>
@@ -382,7 +382,6 @@ export default function DomesticInvoicesPage() {
             )}
 
             <div className="text-xs text-gray-500 border-t pt-4 mt-8">
-              <div className="mb-2"><strong>Bank details:</strong> HBL Account # ••••</div>
               <div>Goods once sold will not be taken back unless agreed in writing. Subject to Karachi jurisdiction.</div>
               <div className="mt-4 grid grid-cols-2 gap-8">
                 <div className="border-t pt-1">Authorized Signature</div>
