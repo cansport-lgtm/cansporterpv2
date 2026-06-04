@@ -337,9 +337,7 @@ export default function DomesticInvoicesPage() {
                 <div className="text-xs">{printInvoice.customer?.code}</div>
               </div>
               <div>
-                <div className="font-bold text-xs text-gray-500 mb-1">PAYMENT TERMS</div>
-                <div>{printInvoice.payment_terms || "—"}</div>
-                <div className="text-xs mt-2 text-gray-500">Dispatch ref: {printInvoice.dispatch?.dispatch_number}</div>
+                <div className="text-xs text-gray-500">Dispatch ref: {printInvoice.dispatch?.dispatch_number}</div>
               </div>
             </div>
 

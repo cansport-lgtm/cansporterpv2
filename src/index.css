@@ -442,3 +442,11 @@
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
 }
+
+/* Remove the browser-added print header/footer (page URL, date, page numbers).
+   In-app print layouts (invoice, ledger) supply their own padding. */
+@media print {
+  @page {
+    margin: 0;
+  }
+}
