@@ -199,7 +199,6 @@ export default function PartyLedgerPage() {
             <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-gray-800">
               <div>
                 <h1 className="text-2xl font-bold">{ledgerTitle}</h1>
-                <div className="text-sm mt-1">Cansport Global Industries</div>
               </div>
               <div className="text-right text-sm">
                 <div className="font-bold">{selectedParty.name}</div>
