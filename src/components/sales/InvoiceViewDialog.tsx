@@ -102,7 +102,11 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
                 ))}
               </TableBody>
             </Table>
-            <div className="flex justify-between items-center font-bold border-t pt-3">
+            <div className="flex justify-between items-center text-sm border-t pt-3">
+              <span className="text-muted-foreground">Total Qty</span>
+              <span>{(items || []).reduce((s: number, it: any) => s + Number(it.quantity_dozens || 0), 0).toLocaleString()} Dz</span>
+            </div>
+            <div className="flex justify-between items-center font-bold">
               <span>Total</span>
               <span>Rs. {Number(invoice.total_amount).toLocaleString()}</span>
             </div>
