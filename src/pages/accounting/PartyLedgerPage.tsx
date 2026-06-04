@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { FileText, Printer, Pencil, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { buildLedgerPdf } from "@/lib/ledgerPdf";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
 import { InvoiceEditDialog } from "@/components/sales/InvoiceEditDialog";
 import { InvoicePrintView } from "@/components/sales/InvoicePrintView";
@@ -194,7 +195,7 @@ export default function PartyLedgerPage() {
   const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
 
   // Build a self-contained PDF of the current ledger view.
-  const buildPdfFile = (): File | null => {
+  const buildPdf = (): { blob: Blob; fileName: string } | null => {
     if (!selectedParty) return null;
     const pdfRows = rows.map((r) => ({
       date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
@@ -218,55 +219,38 @@ export default function PartyLedgerPage() {
       closing: `Rs. ${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`,
       generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
     });
-    const safeName = `${ledgerTitle}-${selectedParty.name}-${format(parseISO(toDate), "yyyyMMdd")}`
-      .replace(/[^\w-]+/g, "_");
-    return new File([blob], `${safeName}.pdf`, { type: "application/pdf" });
+    const fileName = `${ledgerTitle}-${selectedParty.name}-${format(parseISO(toDate), "yyyyMMdd")}`
+      .replace(/[^\w-]+/g, "_") + ".pdf";
+    return { blob, fileName };
   };
 
   const [sharing, setSharing] = useState(false);
 
-  // Share the ledger PDF. On mobile this opens the native share sheet (Web Share
-  // API level 2) where WhatsApp appears and the user can pick a contact. On
-  // desktop / unsupported browsers we fall back to downloading the PDF and
-  // opening WhatsApp with a summary note to attach it manually.
+  // Share the ledger PDF to WhatsApp (native share sheet on mobile, download
+  // fallback elsewhere).
   const handleShareWhatsApp = async () => {
     if (!selectedParty) return;
     try {
       setSharing(true);
-      const file = buildPdfFile();
-      if (!file) return;
+      const pdf = buildPdf();
+      if (!pdf) return;
       const summary =
         `${ledgerTitle} - ${selectedParty.name}\n` +
         `Period: ${periodLabel}\n` +
         `Closing: Rs. ${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`;
-
-      const nav = navigator as Navigator & {
-        canShare?: (data: { files: File[] }) => boolean;
-        share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
-      };
-      if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
-        await nav.share({ files: [file], title: `${ledgerTitle} - ${selectedParty.name}`, text: summary });
-      } else {
-        const url = URL.createObjectURL(file);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        window.open(
-          `https://wa.me/?text=${encodeURIComponent(summary + "\n\n(Ledger PDF downloaded - attach it in WhatsApp)")}`,
-          "_blank"
-        );
+      const result = await shareOrDownloadPdf({
+        blob: pdf.blob,
+        fileName: pdf.fileName,
+        title: `${ledgerTitle} - ${selectedParty.name}`,
+        text: summary,
+      });
+      if (result === "downloaded") {
         toast.message("Ledger PDF downloaded", {
           description: "Attach the downloaded PDF to your WhatsApp chat.",
         });
       }
     } catch (e) {
-      // User dismissing the native share sheet throws AbortError - ignore it.
-      const err = e as { name?: string; message?: string };
-      if (err?.name !== "AbortError") toast.error(err?.message || "Failed to share ledger");
+      toast.error((e as { message?: string })?.message || "Failed to share ledger");
     } finally {
       setSharing(false);
     }
