@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Printer } from "lucide-react";
+import { Printer, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { buildInvoicePdf } from "@/lib/invoicePdf";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
 
 const sb = supabase as any;
 
@@ -55,6 +59,67 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
     },
     enabled: !!invoiceId,
   });
+
+  const [sharing, setSharing] = useState(false);
+
+  // Share the invoice as a PDF to WhatsApp (native share sheet on mobile,
+  // download fallback elsewhere).
+  const handleShareWhatsApp = async () => {
+    if (!invoice) return;
+    try {
+      setSharing(true);
+      type InvItem = {
+        description?: string; details?: string; grade_name?: string; packing_type?: string;
+        quantity_dozens?: number; price_per_dozen?: number; amount?: number;
+      };
+      const invItems: InvItem[] = items || [];
+      const totalQty = invItems.reduce((s, it) => s + Number(it.quantity_dozens || 0), 0);
+      const blob = buildInvoicePdf({
+        invoiceNumber: invoice.invoice_number || "Invoice",
+        invoiceDate: format(new Date(invoice.invoice_date), "dd MMM yyyy"),
+        dueDate: invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy") : undefined,
+        paymentTerms: invoice.payment_terms || undefined,
+        status: invoice.status || undefined,
+        customerName: invoice.customer?.name || "-",
+        customerCode: invoice.customer?.code || undefined,
+        dispatchNumber: invoice.dispatch?.dispatch_number || undefined,
+        items: invItems.map((it) => ({
+          description: it.description || "-",
+          details: it.details || undefined,
+          grade: `${it.grade_name || ""}${it.packing_type ? ` / ${it.packing_type}` : ""}`.trim(),
+          qty: Number(it.quantity_dozens).toLocaleString(),
+          rate: Number(it.price_per_dozen).toLocaleString(),
+          amount: Number(it.amount).toLocaleString(),
+        })),
+        totalQty: `${totalQty.toLocaleString()} Dz`,
+        totalAmount: `Rs. ${Number(invoice.total_amount).toLocaleString()}`,
+        notes: invoice.notes || undefined,
+        generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+      });
+      const fileName = `Invoice-${invoice.invoice_number || invoice.id}-${invoice.customer?.name || ""}`
+        .replace(/[^\w-]+/g, "_") + ".pdf";
+      const summary =
+        `Invoice ${invoice.invoice_number || ""}\n` +
+        `${invoice.customer?.name || ""}\n` +
+        `Date: ${format(new Date(invoice.invoice_date), "dd MMM yyyy")}\n` +
+        `Total: Rs. ${Number(invoice.total_amount).toLocaleString()}`;
+      const result = await shareOrDownloadPdf({
+        blob,
+        fileName,
+        title: `Invoice ${invoice.invoice_number || ""}`.trim(),
+        text: summary,
+      });
+      if (result === "downloaded") {
+        toast.message("Invoice PDF downloaded", {
+          description: "Attach the downloaded PDF to your WhatsApp chat.",
+        });
+      }
+    } catch (e) {
+      toast.error((e as { message?: string })?.message || "Failed to share invoice");
+    } finally {
+      setSharing(false);
+    }
+  };
 
   return (
     <Dialog open={!!invoiceId} onOpenChange={onOpenChange}>
@@ -112,6 +177,16 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
             </div>
             {invoice.notes && <div><span className="text-muted-foreground">Notes:</span> {invoice.notes}</div>}
             <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleShareWhatsApp}
+                disabled={sharing}
+                className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                title="Share invoice PDF on WhatsApp"
+              >
+                <MessageCircle className="h-3 w-3 mr-1" />{sharing ? "Preparing…" : "WhatsApp"}
+              </Button>
               {onPrint && (
                 <Button size="sm" variant="outline" onClick={() => onPrint(invoice.id)}>
                   <Printer className="h-3 w-3 mr-1" />Print
