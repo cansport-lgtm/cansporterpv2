@@ -382,7 +382,6 @@ export default function DomesticInvoicesPage() {
             )}
 
             <div className="text-xs text-gray-500 border-t pt-4 mt-8">
-              <div>Goods once sold will not be taken back unless agreed in writing. Subject to Karachi jurisdiction.</div>
               <div className="mt-4 grid grid-cols-2 gap-8">
                 <div className="border-t pt-1">Authorized Signature</div>
                 <div className="border-t pt-1">Customer Acknowledgement</div>
