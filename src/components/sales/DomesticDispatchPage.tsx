@@ -36,6 +36,7 @@ interface OrderItem {
   order_id: string;
   order_number: string;
   product_code: string;
+  product_name: string;
   available_qty: number;
   quantity_dozens: string;
   packages: string;
@@ -159,7 +160,7 @@ export default function DomesticDispatchPage() {
       if (selectedOrders.length === 0) return [];
       const { data, error } = await supabase
         .from('sales_order_items')
-        .select(`id, order_id, quantity_dozens, quantity_dispatched, products(code), sales_orders(order_number, customers(name, code))`)
+        .select(`id, order_id, quantity_dozens, quantity_dispatched, packing_type, products(code, name), sales_orders(order_number, customers(name, code))`)
         .in('order_id', selectedOrders);
 
       if (error) throw error;
@@ -452,18 +453,25 @@ export default function DomesticDispatchPage() {
       
       setFormData(prev => ({
         ...prev,
-        items: sortedItems.map(item => ({
-          order_item_id: item.id,
-          order_id: item.order_id,
-          order_number: item.sales_orders?.order_number || '-',
-          product_code: item.products?.code || '-',
-          available_qty: item.quantity_dozens - (item.quantity_dispatched || 0),
-          quantity_dozens: '',
-          packages: '1',
-          packing_type: '12dz ctn',
-          customer_name: (item.sales_orders as any)?.customers?.name || '-',
-          customer_code: (item.sales_orders as any)?.customers?.code || '-',
-        })),
+        items: sortedItems.map(item => {
+          const available = item.quantity_dozens - (item.quantity_dispatched || 0);
+          const packing = (item as any).packing_type || '';
+          const dozens = dozensForLabel(packing, packingTypes);
+          const pkgs = dozens > 0 ? available / dozens : 0;
+          return {
+            order_item_id: item.id,
+            order_id: item.order_id,
+            order_number: item.sales_orders?.order_number || '-',
+            product_code: item.products?.code || '-',
+            product_name: (item.products as any)?.name || '-',
+            available_qty: available,
+            quantity_dozens: available > 0 ? String(available) : '',
+            packages: pkgs > 0 ? String(pkgs) : '1',
+            packing_type: packing,
+            customer_name: (item.sales_orders as any)?.customers?.name || '-',
+            customer_code: (item.sales_orders as any)?.customers?.code || '-',
+          };
+        }),
       }));
     }
   };
@@ -471,6 +479,12 @@ export default function DomesticDispatchPage() {
   const updateItem = (index: number, field: string, value: string) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
+    // Auto-calculate dispatch qty from packing × packages (editable afterwards)
+    if (field === 'packing_type' || field === 'packages') {
+      const dozens = dozensForLabel(newItems[index].packing_type, packingTypes);
+      const pkgs = parseFloat(newItems[index].packages) || 0;
+      newItems[index].quantity_dozens = (dozens * pkgs).toString();
+    }
     setFormData({ ...formData, items: newItems });
   };
 
@@ -833,7 +847,12 @@ export default function DomesticDispatchPage() {
                                       {items.map((item) => (
                                         <TableRow key={item.originalIndex}>
                                           <TableCell className="font-mono text-xs">{item.order_number}</TableCell>
-                                          <TableCell>{item.product_code}</TableCell>
+                                          <TableCell>
+                                            <span className="font-mono text-xs">{item.product_code}</span>
+                                            {item.product_name && item.product_name !== '-' && (
+                                              <span className="text-muted-foreground"> - {item.product_name}</span>
+                                            )}
+                                          </TableCell>
                                           <TableCell>
                                             <Select
                                               value={item.packing_type}
