@@ -110,6 +110,7 @@ import DomesticNewItemPage from "./pages/domestic/DomesticNewItemPage";
 import DomesticOrderStatusPage from "./pages/domestic/DomesticOrderStatusPage";
 import DomesticDeadlineRequestsPage from "./pages/domestic/DomesticDeadlineRequestsPage";
 import DomesticInvoicesPage from "./pages/domestic/DomesticInvoicesPage";
+import PackingTypesPage from "./pages/sales/PackingTypesPage";
 
 // Export Sales pages
 import ExportDashboard from "./pages/export/ExportDashboard";
@@ -489,6 +490,7 @@ const App = () => (
             <Route path="/domestic/dispatch-acknowledgement" element={<ProtectedRoute><DomesticDispatchAcknowledgementPage /></ProtectedRoute>} />
             <Route path="/domestic/deadline-requests" element={<ProtectedRoute requiredRole="super_admin"><DomesticDeadlineRequestsPage /></ProtectedRoute>} />
             <Route path="/domestic/invoices" element={<ProtectedRoute><DomesticInvoicesPage /></ProtectedRoute>} />
+            <Route path="/domestic/packing-types" element={<ProtectedRoute><PackingTypesPage /></ProtectedRoute>} />
             <Route path="/domestic/*" element={<ProtectedRoute><ComingSoon title="Sales" /></ProtectedRoute>} />
 
             {/* Export Sales Routes */}

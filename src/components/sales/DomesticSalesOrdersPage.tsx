@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, CalendarClock, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,24 +34,11 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-500',
 };
 
-const PACKING_OPTIONS = [
-  { value: '12dz_ctn', label: '12 Dz CTN', dozens: 12 },
-  { value: '20dz_bag', label: '20 Dz Bag', dozens: 20 },
-  { value: '60dz_bag', label: '60 Dz Bag', dozens: 60 },
-  { value: '20dz_ctn', label: '20 Dz CTN', dozens: 20 },
-  { value: '6dz_ctn', label: '6 Dz CTN', dozens: 6 },
-  { value: '25dz_bag', label: '25 Dz Bag', dozens: 25 },
-  { value: '15dz_ctn', label: '15 Dz CTN', dozens: 15 },
-];
-
-const getPackingDozens = (packingType: string): number => {
-  const option = PACKING_OPTIONS.find(o => o.value === packingType);
-  return option?.dozens || 0;
-};
 
 export default function DomesticSalesOrdersPage() {
   const queryClient = useQueryClient();
   const { user, hasModulePermission, hasRole } = useAuth();
+  const { data: packingTypes = [] } = usePackingTypes();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
@@ -259,9 +247,9 @@ export default function DomesticSalesOrdersPage() {
 
       if (data.items.length > 0) {
         const items = data.items
-          .filter(item => item.product_id && parseInt(item.quantity_dozens) > 0)
+          .filter(item => item.product_id && parseFloat(item.quantity_dozens) > 0)
           .map(item => {
-            const qty = parseInt(item.quantity_dozens) || 0;
+            const qty = parseFloat(item.quantity_dozens) || 0;
             const rate = parseFloat(item.price_per_dozen) || 0;
             return {
               order_id: newOrder.id,
@@ -430,7 +418,7 @@ export default function DomesticSalesOrdersPage() {
 
       // Update existing and insert new items
       for (const item of data.items) {
-        const qty = parseInt(item.quantity_dozens) || 0;
+        const qty = parseFloat(item.quantity_dozens) || 0;
         const rate = parseFloat(item.price_per_dozen) || 0;
         if (!item.product_id || qty <= 0) continue;
         if (item.id) {
@@ -472,7 +460,7 @@ export default function DomesticSalesOrdersPage() {
     // Load existing order items from allOrderItems
     const existingItems = getOrderItems(order.id);
     const editItems = existingItems.map((item: any) => {
-      const packingDozens = getPackingDozens(item.packing_type || 'standard');
+      const packingDozens = dozensForLabel(item.packing_type, packingTypes);
       const packages = packingDozens > 0 ? Math.round((item.quantity_dozens || 0) / packingDozens) : 0;
       return {
         id: item.id,
@@ -500,7 +488,7 @@ export default function DomesticSalesOrdersPage() {
   const addEditItem = () => {
     setEditFormData({
       ...editFormData,
-      items: [...editFormData.items, { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' }],
+      items: [...editFormData.items, { product_id: '', packing_type: '', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' }],
     });
   };
 
@@ -516,8 +504,8 @@ export default function DomesticSalesOrdersPage() {
     newItems[index] = { ...newItems[index], [field]: value };
     if (field === 'packing_type' || field === 'no_of_packages') {
       const item = newItems[index];
-      const packingDozens = getPackingDozens(item.packing_type);
-      const packages = parseInt(item.no_of_packages) || 0;
+      const packingDozens = dozensForLabel(item.packing_type, packingTypes);
+      const packages = parseFloat(item.no_of_packages) || 0;
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
     }
     // Auto-fill price from customer_pricing on product change (only if no manual override yet).
@@ -532,7 +520,7 @@ export default function DomesticSalesOrdersPage() {
   };
 
   const getEditTotalQuantity = () => {
-    return editFormData.items.reduce((sum, item) => sum + (parseInt(item.quantity_dozens) || 0), 0);
+    return editFormData.items.reduce((sum, item) => sum + (parseFloat(item.quantity_dozens) || 0), 0);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -555,7 +543,7 @@ export default function DomesticSalesOrdersPage() {
       toast.error('Dispatch Deadline is required');
       return;
     }
-    const validItems = editFormData.items.filter(item => item.product_id && parseInt(item.quantity_dozens) > 0);
+    const validItems = editFormData.items.filter(item => item.product_id && parseFloat(item.quantity_dozens) > 0);
     if (validItems.length === 0) {
       toast.error('Please add at least one item with quantity');
       return;
@@ -680,7 +668,7 @@ export default function DomesticSalesOrdersPage() {
       ...formData,
       items: [
         ...formData.items,
-        { product_id: '', packing_type: 'standard', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' },
+        { product_id: '', packing_type: '', no_of_packages: '', quantity_dozens: '', price_per_dozen: '', production_instructions: '', details: '' },
       ],
     });
   };
@@ -699,8 +687,8 @@ export default function DomesticSalesOrdersPage() {
     // Auto-calculate quantity_dozens when packing_type or no_of_packages changes
     if (field === 'packing_type' || field === 'no_of_packages') {
       const item = newItems[index];
-      const packingDozens = getPackingDozens(item.packing_type);
-      const packages = parseInt(item.no_of_packages) || 0;
+      const packingDozens = dozensForLabel(item.packing_type, packingTypes);
+      const packages = parseFloat(item.no_of_packages) || 0;
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
     }
 
@@ -737,7 +725,7 @@ export default function DomesticSalesOrdersPage() {
       toast.error('Dispatch Deadline is required');
       return;
     }
-    const validItems = formData.items.filter(item => item.product_id && parseInt(item.quantity_dozens) > 0);
+    const validItems = formData.items.filter(item => item.product_id && parseFloat(item.quantity_dozens) > 0);
     if (validItems.length === 0) {
       toast.error('Please add at least one item with quantity');
       return;
@@ -751,7 +739,7 @@ export default function DomesticSalesOrdersPage() {
   };
 
   const getTotalQuantity = () => {
-    return formData.items.reduce((sum, item) => sum + (parseInt(item.quantity_dozens) || 0), 0);
+    return formData.items.reduce((sum, item) => sum + (parseFloat(item.quantity_dozens) || 0), 0);
   };
 
   const filteredOrders = orders?.filter(o => {
@@ -806,7 +794,7 @@ export default function DomesticSalesOrdersPage() {
                       New Order
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-[95vw] w-[95vw] max-h-[92vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>New Domestic Sales Order</DialogTitle>
                     </DialogHeader>
@@ -933,8 +921,8 @@ export default function DomesticSalesOrdersPage() {
                                           <SelectValue placeholder="Packing" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {PACKING_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                          {packingTypes.map((opt) => (
+                                            <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
                                           ))}
                                         </SelectContent>
                                       </Select>
@@ -952,10 +940,11 @@ export default function DomesticSalesOrdersPage() {
                                     <TableCell>
                                       <Input
                                         type="number"
-                                        min="1"
+                                        min="0"
+                                        step="0.01"
                                         value={item.quantity_dozens}
-                                        readOnly
-                                        className="w-24 bg-muted"
+                                        onChange={(e) => updateItem(index, 'quantity_dozens', e.target.value)}
+                                        className="w-24"
                                         placeholder="0"
                                       />
                                     </TableCell>
@@ -1269,7 +1258,7 @@ export default function DomesticSalesOrdersPage() {
 
         {/* Edit Order Dialog - Super Admin Only */}
         <Dialog open={!!editOrder} onOpenChange={() => setEditOrder(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] w-[95vw] max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Order - {editOrder?.order_number}</DialogTitle>
             </DialogHeader>
@@ -1392,8 +1381,8 @@ export default function DomesticSalesOrdersPage() {
                                     <SelectValue placeholder="Packing" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {PACKING_OPTIONS.map((opt) => (
-                                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    {packingTypes.map((opt) => (
+                                      <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1411,10 +1400,11 @@ export default function DomesticSalesOrdersPage() {
                               <TableCell>
                                 <Input
                                   type="number"
-                                  min="1"
+                                  min="0"
+                                  step="0.01"
                                   value={item.quantity_dozens}
-                                  readOnly
-                                  className="w-24 bg-muted"
+                                  onChange={(e) => updateEditItem(index, 'quantity_dozens', e.target.value)}
+                                  className="w-24"
                                   placeholder="0"
                                 />
                               </TableCell>

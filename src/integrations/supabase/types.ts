@@ -11007,6 +11007,36 @@ export type Database = {
           },
         ]
       }
+      packing_types: {
+        Row: {
+          created_at: string | null
+          dozens: number
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dozens?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dozens?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
