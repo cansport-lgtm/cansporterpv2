@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { FileText, Printer } from "lucide-react";
+import { FileText, Printer, Pencil } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
+import { InvoiceEditDialog } from "@/components/sales/InvoiceEditDialog";
 import { InvoicePrintView } from "@/components/sales/InvoicePrintView";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
@@ -148,6 +149,7 @@ export default function PartyLedgerPage() {
   };
 
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
   const [viewGRNId, setViewGRNId] = useState<string | null>(null);
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
   const [printInvoiceId, setPrintInvoiceId] = useState<string | null>(null);
@@ -346,6 +348,16 @@ export default function PartyLedgerPage() {
                       <FileText className="h-3 w-3" />
                     </button>
                   )}
+                  {sourceDoc?.kind === "invoice" && (
+                    <button
+                      type="button"
+                      onClick={() => setEditInvoiceId(sourceDoc.id)}
+                      className="text-primary hover:underline inline-flex items-center ml-1 align-middle"
+                      title="Edit invoice"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{r.account?.name || "—"}</TableCell>
                 <TableCell className="text-xs max-w-[260px] truncate">{r.line_narration || r.voucher?.narration || "—"}</TableCell>
@@ -369,6 +381,10 @@ export default function PartyLedgerPage() {
         invoiceId={viewInvoiceId}
         onOpenChange={(o) => !o && setViewInvoiceId(null)}
         onPrint={(id) => { setViewInvoiceId(null); setPrintInvoiceId(id); }}
+      />
+      <InvoiceEditDialog
+        invoiceId={editInvoiceId}
+        onOpenChange={(o) => !o && setEditInvoiceId(null)}
       />
       <InvoicePrintView
         invoiceId={printInvoiceId}

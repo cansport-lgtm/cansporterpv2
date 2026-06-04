@@ -119,7 +119,9 @@ export function InvoicePrintView({ invoiceId, onAfterPrint }: InvoicePrintViewPr
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-gray-800 font-bold">
-              <td colSpan={5} className="text-right py-3">TOTAL</td>
+              <td colSpan={3} className="text-right py-3">TOTAL</td>
+              <td className="text-right py-3">{(items || []).reduce((s: number, it: any) => s + Number(it.quantity_dozens || 0), 0).toLocaleString()} Dz</td>
+              <td></td>
               <td className="text-right py-3">Rs. {Number(invoice.total_amount).toLocaleString()}</td>
             </tr>
           </tfoot>
