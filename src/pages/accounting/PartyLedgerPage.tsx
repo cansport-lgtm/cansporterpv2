@@ -410,10 +410,6 @@ export default function PartyLedgerPage() {
         invoiceId={editInvoiceId}
         onOpenChange={(o) => !o && setEditInvoiceId(null)}
       />
-      <InvoicePrintView
-        invoiceId={printInvoiceId}
-        onAfterPrint={() => setPrintInvoiceId(null)}
-      />
       <GRNViewDialog
         grnId={viewGRNId}
         onOpenChange={(o) => !o && setViewGRNId(null)}
@@ -423,6 +419,12 @@ export default function PartyLedgerPage() {
         onOpenChange={(o) => !o && setViewVoucherId(null)}
       />
       </div>
+
+      {/* Must live OUTSIDE the print:hidden wrapper above, or it is display:none in print → blank page */}
+      <InvoicePrintView
+        invoiceId={printInvoiceId}
+        onAfterPrint={() => setPrintInvoiceId(null)}
+      />
     </ERPLayout>
   );
 }
