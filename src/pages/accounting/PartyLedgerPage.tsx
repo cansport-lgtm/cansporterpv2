@@ -34,17 +34,26 @@ export default function PartyLedgerPage() {
   })();
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 90), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [partyId, setPartyId] = useState<string>("");
+  // Deep links (e.g. from the Receivables & Payables report) can pass ?party=<id>
+  // to open a specific party's ledger directly instead of defaulting to the first.
+  const [partyId, setPartyId] = useState<string>(searchParams.get("party") || "");
   const [filterType, setFilterType] = useState<string>(initialType);
 
-  // React to ?type= changes (e.g. user navigates Customer Ledger -> Vendor Ledger
-  // from the sidebar without remounting). Reset the selected party so we don't
-  // hold a stale customer when switching to vendors.
+  // React to ?type= / ?party= changes (e.g. user navigates Customer Ledger ->
+  // Vendor Ledger from the sidebar, or clicks a name in the AR/AP report).
   useEffect(() => {
     const t = searchParams.get("type");
     const next = t && VALID_TYPES.has(t) ? t : "all";
     setFilterType((prev) => (prev === next ? prev : next));
-    if (t && VALID_TYPES.has(t)) setPartyId("");
+    const p = searchParams.get("party");
+    if (p) {
+      // Explicit party from a deep link wins — open exactly that ledger.
+      setPartyId(p);
+    } else if (t && VALID_TYPES.has(t)) {
+      // Type-only navigation: clear selection so we don't hold a stale party
+      // when switching between e.g. customers and vendors.
+      setPartyId("");
+    }
   }, [searchParams]);
 
   const { data: parties } = useQuery({
