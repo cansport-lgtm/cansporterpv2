@@ -290,7 +290,7 @@ export default function ReceivablesPayablesReportPage() {
               {arRows.map((r) => (
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
-                    <Link to={`/accounting/party-ledger?type=customer`} className="text-primary hover:underline">{r.name}</Link>
+                    <Link to={`/accounting/party-ledger?type=customer&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
                   </TableCell>
                   <TableCell className="text-right text-xs">{r.b0_30 ? `Rs. ${r.b0_30.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>
@@ -337,7 +337,7 @@ export default function ReceivablesPayablesReportPage() {
               {apRows.map((r) => (
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
-                    <Link to={`/accounting/party-ledger?type=supplier`} className="text-primary hover:underline">{r.name}</Link>
+                    <Link to={`/accounting/party-ledger?type=supplier&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
                   </TableCell>
                   <TableCell className="text-right text-xs">{r.b0_30 ? `Rs. ${r.b0_30.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>
