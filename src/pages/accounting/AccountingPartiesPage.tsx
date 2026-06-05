@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Edit } from "lucide-react";
 
@@ -34,6 +35,7 @@ interface PartyForm {
   email: string;
   address: string;
   ntn: string;
+  is_active: boolean;
 }
 
 const defaultForm: PartyForm = {
@@ -45,6 +47,7 @@ const defaultForm: PartyForm = {
   email: "",
   address: "",
   ntn: "",
+  is_active: true,
 };
 
 export default function AccountingPartiesPage() {
@@ -68,7 +71,9 @@ export default function AccountingPartiesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (formData: PartyForm) => {
-      const payload = { ...formData, code: formData.code || null };
+      // Trim the name so stray trailing spaces don't create lookup mismatches
+      // (e.g. a party that silently fails to match in voucher dropdowns).
+      const payload = { ...formData, name: formData.name.trim(), code: formData.code.trim() || null };
       if (editId) {
         const { error } = await sb.from("accounting_parties").update(payload).eq("id", editId);
         if (error) throw error;
@@ -98,6 +103,7 @@ export default function AccountingPartiesPage() {
       email: p.email || "",
       address: p.address || "",
       ntn: p.ntn || "",
+      is_active: p.is_active ?? true,
     });
     setDialogOpen(true);
   };
@@ -147,7 +153,14 @@ export default function AccountingPartiesPage() {
                   <div><Label>NTN</Label><Input value={form.ntn} onChange={(e) => setForm({ ...form, ntn: e.target.value })} placeholder="National Tax Number" /></div>
                 </div>
                 <div><Label>Address</Label><Textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-                <Button className="w-full" onClick={() => saveMutation.mutate(form)} disabled={!form.name || saveMutation.isPending}>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <Label>Active</Label>
+                    <p className="text-xs text-muted-foreground">Inactive parties are hidden from voucher &amp; receipt dropdowns.</p>
+                  </div>
+                  <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
+                </div>
+                <Button className="w-full" onClick={() => saveMutation.mutate(form)} disabled={!form.name.trim() || saveMutation.isPending}>
                   {editId ? "Update" : "Create"} Party
                 </Button>
               </div>
@@ -166,12 +179,13 @@ export default function AccountingPartiesPage() {
               <TableHead>Contact</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>NTN</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && !filtered?.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No parties. Add a customer to use in vouchers.</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!isLoading && !filtered?.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No parties. Add a customer to use in vouchers.</TableCell></TableRow>}
             {filtered?.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
@@ -180,6 +194,11 @@ export default function AccountingPartiesPage() {
                 <TableCell className="text-xs">{p.contact_person || "—"}</TableCell>
                 <TableCell className="text-xs">{p.phone || "—"}</TableCell>
                 <TableCell className="text-xs">{p.ntn || "—"}</TableCell>
+                <TableCell>
+                  {p.is_active
+                    ? <Badge variant="outline" className="bg-green-100 text-green-800">Active</Badge>
+                    : <Badge variant="outline" className="bg-gray-100 text-gray-600">Inactive</Badge>}
+                </TableCell>
                 <TableCell><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}><Edit className="h-3 w-3" /></Button></TableCell>
               </TableRow>
             ))}

@@ -139,7 +139,10 @@ export default function NewVoucherPage() {
           credit_amount: isReceipt ? Number(l.credit_amount) || 0 : 0,
         })),
       ];
-      const valid = !!primaryAccountId && sum > 0 && secondaryLines.every((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
+      // For receipts (CRV/BRV) the customer/party is mandatory — a payment must
+      // never be recorded without identifying who it was received from.
+      const partySelected = partyId !== "none" && !!partyId;
+      const valid = !!primaryAccountId && sum > 0 && (!isReceipt || partySelected) && secondaryLines.every((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
       return { totalDebit: sum, totalCredit: sum, isBalanced: valid, finalLines };
     }
     if (meta.mode === "contra") {
@@ -156,7 +159,7 @@ export default function NewVoucherPage() {
     const filtered = journalLines.filter((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
     const valid = Math.abs(td - tc) < 0.01 && td > 0 && filtered.length >= 2;
     return { totalDebit: td, totalCredit: tc, isBalanced: valid, finalLines: filtered };
-  }, [meta.mode, primaryAccountId, secondaryLines, contraFromId, contraToId, contraAmount, journalLines]);
+  }, [meta.mode, primaryAccountId, secondaryLines, contraFromId, contraToId, contraAmount, journalLines, partyId]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -257,13 +260,13 @@ export default function NewVoucherPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Reference Party (optional, header-level)</Label>
+                <Label>{meta.mode === "receipt" ? "Customer *" : "Reference Party (optional, header-level)"}</Label>
                 <SearchableSelect
                   value={partyId}
                   onValueChange={setPartyId}
-                  placeholder="— None —"
+                  placeholder={meta.mode === "receipt" ? "Select customer" : "— None —"}
                   options={[
-                    { value: "none", label: "— None —" },
+                    ...(meta.mode === "receipt" ? [] : [{ value: "none", label: "— None —" }]),
                     ...(parties || []).map((p: any) => ({
                       value: p.id,
                       label: p.name,
@@ -271,6 +274,9 @@ export default function NewVoucherPage() {
                     })),
                   ]}
                 />
+                {meta.mode === "receipt" && (partyId === "none" || !partyId) && (
+                  <p className="text-xs text-destructive mt-1">Select the customer this payment was received from.</p>
+                )}
               </div>
               <div>
                 <Label>Narration</Label>
