@@ -42,6 +42,7 @@ interface Supplier {
   lead_time_days: number | null;
   categories: PurchaseCategory[] | null;
   is_active: boolean;
+  accounting_party_id: string | null;
 }
 
 const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
@@ -90,6 +91,8 @@ export default function SuppliersPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      // `sb` bypasses the generated types for the accounting bridge columns/table.
+      const sb = supabase as any;
       const payload = {
         code: data.code,
         name: data.name,
@@ -111,10 +114,37 @@ export default function SuppliersPage() {
           .update(payload)
           .eq('id', selectedSupplier.id);
         if (error) throw error;
+
+        // Keep the linked accounting party in sync so it shows correctly in AP.
+        // (code left NULL to match party convention + avoid UNIQUE(code) clashes)
+        if (selectedSupplier.accounting_party_id) {
+          await sb
+            .from('accounting_parties')
+            .update({ name: data.name, is_active: data.is_active })
+            .eq('id', selectedSupplier.accounting_party_id);
+        } else {
+          const { data: party } = await sb
+            .from('accounting_parties')
+            .insert({ name: data.name, code: null, party_type: 'supplier', is_active: data.is_active })
+            .select('id')
+            .single();
+          if (party) {
+            await sb.from('suppliers').update({ accounting_party_id: party.id }).eq('id', selectedSupplier.id);
+          }
+        }
       } else {
-        const { error } = await supabase
+        // Create the accounting party first, then link it on the supplier so the
+        // new vendor appears in the Accounts Payable list immediately.
+        const { data: party, error: partyError } = await sb
+          .from('accounting_parties')
+          .insert({ name: data.name, code: null, party_type: 'supplier', is_active: data.is_active })
+          .select('id')
+          .single();
+        if (partyError) throw partyError;
+
+        const { error } = await sb
           .from('suppliers')
-          .insert(payload);
+          .insert({ ...payload, accounting_party_id: party?.id ?? null });
         if (error) throw error;
       }
     },
