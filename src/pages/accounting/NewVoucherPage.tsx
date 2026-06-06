@@ -478,8 +478,8 @@ export default function NewVoucherPage() {
                     <TableRow>
                       <TableHead>Account</TableHead>
                       <TableHead>Party</TableHead>
-                      <TableHead className="w-28 text-right">Debit</TableHead>
-                      <TableHead className="w-28 text-right">Credit</TableHead>
+                      <TableHead className="w-40 text-right">Debit</TableHead>
+                      <TableHead className="w-40 text-right">Credit</TableHead>
                       <TableHead>Note</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
@@ -492,7 +492,7 @@ export default function NewVoucherPage() {
                             value={line.account_id}
                             onValueChange={(v) => updateJournal(i, { account_id: v })}
                             placeholder="Select account"
-                            triggerClassName="h-8 w-full"
+                            triggerClassName="h-11 w-full"
                             options={postableAccounts.map((a: any) => ({
                               value: a.id, label: a.name, secondary: `(${a.code})`, search: a.code,
                             }))}
@@ -503,7 +503,7 @@ export default function NewVoucherPage() {
                             value={line.party_id || "none"}
                             onValueChange={(v) => updateJournal(i, { party_id: v === "none" ? null : v })}
                             placeholder="—"
-                            triggerClassName="h-8 w-full"
+                            triggerClassName="h-11 w-full"
                             options={[
                               { value: "none", label: "—" },
                               ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
@@ -511,15 +511,15 @@ export default function NewVoucherPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Input type="number" className="h-8 text-right" value={line.debit_amount || ""}
+                          <Input type="number" className="h-11 text-right text-base" value={line.debit_amount || ""}
                             onChange={(e) => updateJournal(i, { debit_amount: parseFloat(e.target.value) || 0, credit_amount: 0 })} />
                         </TableCell>
                         <TableCell>
-                          <Input type="number" className="h-8 text-right" value={line.credit_amount || ""}
+                          <Input type="number" className="h-11 text-right text-base" value={line.credit_amount || ""}
                             onChange={(e) => updateJournal(i, { credit_amount: parseFloat(e.target.value) || 0, debit_amount: 0 })} />
                         </TableCell>
                         <TableCell>
-                          <Input className="h-8 text-xs" value={line.line_narration}
+                          <Input className="h-11" value={line.line_narration}
                             onChange={(e) => updateJournal(i, { line_narration: e.target.value })} placeholder="optional" />
                         </TableCell>
                         <TableCell>
