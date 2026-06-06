@@ -154,6 +154,9 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
               <div><strong>Receipt Date:</strong> {grn.receipt_date ? format(new Date(grn.receipt_date), "dd/MM/yyyy") : "—"}</div>
               <div><strong>Invoice #:</strong> {grn.invoice_number || "—"}</div>
               <div><strong>Invoice Amount:</strong> {grn.invoice_amount ? `Rs. ${Number(grn.invoice_amount).toLocaleString()}` : "—"}</div>
+              {Number(grn.transportation_cost || 0) > 0 && (
+                <div><strong>Transportation:</strong> Rs. {Number(grn.transportation_cost).toLocaleString()}</div>
+              )}
               <div><strong>Total Received:</strong> Rs. {Number(grn.total_amount || 0).toLocaleString()}</div>
             </div>
 

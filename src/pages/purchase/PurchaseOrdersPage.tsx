@@ -19,6 +19,7 @@ import { Plus, Trash2, Eye, Pencil, Check } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 type PurchaseCategory = Database["public"]["Enums"]["purchase_category"];
 
@@ -418,27 +419,25 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Supplier *</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.supplier_id}
                       onValueChange={(value) => {
                         const sup = suppliers?.find(s => s.id === value);
-                        setFormData({ 
-                          ...formData, 
+                        setFormData({
+                          ...formData,
                           supplier_id: value,
                           payment_terms: sup?.payment_terms?.toString() || '',
                         });
                       }}
                       disabled={!formData.category}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredSuppliers?.map(sup => (
-                          <SelectItem key={sup.id} value={sup.id}>{sup.code} - {sup.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select supplier"
+                      options={(filteredSuppliers || []).map(sup => ({
+                        value: sup.id,
+                        label: sup.name,
+                        secondary: `(${sup.code})`,
+                        search: sup.code,
+                      }))}
+                    />
                   </div>
                 </div>
 
@@ -500,19 +499,17 @@ export default function PurchaseOrdersPage() {
                           {formData.items.map((item, index) => (
                             <TableRow key={index}>
                               <TableCell>
-                                <Select
+                                <SearchableSelect
                                   value={item.item_id}
                                   onValueChange={(value) => updateItem(index, 'item_id', value)}
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select item" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {items?.map(i => (
-                                      <SelectItem key={i.id} value={i.id}>{i.code} - {i.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  placeholder="Select item"
+                                  options={(items || []).map(i => ({
+                                    value: i.id,
+                                    label: i.name,
+                                    secondary: `(${i.code})`,
+                                    search: i.code,
+                                  }))}
+                                />
                               </TableCell>
                               <TableCell>
                                 <Input
@@ -565,19 +562,17 @@ export default function PurchaseOrdersPage() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Item</Label>
-                            <Select
+                            <SearchableSelect
                               value={item.item_id}
                               onValueChange={(value) => updateItem(index, 'item_id', value)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select item" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items?.map(i => (
-                                  <SelectItem key={i.id} value={i.id}>{i.code} - {i.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              placeholder="Select item"
+                              options={(items || []).map(i => ({
+                                value: i.id,
+                                label: i.name,
+                                secondary: `(${i.code})`,
+                                search: i.code,
+                              }))}
+                            />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Description</Label>

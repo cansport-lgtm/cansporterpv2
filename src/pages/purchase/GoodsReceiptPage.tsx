@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +19,7 @@ import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 type PurchaseCategory = Database["public"]["Enums"]["purchase_category"];
 
@@ -64,6 +64,7 @@ export default function GoodsReceiptPage() {
     invoice_number: '',
     invoice_date: '',
     invoice_amount: '',
+    transportation_cost: '',
     notes: '',
     items: [] as GRNItem[],
   });
@@ -137,9 +138,11 @@ export default function GoodsReceiptPage() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const totalAmount = data.items.reduce((sum, item) => {
+      const itemsSubtotal = data.items.reduce((sum, item) => {
         return sum + (parseFloat(item.quantity_received) || 0) * item.unit_price;
       }, 0);
+      const transportationCost = parseFloat(data.transportation_cost) || 0;
+      const totalAmount = itemsSubtotal + transportationCost;
 
       const { data: newGRN, error: grnError } = await supabase
         .from('goods_receipt_notes')
@@ -151,11 +154,12 @@ export default function GoodsReceiptPage() {
           invoice_number: data.invoice_number || null,
           invoice_date: data.invoice_date || null,
           invoice_amount: data.invoice_amount ? parseFloat(data.invoice_amount) : null,
+          transportation_cost: transportationCost,
           total_amount: totalAmount,
           notes: data.notes || null,
           received_by: user?.id,
           status: 'completed',
-        })
+        } as any)
         .select()
         .single();
 
@@ -220,6 +224,7 @@ export default function GoodsReceiptPage() {
       invoice_number: '',
       invoice_date: '',
       invoice_amount: '',
+      transportation_cost: '',
       notes: '',
       items: [],
     });
@@ -254,9 +259,11 @@ export default function GoodsReceiptPage() {
     setFormData({ ...formData, items: newItems });
   };
 
-  const totalAmount = formData.items.reduce((sum, item) => {
+  const itemsSubtotal = formData.items.reduce((sum, item) => {
     return sum + (parseFloat(item.quantity_received) || 0) * item.unit_price;
   }, 0);
+  const transportationCost = parseFloat(formData.transportation_cost) || 0;
+  const totalAmount = itemsSubtotal + transportationCost;
 
   const columns: Column<any>[] = [
     { key: 'grn_number', header: 'GRN #' },
@@ -326,21 +333,17 @@ export default function GoodsReceiptPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Purchase Order *</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.purchase_order_id}
                       onValueChange={handlePOSelect}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select PO" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredPOs?.map(po => (
-                          <SelectItem key={po.id} value={po.id}>
-                            {po.po_number} - {po.suppliers?.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select PO"
+                      options={(filteredPOs || []).map(po => ({
+                        value: po.id,
+                        label: po.po_number,
+                        secondary: po.suppliers?.name ? `- ${po.suppliers.name}` : undefined,
+                        search: `${po.suppliers?.name || ''} ${po.suppliers?.code || ''}`,
+                      }))}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Receipt Date *</Label>
@@ -382,6 +385,17 @@ export default function GoodsReceiptPage() {
                       type="number"
                       value={formData.invoice_amount}
                       onChange={(e) => setFormData({ ...formData, invoice_amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Transportation Cost</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.transportation_cost}
+                      onChange={(e) => setFormData({ ...formData, transportation_cost: e.target.value })}
+                      placeholder="0"
                     />
                   </div>
                 </div>
@@ -435,8 +449,18 @@ export default function GoodsReceiptPage() {
                     )}
 
                     {formData.items.length > 0 && (
-                      <div className="text-right font-semibold text-lg pt-2">
-                        Total: Rs. {totalAmount.toLocaleString()}
+                      <div className="space-y-1 pt-2 text-right text-sm">
+                        <div className="text-muted-foreground">
+                          Subtotal: Rs. {itemsSubtotal.toLocaleString()}
+                        </div>
+                        {transportationCost > 0 && (
+                          <div className="text-muted-foreground">
+                            Transportation: Rs. {transportationCost.toLocaleString()}
+                          </div>
+                        )}
+                        <div className="font-semibold text-lg text-foreground">
+                          Total: Rs. {totalAmount.toLocaleString()}
+                        </div>
                       </div>
                     )}
                   </div>
