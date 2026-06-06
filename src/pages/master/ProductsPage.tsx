@@ -71,7 +71,7 @@ export default function ProductsPage() {
       const { data, error } = await supabase
         .from("products")
         .select("*, grades(name), units_of_measure(name)")
-        .order("name", { ascending: true });
+        .order("code", { ascending: true });
       if (error) throw error;
       return data as Product[];
     },

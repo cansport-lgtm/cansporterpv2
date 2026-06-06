@@ -86,7 +86,7 @@ export default function ItemsPage() {
       const { data, error } = await supabase
         .from("items")
         .select("*, units_of_measure(name)")
-        .order("name", { ascending: true });
+        .order("code", { ascending: true });
       if (error) throw error;
       return data as Item[];
     },

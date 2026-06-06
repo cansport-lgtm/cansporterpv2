@@ -82,8 +82,8 @@ export default function DomesticDispatchPage() {
 
   const handlePrint = () => {
     setIsPrintMode(true);
-    // Give React a moment to render the print overlay before printing
-    window.setTimeout(() => window.print(), 50);
+    // Give React a moment to render the compact print view before printing
+    window.setTimeout(() => window.print(), 100);
   };
 
   // Fetch dispatches for domestic segment
@@ -693,6 +693,35 @@ export default function DomesticDispatchPage() {
     );
   };
 
+  // Fast print path: render ONLY the dispatch sheet. Printing the full page was
+  // slow because the old @media-print rule used `visibility:hidden` on every
+  // element, which keeps the entire app (list, layout, dialogs) in layout — so
+  // the browser had to paginate the whole document. Rendering just the sheet
+  // here means there is almost nothing for the browser to lay out.
+  if (isPrintMode && viewDispatch) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto bg-white text-black">
+        <style>{`
+          @media print {
+            @page { margin: 12mm; }
+            table { border-collapse: collapse !important; }
+            th, td { border: 1px solid #ddd !important; padding: 6px 8px !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          }
+        `}</style>
+        <div className="flex justify-end mb-4 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => setIsPrintMode(false)}>
+            <X className="h-4 w-4 mr-2" />
+            Close
+          </Button>
+        </div>
+        <div id="dispatch-print-content">
+          <DispatchSheet dispatch={viewDispatch} items={dispatchItems ?? []} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -1036,23 +1065,6 @@ export default function DomesticDispatchPage() {
           </CardContent>
         </Card>
 
-        {/* Print Overlay (rendered before calling window.print) */}
-        {isPrintMode && viewDispatch && (
-          <div className="fixed inset-0 z-[100] bg-background overflow-y-auto p-6">
-            <div className="max-w-3xl mx-auto">
-              <div className="flex justify-end mb-4 print:hidden">
-                <Button variant="outline" size="sm" onClick={() => setIsPrintMode(false)}>
-                  <X className="h-4 w-4 mr-2" />
-                  Close
-                </Button>
-              </div>
-              <div id="dispatch-print-content">
-                <DispatchSheet dispatch={viewDispatch} items={dispatchItems ?? []} />
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* View Dispatch Dialog */}
         <Dialog open={!!viewDispatch} onOpenChange={() => setViewDispatch(null)}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -1223,47 +1235,6 @@ export default function DomesticDispatchPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Print Styles */}
-        <style>{`
-          @media print {
-            /* Hide everything without breaking portal/layout (no display:none on parents) */
-            body * {
-              visibility: hidden !important;
-            }
-
-            /* Show only the print container */
-            #dispatch-print-content,
-            #dispatch-print-content * {
-              visibility: visible !important;
-            }
-
-            #dispatch-print-content {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 100% !important;
-              padding: 20px !important;
-            }
-
-            /* Nice table borders for paper */
-            table {
-              border-collapse: collapse !important;
-            }
-            th, td {
-              border: 1px solid #ddd !important;
-              padding: 6px 8px !important;
-            }
-
-            @page {
-              margin: 12mm;
-            }
-
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-          }
-        `}</style>
       </div>
     </ERPLayout>
   );

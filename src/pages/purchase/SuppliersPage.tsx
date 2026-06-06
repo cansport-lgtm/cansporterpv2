@@ -83,7 +83,7 @@ export default function SuppliersPage() {
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
-        .order('name');
+        .order('code');
       if (error) throw error;
       return data as Supplier[];
     },

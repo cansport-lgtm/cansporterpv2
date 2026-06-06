@@ -90,7 +90,7 @@ export default function CustomersPage() {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
-        .order('name', { ascending: true });
+        .order('code', { ascending: true });
 
       if (error) throw error;
       return data as Customer[];
