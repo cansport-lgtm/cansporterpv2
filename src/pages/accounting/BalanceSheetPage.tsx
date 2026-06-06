@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -163,7 +164,11 @@ export default function BalanceSheetPage() {
               {computed.assetRows.map((r: any) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                  <TableCell className="text-sm">{r.name}</TableCell>
+                  <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                 </TableRow>
               ))}
@@ -192,7 +197,11 @@ export default function BalanceSheetPage() {
                 {computed.liabilityRows.map((r: any) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                    <TableCell className="text-sm">{r.name}</TableCell>
+                    <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                     <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
@@ -218,7 +227,11 @@ export default function BalanceSheetPage() {
                 {computed.equityRows.map((r: any) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                    <TableCell className="text-sm">{r.name}</TableCell>
+                    <TableCell className="text-sm">
+                    <Link to={`/accounting/general-ledger?account=${r.id}`} className="text-primary hover:underline" title="Open ledger">
+                      {r.name}
+                    </Link>
+                  </TableCell>
                     <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
