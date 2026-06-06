@@ -191,9 +191,9 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
           product_id: item.product_id || null,
           grade_id: null,
           packing_type: null,
-          quantity_dozens: parseInt(item.quantity_dozens) || 0,
+          quantity_dozens: parseFloat(item.quantity_dozens) || 0,
           price_per_dozen: parseFloat(item.price_per_dozen) || 0,
-          amount: (parseInt(item.quantity_dozens) || 0) * (parseFloat(item.price_per_dozen) || 0),
+          amount: (parseFloat(item.quantity_dozens) || 0) * (parseFloat(item.price_per_dozen) || 0),
           remarks: item.remarks || null,
         }));
 
@@ -481,6 +481,8 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                                     <TableCell>
                                       <Input
                                         type="number"
+                                        min="0"
+                                        step="0.01"
                                         value={item.quantity_dozens}
                                         onChange={(e) => updateItem(index, 'quantity_dozens', e.target.value)}
                                         className="w-20"
