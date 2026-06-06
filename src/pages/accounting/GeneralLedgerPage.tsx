@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
+import { ArrowLeft } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -22,6 +24,29 @@ export default function GeneralLedgerPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [searchParams] = useSearchParams();
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // Arrived here by drilling down (e.g. clicking an expense in Profit & Loss).
+  const isDrillDown = !!searchParams.get("account");
+
+  // Escape returns to the previous page (the statement we drilled in from, such
+  // as Profit & Loss). Skipped while an overlay is open — the voucher dialog and
+  // the account/search popovers handle their own Escape to close first.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (viewVoucherId) return;
+      // Don't hijack Escape while a field is focused (e.g. date inputs) or while
+      // an overlay (voucher dialog, account/search popover, select) is open —
+      // those handle Escape themselves first.
+      const el = document.activeElement;
+      if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
+      if (document.querySelector('[data-radix-popper-content-wrapper], [role="dialog"][data-state="open"]')) return;
+      navigate(-1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate, viewVoucherId]);
 
   const { data: accounts } = useQuery({
     queryKey: ["acc-gl-accounts"],
@@ -135,6 +160,11 @@ export default function GeneralLedgerPage() {
     <ERPLayout>
       <PageHeader title="General Ledger" description="Drill into any account's transactions">
         <div className="flex gap-2">
+          {isDrillDown && (
+            <Button size="sm" variant="outline" onClick={() => navigate(-1)} title="Back (Esc)">
+              <ArrowLeft className="h-4 w-4 mr-1" />Back
+            </Button>
+          )}
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
