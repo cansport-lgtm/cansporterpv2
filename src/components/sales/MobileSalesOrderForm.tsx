@@ -266,6 +266,8 @@ export function MobileSalesOrderForm({
                         <Label className="text-xs">Qty (Dozens)</Label>
                         <Input
                           type="number"
+                          min="0"
+                          step="0.01"
                           value={item.quantity_dozens}
                           onChange={(e) => updateItem(index, 'quantity_dozens', e.target.value)}
                           placeholder="0"

@@ -152,11 +152,11 @@ export default function DispatchPage() {
       // Insert dispatch items
       if (data.items.length > 0) {
         const items = data.items
-          .filter(item => parseInt(item.quantity_dozens) > 0)
+          .filter(item => parseFloat(item.quantity_dozens) > 0)
           .map(item => ({
             dispatch_id: newDispatch.id,
             order_item_id: item.order_item_id,
-            quantity_dozens: parseInt(item.quantity_dozens),
+            quantity_dozens: parseFloat(item.quantity_dozens),
             packages: parseInt(item.packages) || 1,
           }));
 
@@ -264,7 +264,7 @@ export default function DispatchPage() {
       toast.error('Please select an order');
       return;
     }
-    const hasItems = formData.items.some(item => parseInt(item.quantity_dozens) > 0);
+    const hasItems = formData.items.some(item => parseFloat(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
       return;
@@ -397,6 +397,7 @@ export default function DispatchPage() {
                                       <Input
                                         type="number"
                                         min="0"
+                                        step="0.01"
                                         max={item.available_qty}
                                         value={item.quantity_dozens}
                                         onChange={(e) => updateItem(index, 'quantity_dozens', e.target.value)}
