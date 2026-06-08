@@ -1,0 +1,134 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4404 >>
+stream
+BT /F2 17 Tf 54.00 779.89 Td (Sales Return - Procedure \(SOP\)) Tj ET
+BT /F1 10 Tf 54.00 761.39 Td (Purpose: How to record a customer sales return \(credit note\) in the ERP, what the) Tj ET
+BT /F1 10 Tf 54.00 746.89 Td (system posts to the accounts, and how to verify it afterwards.) Tj ET
+BT /F1 10 Tf 54.00 728.39 Td (Who does this: Accounts / Sales back-office.) Tj ET
+BT /F1 10 Tf 54.00 709.89 Td (Module: Sales > Sales Returns \(screen title: "Sales Returns / Credit Notes"\).) Tj ET
+BT /F2 12.5 Tf 54.00 681.39 Td (1. Before you start \(prerequisites\)) Tj ET
+BT /F1 10 Tf 54.00 666.89 Td (  - 1. The goods must have been DISPATCHED to the customer earlier - a sales) Tj ET
+BT /F1 10 Tf 54.00 652.39 Td (    return is always recorded against an existing Dispatch. If there is no) Tj ET
+BT /F1 10 Tf 54.00 637.89 Td (    dispatch, there is nothing to return.) Tj ET
+BT /F1 10 Tf 54.00 623.39 Td (  - 2. For the COST reversal to post automatically, the product should have a) Tj ET
+BT /F1 10 Tf 54.00 608.89 Td (    Standard Cost set in the product master. If not, the sale value is still) Tj ET
+BT /F1 10 Tf 54.00 594.39 Td (    reversed but the cost-of-goods part is skipped \(posts Rs. 0\).) Tj ET
+BT /F1 10 Tf 54.00 579.89 Td (  - 3. The customer must roll up to a Billing Customer \(the accounting customer\).) Tj ET
+BT /F1 10 Tf 54.00 565.39 Td (    If a ship-to customer has no billing customer set, the accounting entry is) Tj ET
+BT /F1 10 Tf 54.00 550.89 Td (    skipped - fix the customer record first.) Tj ET
+BT /F2 12.5 Tf 54.00 522.39 Td (2. Step-by-step: record a sales return) Tj ET
+BT /F1 10 Tf 54.00 507.89 Td (  - 1. Go to Sales > Sales Returns.) Tj ET
+BT /F1 10 Tf 54.00 493.39 Td (  - 2. Click New Return \(top-right\).) Tj ET
+BT /F1 10 Tf 54.00 478.89 Td (  - 3. Select the original Dispatch the goods are coming back from. The screen) Tj ET
+BT /F1 10 Tf 54.00 464.39 Td (    loads that dispatch's products, the dispatched quantity, and the unit price) Tj ET
+BT /F1 10 Tf 54.00 449.89 Td (    from the original order.) Tj ET
+BT /F1 10 Tf 54.00 435.39 Td (  - 4. Enter header details: Return Date \(defaults to today\); Reason \(Damaged /) Tj ET
+BT /F1 10 Tf 54.00 420.89 Td (    Quality issue / Wrong item / Excess delivery / Customer cancelled / Other\);) Tj ET
+BT /F1 10 Tf 54.00 406.39 Td (    Notes \(optional\).) Tj ET
+BT /F1 10 Tf 54.00 391.89 Td (  - 5. For each product line, enter the Return Quantity \(in dozens\). You cannot) Tj ET
+BT /F1 10 Tf 54.00 377.39 Td (    return more than was dispatched. Decimals are allowed \(e.g. 0.5\). A per-line) Tj ET
+BT /F1 10 Tf 54.00 362.89 Td (    reason is optional.) Tj ET
+BT /F1 10 Tf 54.00 348.39 Td (  - 6. Check the auto-calculated totals: Subtotal = Return Qty x Unit Price; COGS) Tj ET
+BT /F1 10 Tf 54.00 333.89 Td (    Total = Return Qty x Product Standard Cost.) Tj ET
+BT /F1 10 Tf 54.00 319.39 Td (  - 7. Click Save & Post. The return is numbered automatically as SRN-YYYYMM-NNNN) Tj ET
+BT /F1 10 Tf 54.00 304.89 Td (    \(e.g. SRN-202606-0007\). If auto-posting is enabled, the accounting voucher is) Tj ET
+BT /F1 10 Tf 54.00 290.39 Td (    created immediately.) Tj ET
+BT /F2 12.5 Tf 54.00 261.89 Td (3. What the system posts to the accounts) Tj ET
+BT /F1 10 Tf 54.00 243.39 Td (A sales return creates ONE balanced Journal Voucher with up to two parts:) Tj ET
+BT /F2 10 Tf 54.00 224.89 Td (A\) Sales / Receivable reversal \(always\):) Tj ET
+BT /F2 10 Tf 54.00 206.39 Td (Account                            | Debit              | Credit            ) Tj ET
+BT /F1 10 Tf 54.00 191.89 Td (-----------------------------------+--------------------+-------------------) Tj ET
+BT /F1 10 Tf 54.00 177.39 Td (Sales Returns \(4010\)               | Return sales value |                   ) Tj ET
+BT /F1 10 Tf 54.00 162.89 Td (Accounts Receivable - the customer |                    | Return sales value) Tj ET
+BT /F1 10 Tf 54.00 144.39 Td (This reduces the customer's outstanding balance and reduces net sales.) Tj ET
+BT /F2 10 Tf 54.00 125.89 Td (B\) Cost / Inventory reversal \(only if a Standard Cost exists\):) Tj ET
+BT /F2 10 Tf 54.00 107.39 Td (Account                   | Debit             | Credit           ) Tj ET
+BT /F1 10 Tf 54.00 92.89 Td (--------------------------+-------------------+------------------) Tj ET
+BT /F1 10 Tf 54.00 78.39 Td (Finished Goods Inventory  | Return cost value |                  ) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4399 >>
+stream
+BT /F1 10 Tf 54.00 785.89 Td (Cost of Goods Sold \(5100\) |                   | Return cost value) Tj ET
+BT /F1 10 Tf 54.00 767.39 Td (This puts the cost of the returned goods back into inventory value and reduces) Tj ET
+BT /F1 10 Tf 54.00 752.89 Td (COGS. The voucher narration records the customer, the return reference, and the) Tj ET
+BT /F1 10 Tf 54.00 738.39 Td (reason.) Tj ET
+BT /F2 12.5 Tf 54.00 709.89 Td (4. Important notes / limitations) Tj ET
+BT /F1 10 Tf 54.00 695.39 Td (  - PHYSICAL STOCK IS NOT AUTOMATICALLY INCREASED. The return posts the) Tj ET
+BT /F1 10 Tf 54.00 680.89 Td (    accounting entries \(value back into Finished Goods\) but does not change the) Tj ET
+BT /F1 10 Tf 54.00 666.39 Td (    physical stock count. If you track physical quantities, record the stock) Tj ET
+BT /F1 10 Tf 54.00 651.89 Td (    receipt of the returned goods separately in the inventory module.) Tj ET
+BT /F1 10 Tf 54.00 637.39 Td (  - No cost entry without a standard cost. If the product has no Standard Cost,) Tj ET
+BT /F1 10 Tf 54.00 622.89 Td (    only the sales/receivable side \(Part A\) posts; the cost side \(Part B\) is) Tj ET
+BT /F1 10 Tf 54.00 608.39 Td (    skipped.) Tj ET
+BT /F1 10 Tf 54.00 593.89 Td (  - Accounting auto-post can be off. If automatic posting is turned off, the) Tj ET
+BT /F1 10 Tf 54.00 579.39 Td (    return is saved but not posted. In that case post it from the accounting side) Tj ET
+BT /F1 10 Tf 54.00 564.89 Td (    \(Section 6\).) Tj ET
+BT /F2 12.5 Tf 54.00 536.39 Td (5. How to verify the return afterwards) Tj ET
+BT /F1 10 Tf 54.00 521.89 Td (  - Customer balance: Accounting > Party Ledger > select the customer. The return) Tj ET
+BT /F1 10 Tf 54.00 507.39 Td (    voucher appears and reduces their outstanding balance.) Tj ET
+BT /F1 10 Tf 54.00 492.89 Td (  - Sales Returns account: Accounting > General Ledger > select Sales Returns) Tj ET
+BT /F1 10 Tf 54.00 478.39 Td (    \(4010\) to see the debit.) Tj ET
+BT /F1 10 Tf 54.00 463.89 Td (  - Profit & Loss: the period's net revenue drops by the returned sales value) Tj ET
+BT /F1 10 Tf 54.00 449.39 Td (    \(and COGS by the returned cost\).) Tj ET
+BT /F1 10 Tf 54.00 434.89 Td (  - The return is listed on Sales > Sales Returns with its SRN- number and status) Tj ET
+BT /F1 10 Tf 54.00 420.39 Td (    Posted.) Tj ET
+BT /F2 12.5 Tf 54.00 391.89 Td (6. Alternative: direct entry from the Accounting module) Tj ET
+BT /F1 10 Tf 54.00 373.39 Td (If there is no specific dispatch to tie to \(e.g. a one-off adjustment\), use the) Tj ET
+BT /F1 10 Tf 54.00 358.89 Td (simpler ledger-only screen at Accounting > Sales Return:) Tj ET
+BT /F1 10 Tf 54.00 344.39 Td (  - 1. Select the Customer.) Tj ET
+BT /F1 10 Tf 54.00 329.89 Td (  - 2. Enter the Return Date.) Tj ET
+BT /F1 10 Tf 54.00 315.39 Td (  - 3. Enter the Sales Amount \(revenue to reverse\).) Tj ET
+BT /F1 10 Tf 54.00 300.89 Td (  - 4. Enter the COGS Amount \(cost to reverse\) - optional; leave 0 if not known.) Tj ET
+BT /F1 10 Tf 54.00 286.39 Td (  - 5. Add a Reference and Notes.) Tj ET
+BT /F1 10 Tf 54.00 271.89 Td (  - 6. Click Post Sales Return.) Tj ET
+BT /F1 10 Tf 54.00 253.39 Td (This posts the same entries as Section 3 but without dispatch/product-line) Tj ET
+BT /F1 10 Tf 54.00 238.89 Td (detail. Prefer Sales > Sales Returns whenever a dispatch exists.) Tj ET
+BT /F2 12.5 Tf 54.00 210.39 Td (7. Quick reference) Tj ET
+BT /F2 10 Tf 54.00 191.89 Td (Item            | Value                                                    ) Tj ET
+BT /F1 10 Tf 54.00 177.39 Td (----------------+----------------------------------------------------------) Tj ET
+BT /F1 10 Tf 54.00 162.89 Td (Screen          | Sales > Sales Returns                                    ) Tj ET
+BT /F1 10 Tf 54.00 148.39 Td (Document number | SRN-YYYYMM-NNNN \(auto\)                                   ) Tj ET
+BT /F1 10 Tf 54.00 133.89 Td (Quantity unit   | Dozens \(decimals allowed\)                                ) Tj ET
+BT /F1 10 Tf 54.00 119.39 Td (Sales reversal  | Dr Sales Returns 4010 / Cr Accounts Receivable \(customer\)) Tj ET
+BT /F1 10 Tf 54.00 104.89 Td (Cost reversal   | Dr Finished Goods / Cr COGS 5100 \(only if standard cost\) ) Tj ET
+BT /F1 10 Tf 54.00 90.39 Td (Physical stock  | Not updated automatically                                ) Tj ET
+BT /F1 10 Tf 54.00 75.89 Td (Statuses        | Draft > Posted > Cancelled                               ) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000216 00000 n 
+0000000316 00000 n 
+0000000458 00000 n 
+0000004913 00000 n 
+0000005055 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+9505
+%%EOF
