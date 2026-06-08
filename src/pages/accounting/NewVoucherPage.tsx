@@ -81,7 +81,7 @@ export default function NewVoucherPage() {
     queryFn: async () => {
       const { data, error } = await sb
         .from("accounting_chart_of_accounts")
-        .select("id, code, name, account_type, sub_category, is_cash_account, is_bank_account")
+        .select("id, code, name, account_type, sub_category, is_cash_account, is_bank_account, is_control_account")
         .eq("is_active", true)
         .order("code");
       if (error) throw error;
@@ -109,6 +109,9 @@ export default function NewVoucherPage() {
   const postableAccounts = useMemo(() => allAccounts.filter((a: any) => a.sub_category !== null), [allAccounts]);
   // For Cr in receipt vouchers / Dr in payment vouchers: any account except the primary cash/bank itself
   const otherSideAccounts = useMemo(() => postableAccounts.filter((a: any) => a.id !== primaryAccountId), [postableAccounts, primaryAccountId]);
+  // Control accounts (Accounts Payable / Receivable) only carry meaning against a
+  // specific party, so a line posting to one must name its vendor/customer.
+  const controlAccountIds = useMemo(() => new Set(allAccounts.filter((a: any) => a.is_control_account).map((a: any) => a.id)), [allAccounts]);
 
   // Auto-pick primary account for receipt/payment when accounts load
   useEffect(() => {
@@ -142,7 +145,10 @@ export default function NewVoucherPage() {
       // For receipts (CRV/BRV) the customer/party is mandatory — a payment must
       // never be recorded without identifying who it was received from.
       const partySelected = partyId !== "none" && !!partyId;
-      const valid = !!primaryAccountId && sum > 0 && (!isReceipt || partySelected) && secondaryLines.every((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
+      // Payment lines hitting a control account (e.g. Accounts Payable) must name
+      // the party — mirrors the customer requirement on receipts.
+      const controlLinesOk = isReceipt || secondaryLines.every((l) => !controlAccountIds.has(l.account_id) || !!l.party_id);
+      const valid = !!primaryAccountId && sum > 0 && (!isReceipt || partySelected) && controlLinesOk && secondaryLines.every((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
       return { totalDebit: sum, totalCredit: sum, isBalanced: valid, finalLines };
     }
     if (meta.mode === "contra") {
@@ -157,9 +163,11 @@ export default function NewVoucherPage() {
     const td = journalLines.reduce((s, l) => s + (Number(l.debit_amount) || 0), 0);
     const tc = journalLines.reduce((s, l) => s + (Number(l.credit_amount) || 0), 0);
     const filtered = journalLines.filter((l) => l.account_id && (Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0));
-    const valid = Math.abs(td - tc) < 0.01 && td > 0 && filtered.length >= 2;
+    // Lines on a control account (Accounts Payable / Receivable) must name a party.
+    const controlLinesOk = journalLines.every((l) => !(l.account_id && controlAccountIds.has(l.account_id)) || !!l.party_id);
+    const valid = Math.abs(td - tc) < 0.01 && td > 0 && filtered.length >= 2 && controlLinesOk;
     return { totalDebit: td, totalCredit: tc, isBalanced: valid, finalLines: filtered };
-  }, [meta.mode, primaryAccountId, secondaryLines, contraFromId, contraToId, contraAmount, journalLines, partyId]);
+  }, [meta.mode, primaryAccountId, secondaryLines, contraFromId, contraToId, contraAmount, journalLines, partyId, controlAccountIds]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -218,6 +226,11 @@ export default function NewVoucherPage() {
   };
 
   const accountName = (id: string) => allAccounts.find((a: any) => a.id === id)?.name || "—";
+
+  // Surface the specific reason a control-account line is blocking the post.
+  const controlPartyMissing =
+    (meta.mode === "payment" && secondaryLines.some((l) => controlAccountIds.has(l.account_id) && !l.party_id)) ||
+    (meta.mode === "journal" && journalLines.some((l) => l.account_id && controlAccountIds.has(l.account_id) && !l.party_id));
 
   return (
     <ERPLayout>
@@ -574,6 +587,12 @@ export default function NewVoucherPage() {
                   <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />No</Badge>
                 )}
               </div>
+
+              {controlPartyMissing && (
+                <div className="text-xs text-destructive">
+                  A line posts to a control account (Accounts Payable / Receivable). Select the <strong>Party</strong> on that line before posting.
+                </div>
+              )}
 
               <Button className="w-full" disabled={!isBalanced || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                 {saveMutation.isPending ? "Posting..." : `Post ${type}`}
