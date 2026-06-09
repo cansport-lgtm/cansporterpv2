@@ -66,6 +66,12 @@ interface NavItem {
   module?: string; // Module identifier for permission checking
   superAdminOnly?: boolean; // Only show for super_admin
   hasQuickAction?: boolean; // Show quick action button
+  // When true, the module renders as a prominent, brand-gradient "hero" button
+  // so it stands out in the sidebar for quick access (e.g. Accounting).
+  prominent?: boolean;
+  // For prominent items: clicking the main button navigates here directly
+  // (quick access), while the chevron still expands the submenu.
+  quickHref?: string;
   children?: NavChild[];
 }
 
@@ -92,6 +98,64 @@ const navigationItems: NavItem[] = [
       { title: "Item Master", href: "/planning/items" },
       { title: "Capacity Master", href: "/planning/capacity" },
       { title: "Skilled Labour", href: "/planning/skilled-labour" },
+    ],
+  },
+  // Accounting promoted to 3rd position with a prominent brand-gradient button
+  // for quick access. Clicking the main button jumps to the dashboard; the
+  // chevron expands the full submenu.
+  {
+    title: "Accounting",
+    icon: Receipt,
+    color: "text-teal-500",
+    module: "accounting",
+    prominent: true,
+    quickHref: "/accounting/dashboard",
+    children: [
+      { title: "Dashboard", href: "/accounting/dashboard" },
+
+      { title: "Masters", href: "", isHeader: true },
+      { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
+      { title: "Parties", href: "/accounting/parties" },
+      { title: "Default Accounts", href: "/accounting/default-accounts" },
+
+      { title: "Entries", href: "", isHeader: true },
+      { title: "New Voucher", href: "/accounting/vouchers/new" },
+      { title: "Customer Receipts", href: "/accounting/customer-receipts" },
+      { title: "Supplier Payments", href: "/accounting/supplier-payments" },
+      // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
+
+      { title: "Books", href: "", isHeader: true },
+      { title: "Day Book", href: "/accounting/day-book" },
+      { title: "Voucher Register", href: "/accounting/vouchers" },
+      { title: "Cash Book", href: "/accounting/cash-book" },
+      { title: "Bank Book", href: "/accounting/bank-book" },
+
+      { title: "Ledgers", href: "", isHeader: true },
+      { title: "General Ledger", href: "/accounting/general-ledger" },
+      { title: "Customer Ledger", href: "/accounting/party-ledger?type=customer" },
+      { title: "Vendor Ledger", href: "/accounting/party-ledger?type=supplier" },
+
+      { title: "Reports", href: "", isHeader: true },
+      { title: "Trial Balance", href: "/accounting/trial-balance" },
+      { title: "Profit & Loss", href: "/accounting/profit-loss" },
+      { title: "Balance Sheet", href: "/accounting/balance-sheet" },
+      { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
+      { title: "Sales Report", href: "/accounting/sales-report" },
+      { title: "Sales Analysis", href: "/accounting/sales-analysis" },
+
+      { title: "Reconciliation", href: "", isHeader: true },
+      { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
+      { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
+      { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
+      { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
+      { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
+      { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
+      { title: "COGS (Invoice-wise)", href: "/accounting/cogs" },
+
+      { title: "Period & Audit", href: "", isHeader: true },
+      { title: "Period Close", href: "/accounting/period-close" },
+      { title: "Audit Log", href: "/accounting/audit-log" },
+      { title: "Settings", href: "/accounting/settings", superAdminOnly: true },
     ],
   },
   {
@@ -405,61 +469,9 @@ const navigationItems: NavItem[] = [
   },
   // Legacy "Finance Reports" section removed — those pages query the empty
   // finance_* tables. All accounting data now flows through the new
-  // accounting_* schema and is surfaced under the Accounting module below.
+  // accounting_* schema and is surfaced under the Accounting module (now
+  // promoted near the top of the sidebar for quick access).
   // Routes are retained (in App.tsx) so any old bookmarks still resolve.
-  {
-    title: "Accounting",
-    icon: Receipt,
-    color: "text-teal-500",
-    module: "accounting",
-    children: [
-      { title: "Dashboard", href: "/accounting/dashboard" },
-
-      { title: "Masters", href: "", isHeader: true },
-      { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
-      { title: "Parties", href: "/accounting/parties" },
-      { title: "Default Accounts", href: "/accounting/default-accounts" },
-
-      { title: "Entries", href: "", isHeader: true },
-      { title: "New Voucher", href: "/accounting/vouchers/new" },
-      { title: "Customer Receipts", href: "/accounting/customer-receipts" },
-      { title: "Supplier Payments", href: "/accounting/supplier-payments" },
-      // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
-
-      { title: "Books", href: "", isHeader: true },
-      { title: "Day Book", href: "/accounting/day-book" },
-      { title: "Voucher Register", href: "/accounting/vouchers" },
-      { title: "Cash Book", href: "/accounting/cash-book" },
-      { title: "Bank Book", href: "/accounting/bank-book" },
-
-      { title: "Ledgers", href: "", isHeader: true },
-      { title: "General Ledger", href: "/accounting/general-ledger" },
-      { title: "Customer Ledger", href: "/accounting/party-ledger?type=customer" },
-      { title: "Vendor Ledger", href: "/accounting/party-ledger?type=supplier" },
-
-      { title: "Reports", href: "", isHeader: true },
-      { title: "Trial Balance", href: "/accounting/trial-balance" },
-      { title: "Profit & Loss", href: "/accounting/profit-loss" },
-      { title: "Balance Sheet", href: "/accounting/balance-sheet" },
-      { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
-      { title: "Sales Report", href: "/accounting/sales-report" },
-      { title: "Sales Analysis", href: "/accounting/sales-analysis" },
-
-      { title: "Reconciliation", href: "", isHeader: true },
-      { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
-      { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
-      { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
-      { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
-      { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
-      { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
-      { title: "COGS (Invoice-wise)", href: "/accounting/cogs" },
-
-      { title: "Period & Audit", href: "", isHeader: true },
-      { title: "Period Close", href: "/accounting/period-close" },
-      { title: "Audit Log", href: "/accounting/audit-log" },
-      { title: "Settings", href: "/accounting/settings", superAdminOnly: true },
-    ],
-  },
   {
     title: "Project Management",
     icon: FolderKanban,
@@ -781,35 +793,61 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
                       open={expandedItems.includes(item.title)}
                       onOpenChange={() => toggleExpanded(item.title)}
                     >
-                      <CollapsibleTrigger className="w-full">
-                        <div
-                          className={cn(
-                            "group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                            itemActive
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                          )}
-                        >
-                          {itemActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
-                          )}
-                          <div className="flex items-center gap-3">
-                            <item.icon
+                      {item.prominent ? (
+                        // Prominent "hero" split button: main area navigates
+                        // straight to the quick-access page; the chevron only
+                        // toggles the submenu.
+                        <div className="group relative flex items-center gap-1 rounded-xl bg-brand-gradient text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-md">
+                          <Link
+                            to={item.quickHref || item.children?.[0]?.href || "#"}
+                            className="flex flex-1 items-center gap-3 rounded-l-xl px-3 py-2.5 text-sm font-semibold"
+                          >
+                            <item.icon className="h-5 w-5 transition-transform group-hover:scale-110 text-primary-foreground" />
+                            {item.title}
+                          </Link>
+                          <CollapsibleTrigger
+                            aria-label={`Toggle ${item.title} menu`}
+                            className="flex items-center self-stretch rounded-r-xl px-2 hover:bg-primary-foreground/10"
+                          >
+                            <ChevronDown
                               className={cn(
-                                "h-5 w-5 transition-transform group-hover:scale-110",
-                                item.color,
+                                "h-4 w-4 transition-transform duration-300 text-primary-foreground/80",
+                                expandedItems.includes(item.title) && "rotate-180 text-primary-foreground"
                               )}
                             />
-                            {item.title}
-                          </div>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
-                              expandedItems.includes(item.title) && "rotate-180 text-sidebar-foreground"
-                            )}
-                          />
+                          </CollapsibleTrigger>
                         </div>
-                      </CollapsibleTrigger>
+                      ) : (
+                        <CollapsibleTrigger className="w-full">
+                          <div
+                            className={cn(
+                              "group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                              itemActive
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            )}
+                          >
+                            {itemActive && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
+                            )}
+                            <div className="flex items-center gap-3">
+                              <item.icon
+                                className={cn(
+                                  "h-5 w-5 transition-transform group-hover:scale-110",
+                                  item.color,
+                                )}
+                              />
+                              {item.title}
+                            </div>
+                            <ChevronDown
+                              className={cn(
+                                "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
+                                expandedItems.includes(item.title) && "rotate-180 text-sidebar-foreground"
+                              )}
+                            />
+                          </div>
+                        </CollapsibleTrigger>
+                      )}
                       <CollapsibleContent className="relative pl-7 ml-3.5 mt-1 mb-1 border-l border-sidebar-border/80 space-y-0.5">
                         {/* Quick Action Button for Floor Inventory */}
                         {item.hasQuickAction && item.title === "Floor Inventory" && (
