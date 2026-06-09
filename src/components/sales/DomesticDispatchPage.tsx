@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
 import { postCOGSForDispatch } from "@/lib/accounting/postCOGSForDispatch";
+import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -266,6 +267,16 @@ export default function DomesticDispatchPage() {
         } else if (!cogsResult.ok) {
           toast.error(`COGS auto-post failed: ${cogsResult.error}`);
         }
+
+        // Every dispatch must produce an invoice — create the draft invoice(s) now.
+        const invResult = await createInvoiceForDispatch(newDispatch.id, { createdBy: user?.id });
+        if (invResult.ok && invResult.created.length > 0) {
+          toast.success(`Invoice created: ${invResult.created.join(", ")}`);
+        } else if (!invResult.ok) {
+          toast.error(`Invoice auto-create failed: ${invResult.error}. Create it from the Invoices page.`);
+        }
+        queryClient.invalidateQueries({ queryKey: ["domestic-invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["invoiceable-dispatches"] });
       }
     },
     onError: (error: Error) => {
