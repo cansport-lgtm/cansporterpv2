@@ -278,9 +278,9 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
       toast.error('Code and Name are required');
       return;
     }
-    // A Billing Customer is required so every sale can post to Accounts Receivable.
-    // A standalone shop should select its own name (it bills itself).
-    if (!(formData.billing_customer || '').trim()) {
+    // Billing Customer is an accounting concept (drives Domestic A/R posting), so
+    // it is only required for the financial Domestic module — not export.
+    if (segment === 'domestic' && !(formData.billing_customer || '').trim()) {
       toast.error('Billing Customer is required. Pick the customer who is billed — or this customer\'s own name if it bills itself.');
       return;
     }
@@ -425,7 +425,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Billing Customer *</Label>
+                        <Label>Billing Customer{segment === 'domestic' ? ' *' : ''}</Label>
                         <Select
                           value={formData.billing_customer || ''}
                           onValueChange={(value) =>

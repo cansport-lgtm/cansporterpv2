@@ -21,7 +21,7 @@ export async function processSalesReturn(returnId: string): Promise<ProcessSales
   try {
     const { data: r, error: rErr } = await sb
       .from("sales_returns")
-      .select("id, return_date, return_number, customer_id, total_amount, cogs_amount, reason, notes, status, accounting_voucher_id")
+      .select("id, return_date, return_number, customer_id, dispatch_id, total_amount, cogs_amount, reason, notes, status, accounting_voucher_id")
       .eq("id", returnId)
       .single();
     if (rErr || !r) return { ok: false, error: rErr?.message || "Return not found" };
@@ -29,6 +29,20 @@ export async function processSalesReturn(returnId: string): Promise<ProcessSales
       return { ok: true, voucherId: r.accounting_voucher_id, skipped: "already_posted" };
     }
     if (!r.customer_id) return { ok: false, error: "Return has no customer" };
+
+    // Only the Domestic module is financial. Private-label / export sales never
+    // post AR/Sales/COGS, so their returns must not post a reversal either
+    // (mirrors postDispatchVoucher / postCOGSForDispatch self-gating).
+    if (r.dispatch_id) {
+      const { data: disp } = await sb
+        .from("sales_dispatches")
+        .select("sales_segment")
+        .eq("id", r.dispatch_id)
+        .maybeSingle();
+      if (disp?.sales_segment && disp.sales_segment !== "domestic") {
+        return { ok: true, skipped: "non_domestic" };
+      }
+    }
 
     // Resolve the customer's BILLING customer party (mirrors the dispatch
     // auto-post behavior so AR/return postings line up against the same party).
