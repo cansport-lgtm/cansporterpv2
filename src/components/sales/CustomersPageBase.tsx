@@ -178,8 +178,12 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
       .map(c => c.name);
     const current = (formData.billing_customer || '').trim();
     if (current && !names.includes(current)) names.push(current);
+    // Allow a customer to bill itself (its own name) — e.g. a standalone shop
+    // that is its own accounting customer.
+    const self = (formData.name || '').trim();
+    if (self && !names.includes(self)) names.push(self);
     return [...new Set(names)].sort();
-  }, [customers, formData.billing_customer]);
+  }, [customers, formData.billing_customer, formData.name]);
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -272,6 +276,12 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
     e.preventDefault();
     if (!formData.code || !formData.name) {
       toast.error('Code and Name are required');
+      return;
+    }
+    // A Billing Customer is required so every sale can post to Accounts Receivable.
+    // A standalone shop should select its own name (it bills itself).
+    if (!(formData.billing_customer || '').trim()) {
+      toast.error('Billing Customer is required. Pick the customer who is billed — or this customer\'s own name if it bills itself.');
       return;
     }
     saveMutation.mutate(formData);
@@ -415,21 +425,21 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Billing Customer</Label>
+                        <Label>Billing Customer *</Label>
                         <Select
-                          value={formData.billing_customer || 'none'}
-                          onValueChange={(value) => setFormData({ ...formData, billing_customer: value === 'none' ? '' : value })}
+                          value={formData.billing_customer || ''}
+                          onValueChange={(value) => setFormData({ ...formData, billing_customer: value })}
                         >
                           <SelectTrigger className="bg-background">
                             <SelectValue placeholder="Select billing customer" />
                           </SelectTrigger>
                           <SelectContent className="bg-background z-50">
-                            <SelectItem value="none">— None —</SelectItem>
                             {billingCustomerOptions.map((name) => (
                               <SelectItem key={name} value={name}>{name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this shop bills itself, pick its own name.</p>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">

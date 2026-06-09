@@ -144,7 +144,7 @@ export default function DomesticDispatchPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_orders')
-        .select(`id, order_number, shipping_address, customers(name, code)`)
+        .select(`id, order_number, shipping_address, customers(name, code, billing_customer)`)
         .eq('sales_segment', 'domestic')
         .in('status', ['confirmed', 'in_production', 'ready', 'partially_dispatched'])
         .order('order_date', { ascending: false });
@@ -508,6 +508,23 @@ export default function DomesticDispatchPage() {
     const hasItems = formData.items.some(item => parseFloat(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
+      return;
+    }
+    // A dispatch must be able to post to Accounts Receivable — block it if any
+    // selected order's customer has no Billing Customer set, otherwise the sale
+    // would silently miss the ledger.
+    const missingBilling = [...new Set(
+      selectedOrders
+        .map(id => pendingOrders?.find(o => o.id === id))
+        .filter(o => o && !(((o.customers as any)?.billing_customer || '').trim()))
+        .map(o => (o!.customers as any)?.name)
+        .filter(Boolean)
+    )];
+    if (missingBilling.length > 0) {
+      toast.error(
+        `Cannot dispatch: no Billing Customer set for ${missingBilling.join(', ')}. ` +
+        `Set it in Sales → Customers first so the sale posts to Accounts Receivable.`
+      );
       return;
     }
     saveMutation.mutate({ ...formData, selectedOrders });
