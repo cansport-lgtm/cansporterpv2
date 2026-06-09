@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { format, addDays } from "date-fns";
+import { syncInvoiceToLedger } from "@/lib/accounting/syncInvoiceToLedger";
 
 const sb = supabase as any;
 const PAYMENT_TERMS_OPTIONS = ["Net 7", "Net 15", "Net 30", "Net 45", "Net 60", "Advance", "Cash on Delivery"];
@@ -164,13 +165,24 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
         const { error: iErr } = await sb.from("domestic_invoice_items").insert(itemsPayload);
         if (iErr) throw iErr;
       }
+
+      // Invoice is the source of truth for the receivable — keep the dispatch's
+      // AR / Sales ledger voucher in step with the (possibly edited) invoice total.
+      const sync = await syncInvoiceToLedger(invoiceId);
+      return sync;
     },
-    onSuccess: () => {
+    onSuccess: (sync: any) => {
       queryClient.invalidateQueries({ queryKey: ["domestic-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-view-dialog"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-view-dialog-items"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-items-for-print"] });
-      toast({ title: "Invoice updated" });
+      if (sync?.updated) {
+        toast({ title: "Invoice updated", description: `Ledger synced: ${sync.updated.voucherNumber} → Rs. ${Number(sync.updated.to).toLocaleString()}` });
+      } else if (sync && !sync.ok) {
+        toast({ title: "Invoice saved, but ledger sync failed", description: sync.error, variant: "destructive" });
+      } else {
+        toast({ title: "Invoice updated" });
+      }
       onOpenChange(false);
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -212,7 +224,6 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                     <SelectItem value="sent">Sent</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -336,10 +347,10 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
             </div>
 
             {Math.abs(drift) > 0.01 && (
-              <div className="rounded border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
-                <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-600 shrink-0" />
+              <div className="rounded border border-blue-200 bg-blue-50 dark:bg-blue-950/20 p-2 text-xs flex items-start gap-2">
+                <AlertTriangle className="h-3 w-3 mt-0.5 text-blue-600 shrink-0" />
                 <div>
-                  <strong>Total differs from posted AR by Rs. {Math.abs(drift).toLocaleString()}.</strong> The accounting voucher was created at dispatch time at <span className="font-mono">Rs. {originalTotal.toLocaleString()}</span>. Save here only updates the customer-facing invoice — to keep accounting in sync, post a manual credit/debit note voucher for the difference.
+                  This invoice total (<span className="font-mono">Rs. {total.toLocaleString()}</span>) differs from the amount posted at dispatch (<span className="font-mono">Rs. {originalTotal.toLocaleString()}</span>). <strong>Saving will update the customer's Accounts Receivable / Sales ledger to match this invoice.</strong>
                 </div>
               </div>
             )}

@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
 import { postCOGSForDispatch } from "@/lib/accounting/postCOGSForDispatch";
+import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -143,7 +144,7 @@ export default function DomesticDispatchPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_orders')
-        .select(`id, order_number, shipping_address, customers(name, code)`)
+        .select(`id, order_number, shipping_address, customers(name, code, billing_customer)`)
         .eq('sales_segment', 'domestic')
         .in('status', ['confirmed', 'in_production', 'ready', 'partially_dispatched'])
         .order('order_date', { ascending: false });
@@ -266,6 +267,16 @@ export default function DomesticDispatchPage() {
         } else if (!cogsResult.ok) {
           toast.error(`COGS auto-post failed: ${cogsResult.error}`);
         }
+
+        // Every dispatch must produce an invoice — create the draft invoice(s) now.
+        const invResult = await createInvoiceForDispatch(newDispatch.id, { createdBy: user?.id });
+        if (invResult.ok && invResult.created.length > 0) {
+          toast.success(`Invoice created: ${invResult.created.join(", ")}`);
+        } else if (!invResult.ok) {
+          toast.error(`Invoice auto-create failed: ${invResult.error}. Create it from the Invoices page.`);
+        }
+        queryClient.invalidateQueries({ queryKey: ["domestic-invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["invoiceable-dispatches"] });
       }
     },
     onError: (error: Error) => {
@@ -497,6 +508,23 @@ export default function DomesticDispatchPage() {
     const hasItems = formData.items.some(item => parseFloat(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
+      return;
+    }
+    // A dispatch must be able to post to Accounts Receivable — block it if any
+    // selected order's customer has no Billing Customer set, otherwise the sale
+    // would silently miss the ledger.
+    const missingBilling = [...new Set(
+      selectedOrders
+        .map(id => pendingOrders?.find(o => o.id === id))
+        .filter(o => o && !(((o.customers as any)?.billing_customer || '').trim()))
+        .map(o => (o!.customers as any)?.name)
+        .filter(Boolean)
+    )];
+    if (missingBilling.length > 0) {
+      toast.error(
+        `Cannot dispatch: no Billing Customer set for ${missingBilling.join(', ')}. ` +
+        `Set it in Sales → Customers first so the sale posts to Accounts Receivable.`
+      );
       return;
     }
     saveMutation.mutate({ ...formData, selectedOrders });
