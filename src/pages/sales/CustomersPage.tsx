@@ -33,7 +33,6 @@ interface Customer {
   payment_terms: number | null;
   is_active: boolean;
   logo_url: string | null;
-  billing_customer?: string | null;
 }
 
 interface CustomerFormData {
@@ -49,7 +48,6 @@ interface CustomerFormData {
   credit_limit: string;
   payment_terms: string;
   is_active: boolean;
-  billing_customer: string;
 }
 
 const initialFormData: CustomerFormData = {
@@ -65,7 +63,6 @@ const initialFormData: CustomerFormData = {
   credit_limit: '',
   payment_terms: '30',
   is_active: true,
-  billing_customer: '',
 };
 
 export default function CustomersPage() {
@@ -119,17 +116,6 @@ export default function CustomersPage() {
     return [...new Set(allAreas)].sort() as string[];
   }, [customers]);
 
-  // Billing customer options: existing active customers + the customer's own
-  // name (so a shop that bills itself can be selected).
-  const billingCustomerOptions = useMemo(() => {
-    const names = (customers || []).filter(c => c.is_active && c.name).map(c => c.name);
-    const current = (formData.billing_customer || '').trim();
-    if (current && !names.includes(current)) names.push(current);
-    const self = (formData.name || '').trim();
-    if (self && !names.includes(self)) names.push(self);
-    return [...new Set(names)].sort();
-  }, [customers, formData.billing_customer, formData.name]);
-
   // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (data: CustomerFormData) => {
@@ -146,7 +132,6 @@ export default function CustomersPage() {
         credit_limit: data.credit_limit ? parseFloat(data.credit_limit) : null,
         payment_terms: data.payment_terms ? parseInt(data.payment_terms) : null,
         is_active: data.is_active,
-        billing_customer: data.billing_customer || null,
       };
 
       if (editingCustomer) {
@@ -254,7 +239,6 @@ export default function CustomersPage() {
       credit_limit: customer.credit_limit?.toString() || '',
       payment_terms: customer.payment_terms?.toString() || '30',
       is_active: customer.is_active ?? true,
-      billing_customer: (customer as any).billing_customer || '',
     });
     setIsDialogOpen(true);
   };
@@ -263,10 +247,6 @@ export default function CustomersPage() {
     e.preventDefault();
     if (!formData.code || !formData.name) {
       toast.error('Code and Name are required');
-      return;
-    }
-    if (!(formData.billing_customer || '').trim()) {
-      toast.error('Billing Customer is required. Pick the customer who is billed — or this customer\'s own name if it bills itself.');
       return;
     }
     saveMutation.mutate(formData);
@@ -412,29 +392,6 @@ export default function CustomersPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Billing Customer *</Label>
-                        <Select
-                          value={formData.billing_customer || ''}
-                          onValueChange={(value) =>
-                            setFormData({ ...formData, billing_customer: value === '__self__' ? (formData.name || '').trim() : value })
-                          }
-                        >
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select billing customer" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-background z-50">
-                            {(formData.name || '').trim() && (
-                              <SelectItem value="__self__">Same as this customer (self-billing)</SelectItem>
-                            )}
-                            {billingCustomerOptions.map((name) => (
-                              <SelectItem key={name} value={name}>{name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this shop pays its own bills, choose "Same as this customer".</p>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">

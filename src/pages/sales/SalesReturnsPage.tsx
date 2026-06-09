@@ -95,6 +95,7 @@ export default function SalesReturnsPage() {
             )
           )
         `)
+        .eq("sales_segment", "domestic")
         .order("dispatch_date", { ascending: false })
         .limit(200);
       if (error) throw error;
