@@ -428,18 +428,26 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                         <Label>Billing Customer *</Label>
                         <Select
                           value={formData.billing_customer || ''}
-                          onValueChange={(value) => setFormData({ ...formData, billing_customer: value })}
+                          onValueChange={(value) =>
+                            setFormData({
+                              ...formData,
+                              billing_customer: value === '__self__' ? (formData.name || '').trim() : value,
+                            })
+                          }
                         >
                           <SelectTrigger className="bg-background">
                             <SelectValue placeholder="Select billing customer" />
                           </SelectTrigger>
                           <SelectContent className="bg-background z-50">
+                            {(formData.name || '').trim() && (
+                              <SelectItem value="__self__">Same as this customer (self-billing)</SelectItem>
+                            )}
                             {billingCustomerOptions.map((name) => (
                               <SelectItem key={name} value={name}>{name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this shop bills itself, pick its own name.</p>
+                        <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this shop pays its own bills, choose "Same as this customer".</p>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
