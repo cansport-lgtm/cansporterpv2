@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager';
 }
 
 // Define which modules each special role can access
@@ -355,6 +355,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Floor incharge cannot approve any data (hard restriction)
     if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
+      return false;
+    }
+
+    // Purchase officer cannot approve purchase orders — approval is reserved for
+    // purchase_manager (separation of duties), unless the user also holds that role.
+    if (
+      permission === 'approve' &&
+      module === 'purchase' &&
+      roles.some(r => r.role === 'purchase_officer') &&
+      !roles.some(r => r.role === 'purchase_manager')
+    ) {
       return false;
     }
 

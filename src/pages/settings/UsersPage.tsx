@@ -49,6 +49,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, UserCog, Copy, KeyRound, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +64,60 @@ interface UserWithRoles extends AppUser {
 }
 
 const DEFAULT_PERMISSIONS: ModulePermission[] = [];
+
+const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
+  { value: "super_admin", label: "Super Admin" },
+  { value: "admin", label: "Admin" },
+  { value: "billing_officer", label: "Billing Officer (Sales + Purchase invoicing)" },
+  { value: "purchase_officer", label: "Purchase Officer (create POs)" },
+  { value: "purchase_manager", label: "Purchase Manager (approve POs)" },
+  { value: "accounting_poster", label: "Accounting — Poster (entries only)" },
+  { value: "accounting_officer", label: "Accounting — Officer (no P&L / Balance Sheet)" },
+  { value: "accounting_manager", label: "Accounting — Manager (full + approve)" },
+  { value: "operational_manager", label: "Operational Manager" },
+  { value: "qa_manager", label: "QA Manager" },
+  { value: "maintenance_manager", label: "Maintenance Manager" },
+  { value: "sales_executive", label: "Sales Executive" },
+  { value: "order_management", label: "Order Management" },
+  { value: "floor_incharge", label: "Floor Incharge" },
+  { value: "private_label_distributor", label: "Private Label Distributor" },
+  { value: "pettycash_handler", label: "Pettycash Handler" },
+  { value: "store_operator", label: "Store Operator" },
+  { value: "online_sales_packing", label: "Online Sales Packing" },
+  { value: "manager", label: "Manager" },
+  { value: "supervisor", label: "Supervisor" },
+  { value: "operator", label: "Operator" },
+  { value: "viewer", label: "Viewer" },
+];
+
+function RolesCheckboxGroup({
+  selected,
+  onChange,
+}: {
+  selected: AppRole[];
+  onChange: (roles: AppRole[]) => void;
+}) {
+  const toggle = (role: AppRole, checked: boolean) => {
+    if (checked) onChange([...selected, role]);
+    else onChange(selected.filter((r) => r !== role));
+  };
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border p-3">
+      {ROLE_OPTIONS.map((opt) => (
+        <label
+          key={opt.value}
+          className="flex items-center gap-2 text-sm cursor-pointer"
+        >
+          <Checkbox
+            checked={selected.includes(opt.value)}
+            onCheckedChange={(c) => toggle(opt.value, c === true)}
+          />
+          {opt.label}
+        </label>
+      ))}
+    </div>
+  );
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserWithRoles[]>([]);
@@ -84,13 +139,13 @@ export default function UsersPage() {
     full_name: "",
     password: "",
     designation: "",
-    role: "viewer" as AppRole,
+    roles: ["viewer"] as AppRole[],
   });
   const [editUser, setEditUser] = useState({
     full_name: "",
     designation: "",
     is_active: true,
-    role: "viewer" as AppRole,
+    roles: ["viewer"] as AppRole[],
   });
   const { toast } = useToast();
 
@@ -136,6 +191,14 @@ export default function UsersPage() {
   }, []);
 
   const handleCreateUser = async () => {
+    if (newUser.roles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one role",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       // Create user using the RPC function
       const { data, error } = await supabase.rpc("create_app_user", {
@@ -149,11 +212,10 @@ export default function UsersPage() {
 
       const userId = data;
 
-      // Add role
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: newUser.role,
-      });
+      // Add roles
+      const { error: roleError } = await supabase.from("user_roles").insert(
+        newUser.roles.map((role) => ({ user_id: userId, role }))
+      );
 
       if (roleError) throw roleError;
 
@@ -188,7 +250,7 @@ export default function UsersPage() {
         full_name: "",
         password: "",
         designation: "",
-        role: "viewer",
+        roles: ["viewer"],
       });
       setNewUserPermissions([]);
       fetchUsers();
@@ -234,6 +296,15 @@ export default function UsersPage() {
   const handleEditUser = async () => {
     if (!selectedUser) return;
 
+    if (editUser.roles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one role",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       // Update user details
       const { error: userError } = await supabase
@@ -247,7 +318,7 @@ export default function UsersPage() {
 
       if (userError) throw userError;
 
-      // Update role - first delete existing roles, then add new one
+      // Update roles - first delete existing roles, then add the selected ones
       const { error: deleteRoleError } = await supabase
         .from("user_roles")
         .delete()
@@ -255,10 +326,9 @@ export default function UsersPage() {
 
       if (deleteRoleError) throw deleteRoleError;
 
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: selectedUser.id,
-        role: editUser.role,
-      });
+      const { error: roleError } = await supabase.from("user_roles").insert(
+        editUser.roles.map((role) => ({ user_id: selectedUser.id, role }))
+      );
 
       if (roleError) throw roleError;
 
@@ -352,7 +422,7 @@ export default function UsersPage() {
       full_name: user.full_name,
       designation: user.designation || "",
       is_active: user.is_active ?? true,
-      role: user.roles[0] || "viewer",
+      roles: user.roles.length > 0 ? user.roles : ["viewer"],
     });
 
     // Fetch existing module permissions
@@ -420,6 +490,9 @@ export default function UsersPage() {
       accounting_poster: "bg-teal-500/10 text-teal-500",
       accounting_officer: "bg-cyan-500/10 text-cyan-500",
       accounting_manager: "bg-emerald-500/10 text-emerald-500",
+      billing_officer: "bg-fuchsia-500/10 text-fuchsia-500",
+      purchase_officer: "bg-teal-600/10 text-teal-600",
+      purchase_manager: "bg-blue-700/10 text-blue-700",
     };
     return colors[role] || "";
   };
@@ -602,38 +675,11 @@ export default function UsersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="role_mobile">Role</Label>
-                    <Select
-                      value={newUser.role}
-                      onValueChange={(value: AppRole) =>
-                        setNewUser({ ...newUser, role: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="operational_manager">Operational Manager</SelectItem>
-                        <SelectItem value="qa_manager">QA Manager</SelectItem>
-                        <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>
-                        <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                        <SelectItem value="order_management">Order Management</SelectItem>
-                        <SelectItem value="floor_incharge">Floor Incharge</SelectItem>
-                        <SelectItem value="private_label_distributor">Private Label Distributor</SelectItem>
-                        <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
-                        <SelectItem value="store_operator">Store Operator</SelectItem>
-                        <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
-                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
-                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
-                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="role_mobile">Roles</Label>
+                    <RolesCheckboxGroup
+                      selected={newUser.roles}
+                      onChange={(roles) => setNewUser({ ...newUser, roles })}
+                    />
                   </div>
                   <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="permissions">
@@ -726,38 +772,11 @@ export default function UsersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select
-                      value={newUser.role}
-                      onValueChange={(value: AppRole) =>
-                        setNewUser({ ...newUser, role: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="operational_manager">Operational Manager</SelectItem>
-                        <SelectItem value="qa_manager">QA Manager</SelectItem>
-                        <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>
-                        <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                        <SelectItem value="order_management">Order Management</SelectItem>
-                        <SelectItem value="floor_incharge">Floor Incharge</SelectItem>
-                        <SelectItem value="private_label_distributor">Private Label Distributor</SelectItem>
-                        <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
-                        <SelectItem value="store_operator">Store Operator</SelectItem>
-                        <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
-                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
-                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
-                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="role">Roles</Label>
+                    <RolesCheckboxGroup
+                      selected={newUser.roles}
+                      onChange={(roles) => setNewUser({ ...newUser, roles })}
+                    />
                   </div>
                   <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="permissions">
@@ -871,38 +890,11 @@ export default function UsersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_role_mobile">Role</Label>
-                    <Select
-                      value={editUser.role}
-                      onValueChange={(value: AppRole) =>
-                        setEditUser({ ...editUser, role: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="operational_manager">Operational Manager</SelectItem>
-                        <SelectItem value="qa_manager">QA Manager</SelectItem>
-                        <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>
-                        <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                        <SelectItem value="order_management">Order Management</SelectItem>
-                        <SelectItem value="floor_incharge">Floor Incharge</SelectItem>
-                        <SelectItem value="private_label_distributor">Private Label Distributor</SelectItem>
-                        <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
-                        <SelectItem value="store_operator">Store Operator</SelectItem>
-                        <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
-                        <SelectItem value="accounting_poster">Accounting — Poster (entries only)</SelectItem>
-                        <SelectItem value="accounting_officer">Accounting — Officer (no P&L / Balance Sheet)</SelectItem>
-                        <SelectItem value="accounting_manager">Accounting — Manager (full + approve)</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="edit_role_mobile">Roles</Label>
+                    <RolesCheckboxGroup
+                      selected={editUser.roles}
+                      onChange={(roles) => setEditUser({ ...editUser, roles })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit_status_mobile">Status</Label>
@@ -977,35 +969,11 @@ export default function UsersPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_role">Role</Label>
-                  <Select
-                    value={editUser.role}
-                    onValueChange={(value: AppRole) =>
-                      setEditUser({ ...editUser, role: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="super_admin">Super Admin</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="operational_manager">Operational Manager</SelectItem>
-                      <SelectItem value="qa_manager">QA Manager</SelectItem>
-                      <SelectItem value="maintenance_manager">Maintenance Manager</SelectItem>
-                      <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                      <SelectItem value="order_management">Order Management</SelectItem>
-                      <SelectItem value="floor_incharge">Floor Incharge</SelectItem>
-                      <SelectItem value="private_label_distributor">Private Label Distributor</SelectItem>
-                      <SelectItem value="pettycash_handler">Pettycash Handler</SelectItem>
-                      <SelectItem value="store_operator">Store Operator</SelectItem>
-                      <SelectItem value="online_sales_packing">Online Sales Packing</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="operator">Operator</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="edit_role">Roles</Label>
+                  <RolesCheckboxGroup
+                    selected={editUser.roles}
+                    onChange={(roles) => setEditUser({ ...editUser, roles })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit_status">Status</Label>
