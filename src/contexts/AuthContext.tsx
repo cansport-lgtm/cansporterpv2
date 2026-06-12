@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_officer' | 'purchase_officer' | 'purchase_manager';
 }
 
 // Define which modules each special role can access
@@ -23,7 +23,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   operator: ['qa', 'dashboard'], // Operators need QA access for inspections
   sales_executive: ['sales'], // Sales executives access sales module only
   order_management: ['production'], // Order management: production orders only
-  floor_incharge: ['labour'], // Floor incharge: labour productivity entry only
+  floor_incharge: ['labour', 'hourly_production', 'machine_monitor'], // Floor incharge: labour + optional hourly production & machine monitor (when authorized by super admin)
   private_label_distributor: ['sales'], // Private label distributors: sales module (view-only) only
   pettycash_handler: ['expenses'], // Petty cash handler: petty cash page only
   store_operator: ['material_consumption'], // Store operator: stock closing page only
@@ -34,7 +34,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
 // Define specific route restrictions for roles (only these exact routes are allowed)
 const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   order_management: ['/production/orders'], // Can ONLY access production orders page
-  floor_incharge: ['/labour/entry', '/labour/todays-target'], // Can access labour productivity entry and today's target pages
+  floor_incharge: ['/labour/entry', '/labour/todays-target', '/hourly-production', '/machine-monitor'], // Labour entry + optional hourly production & machine monitor pages
   private_label_distributor: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/visit-dashboard'], // Private Label Sales view-only (all pages)
   pettycash_handler: ['/expenses/petty-cash'], // Petty cash handler: petty cash page only
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
@@ -295,6 +295,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const hardRestrictedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
     const hasFlexibleRole = roles.some((r) => !HARD_RESTRICTED_MODULE_ROLES.has(r.role));
 
+    // Allow Super Admin to grant/revoke hourly_production & machine_monitor via module_permissions,
+    // even for hard-restricted roles like floor_incharge.
+    if ((mod === 'hourly_production' || mod === 'machine_monitor')) {
+      const perm = modulePermissions.find((p) => p.module_name === mod);
+      if (perm?.can_view) return true;
+      // If no explicit permission, fall through to role-based defaults below.
+    }
+
     // If the user only has hard-restricted roles, allow the union of those role modules.
     // If they also have a flexible role, fall back to assigned module permissions instead.
     if (hardRestrictedRoles.length > 0 && !hasFlexibleRole) {
@@ -318,6 +326,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Floor incharge cannot approve any data (hard restriction)
     if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
+      return false;
+    }
+
+    // Purchase officer cannot approve purchase orders — approval is reserved for
+    // purchase_manager (separation of duties), unless the user also holds that role.
+    if (
+      permission === 'approve' &&
+      module === 'purchase' &&
+      roles.some(r => r.role === 'purchase_officer') &&
+      !roles.some(r => r.role === 'purchase_manager')
+    ) {
       return false;
     }
 
@@ -381,6 +400,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If the user has any unrestricted role, don't let a secondary restricted role hide valid pages.
     if (hasFlexibleRole) {
       return true;
+    }
+
+    // Allow hourly_production / machine_monitor routes when the user has been granted
+    // module view permission, even if their role is otherwise route-restricted.
+    if (route.startsWith('/hourly-production') || route === '/hourly-production') {
+      const perm = modulePermissions.find((p) => p.module_name === 'hourly_production');
+      if (perm?.can_view) return true;
+    }
+    if (route.startsWith('/machine-monitor') || route === '/machine-monitor') {
+      const perm = modulePermissions.find((p) => p.module_name === 'machine_monitor');
+      if (perm?.can_view) return true;
     }
 
     // Users with only restricted roles can access the union of their explicitly allowed routes.

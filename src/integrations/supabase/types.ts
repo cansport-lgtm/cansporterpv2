@@ -11213,6 +11213,9 @@ export type Database = {
         | "store_operator"
         | "project_manager"
         | "online_sales_packing"
+        | "accounting_officer"
+        | "purchase_officer"
+        | "purchase_manager"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -11398,6 +11401,9 @@ export const Constants = {
         "store_operator",
         "project_manager",
         "online_sales_packing",
+        "accounting_officer",
+        "purchase_officer",
+        "purchase_manager",
       ],
       asset_category: [
         "office_assets",
