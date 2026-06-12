@@ -31,6 +31,9 @@ const roleDescriptions: Record<AppRole, string> = {
   accounting_poster: "Accounting – post vouchers/receipts/payments and review books & ledgers; no financial reports",
   accounting_officer: "Accounting – full access except Profit & Loss and Balance Sheet",
   accounting_manager: "Accounting – full access to all entries and reports, including approve",
+  billing_officer: "Sales & Purchase invoicing – access to Sales and Purchase modules (permission-driven)",
+  purchase_officer: "Creates purchase orders – cannot approve (approval reserved for Purchase Manager)",
+  purchase_manager: "Approves purchase orders raised by Purchase Officers",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -54,6 +57,9 @@ const roleColors: Record<AppRole, string> = {
   accounting_poster: "bg-teal-500/10 text-teal-500 border-teal-500/20",
   accounting_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
   accounting_manager: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  billing_officer: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
+  purchase_officer: "bg-teal-600/10 text-teal-600 border-teal-600/20",
+  purchase_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
 };
 
 export default function RolesPage() {
@@ -78,6 +84,9 @@ export default function RolesPage() {
     accounting_poster: 0,
     accounting_officer: 0,
     accounting_manager: 0,
+    billing_officer: 0,
+    purchase_officer: 0,
+    purchase_manager: 0,
   });
 
   useEffect(() => {
@@ -94,7 +103,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "accounting_poster", "accounting_officer", "accounting_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
