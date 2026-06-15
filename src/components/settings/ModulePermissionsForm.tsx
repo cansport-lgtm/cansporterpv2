@@ -20,6 +20,7 @@ const MODULES = [
   { key: "production", label: "Production" },
   { key: "planning", label: "Production Planning" },
   { key: "qa", label: "Quality Assurance" },
+  { key: "rejections_wastages", label: "Rejections & Wastages" },
   { key: "hr", label: "Human Resources" },
   { key: "performance", label: "Performance" },
   { key: "maintenance", label: "Maintenance" },

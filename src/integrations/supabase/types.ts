@@ -9784,6 +9784,318 @@ export type Database = {
           },
         ]
       }
+      rw_dispositions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          name_urdu: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          name_urdu?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          name_urdu?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rw_leakages: {
+        Row: {
+          created_at: string | null
+          department_id: string | null
+          disposition_id: string | null
+          entered_at: string | null
+          entered_by: string | null
+          entry_date: string
+          id: string
+          leaked_qty: number
+          material_id: string | null
+          process_id: string | null
+          reason_id: string | null
+          remarks: string | null
+          shift: string | null
+          total_cost: number | null
+          unit: string | null
+          unit_cost: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          department_id?: string | null
+          disposition_id?: string | null
+          entered_at?: string | null
+          entered_by?: string | null
+          entry_date: string
+          id?: string
+          leaked_qty?: number
+          material_id?: string | null
+          process_id?: string | null
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string | null
+          total_cost?: number | null
+          unit?: string | null
+          unit_cost?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          department_id?: string | null
+          disposition_id?: string | null
+          entered_at?: string | null
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          leaked_qty?: number
+          material_id?: string | null
+          process_id?: string | null
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string | null
+          total_cost?: number | null
+          unit?: string | null
+          unit_cost?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      rw_materials: {
+        Row: {
+          created_at: string
+          hp_material_id: string
+          id: string
+          is_active: boolean
+          unit: string
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hp_material_id: string
+          id?: string
+          is_active?: boolean
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hp_material_id?: string
+          id?: string
+          is_active?: boolean
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rw_reasons: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rw_rejections: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          disposition: string
+          disposition_id: string | null
+          entered_at: string
+          entered_by: string | null
+          entry_date: string
+          id: string
+          material_id: string | null
+          process_id: string | null
+          product_id: string | null
+          reason_id: string | null
+          rejected_qty: number
+          remarks: string | null
+          rework_completed_at: string | null
+          rework_qty: number
+          rework_status: string | null
+          shift: string | null
+          sub_department_id: string | null
+          total_cost: number
+          unit: string | null
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          disposition?: string
+          disposition_id?: string | null
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          material_id?: string | null
+          process_id?: string | null
+          product_id?: string | null
+          reason_id?: string | null
+          rejected_qty?: number
+          remarks?: string | null
+          rework_completed_at?: string | null
+          rework_qty?: number
+          rework_status?: string | null
+          shift?: string | null
+          sub_department_id?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          disposition?: string
+          disposition_id?: string | null
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          material_id?: string | null
+          process_id?: string | null
+          product_id?: string | null
+          reason_id?: string | null
+          rejected_qty?: number
+          remarks?: string | null
+          rework_completed_at?: string | null
+          rework_qty?: number
+          rework_status?: string | null
+          shift?: string | null
+          sub_department_id?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rw_units: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rw_wastages: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          disposition_id: string | null
+          entered_at: string
+          entered_by: string | null
+          entry_date: string
+          id: string
+          material_id: string | null
+          reason_id: string | null
+          remarks: string | null
+          shift: string | null
+          total_cost: number
+          unit: string | null
+          unit_cost: number
+          updated_at: string
+          wasted_qty: number
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          disposition_id?: string | null
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          material_id?: string | null
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+          updated_at?: string
+          wasted_qty?: number
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          disposition_id?: string | null
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          material_id?: string | null
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string | null
+          total_cost?: number
+          unit?: string | null
+          unit_cost?: number
+          updated_at?: string
+          wasted_qty?: number
+        }
+        Relationships: []
+      }
       salary_locks: {
         Row: {
           id: string

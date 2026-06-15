@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Factory,
+  AlertOctagon,
   Clock,
   ClipboardCheck,
   Users,
@@ -175,6 +176,22 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/production/dashboard" },
       { title: "Target Dashboard", href: "/production/target-dashboard" },
       { title: "MPH Master", href: "/production/mph-master", superAdminOnly: true },
+    ],
+  },
+  {
+    title: "Rejections & Wastages",
+    icon: AlertOctagon,
+    color: "text-amber-400",
+    module: "rejections_wastages",
+    children: [
+      { title: "Dashboard", href: "/rejections/dashboard" },
+      { title: "New Entry", href: "/rejections/entry", highlight: true },
+      { title: "Rework Tracking", href: "/rejections/rework" },
+      { title: "Analytics", href: "/rejections/analytics" },
+      { title: "Reasons Master", href: "/rejections/reasons", superAdminOnly: true },
+      { title: "Units Master", href: "/rejections/units", superAdminOnly: true },
+      { title: "Dispositions Master", href: "/rejections/dispositions", superAdminOnly: true },
+      { title: "Materials Master", href: "/rejections/materials", superAdminOnly: true },
     ],
   },
   {
