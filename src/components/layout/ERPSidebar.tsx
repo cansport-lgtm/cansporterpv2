@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Monitor,
   Headphones,
+  Workflow,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -192,6 +193,19 @@ const navigationItems: NavItem[] = [
       { title: "Units Master", href: "/rejections/units", superAdminOnly: true },
       { title: "Dispositions Master", href: "/rejections/dispositions", superAdminOnly: true },
       { title: "Materials Master", href: "/rejections/materials", superAdminOnly: true },
+    ],
+  },
+  {
+    title: "WIP Management",
+    icon: Workflow,
+    color: "text-amber-400",
+    module: "wip_management",
+    children: [
+      { title: "WIP Monitor", href: "/wip/dashboard", highlight: true },
+      { title: "Stock Hold Entry", href: "/wip/entries" },
+      { title: "Stages Master", href: "/wip/stages" },
+      { title: "Stage Thresholds", href: "/wip/thresholds" },
+      { title: "Flow Analysis", href: "/wip/flow" },
     ],
   },
   {
