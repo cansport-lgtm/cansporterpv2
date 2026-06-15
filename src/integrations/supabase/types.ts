@@ -10140,6 +10140,285 @@ export type Database = {
           },
         ]
       }
+      sales_areas: {
+        Row: {
+          city_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          city_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          city_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_cities: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_customer_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_fuel_payouts: {
+        Row: {
+          created_at: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          payout_number: string | null
+          remarks: string | null
+          status: string
+          total_amount: number
+          total_km: number
+          total_litres: number
+          updated_at: string
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payout_number?: string | null
+          remarks?: string | null
+          status?: string
+          total_amount?: number
+          total_km?: number
+          total_litres?: number
+          updated_at?: string
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payout_number?: string | null
+          remarks?: string | null
+          status?: string
+          total_amount?: number
+          total_km?: number
+          total_litres?: number
+          updated_at?: string
+          user_id?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
+      sales_fuel_prices: {
+        Row: {
+          created_at: string
+          effective_date: string
+          id: string
+          price_per_litre: number
+          remarks: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          effective_date: string
+          id?: string
+          price_per_litre: number
+          remarks?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          effective_date?: string
+          id?: string
+          price_per_litre?: number
+          remarks?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_fuel_trips: {
+        Row: {
+          amount: number | null
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          end_odometer: number
+          from_location: string | null
+          fuel_price_snapshot: number | null
+          id: string
+          km: number | null
+          litres: number | null
+          mileage_kmpl_snapshot: number | null
+          payout_id: string | null
+          purpose: string | null
+          rejected_reason: string | null
+          remarks: string | null
+          start_odometer: number
+          status: string
+          to_location: string | null
+          trip_date: string
+          updated_at: string
+          user_id: string
+          vehicle_id: string | null
+          visit_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          end_odometer?: number
+          from_location?: string | null
+          fuel_price_snapshot?: number | null
+          id?: string
+          km?: number | null
+          litres?: number | null
+          mileage_kmpl_snapshot?: number | null
+          payout_id?: string | null
+          purpose?: string | null
+          rejected_reason?: string | null
+          remarks?: string | null
+          start_odometer?: number
+          status?: string
+          to_location?: string | null
+          trip_date?: string
+          updated_at?: string
+          user_id: string
+          vehicle_id?: string | null
+          visit_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          end_odometer?: number
+          from_location?: string | null
+          fuel_price_snapshot?: number | null
+          id?: string
+          km?: number | null
+          litres?: number | null
+          mileage_kmpl_snapshot?: number | null
+          payout_id?: string | null
+          purpose?: string | null
+          rejected_reason?: string | null
+          remarks?: string | null
+          start_odometer?: number
+          status?: string
+          to_location?: string | null
+          trip_date?: string
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string | null
+          visit_id?: string | null
+        }
+        Relationships: []
+      }
+      sales_fuel_vehicles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          mileage_kmpl: number
+          registration_no: string | null
+          remarks: string | null
+          updated_at: string
+          user_id: string
+          vehicle_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mileage_kmpl?: number
+          registration_no?: string | null
+          remarks?: string | null
+          updated_at?: string
+          user_id: string
+          vehicle_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mileage_kmpl?: number
+          registration_no?: string | null
+          remarks?: string | null
+          updated_at?: string
+          user_id?: string
+          vehicle_type?: string
+        }
+        Relationships: []
+      }
       sales_dispatch_items: {
         Row: {
           created_at: string | null
