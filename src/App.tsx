@@ -347,6 +347,12 @@ import RWUnitsMasterPage from "./pages/rejections/RWUnitsMasterPage";
 import RWDispositionsMasterPage from "./pages/rejections/RWDispositionsMasterPage";
 import RWMaterialsMasterPage from "./pages/rejections/RWMaterialsMasterPage";
 import RejectionsAnalyticsPage from "./pages/rejections/RejectionsAnalyticsPage";
+// WIP Management pages
+import WIPMonitorDashboard from "./pages/wip/WIPMonitorDashboard";
+import WIPStockEntryPage from "./pages/wip/WIPStockEntryPage";
+import WIPStagesPage from "./pages/wip/WIPStagesPage";
+import WIPThresholdsPage from "./pages/wip/WIPThresholdsPage";
+import WIPFlowAnalysisPage from "./pages/wip/WIPFlowAnalysisPage";
 
 const queryClient = new QueryClient();
 
@@ -761,6 +767,13 @@ const App = () => (
             <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/materials" element={<ProtectedRoute><RWMaterialsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/analytics" element={<ProtectedRoute><RejectionsAnalyticsPage /></ProtectedRoute>} />
+
+            {/* WIP Management module */}
+            <Route path="/wip/dashboard" element={<ProtectedRoute><WIPMonitorDashboard /></ProtectedRoute>} />
+            <Route path="/wip/entries" element={<ProtectedRoute><WIPStockEntryPage /></ProtectedRoute>} />
+            <Route path="/wip/stages" element={<ProtectedRoute><WIPStagesPage /></ProtectedRoute>} />
+            <Route path="/wip/thresholds" element={<ProtectedRoute><WIPThresholdsPage /></ProtectedRoute>} />
+            <Route path="/wip/flow" element={<ProtectedRoute><WIPFlowAnalysisPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

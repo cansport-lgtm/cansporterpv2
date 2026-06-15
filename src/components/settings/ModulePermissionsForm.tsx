@@ -19,6 +19,7 @@ const MODULES = [
   { key: "dashboard", label: "Dashboard" },
   { key: "production", label: "Production" },
   { key: "planning", label: "Production Planning" },
+  { key: "wip_management", label: "WIP Management" },
   { key: "qa", label: "Quality Assurance" },
   { key: "rejections_wastages", label: "Rejections & Wastages" },
   { key: "hr", label: "Human Resources" },
