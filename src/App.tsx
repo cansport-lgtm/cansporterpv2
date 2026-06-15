@@ -338,6 +338,16 @@ import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPag
 // Planning v1 additions
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
+// Sales fuel/geo + timesheets (v1 top-ups)
+import SalesFuelVehiclesPage from "./pages/sales/SalesFuelVehiclesPage";
+import SalesFuelTripsPage from "./pages/sales/SalesFuelTripsPage";
+import SalesFuelPricesPage from "./pages/sales/SalesFuelPricesPage";
+import SalesFuelPayoutsPage from "./pages/sales/SalesFuelPayoutsPage";
+import AreasMasterPage from "./pages/sales/AreasMasterPage";
+import CitiesMasterPage from "./pages/sales/CitiesMasterPage";
+import CustomerCategoriesMasterPage from "./pages/sales/CustomerCategoriesMasterPage";
+import TimeSheetPage from "./pages/hr/TimeSheetPage";
+import LabourTimeSheetPage from "./pages/labour/LabourTimeSheetPage";
 // Rejections & Wastage pages
 import RejectionsWastagesDashboard from "./pages/rejections/RejectionsWastagesDashboard";
 import RejectionsWastageEntryPage from "./pages/rejections/RejectionsWastageEntryPage";
@@ -457,6 +467,7 @@ const App = () => (
             <Route path="/hr/salary-report" element={<ProtectedRoute><SalaryReportPage /></ProtectedRoute>} />
             <Route path="/hr/public-holidays" element={<ProtectedRoute requiredRole="super_admin"><PublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
+            <Route path="/hr/time-sheet" element={<ProtectedRoute><TimeSheetPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}
@@ -499,6 +510,14 @@ const App = () => (
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
+            {/* Sales geo masters + fuel (v1 top-ups) */}
+            <Route path="/sales/cities" element={<ProtectedRoute><CitiesMasterPage /></ProtectedRoute>} />
+            <Route path="/sales/areas" element={<ProtectedRoute><AreasMasterPage /></ProtectedRoute>} />
+            <Route path="/sales/categories" element={<ProtectedRoute><CustomerCategoriesMasterPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/trips" element={<ProtectedRoute><SalesFuelTripsPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/payouts" element={<ProtectedRoute><SalesFuelPayoutsPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/vehicles" element={<ProtectedRoute><SalesFuelVehiclesPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/prices" element={<ProtectedRoute><SalesFuelPricesPage /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
             {/* Domestic Sales Routes */}
@@ -578,6 +597,7 @@ const App = () => (
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRole="super_admin"><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
+            <Route path="/labour/time-sheet" element={<ProtectedRoute><LabourTimeSheetPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}

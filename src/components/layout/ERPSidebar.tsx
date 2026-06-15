@@ -245,6 +245,7 @@ const navigationItems: NavItem[] = [
       { title: "Salary Sheet", href: "/hr/salary-report" },
       { title: "Public Holidays", href: "/hr/public-holidays", superAdminOnly: true },
       { title: "Punctuality Analytics", href: "/hr/punctuality-analytics" },
+      { title: "Time Sheet", href: "/hr/time-sheet" },
     ],
   },
   {
@@ -299,6 +300,13 @@ const navigationItems: NavItem[] = [
       { title: "Dispatch", href: "/sales/dispatch" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Dashboard", href: "/sales/dashboard" },
+      { title: "Fuel Trips", href: "/sales/fuel/trips" },
+      { title: "Fuel Weekly Payouts", href: "/sales/fuel/payouts" },
+      { title: "Sales Vehicles", href: "/sales/fuel/vehicles", superAdminOnly: true },
+      { title: "Fuel Prices", href: "/sales/fuel/prices", superAdminOnly: true },
+      { title: "City Master", href: "/sales/cities", superAdminOnly: true },
+      { title: "Area Master", href: "/sales/areas", superAdminOnly: true },
+      { title: "Customer Categories", href: "/sales/categories", superAdminOnly: true },
     ],
   },
   {
@@ -441,6 +449,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Daily Entry", href: "/labour/entry" },
       { title: "Missing Entries", href: "/labour/missing-entries" },
+      { title: "Time Sheet", href: "/labour/time-sheet" },
       { title: "Process Targets", href: "/labour/process-targets" },
       { title: "Todays Labour Deployment & Targets", href: "/labour/todays-target" },
       { title: "Deployment & Target Analysis", href: "/labour/deployment-analysis", requiresApprove: "labour" },
