@@ -40,6 +40,7 @@ const MODULES = [
   { key: "hourly_production", label: "Hourly Production" },
   { key: "rd", label: "Product Dev & R&D" },
   { key: "crm", label: "CRM" },
+  { key: "marketing", label: "Marketing" },
   { key: "settings", label: "Settings" },
 ];
 

@@ -79,6 +79,8 @@ export function ProtectedRoute({
         return 'machine_monitor';
       case 'crm':
         return 'crm';
+      case 'marketing':
+        return 'marketing';
       default:
         return undefined;
     }

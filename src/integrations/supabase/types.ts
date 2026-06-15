@@ -5928,6 +5928,420 @@ export type Database = {
           },
         ]
       }
+      marketing_campaigns: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          budget: number
+          campaign_number: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          owner_user_id: string | null
+          planned_end: string | null
+          planned_start: string | null
+          remarks: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          budget?: number
+          campaign_number?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          budget?: number
+          campaign_number?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_channels: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_deliverable_types: {
+        Row: {
+          created_at: string
+          default_template_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_template_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_template_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_deliverables: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          approver_user_id: string | null
+          attachment_url: string | null
+          campaign_id: string | null
+          channel_id: string | null
+          created_at: string
+          created_by: string | null
+          deliverable_number: string
+          deliverable_type_id: string | null
+          description: string | null
+          event_id: string | null
+          id: string
+          meeting_id: string | null
+          owner_user_id: string | null
+          planned_end: string | null
+          planned_start: string | null
+          priority: string
+          publish_date: string | null
+          remarks: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          approver_user_id?: string | null
+          attachment_url?: string | null
+          campaign_id?: string | null
+          channel_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deliverable_number?: string
+          deliverable_type_id?: string | null
+          description?: string | null
+          event_id?: string | null
+          id?: string
+          meeting_id?: string | null
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          priority?: string
+          publish_date?: string | null
+          remarks?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          approver_user_id?: string | null
+          attachment_url?: string | null
+          campaign_id?: string | null
+          channel_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deliverable_number?: string
+          deliverable_type_id?: string | null
+          description?: string | null
+          event_id?: string | null
+          id?: string
+          meeting_id?: string | null
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          priority?: string
+          publish_date?: string | null
+          remarks?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_events: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          budget: number
+          created_at: string
+          created_by: string | null
+          event_number: string
+          event_type: string | null
+          id: string
+          name: string
+          owner_user_id: string | null
+          planned_end: string | null
+          planned_start: string | null
+          remarks: string | null
+          status: string
+          updated_at: string
+          venue: string | null
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          budget?: number
+          created_at?: string
+          created_by?: string | null
+          event_number?: string
+          event_type?: string | null
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          budget?: number
+          created_at?: string
+          created_by?: string | null
+          event_number?: string
+          event_type?: string | null
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          planned_end?: string | null
+          planned_start?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Relationships: []
+      }
+      marketing_meeting_actions: {
+        Row: {
+          action_text: string
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          meeting_id: string
+          owner_user_id: string | null
+          remarks: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_text: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          meeting_id: string
+          owner_user_id?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_text?: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          meeting_id?: string
+          owner_user_id?: string | null
+          remarks?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_meetings: {
+        Row: {
+          agenda: string | null
+          attendees: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          meeting_date: string
+          meeting_number: string
+          minutes: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agenda?: string | null
+          attendees?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          meeting_date?: string
+          meeting_number?: string
+          minutes?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agenda?: string | null
+          attendees?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          meeting_date?: string
+          meeting_number?: string
+          minutes?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_milestone_template_stages: {
+        Row: {
+          created_at: string
+          default_offset_days: number
+          id: string
+          sort_order: number
+          stage_name: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_offset_days?: number
+          id?: string
+          sort_order?: number
+          stage_name: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          default_offset_days?: number
+          id?: string
+          sort_order?: number
+          stage_name?: string
+          template_id?: string
+        }
+        Relationships: []
+      }
+      marketing_milestone_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_milestones: {
+        Row: {
+          actual_date: string | null
+          completed_by: string | null
+          created_at: string
+          deliverable_id: string
+          id: string
+          planned_date: string | null
+          remarks: string | null
+          sort_order: number
+          stage_name: string
+          updated_at: string
+        }
+        Insert: {
+          actual_date?: string | null
+          completed_by?: string | null
+          created_at?: string
+          deliverable_id: string
+          id?: string
+          planned_date?: string | null
+          remarks?: string | null
+          sort_order?: number
+          stage_name: string
+          updated_at?: string
+        }
+        Update: {
+          actual_date?: string | null
+          completed_by?: string | null
+          created_at?: string
+          deliverable_id?: string
+          id?: string
+          planned_date?: string | null
+          remarks?: string | null
+          sort_order?: number
+          stage_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       module_permissions: {
         Row: {
           can_approve: boolean | null
