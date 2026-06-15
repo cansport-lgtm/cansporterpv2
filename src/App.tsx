@@ -26,6 +26,8 @@ import ProductionOrderDashboard from "./pages/production/ProductionOrderDashboar
 import ProductionTargetDashboard from "./pages/production/ProductionTargetDashboard";
 import ProductionEntryListPage from "./pages/production/ProductionEntryListPage";
 import MPHMasterPage from "./pages/production/MPHMasterPage";
+import ProductionCoordinatorPage from "./pages/production/ProductionCoordinatorPage";
+import QualityCoordinatorPage from "./pages/qa/QualityCoordinatorPage";
 import WIPSequencePage from "./pages/production/WIPSequencePage";
 import WIPLedgerPage from "./pages/production/WIPLedgerPage";
 import WIPReconciliationPage from "./pages/production/WIPReconciliationPage";
@@ -433,6 +435,7 @@ const App = () => (
             <Route path="/production/target-dashboard" element={<ProtectedRoute><ProductionTargetDashboard /></ProtectedRoute>} />
             <Route path="/production/entry-list" element={<ProtectedRoute><ProductionEntryListPage /></ProtectedRoute>} />
             <Route path="/production/mph-master" element={<ProtectedRoute><MPHMasterPage /></ProtectedRoute>} />
+            <Route path="/production/coordinator" element={<ProtectedRoute><ProductionCoordinatorPage /></ProtectedRoute>} />
             <Route path="/production/wip-sequence" element={<ProtectedRoute><WIPSequencePage /></ProtectedRoute>} />
             <Route path="/production/wip-ledger" element={<ProtectedRoute><WIPLedgerPage /></ProtectedRoute>} />
             <Route path="/production/wip-reconciliation" element={<ProtectedRoute><WIPReconciliationPage /></ProtectedRoute>} />
@@ -454,6 +457,7 @@ const App = () => (
             <Route path="/qa/process-instructions" element={<ProtectedRoute><ProcessInstructionsPage /></ProtectedRoute>} />
             <Route path="/qa/instruction-acknowledgement" element={<ProtectedRoute><InstructionAcknowledgementPage /></ProtectedRoute>} />
             <Route path="/qa/process-standards" element={<ProtectedRoute requiredRole="super_admin"><ProcessStandardsPage /></ProtectedRoute>} />
+            <Route path="/qa/quality-coordinator" element={<ProtectedRoute><QualityCoordinatorPage /></ProtectedRoute>} />
             <Route path="/qa/*" element={<ProtectedRoute><ComingSoon title="Quality Assurance Module" /></ProtectedRoute>} />
 
             {/* HR Routes */}
