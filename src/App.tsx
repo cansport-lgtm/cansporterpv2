@@ -308,6 +308,15 @@ import AeroCourtsInsightsPage from "./pages/crm/aero/AeroCourtsInsightsPage";
 import CRMSampleItemsMasterPage from "./pages/crm/CRMSampleItemsMasterPage";
 import CRMSampleInventoryPage from "./pages/crm/CRMSampleInventoryPage";
 import CRMSampleRequestsPage from "./pages/crm/CRMSampleRequestsPage";
+// Marketing pages
+import MarketingDashboard from "./pages/marketing/MarketingDashboard";
+import MarketingCampaignsPage from "./pages/marketing/MarketingCampaignsPage";
+import MarketingDeliverablesKanbanPage from "./pages/marketing/MarketingDeliverablesKanbanPage";
+import MarketingGanttPage from "./pages/marketing/MarketingGanttPage";
+import MarketingCalendarPage from "./pages/marketing/MarketingCalendarPage";
+import MarketingEventsPage from "./pages/marketing/MarketingEventsPage";
+import MarketingMeetingsPage from "./pages/marketing/MarketingMeetingsPage";
+import MarketingMastersPage from "./pages/marketing/MarketingMastersPage";
 // Hourly Production v1 additions
 import HourlyProductionAnalysisPage from "./pages/hourly-production/HourlyProductionAnalysisPage";
 import HourlyProductionLiveOverviewPage from "./pages/hourly-production/HourlyProductionLiveOverviewPage";
@@ -723,6 +732,16 @@ const App = () => (
             <Route path="/crm/sample-inventory" element={<ProtectedRoute requiredModule="crm"><CRMSampleInventoryPage /></ProtectedRoute>} />
             <Route path="/crm/sample-requests" element={<ProtectedRoute requiredModule="crm"><CRMSampleRequestsPage /></ProtectedRoute>} />
             <Route path="/crm/*" element={<ProtectedRoute><ComingSoon title="CRM" /></ProtectedRoute>} />
+
+            {/* Marketing module */}
+            <Route path="/marketing" element={<ProtectedRoute requiredModule="marketing"><MarketingDashboard /></ProtectedRoute>} />
+            <Route path="/marketing/campaigns" element={<ProtectedRoute requiredModule="marketing"><MarketingCampaignsPage /></ProtectedRoute>} />
+            <Route path="/marketing/deliverables" element={<ProtectedRoute requiredModule="marketing"><MarketingDeliverablesKanbanPage /></ProtectedRoute>} />
+            <Route path="/marketing/gantt" element={<ProtectedRoute requiredModule="marketing"><MarketingGanttPage /></ProtectedRoute>} />
+            <Route path="/marketing/calendar" element={<ProtectedRoute requiredModule="marketing"><MarketingCalendarPage /></ProtectedRoute>} />
+            <Route path="/marketing/events" element={<ProtectedRoute requiredModule="marketing"><MarketingEventsPage /></ProtectedRoute>} />
+            <Route path="/marketing/meetings" element={<ProtectedRoute requiredModule="marketing"><MarketingMeetingsPage /></ProtectedRoute>} />
+            <Route path="/marketing/masters" element={<ProtectedRoute requiredModule="marketing"><MarketingMastersPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

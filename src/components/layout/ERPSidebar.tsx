@@ -518,6 +518,22 @@ const navigationItems: NavItem[] = [
     ],
   },
   {
+    title: "Marketing",
+    icon: Target,
+    color: "text-pink-400",
+    module: "marketing",
+    children: [
+      { title: "Dashboard", href: "/marketing" },
+      { title: "Campaigns", href: "/marketing/campaigns" },
+      { title: "Deliverables Kanban", href: "/marketing/deliverables" },
+      { title: "Gantt Timeline", href: "/marketing/gantt" },
+      { title: "Content Calendar", href: "/marketing/calendar" },
+      { title: "Events & Activations", href: "/marketing/events" },
+      { title: "Meetings & Actions", href: "/marketing/meetings" },
+      { title: "Masters", href: "/marketing/masters", superAdminOnly: true },
+    ],
+  },
+  {
     title: "Hourly Production",
     icon: Clock,
     color: "text-violet-400",
