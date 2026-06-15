@@ -95,6 +95,7 @@ const navigationItems: NavItem[] = [
       { title: "Weekly Planning", href: "/planning/weekly" },
       { title: "Job Orders", href: "/planning/job-orders" },
       { title: "Job Order Departments", href: "/planning/job-order-departments", superAdminOnly: true },
+      { title: "Store Department", href: "/planning/store-management" },
       { title: "Daily Stock Closing", href: "/planning/stock-closing" },
       { title: "Daily Closing Dashboard", href: "/planning/closing-dashboard" },
       { title: "Item Master", href: "/planning/items" },
