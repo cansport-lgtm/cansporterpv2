@@ -338,6 +338,15 @@ import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPag
 // Planning v1 additions
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
+// Rejections & Wastage pages
+import RejectionsWastagesDashboard from "./pages/rejections/RejectionsWastagesDashboard";
+import RejectionsWastageEntryPage from "./pages/rejections/RejectionsWastageEntryPage";
+import ReworkTrackingPage from "./pages/rejections/ReworkTrackingPage";
+import RejectionWastageReasonsPage from "./pages/rejections/RejectionWastageReasonsPage";
+import RWUnitsMasterPage from "./pages/rejections/RWUnitsMasterPage";
+import RWDispositionsMasterPage from "./pages/rejections/RWDispositionsMasterPage";
+import RWMaterialsMasterPage from "./pages/rejections/RWMaterialsMasterPage";
+import RejectionsAnalyticsPage from "./pages/rejections/RejectionsAnalyticsPage";
 
 const queryClient = new QueryClient();
 
@@ -742,6 +751,16 @@ const App = () => (
             <Route path="/marketing/events" element={<ProtectedRoute requiredModule="marketing"><MarketingEventsPage /></ProtectedRoute>} />
             <Route path="/marketing/meetings" element={<ProtectedRoute requiredModule="marketing"><MarketingMeetingsPage /></ProtectedRoute>} />
             <Route path="/marketing/masters" element={<ProtectedRoute requiredModule="marketing"><MarketingMastersPage /></ProtectedRoute>} />
+
+            {/* Rejections & Wastage module */}
+            <Route path="/rejections/dashboard" element={<ProtectedRoute><RejectionsWastagesDashboard /></ProtectedRoute>} />
+            <Route path="/rejections/entry" element={<ProtectedRoute><RejectionsWastageEntryPage /></ProtectedRoute>} />
+            <Route path="/rejections/rework" element={<ProtectedRoute><ReworkTrackingPage /></ProtectedRoute>} />
+            <Route path="/rejections/reasons" element={<ProtectedRoute><RejectionWastageReasonsPage /></ProtectedRoute>} />
+            <Route path="/rejections/units" element={<ProtectedRoute><RWUnitsMasterPage /></ProtectedRoute>} />
+            <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />
+            <Route path="/rejections/materials" element={<ProtectedRoute><RWMaterialsMasterPage /></ProtectedRoute>} />
+            <Route path="/rejections/analytics" element={<ProtectedRoute><RejectionsAnalyticsPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
