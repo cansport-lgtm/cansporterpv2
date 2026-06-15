@@ -177,6 +177,7 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/production/dashboard" },
       { title: "Target Dashboard", href: "/production/target-dashboard" },
       { title: "MPH Master", href: "/production/mph-master", superAdminOnly: true },
+      { title: "Production Coordinator", href: "/production/coordinator", highlight: true },
     ],
   },
   {
@@ -214,6 +215,7 @@ const navigationItems: NavItem[] = [
     color: "text-green-400",
     module: "qa",
     children: [
+      { title: "Quality Coordinator", href: "/qa/quality-coordinator", highlight: true },
       { title: "New Inspection", href: "/qa/inspections", state: { openNewInspection: true } },
       { title: "Process Master", href: "/qa/processes", superAdminOnly: true },
       { title: "Process Instructions", href: "/qa/process-instructions" },
