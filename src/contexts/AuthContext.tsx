@@ -107,6 +107,15 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'sales_order_manager',
 ]);
 
+// Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
+// also holds a "flexible" role (admin/manager/viewer/etc.). This prevents a stray flexible
+// role from silently bypassing the module/route restrictions (and price hiding) of these
+// security-sensitive roles. Super admin still overrides everything.
+const STRICT_LOCKED_ROLES = new Set([
+  'dispatch_operator',
+  'sales_order_manager',
+]);
+
 interface ModulePermission {
   module_name: string;
   can_view: boolean;
@@ -351,6 +360,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Always allow the main dashboard shell so users have somewhere to land
     if (mod === 'dashboard') return true;
 
+    // Strict-locked roles enforce their own module scope regardless of any other (flexible)
+    // role the user may also hold. This closes the "stray Viewer/Manager bypasses the lockdown" gap.
+    const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
+    if (strictRoles.length > 0) {
+      return strictRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod));
+    }
+
     const hardRestrictedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
     const hasFlexibleRole = roles.some((r) => !HARD_RESTRICTED_MODULE_ROLES.has(r.role));
 
@@ -471,6 +487,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
     ) {
       return false;
+    }
+
+    // Strict-locked roles confine the user to their explicit route whitelist even if the user
+    // also holds a flexible role. Enforced before the flexible-role bypass below.
+    const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
+    if (strictRoles.length > 0) {
+      return strictRoles.some((r) => {
+        const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] || [];
+        return allowedRoutes.some((allowed) => route === allowed || route.startsWith(allowed + '/'));
+      });
     }
 
     const restrictedRoles = roles.filter((r) => ROLE_ROUTE_RESTRICTIONS[r.role]);
