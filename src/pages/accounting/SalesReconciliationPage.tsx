@@ -137,6 +137,7 @@ export default function SalesReconciliationPage() {
   const totalPosted = rows.reduce((s: number, r: any) => s + r.postedAmount, 0);
   const missingCount = rows.filter((r: any) => r.status === "missing").length;
   const mismatchCount = rows.filter((r: any) => r.status === "mismatch").length;
+  const mismatchAmount = rows.filter((r: any) => r.status === "mismatch").reduce((s: number, r: any) => s + Math.abs(r.diff), 0);
 
   const renderStatus = (s: string) => {
     if (s === "ok") return <Badge variant="default" className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />OK</Badge>;
@@ -170,6 +171,9 @@ export default function SalesReconciliationPage() {
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Amount Mismatches</div>
           <div className={`text-xl font-semibold ${mismatchCount === 0 ? "text-green-600" : "text-amber-600"}`}>{mismatchCount}</div>
+          {mismatchCount > 0 && (
+            <div className="text-xs text-amber-600 mt-0.5">Rs. {mismatchAmount.toLocaleString()}</div>
+          )}
         </CardContent></Card>
       </div>
 
