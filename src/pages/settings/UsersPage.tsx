@@ -85,6 +85,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "store_operator", label: "Store Operator" },
   { value: "online_sales_packing", label: "Online Sales Packing" },
   { value: "dispatch_operator", label: "Dispatch Operator (create dispatch, no prices)" },
+  { value: "sales_order_manager", label: "Sales Order Management (orders + dispatch, no prices/invoices)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -495,6 +496,7 @@ export default function UsersPage() {
       purchase_officer: "bg-teal-600/10 text-teal-600",
       purchase_manager: "bg-blue-700/10 text-blue-700",
       dispatch_operator: "bg-orange-600/10 text-orange-600",
+      sales_order_manager: "bg-indigo-600/10 text-indigo-600",
     };
     return colors[role] || "";
   };

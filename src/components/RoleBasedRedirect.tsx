@@ -95,6 +95,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/domestic/dispatch" replace />;
   }
 
+  // Sales Order Manager lands on the Sales Orders page (order making is the primary job)
+  if (roles.some(r => (r.role as string) === 'sales_order_manager')) {
+    return <Navigate to="/domestic/orders" replace />;
+  }
+
   // Project Manager goes to Projects Dashboard
   if (roles.some(r => r.role === 'project_manager')) {
     return <Navigate to="/projects" replace />;

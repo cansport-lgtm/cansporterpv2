@@ -46,8 +46,10 @@ interface SalesDashboardBaseProps {
 }
 
 export default function SalesDashboardBase({ segment, title }: SalesDashboardBaseProps) {
-  const { roles } = useAuth();
-  const isSalesExecutive = roles.some(r => r.role === 'sales_executive') && !roles.some(r => r.role === 'super_admin');
+  const { roles, canViewPrices } = useAuth();
+  // Hide order value (Rs.) for sales executives and any role without price visibility.
+  const hideOrderValue = (roles.some(r => r.role === 'sales_executive') && !roles.some(r => r.role === 'super_admin')) || !canViewPrices();
+  const isSalesExecutive = hideOrderValue;
   
   const today = new Date();
   
