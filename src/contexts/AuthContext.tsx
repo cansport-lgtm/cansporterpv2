@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator';
 }
 
 // Define which modules each special role can access
@@ -29,6 +29,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   store_operator: ['material_consumption'], // Store operator: stock closing page only
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
   online_sales_packing: ['online_sales'], // Online sales packing: online orders page only (scan & weigh)
+  // Dispatch operator: domestic dispatch page only. 'sales' keeps the Sales sidebar group
+  // visible; 'domestic' satisfies the /domestic/* module check in ProtectedRoute. No pricing
+  // page (Orders/Invoices) is reachable, so prices are never exposed.
+  dispatch_operator: ['sales', 'domestic'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
   accounting_officer: ['accounting', 'dashboard'],
@@ -44,6 +48,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
+  dispatch_operator: ['/domestic/dispatch'], // Dispatch operator: domestic dispatch page only (no pricing pages)
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -83,6 +88,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'accounting_poster',
   'accounting_officer',
   'accounting_manager',
+  'dispatch_operator',
 ]);
 
 interface ModulePermission {
@@ -381,7 +387,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (permission !== 'view' && permission !== 'create') return false;
       return module === 'expenses';
     }
-    
+
+    // Dispatch operator: view/create/edit dispatches in the sales/domestic module only
+    // (no delete or approve). The dispatch page itself never displays pricing.
+    if (roles.some(r => r.role === 'dispatch_operator')) {
+      if (permission === 'delete' || permission === 'approve') return false;
+      return module === 'sales' || module === 'domestic';
+    }
+
     const perm = modulePermissions.find(p => p.module_name === module);
     if (!perm) return false;
     

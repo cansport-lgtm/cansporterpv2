@@ -90,6 +90,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/consumption/stock-closing" replace />;
   }
 
+  // Dispatch Operator goes straight to the Domestic Dispatch page (no pricing pages)
+  if (roles.some(r => (r.role as string) === 'dispatch_operator')) {
+    return <Navigate to="/domestic/dispatch" replace />;
+  }
+
   // Project Manager goes to Projects Dashboard
   if (roles.some(r => r.role === 'project_manager')) {
     return <Navigate to="/projects" replace />;
