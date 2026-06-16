@@ -150,6 +150,14 @@ export function ProtectedRoute({
       }
     }
 
+    // For dispatch operator, redirect back to the domestic dispatch page if accessing
+    // any unauthorized page (keeps them away from pricing pages entirely)
+    if (roles.some((r) => (r.role as string) === 'dispatch_operator')) {
+      if (location.pathname !== '/domestic/dispatch') {
+        return <Navigate to="/domestic/dispatch" replace />;
+      }
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

@@ -34,6 +34,7 @@ const roleDescriptions: Record<AppRole, string> = {
   billing_officer: "Sales & Purchase invoicing – access to Sales and Purchase modules (permission-driven)",
   purchase_officer: "Creates purchase orders – cannot approve (approval reserved for Purchase Manager)",
   purchase_manager: "Approves purchase orders raised by Purchase Officers",
+  dispatch_operator: "Domestic Dispatch page only – can create dispatches without seeing any prices",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -60,6 +61,7 @@ const roleColors: Record<AppRole, string> = {
   billing_officer: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
   purchase_officer: "bg-teal-600/10 text-teal-600 border-teal-600/20",
   purchase_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
+  dispatch_operator: "bg-orange-600/10 text-orange-600 border-orange-600/20",
 };
 
 export default function RolesPage() {
@@ -87,6 +89,7 @@ export default function RolesPage() {
     billing_officer: 0,
     purchase_officer: 0,
     purchase_manager: 0,
+    dispatch_operator: 0,
   });
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "dispatch_operator", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
