@@ -158,6 +158,14 @@ export function ProtectedRoute({
       }
     }
 
+    // For sales order manager, redirect back to the sales orders page when accessing
+    // a page outside their allowed set (products, invoices, pricing, etc.)
+    if (roles.some((r) => (r.role as string) === 'sales_order_manager')) {
+      if (location.pathname !== '/domestic/orders') {
+        return <Navigate to="/domestic/orders" replace />;
+      }
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

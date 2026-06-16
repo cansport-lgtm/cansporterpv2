@@ -9,9 +9,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, PackageX } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function DomesticPendingDispatchPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
 
   // Fetch all domestic sales orders that are eligible for dispatch
   const { data: orders, isLoading } = useQuery({
@@ -117,14 +120,14 @@ export default function DomesticPendingDispatchPage() {
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Items</TableHead>
                     <TableHead className="text-right">Total Dzn</TableHead>
-                    <TableHead className="text-right">Value (Rs.)</TableHead>
+                    {showPrices && <TableHead className="text-right">Value (Rs.)</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((order) => {
                     const items = (order.sales_order_items as any[]) || [];
                     const totalDzn = items.reduce((s, i) => s + (i.quantity_dozens || 0), 0);
-                    const totalValue = items.reduce((s, i) => s + (i.quantity_dozens || 0) * (i.rate || 0), 0);
+                    const totalValue = showPrices ? items.reduce((s, i) => s + (i.quantity_dozens || 0) * (i.rate || 0), 0) : 0;
                     return (
                       <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.order_number}</TableCell>
@@ -140,7 +143,7 @@ export default function DomesticPendingDispatchPage() {
                         </TableCell>
                         <TableCell className="text-right">{items.length}</TableCell>
                         <TableCell className="text-right">{totalDzn.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">Rs. {totalValue.toLocaleString()}</TableCell>
+                        {showPrices && <TableCell className="text-right">Rs. {totalValue.toLocaleString()}</TableCell>}
                       </TableRow>
                     );
                   })}

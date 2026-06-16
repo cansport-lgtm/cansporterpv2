@@ -78,7 +78,8 @@ interface CustomersPageBaseProps {
 
 export default function CustomersPageBase({ segment, title }: CustomersPageBaseProps) {
   const queryClient = useQueryClient();
-  const { hasModulePermission, roles } = useAuth();
+  const { hasModulePermission, roles, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -86,10 +87,12 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
 
   const isSuperAdmin = roles.some(r => r.role === 'super_admin');
   const isSalesExecutive = roles.some(r => r.role === 'sales_executive') && !isSuperAdmin;
-  
-  const canCreate = hasModulePermission('sales', 'create');
-  const canEdit = hasModulePermission('sales', 'edit') && !isSalesExecutive;
-  const canDelete = hasModulePermission('sales', 'delete');
+  // Sales order managers can view customers (to select on orders) but cannot create/edit/delete them.
+  const isSalesOrderManager = roles.some(r => r.role === 'sales_order_manager') && !isSuperAdmin;
+
+  const canCreate = hasModulePermission('sales', 'create') && !isSalesOrderManager;
+  const canEdit = hasModulePermission('sales', 'edit') && !isSalesExecutive && !isSalesOrderManager;
+  const canDelete = hasModulePermission('sales', 'delete') && !isSalesOrderManager;
 
   const handlePrintCustomerList = () => {
     if (!filteredCustomers?.length) return;
@@ -113,7 +116,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
         <thead><tr>
           <th>#</th><th>Code</th><th>Name</th><th>Billing Customer</th>
           <th>Contact</th><th>Phone</th><th>City</th><th>Area</th>
-          <th>Credit Limit</th><th>Status</th>
+          ${showPrices ? '<th>Credit Limit</th>' : ''}<th>Status</th>
         </tr></thead>
         <tbody>
           ${filteredCustomers.map((c, i) => `<tr>
@@ -125,7 +128,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
             <td>${c.phone || '-'}</td>
             <td>${c.city || '-'}</td>
             <td>${c.area || '-'}</td>
-            <td>${c.credit_limit ? 'Rs. ' + c.credit_limit.toLocaleString() : '-'}</td>
+            ${showPrices ? `<td>${c.credit_limit ? 'Rs. ' + c.credit_limit.toLocaleString() : '-'}</td>` : ''}
             <td>${c.is_active ? 'Active' : 'Inactive'}</td>
           </tr>`).join('')}
         </tbody>
@@ -554,7 +557,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                         </TableCell>
                         <TableCell>{customer.city || '-'}</TableCell>
                         <TableCell>
-                          {customer.credit_limit ? `Rs. ${customer.credit_limit.toLocaleString()}` : '-'}
+                          {showPrices ? (customer.credit_limit ? `Rs. ${customer.credit_limit.toLocaleString()}` : '-') : '—'}
                         </TableCell>
                         <TableCell>
                           <Badge variant={customer.is_active ? 'default' : 'secondary'}>

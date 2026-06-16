@@ -37,7 +37,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DomesticSalesOrdersPage() {
   const queryClient = useQueryClient();
-  const { user, hasModulePermission, hasRole } = useAuth();
+  const { user, hasModulePermission, hasRole, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const { data: packingTypes = [] } = usePackingTypes();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
@@ -548,8 +549,9 @@ export default function DomesticSalesOrdersPage() {
       toast.error('Please add at least one item with quantity');
       return;
     }
+    // Roles that can't see prices may save orders without a rate (auto-filled where available).
     const zeroRate = validItems.find(item => !(parseFloat(item.price_per_dozen) > 0));
-    if (zeroRate) {
+    if (showPrices && zeroRate) {
       toast.error('Set Rate/Dz on every line — zero rates would silently skip accounting auto-post.');
       return;
     }
@@ -730,8 +732,9 @@ export default function DomesticSalesOrdersPage() {
       toast.error('Please add at least one item with quantity');
       return;
     }
+    // Roles that can't see prices may save orders without a rate (auto-filled where available).
     const zeroRate = validItems.find(item => !(parseFloat(item.price_per_dozen) > 0));
-    if (zeroRate) {
+    if (showPrices && zeroRate) {
       toast.error('Set Rate/Dz on every line — zero rates would silently skip accounting auto-post.');
       return;
     }
@@ -881,7 +884,7 @@ export default function DomesticSalesOrdersPage() {
                                 <TableHead>Packing</TableHead>
                                 <TableHead>No of Ctn/Bag</TableHead>
                                 <TableHead>Qty (Dz) *</TableHead>
-                                <TableHead>Rate / Dz *</TableHead>
+                                {showPrices && <TableHead>Rate / Dz *</TableHead>}
                                 <TableHead>Production Instructions</TableHead>
                                 <TableHead className="w-12"></TableHead>
                               </TableRow>
@@ -889,7 +892,7 @@ export default function DomesticSalesOrdersPage() {
                             <TableBody>
                               {formData.items.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                                  <TableCell colSpan={showPrices ? 8 : 7} className="text-center py-4 text-muted-foreground">
                                     No items added
                                   </TableCell>
                                 </TableRow>
@@ -948,6 +951,7 @@ export default function DomesticSalesOrdersPage() {
                                         placeholder="0"
                                       />
                                     </TableCell>
+                                    {showPrices && (
                                     <TableCell>
                                       <Input
                                         type="number"
@@ -959,6 +963,7 @@ export default function DomesticSalesOrdersPage() {
                                         placeholder="Rs. 0"
                                       />
                                     </TableCell>
+                                    )}
                                     <TableCell>
                                       <Input
                                         value={item.production_instructions}
@@ -1341,7 +1346,7 @@ export default function DomesticSalesOrdersPage() {
                           <TableHead>Packing</TableHead>
                           <TableHead>No of Ctn/Bag</TableHead>
                           <TableHead>Qty (Dz) *</TableHead>
-                          <TableHead>Rate / Dz *</TableHead>
+                          {showPrices && <TableHead>Rate / Dz *</TableHead>}
                           <TableHead>Production Instructions</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
@@ -1349,7 +1354,7 @@ export default function DomesticSalesOrdersPage() {
                       <TableBody>
                         {editFormData.items.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                            <TableCell colSpan={showPrices ? 8 : 7} className="text-center py-4 text-muted-foreground">
                               No items added
                             </TableCell>
                           </TableRow>
@@ -1408,6 +1413,7 @@ export default function DomesticSalesOrdersPage() {
                                   placeholder="0"
                                 />
                               </TableCell>
+                              {showPrices && (
                               <TableCell>
                                 <Input
                                   type="number"
@@ -1419,6 +1425,7 @@ export default function DomesticSalesOrdersPage() {
                                   placeholder="Rs. 0"
                                 />
                               </TableCell>
+                              )}
                               <TableCell>
                                 <Input
                                   value={item.production_instructions}

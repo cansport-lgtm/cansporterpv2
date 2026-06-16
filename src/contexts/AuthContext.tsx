@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager';
 }
 
 // Define which modules each special role can access
@@ -33,6 +33,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // visible; 'domestic' satisfies the /domestic/* module check in ProtectedRoute. No pricing
   // page (Orders/Invoices) is reachable, so prices are never exposed.
   dispatch_operator: ['sales', 'domestic'],
+  // Sales order manager: domestic sales order making + dispatch coordination + dashboards.
+  // 'sales' keeps the Sales sidebar group visible; 'domestic' satisfies the /domestic/* module
+  // check; 'dashboard' for the landing shell. Prices are hidden in-page (see canViewPrices).
+  sales_order_manager: ['sales', 'domestic', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
   accounting_officer: ['accounting', 'dashboard'],
@@ -49,6 +53,17 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
   dispatch_operator: ['/domestic/dispatch'], // Dispatch operator: domestic dispatch page only (no pricing pages)
+  // Sales order manager: order making + dispatch coordination + dashboards (NO products, invoices, or pricing pages)
+  sales_order_manager: [
+    '/domestic/orders',
+    '/domestic/order-status',
+    '/domestic/customers',
+    '/domestic/pending-dispatch',
+    '/domestic/dispatch',
+    '/domestic/dispatch-dashboard',
+    '/domestic/dispatch-acknowledgement',
+    '/domestic/dashboard',
+  ],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -89,6 +104,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'accounting_officer',
   'accounting_manager',
   'dispatch_operator',
+  'sales_order_manager',
 ]);
 
 interface ModulePermission {
@@ -121,6 +137,7 @@ interface AuthContextType {
   hasPurchaseCategoryPermission: (category: PurchaseCategoryPermission['category'], permission: 'view' | 'create' | 'approve') => boolean;
   canAccessModule: (module: string) => boolean;
   canAccessRoute: (route: string) => boolean;
+  canViewPrices: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -310,6 +327,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return roles.some(r => r.role === role) || roles.some(r => r.role === 'super_admin');
   };
 
+  // Whether the current user may see monetary values (prices, rates, amounts, totals).
+  // Roles that manage logistics/orders without commercial visibility are hidden from money.
+  const canViewPrices = (): boolean => {
+    if (roles.some(r => r.role === 'super_admin')) return true;
+    return !roles.some(r => r.role === 'sales_order_manager');
+  };
+
   // Check if user can access a specific module (module permissions are the source of truth)
   const canAccessModule = (module: string): boolean => {
     const normalizeModule = (m: string) => {
@@ -391,6 +415,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Dispatch operator: view/create/edit dispatches in the sales/domestic module only
     // (no delete or approve). The dispatch page itself never displays pricing.
     if (roles.some(r => r.role === 'dispatch_operator')) {
+      if (permission === 'delete' || permission === 'approve') return false;
+      return module === 'sales' || module === 'domestic';
+    }
+
+    // Sales order manager: view/create/edit sales orders + dispatch in the sales/domestic
+    // module (no delete or approve). Customer/product creation and pricing are blocked in-page.
+    if (roles.some(r => r.role === 'sales_order_manager')) {
       if (permission === 'delete' || permission === 'approve') return false;
       return module === 'sales' || module === 'domestic';
     }
@@ -478,7 +509,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasModulePermission,
       hasPurchaseCategoryPermission,
       canAccessModule,
-      canAccessRoute
+      canAccessRoute,
+      canViewPrices
     }}>
       {children}
     </AuthContext.Provider>
