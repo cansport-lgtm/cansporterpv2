@@ -183,6 +183,57 @@ export default function SalesReportPage() {
     enabled: dispatchIds.length > 0,
   });
 
+  // ── GL-based reconciliation ──────────────────────────────────────────────
+  // Revenue figures computed the SAME way the Profit & Loss does: sum of
+  // (credit − debit) over active revenue accounts, by voucher_date. This makes
+  // the "Net Sales (per GL)" figure equal the P&L "Total Revenue" by construction.
+  // NOTE: posted ledger is not segment-tagged, so this block ignores the segment filter.
+  const { data: glRevenueAccounts } = useQuery({
+    queryKey: ["sales-report-gl-accounts"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_chart_of_accounts")
+        .select("id, code, name, account_type, sub_category")
+        .eq("account_type", "revenue")
+        .eq("is_active", true)
+        .not("sub_category", "is", null)
+        .order("sort_order")
+        .order("code");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: glRevenueLines } = useQuery({
+    queryKey: ["sales-report-gl-lines", fromDate, toDate],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_voucher_lines")
+        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+        .gte("voucher.voucher_date", fromDate)
+        .lte("voucher.voucher_date", toDate);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const glRevenue = useMemo(() => {
+    const totals: Record<string, { dr: number; cr: number }> = {};
+    (glRevenueLines || []).forEach((l: any) => {
+      if (!totals[l.account_id]) totals[l.account_id] = { dr: 0, cr: 0 };
+      totals[l.account_id].dr += Number(l.debit_amount || 0);
+      totals[l.account_id].cr += Number(l.credit_amount || 0);
+    });
+    const accountRows = (glRevenueAccounts || [])
+      .map((a: any) => {
+        const t = totals[a.id] || { dr: 0, cr: 0 };
+        return { ...a, net: t.cr - t.dr };
+      })
+      .filter((r: any) => r.net !== 0);
+    const netSalesGL = accountRows.reduce((s: number, r: any) => s + r.net, 0);
+    return { accountRows, netSalesGL };
+  }, [glRevenueAccounts, glRevenueLines]);
+
   // Enriched rows
   const rows: DispatchRow[] = useMemo(() => {
     return (dispatches || []).map((d) => {
@@ -285,7 +336,8 @@ export default function SalesReportPage() {
       { Metric: "Segment", Value: segment },
       { Metric: "Gross Sales", Value: grossSales },
       { Metric: "Sales Returns", Value: totalReturns },
-      { Metric: "Net Sales", Value: netSales },
+      { Metric: "Net Sales (operational)", Value: netSales },
+      { Metric: "Net Sales (per GL — matches P&L)", Value: glRevenue.netSalesGL },
       { Metric: "Total Dispatches", Value: dispatchCount },
       { Metric: "Total Dozens", Value: totalDozens },
       { Metric: "Unique Customers", Value: customerCount },
@@ -346,6 +398,62 @@ export default function SalesReportPage() {
         <MetricCard title="Net Sales" value={`Rs. ${netSales.toLocaleString()}`} icon={ShoppingCart} description={`${totalDozens.toLocaleString()} dz across ${dispatchCount} dispatch(es)`} />
         <MetricCard title="Avg Order Value" value={`Rs. ${aov.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} icon={Package} description={`${customerCount} unique customer(s)`} />
       </div>
+
+      {/* GL reconciliation — ties this report to the Profit & Loss "Sales Revenue" */}
+      <Card className="mb-6 border-primary/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-primary" />
+            Net Sales per General Ledger — matches Profit &amp; Loss
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <div className="text-xs text-muted-foreground">Net Sales (per GL)</div>
+              <div className="text-3xl font-bold text-primary">Rs. {glRevenue.netSalesGL.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Computed from posted ledger entries on revenue accounts (credit − debit), by voucher date —
+                identical to the Profit &amp; Loss "Total Revenue" for the same dates. This is the authoritative
+                sales figure. Posted entries aren't segment-tagged, so this total covers all segments and ignores
+                the segment filter above.
+              </p>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 text-xs">Revenue Account</TableHead>
+                    <TableHead className="h-8 text-xs text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!glRevenue.accountRows.length && (
+                    <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground text-sm">No posted revenue in this period</TableCell></TableRow>
+                  )}
+                  {glRevenue.accountRows.map((r: any) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="py-1 text-sm">{r.code} · {r.name}</TableCell>
+                      <TableCell className={`py-1 text-sm text-right ${r.net < 0 ? "text-amber-600" : ""}`}>Rs. {r.net.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/40 font-semibold">
+                    <TableCell className="py-1">Net Sales (per GL)</TableCell>
+                    <TableCell className="py-1 text-right">Rs. {glRevenue.netSalesGL.toLocaleString()}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <div className="mt-4 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Why the operational "Net Sales" above can differ:</span>{" "}
+            the operational figure recomputes value from current dispatch prices and subtracts only returns,
+            whereas this GL figure uses the amounts actually posted and also nets discounts &amp; adjustments.
+            Difference vs operational Net Sales:{" "}
+            <span className="font-medium text-foreground">Rs. {(netSales - glRevenue.netSalesGL).toLocaleString()}</span>.
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card className="lg:col-span-2">
