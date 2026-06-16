@@ -10,13 +10,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, TrendingUp, TrendingDown, DollarSign, Layers, AlertTriangle } from "lucide-react";
-import { format, startOfYear, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 
 const sb = supabase as any;
 
 export default function ProfitLossPage() {
-  const [fromDate, setFromDate] = useState(format(startOfYear(new Date()), "yyyy-MM-dd"));
+  const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   // Default toDate = end of current month so period-end adjustments (typically dated month-end) are included
   const [toDate, setToDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
 
