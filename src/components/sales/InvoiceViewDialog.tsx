@@ -131,9 +131,6 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
               <div><span className="text-muted-foreground">Customer:</span> <strong>{invoice.customer?.name}</strong></div>
               <div><span className="text-muted-foreground">Dispatch:</span> <strong className="font-mono">{invoice.dispatch?.dispatch_number}</strong></div>
               <div><span className="text-muted-foreground">Date:</span> <strong>{format(new Date(invoice.invoice_date), "dd MMM yyyy")}</strong></div>
-              {invoice.due_date && (
-                <div><span className="text-muted-foreground">Due:</span> <strong>{format(new Date(invoice.due_date), "dd MMM yyyy")}</strong></div>
-              )}
               <div>
                 <span className="text-muted-foreground">Status:</span>{" "}
                 <Badge variant="outline" className={STATUS_COLOR[invoice.status] || ""}>{invoice.status}</Badge>
