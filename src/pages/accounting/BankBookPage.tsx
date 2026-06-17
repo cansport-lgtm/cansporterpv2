@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
@@ -41,12 +42,14 @@ export default function BankBookPage() {
     queryKey: ["acc-bankbook-opening", accountId, fromDate],
     queryFn: async () => {
       if (!accountId) return 0;
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .eq("account_id", accountId)
-        .lt("voucher.voucher_date", fromDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .eq("account_id", accountId)
+          .lt("voucher.voucher_date", fromDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       return (data || []).reduce((s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0);
     },
     enabled: !!accountId,
@@ -56,13 +59,15 @@ export default function BankBookPage() {
     queryKey: ["acc-bankbook-lines", accountId, fromDate, toDate],
     queryFn: async () => {
       if (!accountId) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, party_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
-        .eq("account_id", accountId)
-        .gte("voucher.voucher_date", fromDate)
-        .lte("voucher.voucher_date", toDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, party_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
+          .eq("account_id", accountId)
+          .gte("voucher.voucher_date", fromDate)
+          .lte("voucher.voucher_date", toDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       return (data || []).sort((a: any, b: any) => {
         const ad = a.voucher?.voucher_date || "";
         const bd = b.voucher?.voucher_date || "";
@@ -78,11 +83,13 @@ export default function BankBookPage() {
     queryKey: ["acc-bankbook-contra", voucherIds.join(",")],
     queryFn: async () => {
       if (!voucherIds.length) return {};
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("voucher_id, account_id, account:accounting_chart_of_accounts(name)")
-        .in("voucher_id", voucherIds);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("voucher_id, account_id, account:accounting_chart_of_accounts(name)")
+          .in("voucher_id", voucherIds)
+          .order("id", { ascending: true })
+          .range(from, to));
       const map: Record<string, string> = {};
       (data || []).forEach((l: any) => {
         if (l.account_id === accountId) return;

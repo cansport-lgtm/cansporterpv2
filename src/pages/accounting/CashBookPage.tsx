@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
@@ -225,12 +226,14 @@ export default function CashBookPage() {
     queryKey: ["acc-cashbook-opening", accountId, fromDate],
     queryFn: async () => {
       if (!accountId) return 0;
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .eq("account_id", accountId)
-        .lt("voucher.voucher_date", fromDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .eq("account_id", accountId)
+          .lt("voucher.voucher_date", fromDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       return (data || []).reduce((s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0);
     },
     enabled: !!accountId,
@@ -241,13 +244,15 @@ export default function CashBookPage() {
     queryKey: ["acc-cashbook-lines", accountId, fromDate, toDate],
     queryFn: async () => {
       if (!accountId) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("*, voucher:accounting_vouchers!inner(id, voucher_number, voucher_type, voucher_date, narration, party_id, source_module, status, reverses_voucher_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
-        .eq("account_id", accountId)
-        .gte("voucher.voucher_date", fromDate)
-        .lte("voucher.voucher_date", toDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("*, voucher:accounting_vouchers!inner(id, voucher_number, voucher_type, voucher_date, narration, party_id, source_module, status, reverses_voucher_id), account:accounting_chart_of_accounts(code, name), party:accounting_parties(name)")
+          .eq("account_id", accountId)
+          .gte("voucher.voucher_date", fromDate)
+          .lte("voucher.voucher_date", toDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       // Sort client-side because supabase orderby on joined column is tricky
       return (data || []).sort((a: any, b: any) => {
         const ad = a.voucher?.voucher_date || "";
@@ -268,11 +273,13 @@ export default function CashBookPage() {
     queryKey: ["acc-cashbook-contra", voucherIds.join(",")],
     queryFn: async () => {
       if (!voucherIds.length) return { accountMap: {} as Record<string, string>, partyMap: {} as Record<string, string>, lineCountMap: {} as Record<string, number>, contraMap: {} as Record<string, { accountId: string; partyId: string | null }> };
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("voucher_id, account_id, party_id, debit_amount, credit_amount, account:accounting_chart_of_accounts(name), party:accounting_parties(name)")
-        .in("voucher_id", voucherIds);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("voucher_id, account_id, party_id, debit_amount, credit_amount, account:accounting_chart_of_accounts(name), party:accounting_parties(name)")
+          .in("voucher_id", voucherIds)
+          .order("id", { ascending: true })
+          .range(from, to));
       const accountMap: Record<string, string> = {};
       const partyMap: Record<string, string> = {};
       const lineCountMap: Record<string, number> = {};

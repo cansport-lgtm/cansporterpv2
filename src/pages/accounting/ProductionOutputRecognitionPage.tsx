@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,11 +33,14 @@ export default function ProductionOutputRecognitionPage() {
       const { data: slot } = await sb.from("accounting_default_accounts").select("account_id").eq("key", "wip_inventory").maybeSingle();
       if (!slot?.account_id) return { balance: 0, accountName: null };
       // Sum all lines for WIP up to date
-      const { data: lines } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .eq("account_id", slot.account_id)
-        .lte("voucher.voucher_date", date);
+      const lines = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .eq("account_id", slot.account_id)
+          .lte("voucher.voucher_date", date)
+          .order("id", { ascending: true })
+          .range(from, to));
       const balance = (lines || []).reduce((s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0);
       // Get account name
       const { data: acc } = await sb.from("accounting_chart_of_accounts").select("name, code").eq("id", slot.account_id).maybeSingle();

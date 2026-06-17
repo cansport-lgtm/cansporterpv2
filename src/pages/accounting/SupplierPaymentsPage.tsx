@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,12 +49,14 @@ export default function SupplierPaymentsPage() {
     queryKey: ["ap-aging", apAccount],
     queryFn: async () => {
       if (!apAccount) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name)")
-        .eq("account_id", apAccount)
-        .not("party_id", "is", null);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name)")
+          .eq("account_id", apAccount)
+          .not("party_id", "is", null)
+          .order("id", { ascending: true })
+          .range(from, to));
       const today = new Date();
       const map: Record<string, any> = {};
       (data || []).forEach((l: any) => {
