@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
@@ -38,12 +39,14 @@ export default function BalanceSheetPage() {
   const { data: lines } = useQuery({
     queryKey: ["acc-bs-lines", asOfDate],
     queryFn: async () => {
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .lte("voucher.voucher_date", asOfDate);
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .lte("voucher.voucher_date", asOfDate)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
   });
 

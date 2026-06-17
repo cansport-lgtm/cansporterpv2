@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +50,13 @@ export default function PeriodClosePage() {
     queryKey: ["acc-period-close-tb", proposedClose],
     queryFn: async () => {
       if (!proposedClose) return null;
-      const { data } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, account:accounting_chart_of_accounts(code, name, account_type), voucher:accounting_vouchers!inner(voucher_date)")
-        .lte("voucher.voucher_date", proposedClose);
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, account:accounting_chart_of_accounts(code, name, account_type), voucher:accounting_vouchers!inner(voucher_date)")
+          .lte("voucher.voucher_date", proposedClose)
+          .order("id", { ascending: true })
+          .range(from, to));
       const totals: Record<string, { code: string; name: string; type: string; dr: number; cr: number }> = {};
       (data || []).forEach((l: any) => {
         const a = l.account; if (!a) return;
@@ -91,11 +95,13 @@ export default function PeriodClosePage() {
   const yearEndMutation = useMutation({
     mutationFn: async () => {
       // 1) Pull all revenue + expense account balances up to yearEndDate
-      const { data: lines, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, account_id, account:accounting_chart_of_accounts(id, code, account_type), voucher:accounting_vouchers!inner(voucher_date)")
-        .lte("voucher.voucher_date", yearEndDate);
-      if (error) throw error;
+      const lines = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, account_id, account:accounting_chart_of_accounts(id, code, account_type), voucher:accounting_vouchers!inner(voucher_date)")
+          .lte("voucher.voucher_date", yearEndDate)
+          .order("id", { ascending: true })
+          .range(from, to));
 
       const byAcc: Record<string, { id: string; type: string; net_dr_cr: number }> = {};
       (lines || []).forEach((l: any) => {

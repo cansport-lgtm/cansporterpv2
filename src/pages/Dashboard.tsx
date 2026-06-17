@@ -30,6 +30,7 @@ import {
   Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandGroup,
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { DailyEmployeeProgress } from "@/components/dashboard/DailyEmployeeProgress";
@@ -324,14 +325,15 @@ export default function Dashboard() {
   const { data: accountingPLLines } = useQuery({
     queryKey: ["ceo-acc-pl-lines", dateRange],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("accounting_voucher_lines")
-        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .gte("voucher.voucher_date", dateRange.start)
-        .lte("voucher.voucher_date", dateRange.end)
-        .limit(20000);
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        (supabase as any)
+          .from("accounting_voucher_lines")
+          .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .gte("voucher.voucher_date", dateRange.start)
+          .lte("voucher.voucher_date", dateRange.end)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
   });
 
@@ -339,13 +341,14 @@ export default function Dashboard() {
   const { data: accountingBSLines } = useQuery({
     queryKey: ["ceo-acc-bs-lines", dateRange.end],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("accounting_voucher_lines")
-        .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .lte("voucher.voucher_date", dateRange.end)
-        .limit(50000);
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        (supabase as any)
+          .from("accounting_voucher_lines")
+          .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .lte("voucher.voucher_date", dateRange.end)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
   });
 

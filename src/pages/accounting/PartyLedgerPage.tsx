@@ -11,6 +11,7 @@ import { InvoicePrintView } from "@/components/sales/InvoicePrintView";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
@@ -83,12 +84,14 @@ export default function PartyLedgerPage() {
     queryKey: ["acc-pl-opening", partyId, fromDate],
     queryFn: async () => {
       if (!partyId) return 0;
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
-        .eq("party_id", partyId)
-        .lt("voucher.voucher_date", fromDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .eq("party_id", partyId)
+          .lt("voucher.voucher_date", fromDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       return (data || []).reduce((s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0);
     },
     enabled: !!partyId,
@@ -98,13 +101,15 @@ export default function PartyLedgerPage() {
     queryKey: ["acc-pl-lines", partyId, fromDate, toDate],
     queryFn: async () => {
       if (!partyId) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, source_module, source_reference_id), account:accounting_chart_of_accounts(code, name)")
-        .eq("party_id", partyId)
-        .gte("voucher.voucher_date", fromDate)
-        .lte("voucher.voucher_date", toDate);
-      if (error) throw error;
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("*, voucher:accounting_vouchers!inner(voucher_number, voucher_type, voucher_date, narration, source_module, source_reference_id), account:accounting_chart_of_accounts(code, name)")
+          .eq("party_id", partyId)
+          .gte("voucher.voucher_date", fromDate)
+          .lte("voucher.voucher_date", toDate)
+          .order("id", { ascending: true })
+          .range(from, to));
       return (data || []).sort((a: any, b: any) => {
         const ad = a.voucher?.voucher_date || "";
         const bd = b.voucher?.voucher_date || "";

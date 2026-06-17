@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -44,11 +45,13 @@ export default function AccountingDashboard() {
   const { data: allLines } = useQuery({
     queryKey: ["acc-dash-lines"],
     queryFn: async () => {
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("account_id, debit_amount, credit_amount");
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("account_id, debit_amount, credit_amount")
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
   });
 

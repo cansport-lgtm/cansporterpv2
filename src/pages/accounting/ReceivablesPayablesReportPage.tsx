@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,14 +132,16 @@ export default function ReceivablesPayablesReportPage() {
     queryKey: ["ar-report-lines", defaults?.ar, asOf],
     queryFn: async () => {
       if (!defaults?.ar) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name, party_type)")
-        .eq("account_id", defaults.ar)
-        .not("party_id", "is", null)
-        .lte("voucher.voucher_date", asOf);
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name, party_type)")
+          .eq("account_id", defaults.ar)
+          .not("party_id", "is", null)
+          .lte("voucher.voucher_date", asOf)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
     enabled: !!defaults?.ar,
   });
@@ -147,14 +150,16 @@ export default function ReceivablesPayablesReportPage() {
     queryKey: ["ap-report-lines", defaults?.ap, asOf],
     queryFn: async () => {
       if (!defaults?.ap) return [];
-      const { data, error } = await sb
-        .from("accounting_voucher_lines")
-        .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name, party_type)")
-        .eq("account_id", defaults.ap)
-        .not("party_id", "is", null)
-        .lte("voucher.voucher_date", asOf);
-      if (error) throw error;
-      return data || [];
+      const data = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date), party:accounting_parties(name, party_type)")
+          .eq("account_id", defaults.ap)
+          .not("party_id", "is", null)
+          .lte("voucher.voucher_date", asOf)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return data;
     },
     enabled: !!defaults?.ap,
   });
