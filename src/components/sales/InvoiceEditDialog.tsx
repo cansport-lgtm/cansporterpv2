@@ -178,6 +178,8 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
       queryClient.invalidateQueries({ queryKey: ["invoice-items-for-print"] });
       if (sync?.updated) {
         toast({ title: "Invoice updated", description: `Ledger synced: ${sync.updated.voucherNumber} → Rs. ${Number(sync.updated.to).toLocaleString()}` });
+      } else if (sync?.created) {
+        toast({ title: "Invoice updated", description: `Sale posted to ledger: Rs. ${Number(sync.created.amount).toLocaleString()}` });
       } else if (sync && !sync.ok) {
         toast({ title: "Invoice saved, but ledger sync failed", description: sync.error, variant: "destructive" });
       } else {
