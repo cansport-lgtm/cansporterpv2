@@ -410,9 +410,9 @@ export default function SalesReportPage() {
       </PageHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard title="Gross Sales" value={`Rs. ${grossSales.toLocaleString()}`} icon={TrendingUp} />
+        <MetricCard title="Net Sales (per GL)" value={`Rs. ${glRevenue.netSalesGL.toLocaleString()}`} icon={ShoppingCart} description="Authoritative — matches Profit & Loss" />
+        <MetricCard title="Gross Sales (operational)" value={`Rs. ${grossSales.toLocaleString()}`} icon={TrendingUp} description={`${totalDozens.toLocaleString()} dz · order-price estimate`} />
         <MetricCard title="Sales Returns" value={`Rs. ${totalReturns.toLocaleString()}`} icon={RotateCcw} iconColor="text-amber-500" />
-        <MetricCard title="Net Sales" value={`Rs. ${netSales.toLocaleString()}`} icon={ShoppingCart} description={`${totalDozens.toLocaleString()} dz across ${dispatchCount} dispatch(es)`} />
         <MetricCard title="Avg Order Value" value={`Rs. ${aov.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} icon={Package} description={`${customerCount} unique customer(s)`} />
       </div>
 

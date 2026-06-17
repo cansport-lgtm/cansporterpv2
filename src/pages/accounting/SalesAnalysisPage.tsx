@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -148,6 +149,48 @@ export default function SalesAnalysisPage() {
     queryKey: ["sa-prior-lines", prior.from, prior.to, segment],
     queryFn: () => fetchDispatchLines(prior.from, prior.to, segment),
   });
+
+  // Authoritative Net Sales from the posted ledger — computed exactly like the
+  // Profit & Loss "Total Revenue" (sum of credit − debit over active revenue
+  // accounts, by voucher_date). This reconciles the headline number with the
+  // P&L and Sales Report. The customer/product/segment breakdowns below stay
+  // on operational (order-price) value, since the ledger carries no per-line
+  // product detail. Posted revenue isn't segment-tagged, so this ignores the
+  // segment filter.
+  const { data: glRevenueAccounts } = useQuery({
+    queryKey: ["sa-gl-accounts"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_chart_of_accounts")
+        .select("id, account_type, sub_category")
+        .eq("account_type", "revenue")
+        .eq("is_active", true)
+        .not("sub_category", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: glRevenueLines } = useQuery({
+    queryKey: ["sa-gl-lines", fromDate, toDate],
+    queryFn: () =>
+      fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("account_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date)")
+          .gte("voucher.voucher_date", fromDate)
+          .lte("voucher.voucher_date", toDate)
+          .order("id", { ascending: true })
+          .range(from, to)),
+  });
+
+  const netSalesGL = useMemo(() => {
+    const revIds = new Set((glRevenueAccounts || []).map((a: any) => a.id));
+    return (glRevenueLines || []).reduce((s: number, l: any) => {
+      if (!revIds.has(l.account_id)) return s;
+      return s + Number(l.credit_amount || 0) - Number(l.debit_amount || 0);
+    }, 0);
+  }, [glRevenueAccounts, glRevenueLines]);
 
   // KPIs current period
   const grossSales = (lines || []).reduce((s, r) => s + r.amount, 0);
@@ -393,11 +436,17 @@ export default function SalesAnalysisPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
-          title="Gross Sales"
+          title="Net Sales (per GL)"
+          value={`Rs. ${netSalesGL.toLocaleString()}`}
+          icon={TrendingUp}
+          description="Authoritative — matches Profit & Loss"
+        />
+        <MetricCard
+          title="Gross Sales (operational)"
           value={`Rs. ${grossSales.toLocaleString()}`}
           icon={TrendingUp}
           trend={priorGross > 0 ? { value: Math.abs(Math.round(grossDelta * 10) / 10), isPositive: grossDelta >= 0 } : undefined}
-          description={`vs Rs. ${priorGross.toLocaleString()}`}
+          description={`order-price · vs Rs. ${priorGross.toLocaleString()}`}
         />
         <MetricCard
           title="Unique Customers"
