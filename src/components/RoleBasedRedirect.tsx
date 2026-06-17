@@ -100,6 +100,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/domestic/orders" replace />;
   }
 
+  // Production Operator lands on the Daily Production Entry page (posting is the primary job)
+  if (roles.some(r => (r.role as string) === 'production_operator')) {
+    return <Navigate to="/production/daily-entry" replace />;
+  }
+
   // Project Manager goes to Projects Dashboard
   if (roles.some(r => r.role === 'project_manager')) {
     return <Navigate to="/projects" replace />;

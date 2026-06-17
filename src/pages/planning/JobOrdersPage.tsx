@@ -119,8 +119,16 @@ const priorityColor = (p: string) => {
 
 export default function JobOrdersPage() {
   const qc = useQueryClient();
-  const { user, hasRole } = useAuth();
+  const { user, hasRole, roles } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
+  // production_operator may only edit a job order within 48h of its creation.
+  const isProductionOperator = roles.some(r => r.role === 'production_operator') && !isSuperAdmin;
+  const PLANNING_EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
+  const withinEditWindow = (o: any) => {
+    if (!isProductionOperator) return true; // other roles unaffected
+    if (!o?.created_at) return false;
+    return Date.now() - new Date(o.created_at).getTime() <= PLANNING_EDIT_WINDOW_MS;
+  };
   const printRef = useRef<HTMLDivElement>(null);
 
   const [search, setSearch] = useState("");
@@ -316,6 +324,10 @@ export default function JobOrdersPage() {
 
       let orderId = f.id;
       if (f.id) {
+        // Enforce the 48h edit window for production_operator on existing orders.
+        if (isProductionOperator && editing && !withinEditWindow(editing)) {
+          throw new Error("Editing window expired (48 hours). Contact a Super Admin.");
+        }
         const { error } = await supabase
           .from("job_orders")
           .update(header)
@@ -415,7 +427,7 @@ export default function JobOrdersPage() {
 
   const openEdit = (o: any, viewOnly = false) => {
     setEditing(o);
-    setReadOnly(viewOnly || o.status === "Closed");
+    setReadOnly(viewOnly || o.status === "Closed" || !withinEditWindow(o));
     const its = (itemsByOrder[o.id] || []).map((it: any, idx: number) => ({
       id: it.id,
       planning_item_id: it.planning_item_id,
@@ -641,7 +653,7 @@ export default function JobOrdersPage() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {o.status !== "Closed" && (
+                            {o.status !== "Closed" && withinEditWindow(o) && (
                               <Button
                                 size="icon"
                                 variant="ghost"
