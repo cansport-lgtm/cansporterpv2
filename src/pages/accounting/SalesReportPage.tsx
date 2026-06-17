@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -259,6 +260,19 @@ export default function SalesReportPage() {
   const postedDispatches = rows.filter((r) => (postedMap?.[r.id] || 0) > 0).length;
   const reconcilationPct = dispatchCount > 0 ? Math.round((postedDispatches / dispatchCount) * 100) : 0;
 
+  // Delivered goods that carry quantity but no price → value is Rs 0, so the
+  // auto-posting routine skips them (postDispatchVoucher.ts: `if (lineAmount <= 0) continue`).
+  // The sale never reaches the GL or P&L, silently understating revenue. Surface
+  // these so an unpriced order can't quietly drop out of sales.
+  const unpricedDispatches = useMemo(
+    () =>
+      rows.filter(
+        (r) => r.qtyDozens > 0 && r.amount === 0 && (postedMap?.[r.id] || 0) === 0,
+      ),
+    [rows, postedMap],
+  );
+  const unpricedDozens = unpricedDispatches.reduce((s, r) => s + r.qtyDozens, 0);
+
   // Segment breakdown
   const segmentBreakdown = useMemo(() => {
     const map: Record<string, { segment: string; gross: number; returns: number; net: number; dispatches: number; qty: number }> = {};
@@ -398,6 +412,34 @@ export default function SalesReportPage() {
         <MetricCard title="Net Sales" value={`Rs. ${netSales.toLocaleString()}`} icon={ShoppingCart} description={`${totalDozens.toLocaleString()} dz across ${dispatchCount} dispatch(es)`} />
         <MetricCard title="Avg Order Value" value={`Rs. ${aov.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} icon={Package} description={`${customerCount} unique customer(s)`} />
       </div>
+
+      {/* Unpriced dispatches — delivered goods with Rs 0 value never post to sales */}
+      {unpricedDispatches.length > 0 && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Delivered but unpriced — missing from sales</AlertTitle>
+          <AlertDescription>
+            <div className="space-y-1">
+              <p>
+                <strong>{unpricedDispatches.length}</strong> delivered dispatch
+                {unpricedDispatches.length === 1 ? "" : "es"} ({unpricedDozens.toLocaleString()} dz) have items but a
+                price of <strong>Rs. 0</strong>, so they were <strong>not posted to the ledger</strong> and contribute
+                nothing to Net Sales, the GL, or the Profit &amp; Loss. Set the price per dozen on these orders, then
+                re-post the dispatch.
+              </p>
+              <ul className="text-xs list-disc pl-5">
+                {unpricedDispatches.slice(0, 10).map((r) => (
+                  <li key={r.id}>
+                    {r.dispatch_number || r.id.slice(0, 8)} · {r.dispatch_date} · {r.customer_name} ·{" "}
+                    {r.qtyDozens.toLocaleString()} dz
+                  </li>
+                ))}
+                {unpricedDispatches.length > 10 && <li>…and {unpricedDispatches.length - 10} more (see Export).</li>}
+              </ul>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* GL reconciliation — ties this report to the Profit & Loss "Sales Revenue" */}
       <Card className="mb-6 border-primary/30">

@@ -74,10 +74,21 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /^https:\/\/ojejlhnthhdvgbgpsgvi\.supabase\.co\/.*/i,
+            // Live data (REST) and auth must never be served from a stale
+            // cache — financial reports (P&L, GL, Sales) would otherwise show
+            // outdated numbers for up to 24h. Always go to the network.
+            urlPattern: /^https:\/\/ojejlhnthhdvgbgpsgvi\.supabase\.co\/(rest|auth|realtime)\/.*/i,
+            handler: "NetworkOnly",
+            options: {
+              cacheName: "supabase-live",
+            },
+          },
+          {
+            // Non-data Supabase assets (e.g. Storage objects) can still be cached.
+            urlPattern: /^https:\/\/ojejlhnthhdvgbgpsgvi\.supabase\.co\/storage\/.*/i,
             handler: "NetworkFirst",
             options: {
-              cacheName: "supabase-cache",
+              cacheName: "supabase-storage-cache",
               expiration: {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24, // 24 hours
