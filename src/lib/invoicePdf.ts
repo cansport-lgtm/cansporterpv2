@@ -85,7 +85,7 @@ function buildPages(opts: InvoicePdfOptions): PdfToken[][] {
   pushLine({ text: `No: ${opts.invoiceNumber}`, bold: true, size: 10 });
   pushLine({ text: `Date: ${opts.invoiceDate}`, bold: false, size: 9 });
   if (opts.dueDate) pushLine({ text: `Due: ${opts.dueDate}`, bold: false, size: 9 });
-  if (opts.paymentTerms) pushLine({ text: `Terms: ${opts.paymentTerms}`, bold: false, size: 9 });
+  // Payment terms intentionally not printed on the customer invoice.
   if (opts.status) pushLine({ text: `Status: ${opts.status}`, bold: false, size: 9 });
   y -= 6;
 
