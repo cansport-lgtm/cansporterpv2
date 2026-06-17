@@ -166,6 +166,12 @@ export function ProtectedRoute({
       }
     }
 
+    // For production operator, redirect to the daily entry page when accessing a page
+    // outside the Production / Planning modules.
+    if (roles.some((r) => (r.role as string) === 'production_operator')) {
+      return <Navigate to="/production/daily-entry" replace />;
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator';
 }
 
 // Define which modules each special role can access
@@ -37,6 +37,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // 'sales' keeps the Sales sidebar group visible; 'domestic' satisfies the /domestic/* module
   // check; 'dashboard' for the landing shell. Prices are hidden in-page (see canViewPrices).
   sales_order_manager: ['sales', 'domestic', 'dashboard'],
+  // Production operator: full Production + Production Planning access. Can post and edit
+  // within a 48h window (enforced in the entry/planning pages). No delete/approve.
+  production_operator: ['production', 'planning', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
   accounting_officer: ['accounting', 'dashboard'],
@@ -64,6 +67,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/domestic/dispatch-acknowledgement',
     '/domestic/dashboard',
   ],
+  // Production operator: full Production + Planning modules (prefix match covers all their pages).
+  production_operator: ['/production', '/planning', '/dashboard'],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -105,6 +110,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'accounting_manager',
   'dispatch_operator',
   'sales_order_manager',
+  'production_operator',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -114,6 +120,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
 const STRICT_LOCKED_ROLES = new Set([
   'dispatch_operator',
   'sales_order_manager',
+  'production_operator',
 ]);
 
 interface ModulePermission {
@@ -440,6 +447,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (roles.some(r => r.role === 'sales_order_manager')) {
       if (permission === 'delete' || permission === 'approve') return false;
       return module === 'sales' || module === 'domestic';
+    }
+
+    // Production operator: view/create/edit in production & planning (no delete or approve).
+    // The 48h edit window is enforced in the entry/planning pages, not here.
+    if (roles.some(r => r.role === 'production_operator')) {
+      if (permission === 'delete' || permission === 'approve') return false;
+      return module === 'production' || module === 'planning';
     }
 
     const perm = modulePermissions.find(p => p.module_name === module);
