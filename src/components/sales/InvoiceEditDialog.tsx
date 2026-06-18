@@ -126,8 +126,8 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
       if (!invoiceId) throw new Error("No invoice");
       if (!invoiceDate) throw new Error("Invoice date is required");
       if (lines.length === 0) throw new Error("Invoice must have at least one line");
-      if (lines.some((l) => !(l.quantity_dozens > 0) || !(l.price_per_dozen >= 0))) {
-        throw new Error("Each line needs a positive quantity and a non-negative price");
+      if (lines.some((l) => !(l.quantity_dozens > 0) || !(l.price_per_dozen > 0))) {
+        throw new Error("Each line needs a positive quantity and a price greater than zero (Rs. 0 not allowed).");
       }
 
       // Update header

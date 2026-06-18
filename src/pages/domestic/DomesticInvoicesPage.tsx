@@ -194,6 +194,12 @@ export default function DomesticInvoicesPage() {
         .maybeSingle();
       if (existing) throw new Error(`Dispatch already invoiced as ${existing.invoice_number}`);
 
+      // Block Rs. 0 invoices — these would book no revenue/AR against the sale.
+      // Fix the selling prices on the dispatched order lines first.
+      if (!(totalForCreate > 0)) {
+        throw new Error("Cannot create a Rs. 0 invoice — set selling prices on the dispatched order lines first.");
+      }
+
       const { data, error } = await sb
         .from("domestic_invoices")
         .insert({
