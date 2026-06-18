@@ -120,7 +120,7 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
       if (!selectedOrder) return [];
       const { data, error } = await supabase
         .from('sales_order_items')
-        .select(`id, quantity_dozens, quantity_dispatched, products(code)`)
+        .select(`id, quantity_dozens, quantity_dispatched, price_per_dozen, products(code)`)
         .eq('order_id', selectedOrder);
 
       if (error) throw error;
@@ -264,6 +264,15 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
     const hasItems = formData.items.some(item => parseFloat(item.quantity_dozens) > 0);
     if (!hasItems) {
       toast.error('Please add dispatch quantities');
+      return;
+    }
+    // Block zero-price lines — these post COGS but no revenue/AR at dispatch.
+    const priceByItemId = new Map((orderItems || []).map((i: any) => [i.id, Number(i.price_per_dozen) || 0]));
+    const zeroPriced = formData.items.filter(
+      (item) => (parseFloat(item.quantity_dozens) || 0) > 0 && !(((priceByItemId.get(item.order_item_id) as number) || 0) > 0)
+    );
+    if (zeroPriced.length > 0) {
+      toast.error('Cannot dispatch: one or more items have no selling price (Rs. 0). Set the price on the sales order first.');
       return;
     }
     saveMutation.mutate(formData);

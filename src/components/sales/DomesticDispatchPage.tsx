@@ -161,7 +161,7 @@ export default function DomesticDispatchPage() {
       if (selectedOrders.length === 0) return [];
       const { data, error } = await supabase
         .from('sales_order_items')
-        .select(`id, order_id, quantity_dozens, quantity_dispatched, packing_type, products(code, name), sales_orders(order_number, customers(name, code))`)
+        .select(`id, order_id, quantity_dozens, quantity_dispatched, price_per_dozen, packing_type, products(code, name), sales_orders(order_number, customers(name, code))`)
         .in('order_id', selectedOrders);
 
       if (error) throw error;
@@ -274,6 +274,9 @@ export default function DomesticDispatchPage() {
           toast.success(`Invoice created: ${invResult.created.join(", ")}`);
         } else if (!invResult.ok) {
           toast.error(`Invoice auto-create failed: ${invResult.error}. Create it from the Invoices page.`);
+        }
+        if (invResult.skippedZeroPrice > 0) {
+          toast.warning(`${invResult.skippedZeroPrice} invoice(s) skipped — items have no selling price (Rs. 0). Fix prices on the sales order.`);
         }
         queryClient.invalidateQueries({ queryKey: ["domestic-invoices"] });
         queryClient.invalidateQueries({ queryKey: ["invoiceable-dispatches"] });
@@ -525,6 +528,16 @@ export default function DomesticDispatchPage() {
         `Cannot dispatch: no Billing Customer set for ${missingBilling.join(', ')}. ` +
         `Set it in Sales → Customers first so the sale posts to Accounts Receivable.`
       );
+      return;
+    }
+    // Block zero-price lines — these post COGS but no revenue/AR (the cause of
+    // dispatches like DC-00053/54). Fix the price on the sales order first.
+    const priceByItemId = new Map((orderItems || []).map((i: any) => [i.id, Number(i.price_per_dozen) || 0]));
+    const zeroPriced = formData.items.filter(
+      (item) => (parseFloat(item.quantity_dozens) || 0) > 0 && !(((priceByItemId.get(item.order_item_id) as number) || 0) > 0)
+    );
+    if (zeroPriced.length > 0) {
+      toast.error('Cannot dispatch: one or more items have no selling price (Rs. 0). Set the price on the sales order first.');
       return;
     }
     saveMutation.mutate({ ...formData, selectedOrders });
