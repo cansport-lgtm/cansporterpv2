@@ -145,6 +145,7 @@ const navigationItems: NavItem[] = [
       { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
       { title: "Sales Report", href: "/accounting/sales-report" },
       { title: "Sales Analysis", href: "/accounting/sales-analysis" },
+      { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
 
       { title: "Reconciliation", href: "", isHeader: true },
       { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
