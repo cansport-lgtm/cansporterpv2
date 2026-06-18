@@ -20,6 +20,12 @@ interface Product {
   id: string;
   code: string;
   name: string;
+  standard_selling_price?: number | null;
+}
+
+interface CustomerPrice {
+  product_id: string;
+  price_per_dozen: number;
 }
 
 interface OrderItem {
@@ -45,6 +51,7 @@ interface MobileSalesOrderFormProps {
   setFormData: (data: FormData) => void;
   customers?: Customer[];
   products?: Product[];
+  customerPricing?: CustomerPrice[];
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
   isPending: boolean;
@@ -56,6 +63,7 @@ export function MobileSalesOrderForm({
   setFormData,
   customers,
   products,
+  customerPricing,
   onSubmit,
   onCancel,
   isPending,
@@ -88,6 +96,22 @@ export function MobileSalesOrderForm({
   const updateItem = (index: number, field: keyof OrderItem, value: string) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
+
+    // Auto-fill price: customer-specific price wins; otherwise fall back to the
+    // product's standard selling price so lines are never left at Rs. 0.
+    if (field === 'product_id' && value) {
+      const pricing = customerPricing?.find(p => p.product_id === value);
+      if (pricing) {
+        newItems[index].price_per_dozen = pricing.price_per_dozen.toString();
+      } else {
+        const product = products?.find(p => p.id === value);
+        const stdPrice = Number(product?.standard_selling_price) || 0;
+        if (stdPrice > 0) {
+          newItems[index].price_per_dozen = stdPrice.toString();
+        }
+      }
+    }
+
     setFormData({ ...formData, items: newItems });
   };
 

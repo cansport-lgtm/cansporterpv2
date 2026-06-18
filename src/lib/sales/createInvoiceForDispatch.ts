@@ -7,6 +7,7 @@ export interface CreateInvoiceResult {
   created: string[];          // invoice numbers created
   skippedExisting: number;    // customers already invoiced for this dispatch
   skippedNoCustomer: number;  // items with no resolvable customer
+  skippedZeroPrice: number;   // customers whose lines total Rs. 0 (no price)
   error?: string;
 }
 
@@ -40,9 +41,9 @@ export async function createInvoiceForDispatch(
         "order_item:sales_order_items(price_per_dozen, details, product:products(id, code, name), grade:grades(name), order:sales_orders(customer:customers(id, name, code)))"
       )
       .eq("dispatch_id", dispatchId);
-    if (iErr) return { ok: false, created: [], skippedExisting: 0, skippedNoCustomer: 0, error: iErr.message };
+    if (iErr) return { ok: false, created: [], skippedExisting: 0, skippedNoCustomer: 0, skippedZeroPrice: 0, error: iErr.message };
     if (!items || items.length === 0) {
-      return { ok: true, created: [], skippedExisting: 0, skippedNoCustomer: 0 };
+      return { ok: true, created: [], skippedExisting: 0, skippedNoCustomer: 0, skippedZeroPrice: 0 };
     }
 
     // 2) Group items by customer; drop items that don't resolve to a customer.
@@ -64,6 +65,7 @@ export async function createInvoiceForDispatch(
 
     const created: string[] = [];
     let skippedExisting = 0;
+    let skippedZeroPrice = 0;
 
     for (const [customerId, groupItems] of groups) {
       if (alreadyInvoiced.has(customerId)) { skippedExisting++; continue; }
@@ -72,6 +74,10 @@ export async function createInvoiceForDispatch(
         (s: number, it: any) => s + Number(it.quantity_dozens || 0) * Number(it.order_item?.price_per_dozen || 0),
         0,
       );
+
+      // Never create a Rs. 0 invoice — a priced quantity with no price means the
+      // sale would post COGS but no revenue. Skip and let the caller surface it.
+      if (!(total > 0)) { skippedZeroPrice++; continue; }
 
       const { data: inv, error: invErr } = await sb
         .from("domestic_invoices")
@@ -89,7 +95,7 @@ export async function createInvoiceForDispatch(
         })
         .select("id, invoice_number")
         .single();
-      if (invErr) return { ok: false, created, skippedExisting, skippedNoCustomer, error: invErr.message };
+      if (invErr) return { ok: false, created, skippedExisting, skippedNoCustomer, skippedZeroPrice, error: invErr.message };
 
       const itemsPayload = groupItems.map((it: any, i: number) => {
         const qty = Number(it.quantity_dozens || 0);
@@ -111,14 +117,14 @@ export async function createInvoiceForDispatch(
       });
       if (itemsPayload.length > 0) {
         const { error: liErr } = await sb.from("domestic_invoice_items").insert(itemsPayload);
-        if (liErr) return { ok: false, created, skippedExisting, skippedNoCustomer, error: liErr.message };
+        if (liErr) return { ok: false, created, skippedExisting, skippedNoCustomer, skippedZeroPrice, error: liErr.message };
       }
 
       created.push(inv.invoice_number);
     }
 
-    return { ok: true, created, skippedExisting, skippedNoCustomer };
+    return { ok: true, created, skippedExisting, skippedNoCustomer, skippedZeroPrice };
   } catch (e: any) {
-    return { ok: false, created: [], skippedExisting: 0, skippedNoCustomer: 0, error: e?.message || String(e) };
+    return { ok: false, created: [], skippedExisting: 0, skippedNoCustomer: 0, skippedZeroPrice: 0, error: e?.message || String(e) };
   }
 }

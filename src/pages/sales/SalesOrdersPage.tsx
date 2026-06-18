@@ -162,7 +162,7 @@ export default function SalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name')
+        .select('id, code, name, standard_selling_price')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
@@ -437,11 +437,18 @@ export default function SalesOrdersPage() {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
 
-    // Auto-fill price from customer pricing
-    if (field === 'product_id' && value && customerPricing) {
-      const pricing = customerPricing.find(p => p.product_id === value);
+    // Auto-fill price: customer-specific price wins; otherwise fall back to the
+    // product's standard selling price so lines are never left at Rs. 0.
+    if (field === 'product_id' && value) {
+      const pricing = customerPricing?.find(p => p.product_id === value);
       if (pricing) {
         newItems[index].price_per_dozen = pricing.price_per_dozen.toString();
+      } else {
+        const product = products?.find(p => p.id === value);
+        const stdPrice = Number((product as any)?.standard_selling_price) || 0;
+        if (stdPrice > 0) {
+          newItems[index].price_per_dozen = stdPrice.toString();
+        }
       }
     }
 
@@ -456,6 +463,16 @@ export default function SalesOrdersPage() {
     }
     if (formData.items.length === 0) {
       toast.error('Please add at least one item');
+      return;
+    }
+    // Block zero-price lines — a priced quantity with no price posts COGS but no
+    // revenue/AR at dispatch. Set a Standard Selling Price on the product or a
+    // Customer Price to auto-fill, or enter a price manually.
+    const zeroPriced = formData.items.find(
+      (item) => (parseFloat(item.quantity_dozens) || 0) > 0 && !((parseFloat(item.price_per_dozen) || 0) > 0)
+    );
+    if (zeroPriced) {
+      toast.error('Each item must have a price greater than zero (Rs. 0 not allowed).');
       return;
     }
     saveMutation.mutate(formData);
@@ -523,6 +540,7 @@ export default function SalesOrdersPage() {
                       setFormData={setFormData}
                       customers={customers}
                       products={products}
+                      customerPricing={customerPricing}
                       onSubmit={handleSubmit}
                       onCancel={handleCloseDialog}
                       isPending={saveMutation.isPending}

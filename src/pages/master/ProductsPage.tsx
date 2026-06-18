@@ -44,6 +44,7 @@ interface Product {
   uom_id: string | null;
   standard_output_rate: number | null;
   standard_cost: number | null;
+  standard_selling_price: number | null;
   is_active: boolean | null;
   grades?: { name: string } | null;
   units_of_measure?: { name: string } | null;
@@ -62,6 +63,7 @@ export default function ProductsPage() {
     uom_id: "",
     standard_output_rate: 0,
     standard_cost: 0,
+    standard_selling_price: 0,
     is_active: true,
   });
 
@@ -116,6 +118,7 @@ export default function ProductsPage() {
             uom_id: data.uom_id || null,
             standard_output_rate: data.standard_output_rate || null,
             standard_cost: data.standard_cost || null,
+            standard_selling_price: data.standard_selling_price || null,
             is_active: data.is_active,
           })
           .eq("id", data.id);
@@ -129,6 +132,7 @@ export default function ProductsPage() {
           uom_id: data.uom_id || null,
           standard_output_rate: data.standard_output_rate || null,
           standard_cost: data.standard_cost || null,
+          standard_selling_price: data.standard_selling_price || null,
           is_active: data.is_active,
         });
         if (error) throw error;
@@ -169,6 +173,7 @@ export default function ProductsPage() {
       uom_id: "",
       standard_output_rate: 0,
       standard_cost: 0,
+      standard_selling_price: 0,
       is_active: true,
     });
     setSelectedItem(null);
@@ -185,6 +190,7 @@ export default function ProductsPage() {
       uom_id: item.uom_id || "",
       standard_output_rate: item.standard_output_rate || 0,
       standard_cost: item.standard_cost || 0,
+      standard_selling_price: item.standard_selling_price || 0,
       is_active: item.is_active ?? true,
     });
     setDialogOpen(true);
@@ -220,6 +226,14 @@ export default function ProductsPage() {
       render: (item: Product) =>
         item.standard_cost != null
           ? `Rs. ${Number(item.standard_cost).toLocaleString()}`
+          : <span className="text-amber-600 text-xs">⚠ unset</span>,
+    },
+    {
+      key: "standard_selling_price",
+      header: "Std Sell / Dz",
+      render: (item: Product) =>
+        item.standard_selling_price != null && Number(item.standard_selling_price) > 0
+          ? `Rs. ${Number(item.standard_selling_price).toLocaleString()}`
           : <span className="text-amber-600 text-xs">⚠ unset</span>,
     },
     {
@@ -386,6 +400,24 @@ export default function ProductsPage() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">Used for per-dispatch COGS posting in accounting.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="standard_selling_price">Standard Selling Price (Rs. per dozen)</Label>
+                  <Input
+                    id="standard_selling_price"
+                    type="number"
+                    step="0.01"
+                    value={formData.standard_selling_price}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        standard_selling_price: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">Default sale price auto-filled on sales orders &amp; quotations when no customer-specific price exists.</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
