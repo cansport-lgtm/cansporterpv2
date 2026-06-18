@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import {
   Download, TrendingUp, TrendingDown, Truck, Package, ShoppingCart, Trophy, Target, PackageCheck, Clock, AlertTriangle,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, subDays, differenceInCalendarDays, eachMonthOfInterval, addDays } from "date-fns";
 import * as XLSX from "xlsx";
@@ -402,6 +403,35 @@ export default function PurchaseAnalysisPage() {
     })).sort((a, b) => b.spend - a.spend);
   }, [lines]);
 
+  // Per-item purchase breakup — every PO line for an item, ordered sequence-wise
+  // (oldest order first, then by PO number) so the expanded leaderboard row shows
+  // the chronological purchasing trail behind each item's headline spend.
+  const itemPurchaseMap = useMemo(() => {
+    const map: Record<string, POLineRow[]> = {};
+    (lines || []).forEach((r) => {
+      const id = r.item_id || "unknown";
+      if (!map[id]) map[id] = [];
+      map[id].push(r);
+    });
+    Object.keys(map).forEach((id) => {
+      map[id].sort((a, b) => {
+        if (a.order_date !== b.order_date) return a.order_date.localeCompare(b.order_date);
+        return a.po_number.localeCompare(b.po_number);
+      });
+    });
+    return map;
+  }, [lines]);
+
+  // Expand/collapse state for item leaderboard rows
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const toggleItem = (id: string) =>
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // Category breakdown
   const categoryRows = useMemo(() => {
     const map: Record<string, { category: string; spend: number; qty: number; suppliers: Set<string>; pos: Set<string> }> = {};
@@ -760,6 +790,7 @@ export default function PurchaseAnalysisPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">#</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Item</TableHead>
@@ -773,21 +804,82 @@ export default function PurchaseAnalysisPage() {
                 </TableHeader>
                 <TableBody>
                   {!itemRows.length && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No data</TableCell></TableRow>
                   )}
-                  {itemRows.slice(0, 50).map((p, i) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
-                      <TableCell className="text-sm">{p.name}</TableCell>
-                      <TableCell className="text-right">{p.qty.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium">Rs. {p.spend.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-xs">Rs. {p.avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-right">{p.suppliers}</TableCell>
-                      <TableCell className="text-right text-xs">{p.fulfilment.toFixed(0)}%</TableCell>
-                      <TableCell className="text-right text-xs">{totalSpend > 0 ? `${((p.spend / totalSpend) * 100).toFixed(1)}%` : "—"}</TableCell>
-                    </TableRow>
-                  ))}
+                  {itemRows.slice(0, 50).map((p, i) => {
+                    const breakup = itemPurchaseMap[p.id] || [];
+                    const isExpanded = expandedItems.has(p.id);
+                    return (
+                      <Fragment key={p.id}>
+                        <TableRow
+                          className="cursor-pointer"
+                          onClick={() => breakup.length > 0 && toggleItem(p.id)}
+                        >
+                          <TableCell className="text-muted-foreground">
+                            {breakup.length > 0 && (
+                              isExpanded
+                                ? <ChevronDown className="h-4 w-4" />
+                                : <ChevronRight className="h-4 w-4" />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
+                          <TableCell className="text-sm">{p.name}</TableCell>
+                          <TableCell className="text-right">{p.qty.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">Rs. {p.spend.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-xs">Rs. {p.avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right">{p.suppliers}</TableCell>
+                          <TableCell className="text-right text-xs">{p.fulfilment.toFixed(0)}%</TableCell>
+                          <TableCell className="text-right text-xs">{totalSpend > 0 ? `${((p.spend / totalSpend) * 100).toFixed(1)}%` : "—"}</TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={10} className="p-0">
+                              <div className="px-6 py-3">
+                                <div className="text-xs font-semibold mb-2 text-muted-foreground">
+                                  Purchase Breakup — {breakup.length} order line{breakup.length !== 1 ? "s" : ""}, sequence-wise
+                                </div>
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b text-muted-foreground">
+                                      <th className="text-left py-1 pr-3 font-medium w-[40px]">#</th>
+                                      <th className="text-left py-1 pr-3 font-medium">PO Number</th>
+                                      <th className="text-left py-1 pr-3 font-medium">Date</th>
+                                      <th className="text-left py-1 pr-3 font-medium">Supplier</th>
+                                      <th className="text-left py-1 pr-3 font-medium">Status</th>
+                                      <th className="text-right py-1 pr-3 font-medium">Qty</th>
+                                      <th className="text-right py-1 pr-3 font-medium">Unit Price</th>
+                                      <th className="text-right py-1 pr-3 font-medium">Amount</th>
+                                      <th className="text-right py-1 font-medium">Received</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {breakup.map((b, bi) => (
+                                      <tr key={`${b.po_id}-${bi}`} className="border-b border-muted/50 last:border-0">
+                                        <td className="py-1 pr-3 text-muted-foreground">{bi + 1}</td>
+                                        <td className="py-1 pr-3 font-mono">{b.po_number || "—"}</td>
+                                        <td className="py-1 pr-3 whitespace-nowrap">{b.order_date ? format(parseISO(b.order_date), "dd MMM yyyy") : "—"}</td>
+                                        <td className="py-1 pr-3">{b.supplier_name}</td>
+                                        <td className="py-1 pr-3">
+                                          <Badge variant="outline" className="text-[10px] capitalize font-normal">
+                                            {b.status.replace(/_/g, " ")}
+                                          </Badge>
+                                        </td>
+                                        <td className="py-1 pr-3 text-right">{b.qty.toLocaleString()}</td>
+                                        <td className="py-1 pr-3 text-right">Rs. {b.unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                        <td className="py-1 pr-3 text-right font-medium">Rs. {b.amount.toLocaleString()}</td>
+                                        <td className="py-1 text-right">{b.qty_received.toLocaleString()}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {itemRows.length > 50 && (
