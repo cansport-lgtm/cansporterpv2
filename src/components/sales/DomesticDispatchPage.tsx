@@ -502,6 +502,12 @@ export default function DomesticDispatchPage() {
     setFormData({ ...formData, items: newItems });
   };
 
+  // Remove a line from THIS dispatch (items not being delivered now). The order
+  // stays partially_dispatched so the remaining items can be dispatched later.
+  const removeItem = (index: number) => {
+    setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedOrders.length === 0) {
@@ -911,6 +917,7 @@ export default function DomesticDispatchPage() {
                                         <TableHead className="text-right">Available</TableHead>
                                         <TableHead className="text-right">Dispatch Qty</TableHead>
                                         <TableHead className="text-right">Packages</TableHead>
+                                        <TableHead className="w-12"></TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -957,6 +964,11 @@ export default function DomesticDispatchPage() {
                                               onChange={(e) => updateItem(item.originalIndex, 'packages', e.target.value)}
                                               className="w-20 ml-auto"
                                             />
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeItem(item.originalIndex)} title="Remove from this dispatch (deliver later)">
+                                              <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
                                           </TableCell>
                                         </TableRow>
                                       ))}
