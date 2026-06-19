@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { toast } from "sonner";
-import { Plus, Search, Truck, Eye, X, Printer, Pencil, FileText } from "lucide-react";
+import { Plus, Search, Truck, Eye, X, Printer, Pencil, FileText, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";

@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RoleBasedRedirect } from "@/components/RoleBasedRedirect";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -370,6 +372,13 @@ import WIPFlowAnalysisPage from "./pages/wip/WIPFlowAnalysisPage";
 
 const queryClient = new QueryClient();
 
+// Wraps the routed content so a render error shows a recoverable message
+// instead of a blank white screen, and clears itself when the route changes.
+const RoutedContent = ({ children }: { children: ReactNode }) => {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -378,6 +387,7 @@ const App = () => (
         <Sonner />
         <PWAUpdatePrompt />
         <BrowserRouter>
+          <RoutedContent>
           <Routes>
             <Route path="/login" element={<Login />} />
             {/* Role-based redirect on root */}
@@ -806,6 +816,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </RoutedContent>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
