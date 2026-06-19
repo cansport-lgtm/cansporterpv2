@@ -213,13 +213,20 @@ export default function DomesticSalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name')
+        .select('id, code, name, standard_selling_price')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return data;
     },
   });
+
+  // Fall back to the product's standard selling price when the customer has no
+  // specific price — so order lines auto-fill instead of asking for a rate.
+  const stdPriceForProduct = (productId: string): number => {
+    const p = products?.find((x: any) => x.id === productId);
+    return Number((p as any)?.standard_selling_price) || 0;
+  };
 
   // Save mutation
   const saveMutation = useMutation({
@@ -509,11 +516,12 @@ export default function DomesticSalesOrdersPage() {
       const packages = parseFloat(item.no_of_packages) || 0;
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
     }
-    // Auto-fill price from customer_pricing on product change (only if no manual override yet).
+    // Auto-fill price: customer-specific price wins; otherwise the product's
+    // standard selling price (only if no manual override yet).
     if (field === 'product_id' && value) {
       const existing = parseFloat(newItems[index].price_per_dozen);
       if (!existing || existing <= 0) {
-        const lookup = priceForProduct(value);
+        const lookup = priceForProduct(value) || stdPriceForProduct(value);
         if (lookup > 0) newItems[index].price_per_dozen = lookup.toString();
       }
     }
@@ -694,11 +702,12 @@ export default function DomesticSalesOrdersPage() {
       newItems[index].quantity_dozens = (packingDozens * packages).toString();
     }
 
-    // Auto-fill price from customer_pricing on product change (only if no manual override yet).
+    // Auto-fill price: customer-specific price wins; otherwise the product's
+    // standard selling price (only if no manual override yet).
     if (field === 'product_id' && value) {
       const existing = parseFloat(newItems[index].price_per_dozen);
       if (!existing || existing <= 0) {
-        const lookup = priceForProduct(value);
+        const lookup = priceForProduct(value) || stdPriceForProduct(value);
         if (lookup > 0) newItems[index].price_per_dozen = lookup.toString();
       }
     }
