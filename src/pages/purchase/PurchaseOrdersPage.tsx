@@ -12,10 +12,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Eye, Pencil, Check } from "lucide-react";
+import { Plus, Trash2, Eye, Check, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -59,7 +70,7 @@ interface PurchaseOrderItem {
 export default function PurchaseOrdersPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const { user, hasModulePermission, hasPurchaseCategoryPermission } = useAuth();
+  const { user, hasModulePermission, hasPurchaseCategoryPermission, hasRole } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -78,6 +89,9 @@ export default function PurchaseOrdersPage() {
   const canCreate = hasModulePermission('purchase', 'create');
   const canEdit = hasModulePermission('purchase', 'edit');
   const canApprove = hasModulePermission('purchase', 'approve');
+  // Deleting a purchase order is destructive (cascades to its line items),
+  // so it is reserved exclusively for super admins.
+  const canDelete = hasRole('super_admin');
 
   // Handle navigation state to open new order dialog
   useEffect(() => {
@@ -95,7 +109,7 @@ export default function PurchaseOrdersPage() {
         .from('purchase_orders')
         .select(`
           *,
-          suppliers(name, code),
+          suppliers(name, code, phone),
           created_by_user:app_users!purchase_orders_created_by_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
@@ -233,6 +247,86 @@ export default function PurchaseOrdersPage() {
       toast.error(error.message || 'Failed to approve');
     },
   });
+
+  // Delete mutation (super admin only). Line items are removed automatically
+  // via the ON DELETE CASCADE foreign key on purchase_order_items.
+  const deleteMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .delete()
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      toast.success('Purchase order deleted');
+      setViewOrder(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete purchase order');
+    },
+  });
+
+  // Normalise a stored supplier phone into the digits-only form wa.me expects.
+  // Best-effort for Pakistani numbers: 03xx... -> 923xx..., bare 3xx... -> 923xx...
+  const normalizeWhatsAppPhone = (raw?: string | null): string => {
+    if (!raw) return '';
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('92')) return digits;
+    if (digits.startsWith('0')) return '92' + digits.slice(1);
+    if (digits.length === 10 && digits.startsWith('3')) return '92' + digits;
+    return digits;
+  };
+
+  // Build a readable WhatsApp message summarising the purchase order so the
+  // vendor receives the full order details in chat.
+  const buildWhatsAppMessage = (order: any, lineItems: any[]): string => {
+    const lines: string[] = [];
+    lines.push('*PURCHASE ORDER*');
+    lines.push('Cansport Global Industries');
+    lines.push('');
+    lines.push(`*PO #:* ${order.po_number}`);
+    lines.push(`*Supplier:* ${order.suppliers?.name || '-'}`);
+    lines.push(`*Order Date:* ${format(new Date(order.order_date), 'dd/MM/yyyy')}`);
+    if (order.expected_date) {
+      lines.push(`*Expected:* ${format(new Date(order.expected_date), 'dd/MM/yyyy')}`);
+    }
+    lines.push('');
+    lines.push('*Items:*');
+    if (lineItems.length === 0) {
+      lines.push('-');
+    } else {
+      lineItems.forEach((it, i) => {
+        const name = it.items?.name || it.description || 'Item';
+        lines.push(
+          `${i + 1}. ${name} — ${it.quantity} x Rs. ${Number(it.unit_price || 0).toLocaleString()} = Rs. ${Number(it.amount || 0).toLocaleString()}`
+        );
+      });
+    }
+    lines.push('');
+    lines.push(`*Total: Rs. ${Number(order.total_amount || 0).toLocaleString()}*`);
+    if (order.payment_terms) lines.push(`Payment Terms: ${order.payment_terms} days`);
+    if (order.shipping_address) lines.push(`Ship To: ${order.shipping_address}`);
+    if (order.notes) lines.push(`Notes: ${order.notes}`);
+    return lines.join('\n');
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!viewOrder) return;
+    const message = buildWhatsAppMessage(viewOrder, orderItems || []);
+    const phone = normalizeWhatsAppPhone(viewOrder.suppliers?.phone);
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+    if (!phone) {
+      toast.message('No supplier phone on file', {
+        description: 'Pick the vendor in WhatsApp to send the order.',
+      });
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -649,9 +743,9 @@ export default function PurchaseOrdersPage() {
       </PageHeader>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
@@ -663,7 +757,7 @@ export default function PurchaseOrdersPage() {
         </Select>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -686,21 +780,65 @@ export default function PurchaseOrdersPage() {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={filteredOrders || []}
-        />
+        <>
+          {/* Desktop / tablet: full data table */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={filteredOrders || []}
+            />
+          </div>
+
+          {/* Mobile: tappable card list */}
+          <div className="space-y-3 md:hidden">
+            {(filteredOrders || []).length === 0 ? (
+              <div className="rounded-lg border bg-card py-8 text-center text-sm text-muted-foreground">
+                No purchase orders
+              </div>
+            ) : (
+              (filteredOrders || []).map((order) => (
+                <button
+                  key={order.id}
+                  type="button"
+                  onClick={() => setViewOrder(order)}
+                  className="w-full rounded-lg border bg-card p-4 text-left transition-colors active:bg-muted/50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">{order.po_number}</span>
+                    <Badge className={STATUS_COLORS[order.status] || 'bg-gray-500'}>
+                      {order.status?.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 text-sm font-medium">{order.suppliers?.name || '-'}</div>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {format(new Date(order.order_date), 'dd/MM/yyyy')}
+                    </span>
+                    <span className="font-semibold">
+                      Rs. {order.total_amount?.toLocaleString() || 0}
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <Badge variant="outline" className="text-xs">
+                      {CATEGORIES.find(c => c.value === order.category)?.label || order.category}
+                    </Badge>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </>
       )}
 
       {/* View Order Dialog */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Purchase Order: {viewOrder?.po_number}</DialogTitle>
           </DialogHeader>
           {viewOrder && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
                 <div><strong>Supplier:</strong> {viewOrder.suppliers?.name}</div>
                 <div><strong>Category:</strong> {CATEGORIES.find(c => c.value === viewOrder.category)?.label}</div>
                 <div><strong>Order Date:</strong> {format(new Date(viewOrder.order_date), 'dd/MM/yyyy')}</div>
@@ -710,30 +848,57 @@ export default function PurchaseOrdersPage() {
               </div>
 
               {orderItems && orderItems.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Received</TableHead>
-                      <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  {/* Desktop / tablet: items table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Received</TableHead>
+                          <TableHead className="text-right">Unit Price</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orderItems.map((item: any) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.items?.code || '-'}</TableCell>
+                            <TableCell>{item.description || item.items?.name}</TableCell>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-right">{item.quantity_received || 0}</TableCell>
+                            <TableCell className="text-right">Rs. {item.unit_price?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">Rs. {item.amount?.toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile: stacked item cards */}
+                  <div className="space-y-3 sm:hidden">
                     {orderItems.map((item: any) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.items?.code || '-'}</TableCell>
-                        <TableCell>{item.description || item.items?.name}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{item.quantity_received || 0}</TableCell>
-                        <TableCell className="text-right">Rs. {item.unit_price?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">Rs. {item.amount?.toLocaleString()}</TableCell>
-                      </TableRow>
+                      <div key={item.id} className="rounded-lg border p-3 space-y-2 text-sm">
+                        <div className="font-medium">
+                          {item.description || item.items?.name}
+                          {item.items?.code && (
+                            <span className="text-muted-foreground"> ({item.items.code})</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Qty: <span className="text-foreground">{item.quantity}</span></span>
+                          <span>Received: <span className="text-foreground">{item.quantity_received || 0}</span></span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Unit: <span className="text-foreground">Rs. {item.unit_price?.toLocaleString()}</span></span>
+                          <span className="font-semibold text-foreground">Rs. {item.amount?.toLocaleString()}</span>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </>
               )}
 
               {viewOrder.notes && (
@@ -743,7 +908,45 @@ export default function PurchaseOrdersPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t">
+                {canDelete && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 sm:mr-auto"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="w-[95vw] max-w-md">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete purchase order?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete {viewOrder.po_number} and all of its
+                          line items. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteMutation.mutate(viewOrder.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={handleWhatsAppShare}
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                  title="Send this purchase order to the vendor on WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+                </Button>
                 {viewOrder.status === 'draft' && canApproveForCategory(viewOrder.category) && (
                   <Button onClick={() => approveMutation.mutate(viewOrder.id)}>
                     <Check className="h-4 w-4 mr-2" /> Approve
