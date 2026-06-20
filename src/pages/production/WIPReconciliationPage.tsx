@@ -75,6 +75,21 @@ export default function WIPReconciliationPage() {
     },
   });
 
+  // Domestic sales returns (classified via their originating dispatch) add stock
+  // back into the final WIP level, reducing net domestic sales consumption.
+  const { data: returns = [] } = useQuery({
+    queryKey: ["wip-rec-returns", asOfDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_returns")
+        .select("sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
+        .eq("sales_dispatches.sales_segment", "domestic")
+        .lte("return_date", asOfDate);
+      if (error) throw error;
+      return (data || []) as Array<{ sales_return_items: Array<{ quantity_dozens: number }> }>;
+    },
+  });
+
   const { data: planningItems = [] } = useQuery({
     queryKey: ["wip-rec-planning-items"],
     queryFn: async () => {
@@ -141,6 +156,15 @@ export default function WIPReconciliationPage() {
     return s / 25;
   }, [dispatches]);
 
+  // Domestic returns total in bags (dozens / 25)
+  const returnsTotal = useMemo(() => {
+    let s = 0;
+    for (const r of returns) {
+      for (const it of r.sales_return_items || []) s += Number(it.quantity_dozens || 0);
+    }
+    return s / 25;
+  }, [returns]);
+
   // Closings: by department and by planning_item
   const closingByDept = useMemo(() => {
     const m = new Map<string, number>();
@@ -174,7 +198,8 @@ export default function WIPReconciliationPage() {
       if (nextLvl) {
         consumed = nextLvl.depts.reduce((s, d) => s + (prodByDept.get(d.id) || 0), 0);
       } else {
-        consumed = salesTotal;
+        // Final level: net domestic sales out = dispatches − returns.
+        consumed = salesTotal - returnsTotal;
       }
       const systemClosing = produced - consumed;
       const planningClosing = lvl.depts.reduce((s, d) => s + (closingByDept.get(d.id) || 0), 0);
@@ -182,7 +207,7 @@ export default function WIPReconciliationPage() {
       const variancePct = systemClosing !== 0 ? (variance / systemClosing) * 100 : (planningClosing === 0 ? 0 : 100);
       return { lvl, systemClosing, planningClosing, variance, variancePct };
     });
-  }, [visibleLevels, levels, prodByDept, salesTotal, closingByDept]);
+  }, [visibleLevels, levels, prodByDept, salesTotal, returnsTotal, closingByDept]);
 
   const totals = useMemo(() => {
     return rows.reduce((acc, r) => ({
