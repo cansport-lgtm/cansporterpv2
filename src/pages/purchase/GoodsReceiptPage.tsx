@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, Pencil } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -44,6 +44,7 @@ const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
 ];
 
 interface GRNItem {
+  id?: string; // grn_items.id — present only when editing an existing GRN
   po_item_id: string;
   item_id: string | null;
   description: string;
@@ -54,9 +55,10 @@ interface GRNItem {
 
 export default function GoodsReceiptPage() {
   const queryClient = useQueryClient();
-  const { user, hasModulePermission, hasPurchaseCategoryPermission } = useAuth();
+  const { user, hasModulePermission, hasPurchaseCategoryPermission, hasRole } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewGRNId, setViewGRNId] = useState<string | null>(null);
+  const [editGRNId, setEditGRNId] = useState<string | null>(null);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [formData, setFormData] = useState({
     purchase_order_id: '',
@@ -70,6 +72,9 @@ export default function GoodsReceiptPage() {
   });
 
   const canCreate = hasModulePermission('purchase', 'create');
+  // Editing an already-recorded purchase invoice (GRN) is restricted to super admins,
+  // since it can re-sync the posted Accounts Payable voucher.
+  const canEdit = hasRole('super_admin');
 
   // Fetch GRNs
   const { data: grns, isLoading } = useQuery({
@@ -217,6 +222,119 @@ export default function GoodsReceiptPage() {
     },
   });
 
+  // Update mutation (super admin only) — edit an existing purchase invoice / GRN.
+  const updateMutation = useMutation({
+    mutationFn: async ({ grnId, data }: { grnId: string; data: typeof formData }) => {
+      const itemsSubtotal = data.items.reduce((sum, item) => {
+        return sum + (parseFloat(item.quantity_received) || 0) * item.unit_price;
+      }, 0);
+      const transportationCost = parseFloat(data.transportation_cost) || 0;
+      const totalAmount = itemsSubtotal + transportationCost;
+      const invoiceAmount = data.invoice_amount ? parseFloat(data.invoice_amount) : null;
+
+      // 1) Update GRN header
+      const { error: grnError } = await supabase
+        .from('goods_receipt_notes')
+        .update({
+          receipt_date: data.receipt_date,
+          invoice_number: data.invoice_number || null,
+          invoice_date: data.invoice_date || null,
+          invoice_amount: invoiceAmount,
+          transportation_cost: transportationCost,
+          total_amount: totalAmount,
+          notes: data.notes || null,
+        } as any)
+        .eq('id', grnId);
+      if (grnError) throw grnError;
+
+      // 2) Update received quantities on existing GRN items (PO received qty is kept
+      //    in sync by the trigger_update_po_item_received AFTER UPDATE trigger).
+      for (const item of data.items) {
+        if (!item.id) continue;
+        const qty = parseFloat(item.quantity_received) || 0;
+        const { error: itemError } = await supabase
+          .from('grn_items')
+          .update({ quantity_received: qty, amount: qty * item.unit_price })
+          .eq('id', item.id);
+        if (itemError) throw itemError;
+      }
+
+      // 3) Keep the posted AP voucher (if any) reconciled with the edited amount.
+      const sb = supabase as any;
+      const newAmount = invoiceAmount ?? totalAmount;
+      const { data: voucher } = await sb
+        .from('accounting_vouchers')
+        .select('id')
+        .eq('source_module', 'purchase')
+        .eq('source_reference_id', grnId)
+        .maybeSingle();
+      if (voucher?.id && newAmount > 0) {
+        await sb.from('accounting_vouchers')
+          .update({ total_amount: newAmount, voucher_date: data.receipt_date })
+          .eq('id', voucher.id);
+        // Dr line (Inventory/Expense) and Cr line (Accounts Payable) each carry the
+        // full amount; update them in place so the voucher stays balanced.
+        await sb.from('accounting_voucher_lines')
+          .update({ debit_amount: newAmount })
+          .eq('voucher_id', voucher.id)
+          .gt('debit_amount', 0);
+        await sb.from('accounting_voucher_lines')
+          .update({ credit_amount: newAmount })
+          .eq('voucher_id', voucher.id)
+          .gt('credit_amount', 0);
+      }
+
+      return { hadVoucher: !!voucher?.id };
+    },
+    onSuccess: ({ hadVoucher }) => {
+      queryClient.invalidateQueries({ queryKey: ['goods-receipt-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['approved-purchase-orders'] });
+      toast.success(hadVoucher ? 'Goods receipt updated (AP voucher re-synced)' : 'Goods receipt updated');
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update goods receipt');
+    },
+  });
+
+  const handleEditGRN = async (grn: any) => {
+    const { data: items, error } = await supabase
+      .from('grn_items')
+      .select('*')
+      .eq('grn_id', grn.id);
+    if (error) {
+      toast.error('Failed to load GRN items');
+      return;
+    }
+    setEditGRNId(grn.id);
+    setSelectedPO({
+      id: grn.purchase_order_id,
+      supplier_id: grn.supplier_id,
+      suppliers: grn.suppliers,
+      category: grn.purchase_orders?.category,
+      po_number: grn.purchase_orders?.po_number,
+    });
+    setFormData({
+      purchase_order_id: grn.purchase_order_id,
+      receipt_date: grn.receipt_date,
+      invoice_number: grn.invoice_number || '',
+      invoice_date: grn.invoice_date || '',
+      invoice_amount: grn.invoice_amount?.toString() || '',
+      transportation_cost: grn.transportation_cost?.toString() || '',
+      notes: grn.notes || '',
+      items: (items || []).map((it: any) => ({
+        id: it.id,
+        po_item_id: it.po_item_id,
+        item_id: it.item_id,
+        description: it.description || '',
+        quantity_ordered: it.quantity_ordered,
+        quantity_received: it.quantity_received?.toString() || '0',
+        unit_price: it.unit_price,
+      })),
+    });
+    setDialogOpen(true);
+  };
+
   const resetForm = () => {
     setFormData({
       purchase_order_id: '',
@@ -229,6 +347,7 @@ export default function GoodsReceiptPage() {
       items: [],
     });
     setSelectedPO(null);
+    setEditGRNId(null);
     setDialogOpen(false);
   };
 
@@ -305,9 +424,16 @@ export default function GoodsReceiptPage() {
       key: 'id',
       header: 'Actions',
       render: (grn) => (
-        <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEditGRN(grn)} title="Edit (super admin)">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -318,32 +444,38 @@ export default function GoodsReceiptPage() {
         title="Goods Receipt"
         description="Record goods received against purchase orders"
       >
-        {canCreate && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
-                <Plus className="mr-2 h-4 w-4" /> New GRN
-              </Button>
-            </DialogTrigger>
+        {(canCreate || canEdit) && (
+          <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) resetForm(); else setDialogOpen(true); }}>
+            {canCreate && (
+              <DialogTrigger asChild>
+                <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
+                  <Plus className="mr-2 h-4 w-4" /> New GRN
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create Goods Receipt Note</DialogTitle>
+                <DialogTitle>{editGRNId ? 'Edit Goods Receipt Note' : 'Create Goods Receipt Note'}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Purchase Order *</Label>
-                    <SearchableSelect
-                      value={formData.purchase_order_id}
-                      onValueChange={handlePOSelect}
-                      placeholder="Select PO"
-                      options={(filteredPOs || []).map(po => ({
-                        value: po.id,
-                        label: po.po_number,
-                        secondary: po.suppliers?.name ? `- ${po.suppliers.name}` : undefined,
-                        search: `${po.suppliers?.name || ''} ${po.suppliers?.code || ''}`,
-                      }))}
-                    />
+                    {editGRNId ? (
+                      <Input value={selectedPO?.po_number || '-'} disabled />
+                    ) : (
+                      <SearchableSelect
+                        value={formData.purchase_order_id}
+                        onValueChange={handlePOSelect}
+                        placeholder="Select PO"
+                        options={(filteredPOs || []).map(po => ({
+                          value: po.id,
+                          label: po.po_number,
+                          secondary: po.suppliers?.name ? `- ${po.suppliers.name}` : undefined,
+                          search: `${po.suppliers?.name || ''} ${po.suppliers?.code || ''}`,
+                        }))}
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Receipt Date *</Label>
@@ -359,7 +491,9 @@ export default function GoodsReceiptPage() {
                   <div className="p-3 bg-muted rounded-md text-sm">
                     <div><strong>Supplier:</strong> {selectedPO.suppliers?.name}</div>
                     <div><strong>Category:</strong> {CATEGORIES.find(c => c.value === selectedPO.category)?.label}</div>
-                    <div><strong>PO Date:</strong> {format(new Date(selectedPO.order_date), 'dd/MM/yyyy')}</div>
+                    {selectedPO.order_date && (
+                      <div><strong>PO Date:</strong> {format(new Date(selectedPO.order_date), 'dd/MM/yyyy')}</div>
+                    )}
                   </div>
                 )}
 
@@ -478,10 +612,14 @@ export default function GoodsReceiptPage() {
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={resetForm}>Cancel</Button>
                   <Button
-                    onClick={() => saveMutation.mutate(formData)}
-                    disabled={!formData.purchase_order_id || formData.items.length === 0 || saveMutation.isPending}
+                    onClick={() => editGRNId
+                      ? updateMutation.mutate({ grnId: editGRNId, data: formData })
+                      : saveMutation.mutate(formData)}
+                    disabled={!formData.purchase_order_id || formData.items.length === 0 || saveMutation.isPending || updateMutation.isPending}
                   >
-                    {saveMutation.isPending ? 'Creating...' : 'Create GRN'}
+                    {editGRNId
+                      ? (updateMutation.isPending ? 'Saving...' : 'Save Changes')
+                      : (saveMutation.isPending ? 'Creating...' : 'Create GRN')}
                   </Button>
                 </div>
               </div>
