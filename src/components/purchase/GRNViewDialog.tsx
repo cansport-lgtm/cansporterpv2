@@ -1,13 +1,16 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload } from "lucide-react";
+import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload, Pencil, Save, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { syncGRNToLedger } from "@/lib/accounting/syncGRNToLedger";
 
 const sb = supabase as any;
 const ATTACHMENT_BUCKET = "grn-attachments";
@@ -42,6 +45,14 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadKind, setUploadKind] = useState<"bill" | "stock_photo">("bill");
+  const { hasModulePermission } = useAuth();
+  const canEdit = hasModulePermission("purchase", "edit");
+  const [editMode, setEditMode] = useState(false);
+  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
+  const [editInvoice, setEditInvoice] = useState<string>("");
+
+  // Reset edit state whenever a different GRN is opened/closed.
+  useEffect(() => { setEditMode(false); }, [grnId]);
 
   const { data: grn } = useQuery({
     queryKey: ["grn-view-dialog", grnId],
@@ -131,6 +142,63 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
     onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
+  // ── Edit purchase prices ────────────────────────────────────────────────
+  const startEdit = () => {
+    const map: Record<string, string> = {};
+    (items || []).forEach((it: any) => { map[it.id] = String(it.unit_price ?? 0); });
+    setEditPrices(map);
+    setEditInvoice(grn?.invoice_amount != null ? String(grn.invoice_amount) : "");
+    setEditMode(true);
+  };
+
+  const livePrice = (it: any) =>
+    editMode ? (parseFloat(editPrices[it.id] ?? String(it.unit_price ?? 0)) || 0) : Number(it.unit_price || 0);
+  const liveSubtotal = (items || []).reduce(
+    (s: number, it: any) => s + Number(it.quantity_received || 0) * livePrice(it), 0);
+  const liveTotal = liveSubtotal + Number(grn?.transportation_cost || 0);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!grnId || !grn) throw new Error("No GRN");
+      const list = items || [];
+      for (const it of list) {
+        const p = parseFloat(editPrices[it.id] ?? String(it.unit_price ?? 0));
+        if (!(p >= 0)) throw new Error("Unit price cannot be negative");
+      }
+      // Update each line's unit_price + amount
+      for (const it of list) {
+        const price = parseFloat(editPrices[it.id] ?? String(it.unit_price ?? 0)) || 0;
+        const qty = Number(it.quantity_received || 0);
+        const { error } = await sb.from("grn_items").update({ unit_price: price, amount: qty * price }).eq("id", it.id);
+        if (error) throw error;
+      }
+      // Recompute header total + invoice amount
+      const subtotal = list.reduce(
+        (s: number, it: any) => s + Number(it.quantity_received || 0) * (parseFloat(editPrices[it.id] ?? String(it.unit_price ?? 0)) || 0), 0);
+      const total = subtotal + Number(grn.transportation_cost || 0);
+      const invAmt = editInvoice.trim() === "" ? null : (parseFloat(editInvoice) || 0);
+      const { error: hErr } = await sb.from("goods_receipt_notes").update({ total_amount: total, invoice_amount: invAmt }).eq("id", grnId);
+      if (hErr) throw hErr;
+      // Keep the auto-posted AP/Inventory voucher in step with the new amount.
+      return await syncGRNToLedger(grnId);
+    },
+    onSuccess: (sync: any) => {
+      queryClient.invalidateQueries({ queryKey: ["grn-view-dialog", grnId] });
+      queryClient.invalidateQueries({ queryKey: ["grn-view-dialog-items", grnId] });
+      queryClient.invalidateQueries({ queryKey: ["goods-receipt-notes"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-vouchers"] });
+      if (sync?.updated) {
+        toast({ title: "Prices updated", description: `GL synced: ${sync.updated.voucherNumber} → Rs. ${Number(sync.updated.to).toLocaleString()}` });
+      } else if (sync && !sync.ok) {
+        toast({ title: "Saved, but GL sync failed", description: sync.error, variant: "destructive" });
+      } else {
+        toast({ title: "Prices updated" });
+      }
+      setEditMode(false);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
   const handleFilesPicked = (files: FileList | null) => {
     if (!files) return;
     Array.from(files).forEach((f) => uploadMutation.mutate(f));
@@ -153,11 +221,16 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
               <div><strong>Supplier:</strong> {grn.suppliers?.name || "—"}</div>
               <div><strong>Receipt Date:</strong> {grn.receipt_date ? format(new Date(grn.receipt_date), "dd/MM/yyyy") : "—"}</div>
               <div><strong>Invoice #:</strong> {grn.invoice_number || "—"}</div>
-              <div><strong>Invoice Amount:</strong> {grn.invoice_amount ? `Rs. ${Number(grn.invoice_amount).toLocaleString()}` : "—"}</div>
+              <div className="flex items-center gap-2">
+                <strong>Invoice Amount:</strong>
+                {editMode ? (
+                  <Input type="number" min={0} step="0.01" className="h-8 w-36 text-sm" value={editInvoice} placeholder="(none)" onChange={(e) => setEditInvoice(e.target.value)} />
+                ) : (grn.invoice_amount ? `Rs. ${Number(grn.invoice_amount).toLocaleString()}` : "—")}
+              </div>
               {Number(grn.transportation_cost || 0) > 0 && (
                 <div><strong>Transportation:</strong> Rs. {Number(grn.transportation_cost).toLocaleString()}</div>
               )}
-              <div><strong>Total Received:</strong> Rs. {Number(grn.total_amount || 0).toLocaleString()}</div>
+              <div><strong>Total Received:</strong> Rs. {Number(editMode ? liveTotal : (grn.total_amount || 0)).toLocaleString()}</div>
             </div>
 
             {items && items.length > 0 && (
@@ -179,8 +252,17 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
                       <TableCell>{item.description || item.items?.name}</TableCell>
                       <TableCell className="text-right">{item.quantity_ordered}</TableCell>
                       <TableCell className="text-right">{item.quantity_received}</TableCell>
-                      <TableCell className="text-right">Rs. {Number(item.unit_price || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right">Rs. {Number(item.amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        {editMode ? (
+                          <Input
+                            type="number" min={0} step="0.01"
+                            className="h-8 w-28 text-right text-sm ml-auto"
+                            value={editPrices[item.id] ?? String(item.unit_price ?? 0)}
+                            onChange={(e) => setEditPrices((m) => ({ ...m, [item.id]: e.target.value }))}
+                          />
+                        ) : `Rs. ${Number(item.unit_price || 0).toLocaleString()}`}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">Rs. {Number(Number(item.quantity_received || 0) * livePrice(item) || 0).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -315,8 +397,26 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
               )}
             </div>
 
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+            <div className="flex justify-end gap-2">
+              {editMode ? (
+                <>
+                  <Button variant="outline" onClick={() => setEditMode(false)} disabled={saveMutation.isPending}>
+                    <X className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+                    <Save className="h-4 w-4 mr-1" /> {saveMutation.isPending ? "Saving…" : "Save Prices"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {canEdit && (
+                    <Button variant="outline" onClick={startEdit}>
+                      <Pencil className="h-4 w-4 mr-1" /> Edit Prices
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </>
+              )}
             </div>
           </div>
         )}
