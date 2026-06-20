@@ -119,6 +119,35 @@ export default function WIPLedgerPage() {
     },
   });
 
+  // Domestic sales returns bring finished goods back into stock — they appear at
+  // the final (FG) level as an inflow, netting off the dispatched-out quantity.
+  const { data: returns = [] } = useQuery({
+    queryKey: ["wip-ledger-returns", fromDate, toDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_returns")
+        .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
+        .eq("sales_dispatches.sales_segment", "domestic")
+        .gte("return_date", fromDate)
+        .lte("return_date", toDate);
+      if (error) throw error;
+      return (data || []) as Array<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>;
+    },
+  });
+
+  const { data: openingReturns = [] } = useQuery({
+    queryKey: ["wip-ledger-opening-returns", fromDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_returns")
+        .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
+        .eq("sales_dispatches.sales_segment", "domestic")
+        .lt("return_date", fromDate);
+      if (error) throw error;
+      return (data || []) as Array<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>;
+    },
+  });
+
   // Build ordered levels (group departments by wip_order)
   const levels: Level[] = useMemo(() => {
     const deptMap = new Map(departments.map(d => [d.id, d]));
@@ -189,6 +218,25 @@ export default function WIPLedgerPage() {
     return total / 1; // already divided per dispatch
   }, [openingDispatches]);
 
+  // Domestic sales returns per date (in-range), divided by 25 to match sales units
+  const returnsMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of returns) {
+      const total = (r.sales_return_items || []).reduce((s, it) => s + Number(it.quantity_dozens || 0), 0) / 25;
+      m.set(r.return_date, (m.get(r.return_date) || 0) + total);
+    }
+    return m;
+  }, [returns]);
+
+  // Opening domestic returns total (before fromDate), divided by 25
+  const openingReturnsTotal = useMemo(() => {
+    let total = 0;
+    for (const r of openingReturns) {
+      total += (r.sales_return_items || []).reduce((s, it) => s + Number(it.quantity_dozens || 0), 0) / 25;
+    }
+    return total;
+  }, [openingReturns]);
+
   const dates = useMemo(() => {
     try {
       return eachDayOfInterval({ start: parseISO(fromDate), end: parseISO(toDate) }).map(d => format(d, "yyyy-MM-dd"));
@@ -203,7 +251,8 @@ export default function WIPLedgerPage() {
 
     // Opening balance = (prior input from previous level) - (prior outflow of this level)
     const openingIn = prev ? sumLevelOpening(prev) : 0;
-    const openingOut = isLast ? openingSalesTotal : sumLevelOpening(lvl);
+    // At the final level, returns add FG back, so they net off opening sales-out.
+    const openingOut = isLast ? (openingSalesTotal - openingReturnsTotal) : sumLevelOpening(lvl);
     const openingBalance = openingIn - openingOut;
 
     let balance = openingBalance;
@@ -212,11 +261,16 @@ export default function WIPLedgerPage() {
 
     for (const d of dates) {
       const inQty = prev ? sumLevel(prev, d) : 0;
+      const retIn = isLast ? (returnsMap.get(d) || 0) : 0;   // FG returned by customers
       const outQty = isLast ? (salesMap.get(d) || 0) : sumLevel(lvl, d);
-      if (inQty === 0 && outQty === 0) continue;
+      if (inQty === 0 && outQty === 0 && retIn === 0) continue;
       if (inQty > 0) {
         balance += inQty;
         rows.push({ date: d, ref: prev ? `From ${prev.label}` : "Input", inQty, outQty: 0, balance });
+      }
+      if (retIn > 0) {
+        balance += retIn;
+        rows.push({ date: d, ref: "Sales Return", inQty: retIn, outQty: 0, balance });
       }
       if (outQty > 0) {
         balance -= outQty;
