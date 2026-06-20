@@ -192,7 +192,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
 
   return (
     <Dialog open={!!invoiceId} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Edit Invoice {invoice?.invoice_number} <span className="text-xs text-muted-foreground ml-2">{invoice?.customer?.name}</span>
@@ -238,19 +238,19 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                   <Plus className="h-3 w-3 mr-1" />Add Line
                 </Button>
               </div>
-              <div className="border rounded">
-                <Table>
+              <div className="border rounded overflow-x-auto">
+                <Table className="min-w-[1200px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Details</TableHead>
-                      <TableHead>Grade</TableHead>
-                      <TableHead>Packing</TableHead>
-                      <TableHead className="text-right w-24">Qty</TableHead>
-                      <TableHead className="text-right w-28">Rate/Dz</TableHead>
-                      <TableHead className="text-right w-28">Amount</TableHead>
-                      <TableHead className="w-10" />
+                      <TableHead className="min-w-[210px]">Product</TableHead>
+                      <TableHead className="min-w-[230px]">Description</TableHead>
+                      <TableHead className="min-w-[210px]">Details</TableHead>
+                      <TableHead className="min-w-[130px]">Grade</TableHead>
+                      <TableHead className="min-w-[150px]">Packing</TableHead>
+                      <TableHead className="text-right w-28">Qty</TableHead>
+                      <TableHead className="text-right w-32">Rate/Dz</TableHead>
+                      <TableHead className="text-right w-32">Amount</TableHead>
+                      <TableHead className="w-12" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -267,7 +267,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                             };
                             setLines(next);
                           }}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="(none)" /></SelectTrigger>
+                            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="(none)" /></SelectTrigger>
                             <SelectContent className="max-h-[260px]">
                               {products?.map((p: any) => (
                                 <SelectItem key={p.id} value={p.id}><span className="font-mono text-xs mr-2">{p.code}</span>{p.name}</SelectItem>
@@ -276,29 +276,29 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Input className="h-8 text-xs" value={l.description} onChange={(e) => {
+                          <Input className="h-9 text-sm" value={l.description} onChange={(e) => {
                             const next = [...lines]; next[i] = { ...next[i], description: e.target.value }; setLines(next);
                           }} />
                         </TableCell>
                         <TableCell>
-                          <Input className="h-8 text-xs" value={l.details} placeholder="Prints on invoice" onChange={(e) => {
+                          <Input className="h-9 text-sm" value={l.details} placeholder="Prints on invoice" onChange={(e) => {
                             const next = [...lines]; next[i] = { ...next[i], details: e.target.value }; setLines(next);
                           }} />
                         </TableCell>
                         <TableCell>
-                          <Input className="h-8 text-xs" value={l.grade_name} onChange={(e) => {
+                          <Input className="h-9 text-sm" value={l.grade_name} onChange={(e) => {
                             const next = [...lines]; next[i] = { ...next[i], grade_name: e.target.value }; setLines(next);
                           }} />
                         </TableCell>
                         <TableCell>
-                          <Input className="h-8 text-xs" value={l.packing_type} onChange={(e) => {
+                          <Input className="h-9 text-sm" value={l.packing_type} onChange={(e) => {
                             const next = [...lines]; next[i] = { ...next[i], packing_type: e.target.value }; setLines(next);
                           }} />
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number" min={0} step="0.01"
-                            className="h-8 text-right text-xs"
+                            className="h-9 text-right text-sm"
                             value={l.quantity_dozens || ""}
                             onChange={(e) => {
                               const next = [...lines]; next[i] = { ...next[i], quantity_dozens: parseFloat(e.target.value) || 0 }; setLines(next);
@@ -308,14 +308,14 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                         <TableCell className="text-right">
                           <Input
                             type="number" min={0} step="0.01"
-                            className="h-8 text-right text-xs"
+                            className="h-9 text-right text-sm"
                             value={l.price_per_dozen || ""}
                             onChange={(e) => {
                               const next = [...lines]; next[i] = { ...next[i], price_per_dozen: parseFloat(e.target.value) || 0 }; setLines(next);
                             }}
                           />
                         </TableCell>
-                        <TableCell className="text-right text-xs font-medium">
+                        <TableCell className="text-right text-sm font-medium whitespace-nowrap">
                           Rs. {(l.quantity_dozens * l.price_per_dozen).toLocaleString()}
                         </TableCell>
                         <TableCell>
@@ -326,7 +326,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                       </TableRow>
                     ))}
                     {lines.length === 0 && (
-                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground text-xs">No line items. Click Add Line.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground text-sm">No line items. Click Add Line.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
