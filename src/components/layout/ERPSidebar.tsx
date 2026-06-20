@@ -356,6 +356,7 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Requests", href: "/purchase/requests" },
       { title: "Purchase Orders", href: "/purchase/orders" },
       { title: "Goods Receipt", href: "/purchase/grn" },
+      { title: "Purchase Invoices", href: "/purchase/invoices" },
       { title: "Purchase Returns", href: "/purchase/returns" },
       { title: "Dashboard", href: "/purchase/dashboard" },
     ],
