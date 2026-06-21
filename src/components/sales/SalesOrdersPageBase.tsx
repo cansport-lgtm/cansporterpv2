@@ -372,20 +372,20 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
         />
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Order List</CardTitle>
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 sm:flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search orders..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-48"
+                  className="pl-9 w-full sm:w-48"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -402,12 +402,12 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
               {canCreate && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button onClick={handleCloseDialog}>
+                    <Button onClick={handleCloseDialog} className="w-full sm:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
                       New Order
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>New Sales Order</DialogTitle>
                     </DialogHeader>
@@ -560,7 +560,8 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
             </div>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
+            {/* Desktop Table View */}
+            <div className="hidden md:block border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -642,6 +643,80 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : filteredOrders?.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No orders found</div>
+              ) : (
+                filteredOrders?.map((order) => (
+                  <div
+                    key={order.id}
+                    className="border rounded-xl p-4 space-y-3 bg-card shadow-sm"
+                    onClick={() => setViewOrder(order)}
+                  >
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-mono font-semibold text-primary">{order.order_number}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {format(new Date(order.order_date), 'dd MMM yyyy')}
+                        </div>
+                      </div>
+                      <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                    </div>
+
+                    {/* Customer */}
+                    <div>
+                      <div className="font-medium">{order.customers?.name}</div>
+                      <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                      {(order.customers as any)?.billing_customer && (
+                        <div className="text-xs text-blue-600 font-medium mt-0.5">
+                          Billing: {(order.customers as any).billing_customer}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                      <div className="text-lg font-bold">
+                        Rs. {Number(order.net_amount || 0).toLocaleString()}
+                      </div>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' && (
+                          <Select value={order.status} onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}>
+                            <SelectTrigger className="w-28 h-8 text-xs">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="confirmed">Confirmed</SelectItem>
+                              <SelectItem value="in_production">In Production</SelectItem>
+                              <SelectItem value="ready">Ready</SelectItem>
+                              <SelectItem value="dispatched">Dispatched</SelectItem>
+                              <SelectItem value="delivered">Delivered</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewOrder(order)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {canDelete && (order.status === 'draft' || order.status === 'in_progress') && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                            if (confirm('Delete this order?')) deleteMutation.mutate(order.id);
+                          }}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

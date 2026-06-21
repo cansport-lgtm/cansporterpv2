@@ -771,20 +771,20 @@ export default function DomesticSalesOrdersPage() {
         />
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Order List</CardTitle>
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 sm:flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search orders..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-48"
+                  className="pl-9 w-full sm:w-48"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -801,7 +801,7 @@ export default function DomesticSalesOrdersPage() {
               {canCreate && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button onClick={handleCloseDialog}>
+                    <Button onClick={handleCloseDialog} className="w-full sm:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
                       New Order
                     </Button>
@@ -1024,7 +1024,8 @@ export default function DomesticSalesOrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
+            {/* Desktop Table View */}
+            <div className="hidden md:block border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1193,6 +1194,126 @@ export default function DomesticSalesOrdersPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : filteredOrders?.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No orders found</div>
+              ) : (
+                filteredOrders?.map((order) => {
+                  const items = getOrderItems(order.id);
+                  const isLate = !['dispatched', 'delivered', 'cancelled'].includes(order.status) &&
+                    order.expected_dispatch_date && new Date(order.expected_dispatch_date) < new Date();
+                  return (
+                    <div
+                      key={order.id}
+                      className="border rounded-xl p-4 space-y-3 bg-card shadow-sm"
+                      onClick={() => setViewOrder(order)}
+                    >
+                      {/* Header Row */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-mono font-semibold text-primary">{order.order_number}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {format(new Date(order.order_date), 'dd MMM yyyy')}
+                          </div>
+                        </div>
+                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                      </div>
+
+                      {/* Customer */}
+                      <div>
+                        <div className="font-medium">{order.customers?.name}</div>
+                        <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                        {(order.customers as any)?.billing_customer && (
+                          <div className="text-xs text-blue-600 font-medium mt-0.5">
+                            Billing: {(order.customers as any).billing_customer}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Details Row */}
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Deadline: </span>
+                          {order.expected_dispatch_date ? (
+                            <span className={isLate ? 'text-destructive font-semibold' : ''}>
+                              {format(new Date(order.expected_dispatch_date), 'dd MMM')}
+                              {isLate && ' ⚠'}
+                            </span>
+                          ) : '-'}
+                          {pendingOrderIds.has(order.id) && (
+                            <CalendarClock className="inline-block ml-1 h-3.5 w-3.5 text-amber-500" />
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">By: </span>
+                          <span>{(order as any).created_by_user?.full_name || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Items: </span>
+                          <span>{items.length}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Qty: </span>
+                          <span>{items.reduce((sum: number, item: any) => sum + (item.quantity_dozens || 0), 0)} Dz</span>
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                        {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' ? (
+                          <Select value={order.status} onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}>
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="confirmed">Confirmed</SelectItem>
+                              <SelectItem value="in_production">In Production</SelectItem>
+                              <SelectItem value="ready">Ready</SelectItem>
+                              <SelectItem value="dispatched">Dispatched</SelectItem>
+                              <SelectItem value="delivered">Delivered</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : <span />}
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewOrder(order)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handlePrintOrder(order, items)} title="Print for Packing">
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          {!['dispatched', 'delivered', 'cancelled'].includes(order.status) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                              setDeadlineRequestOrder(order);
+                              setDeadlineRequestDate('');
+                              setDeadlineRequestReason('');
+                            }} title="Request Deadline Change">
+                              <CalendarClock className="h-4 w-4 text-amber-600" />
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(order)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (order.status === 'draft' || order.status === 'in_progress') && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                              if (confirm('Delete this order?')) deleteMutation.mutate(order.id);
+                            }}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
