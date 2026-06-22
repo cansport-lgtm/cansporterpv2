@@ -87,9 +87,52 @@ async function fetchDispatchLines(fromDate: string, toDate: string, segment: str
   if (!dispatchIds.length) return [];
   const { data: items, error: iErr } = await sb
     .from("sales_dispatch_items")
-    .select("dispatch_id, quantity_dozens, order_item:sales_order_items(price_per_dozen, product_id, products:product_id(name, code), sales_orders:order_id(id, order_number, order_date, customer_id, customers:customer_id(id, name)))")
+    .select("id, dispatch_id, quantity_dozens, order_item:sales_order_items(price_per_dozen, product_id, products:product_id(name, code), sales_orders:order_id(id, order_number, order_date, customer_id, customers:customer_id(id, name)))")
     .in("dispatch_id", dispatchIds);
   if (iErr) throw iErr;
+
+  // Prefer the actual invoiced price over the order-time price. A customer
+  // invoice can be edited after dispatch (InvoiceEditDialog), and that edit is
+  // the real selling price the customer is billed — it's what the GL/Net Sales
+  // reflects. Without this, the operational breakdowns below would keep showing
+  // the stale order-item price and never match the edited invoice / GL.
+  //
+  // We override two ways, most precise first:
+  //   1) by dispatch_item_id — the exact line link (kept on freshly-created
+  //      invoices), and
+  //   2) by (dispatch_id, product_id) — a weighted price fallback for invoices
+  //      whose dispatch_item_id link was dropped on a prior edit.
+  const priceByDispatchItem: Record<string, number> = {};
+  const aggByDispatchProduct: Record<string, { amount: number; qty: number }> = {};
+  try {
+    const { data: invoices } = await sb
+      .from("domestic_invoices")
+      .select("id, dispatch_id")
+      .in("dispatch_id", dispatchIds);
+    const invoiceDispatch: Record<string, string> = {};
+    (invoices || []).forEach((inv: any) => (invoiceDispatch[inv.id] = inv.dispatch_id));
+    const invoiceIds = (invoices || []).map((inv: any) => inv.id);
+    if (invoiceIds.length) {
+      const { data: invItems } = await sb
+        .from("domestic_invoice_items")
+        .select("invoice_id, dispatch_item_id, product_id, quantity_dozens, price_per_dozen, amount")
+        .in("invoice_id", invoiceIds);
+      (invItems || []).forEach((li: any) => {
+        const dId = invoiceDispatch[li.invoice_id];
+        if (!dId) return;
+        if (li.dispatch_item_id) priceByDispatchItem[li.dispatch_item_id] = Number(li.price_per_dozen || 0);
+        if (li.product_id) {
+          const k = `${dId}|${li.product_id}`;
+          const agg = (aggByDispatchProduct[k] ||= { amount: 0, qty: 0 });
+          agg.amount += Number(li.amount || 0);
+          agg.qty += Number(li.quantity_dozens || 0);
+        }
+      });
+    }
+  } catch {
+    // No invoice data (or table) — fall back to order-item prices below.
+  }
+
   const dispatchMap: Record<string, any> = {};
   (dispatches || []).forEach((d: any) => (dispatchMap[d.id] = d));
   const rows: LineRow[] = [];
@@ -102,7 +145,13 @@ async function fetchDispatchLines(fromDate: string, toDate: string, segment: str
     const customer = order.customers || {};
     const product = oi.products || {};
     const qty = Number(row.quantity_dozens || 0);
-    const price = Number(oi.price_per_dozen || 0);
+    let price = Number(oi.price_per_dozen || 0);
+    if (row.id != null && priceByDispatchItem[row.id] != null) {
+      price = priceByDispatchItem[row.id];
+    } else {
+      const agg = aggByDispatchProduct[`${row.dispatch_id}|${oi.product_id || ""}`];
+      if (agg && agg.qty > 0) price = agg.amount / agg.qty;
+    }
     rows.push({
       dispatch_id: row.dispatch_id,
       dispatch_number: d.dispatch_number || "",
@@ -156,9 +205,10 @@ export default function SalesAnalysisPage() {
   // Authoritative Net Sales from the posted ledger — computed exactly like the
   // Profit & Loss "Total Revenue" (sum of credit − debit over active revenue
   // accounts, by voucher_date). This reconciles the headline number with the
-  // P&L and Sales Report. The customer/product/segment breakdowns below stay
-  // on operational (order-price) value, since the ledger carries no per-line
-  // product detail. Posted revenue isn't segment-tagged, so this ignores the
+  // P&L and Sales Report. The customer/product/segment breakdowns below use the
+  // actual invoiced price per line (falling back to the order-time price when a
+  // dispatch hasn't been invoiced), so they track invoice edits and reconcile
+  // with the GL. Posted revenue isn't segment-tagged, so this ignores the
   // segment filter.
   const { data: glRevenueAccounts } = useQuery({
     queryKey: ["sa-gl-accounts"],

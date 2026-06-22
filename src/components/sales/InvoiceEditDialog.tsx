@@ -23,6 +23,7 @@ interface InvoiceEditDialogProps {
 
 interface LineForm {
   id?: string;
+  dispatch_item_id?: string | null;
   product_id: string | null;
   description: string;
   details: string;
@@ -99,6 +100,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
     setLines(
       existingItems.map((it: any) => ({
         id: it.id,
+        dispatch_item_id: it.dispatch_item_id ?? null,
         product_id: it.product_id,
         description: it.description || "",
         details: it.details || "",
@@ -151,6 +153,10 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
       if (dErr) throw dErr;
       const itemsPayload = lines.map((l, i) => ({
         invoice_id: invoiceId,
+        // Preserve the link back to the dispatch line so downstream reporting
+        // (Sales Analysis price, reconciliation) can still tie this invoice line
+        // to its dispatch/order after an edit. New lines have no link.
+        dispatch_item_id: l.dispatch_item_id ?? null,
         product_id: l.product_id || null,
         description: l.description || null,
         details: l.details || null,
