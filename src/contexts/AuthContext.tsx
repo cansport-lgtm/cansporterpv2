@@ -43,9 +43,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
   // Accounting Officer: accounting (no P&L / Balance Sheet) + cross-module operational
-  // access — Production (view-only, incl. WIP Ledger) and full Sales/Purchase (make
-  // invoices, returns, orders, dispatches, goods receipts). Action limits in hasModulePermission.
-  accounting_officer: ['accounting', 'dashboard', 'production', 'sales', 'domestic', 'export', 'purchase'],
+  // access — Production (view-only, incl. WIP Ledger), full Sales/Purchase (make invoices,
+  // returns, orders, dispatches, goods receipts) and Master Data (create products/items/etc).
+  // Action limits in hasModulePermission.
+  accounting_officer: ['accounting', 'dashboard', 'production', 'sales', 'domestic', 'export', 'purchase', 'master_data'],
   accounting_manager: ['accounting', 'dashboard'],
 };
 
@@ -385,6 +386,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return strictRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod));
     }
 
+    // Accounting Officer: its module grants are role-driven and additive — they apply even
+    // when the account also holds a flexible role (which would otherwise route to per-user
+    // module permissions below and silently hide these modules).
+    if (
+      roles.some((r) => r.role === 'accounting_officer') &&
+      ROLE_MODULE_ACCESS['accounting_officer']?.includes(mod)
+    ) {
+      return true;
+    }
+
     const hardRestrictedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
     const hasFlexibleRole = roles.some((r) => !HARD_RESTRICTED_MODULE_ROLES.has(r.role));
 
@@ -421,10 +432,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     //  • Production: view only (full read access including the WIP Ledger)
     //  • Sales / Domestic & Purchase: view + create + edit (make sales invoices & returns,
     //    purchase invoices via Goods Receipt & purchase returns, plus orders/dispatches).
+    //  • Master Data: view + create + edit (create new products/items/grades/units, etc).
     //  Delete and approve stay with managers (separation of duties).
     if (roles.some(r => r.role === 'accounting_officer')) {
       if (module === 'production') return permission === 'view';
-      if (module === 'sales' || module === 'domestic' || module === 'export' || module === 'purchase') {
+      if (
+        module === 'sales' || module === 'domestic' || module === 'export' ||
+        module === 'purchase' || module === 'master_data'
+      ) {
         return permission === 'view' || permission === 'create' || permission === 'edit';
       }
     }
