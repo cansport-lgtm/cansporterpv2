@@ -42,7 +42,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   production_operator: ['production', 'planning', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
-  accounting_officer: ['accounting', 'dashboard'],
+  // Accounting Officer: accounting (no P&L / Balance Sheet) + cross-module operational
+  // access — Production (view-only, incl. WIP Ledger) and full Sales/Purchase (make
+  // invoices, returns, orders, dispatches, goods receipts). Action limits in hasModulePermission.
+  accounting_officer: ['accounting', 'dashboard', 'production', 'sales', 'domestic', 'export', 'purchase'],
   accounting_manager: ['accounting', 'dashboard'],
 };
 
@@ -90,7 +93,15 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
 // Routes a role is explicitly DENIED even though it otherwise has broad access to the module.
 // (Used for "see everything except these statements" tiers.)
 const ROLE_ROUTE_DENY: Record<string, string[]> = {
-  accounting_officer: ['/accounting/profit-loss', '/accounting/balance-sheet'],
+  // Accounting Officer: no financial statements, and no access to the super-admin-only
+  // production master/config tools (which have no in-page permission gating). Everything
+  // else in Production stays view-only via hasModulePermission.
+  accounting_officer: [
+    '/accounting/profit-loss',
+    '/accounting/balance-sheet',
+    '/production/mph-master',
+    '/production/wip-sequence',
+  ],
 };
 
 const HARD_RESTRICTED_MODULE_ROLES = new Set([
@@ -406,6 +417,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Accounting Officer — cross-module operational access (additive to the accounting tier):
+    //  • Production: view only (full read access including the WIP Ledger)
+    //  • Sales / Domestic & Purchase: view + create + edit (make sales invoices & returns,
+    //    purchase invoices via Goods Receipt & purchase returns, plus orders/dispatches).
+    //  Delete and approve stay with managers (separation of duties).
+    if (roles.some(r => r.role === 'accounting_officer')) {
+      if (module === 'production') return permission === 'view';
+      if (module === 'sales' || module === 'domestic' || module === 'export' || module === 'purchase') {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+    }
+
     // Floor incharge cannot approve any data (hard restriction)
     if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
       return false;
@@ -475,7 +498,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): boolean => {
     // Super admin has all permissions
     if (roles.some(r => r.role === 'super_admin')) return true;
-    
+
+    // Accounting Officer: operates the full Purchase module — allow viewing & creating across
+    // all purchase categories (so the Purchase Invoices list and Goods Receipt category flows
+    // work). Approval stays reserved for purchase managers.
+    if (roles.some(r => r.role === 'accounting_officer')) {
+      return permission === 'view' || permission === 'create';
+    }
+
     const perm = purchaseCategoryPermissions.find(p => p.category === category);
     if (!perm) return false;
     

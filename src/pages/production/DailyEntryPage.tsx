@@ -70,7 +70,9 @@ export default function DailyEntryPage() {
   };
   
   const { toast } = useToast();
-  const { user, hasRole, roles } = useAuth();
+  const { user, hasRole, roles, hasModulePermission } = useAuth();
+  const canCreate = hasModulePermission('production', 'create');
+  const canEditProduction = hasModulePermission('production', 'edit');
   // production_operator gets a 48h edit window; other (non-super-admin) users keep 72h.
   const editWindowMs = (roles.some(r => r.role === 'production_operator') ? 48 : 72) * 60 * 60 * 1000;
   const queryClient = useQueryClient();
@@ -307,7 +309,7 @@ export default function DailyEntryPage() {
       render: (item: any) => {
         const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
         const withinWindow = createdAt > 0 && (Date.now() - createdAt) <= editWindowMs;
-        const canEdit = hasRole('super_admin') || withinWindow;
+        const canEdit = hasRole('super_admin') || (withinWindow && canEditProduction);
         const canDelete = hasRole('super_admin');
         if (!canEdit && !canDelete) return null;
         return (
@@ -410,9 +412,11 @@ export default function DailyEntryPage() {
               </Select>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />New Entry</Button>
-              </DialogTrigger>
+              {canCreate && (
+                <DialogTrigger asChild>
+                  <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />New Entry</Button>
+                </DialogTrigger>
+              )}
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingEntry ? 'Edit Production Entry' : 'New Production Entry'}</DialogTitle>

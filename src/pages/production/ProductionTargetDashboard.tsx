@@ -31,7 +31,8 @@ import {
 } from "recharts";
 
 export default function ProductionTargetDashboard() {
-  const { hasRole } = useAuth();
+  const { hasRole, hasModulePermission } = useAuth();
+  const canManageTargets = hasModulePermission('production', 'create') || hasModulePermission('production', 'edit');
   const isSuperAdmin = hasRole('super_admin');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
@@ -406,9 +407,11 @@ export default function ProductionTargetDashboard() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5" />Production Target Settings</CardTitle>
-                  <Button onClick={() => { resetTargetForm(); setIsTargetDialogOpen(true); }}>
-                    <Plus className="h-4 w-4 mr-2" />Set Target
-                  </Button>
+                  {canManageTargets && (
+                    <Button onClick={() => { resetTargetForm(); setIsTargetDialogOpen(true); }}>
+                      <Plus className="h-4 w-4 mr-2" />Set Target
+                    </Button>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">Configure default targets per department & grade. These will auto-fill during production daily entry.</p>
               </CardHeader>
@@ -442,12 +445,18 @@ export default function ProductionTargetDashboard() {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex gap-1 justify-end">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditTarget(target)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTargetId(target.id)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canManageTargets ? (
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditTarget(target)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTargetId(target.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </div>
                             </td>
                           </tr>
