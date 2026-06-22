@@ -29,7 +29,7 @@ const roleDescriptions: Record<AppRole, string> = {
   project_manager: "Access to Project Management module – can only see assigned projects",
   online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",
   accounting_poster: "Accounting – post vouchers/receipts/payments and review books & ledgers; no financial reports",
-  accounting_officer: "Accounting (no P&L / Balance Sheet) + Production view-only (incl. WIP Ledger) + Sales & Purchase invoicing/returns",
+  accounting_officer: "Accounting (no P&L / Balance Sheet) + Production view-only (incl. WIP Ledger) + Sales & Purchase invoicing/returns + Master Data (products/items)",
   accounting_manager: "Accounting – full access to all entries and reports, including approve",
   billing_officer: "Sales & Purchase invoicing – access to Sales and Purchase modules (permission-driven)",
   purchase_officer: "Creates purchase orders – cannot approve (approval reserved for Purchase Manager)",
