@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
@@ -17,7 +17,7 @@ import {
   PieChart, Pie, Cell, Legend, ComposedChart, Line, AreaChart, Area,
 } from "recharts";
 import {
-  Download, TrendingUp, TrendingDown, Users, Package, ArrowRightLeft, Trophy, Target, Repeat,
+  Download, TrendingUp, TrendingDown, Users, Package, ArrowRightLeft, Trophy, Target, Repeat, ChevronRight, ChevronDown,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, subDays, differenceInCalendarDays, eachMonthOfInterval, addDays } from "date-fns";
 import * as XLSX from "xlsx";
@@ -58,6 +58,7 @@ function priorPeriod(from: string, to: string): { from: string; to: string } {
 
 type LineRow = {
   dispatch_id: string;
+  dispatch_number: string;
   dispatch_date: string;
   sales_segment: string;
   order_id: string;
@@ -76,7 +77,7 @@ type LineRow = {
 async function fetchDispatchLines(fromDate: string, toDate: string, segment: string): Promise<LineRow[]> {
   let dq = sb
     .from("sales_dispatches")
-    .select("id, dispatch_date, sales_segment, order_id")
+    .select("id, dispatch_number, dispatch_date, sales_segment, order_id")
     .gte("dispatch_date", fromDate)
     .lte("dispatch_date", toDate);
   if (segment !== "all") dq = dq.eq("sales_segment", segment);
@@ -104,6 +105,7 @@ async function fetchDispatchLines(fromDate: string, toDate: string, segment: str
     const price = Number(oi.price_per_dozen || 0);
     rows.push({
       dispatch_id: row.dispatch_id,
+      dispatch_number: d.dispatch_number || "",
       dispatch_date: d.dispatch_date,
       sales_segment: d.sales_segment,
       order_id: order.id || "",
@@ -128,6 +130,7 @@ export default function SalesAnalysisPage() {
   const [fromDate, setFromDate] = useState(initial.from);
   const [toDate, setToDate] = useState(initial.to);
   const [segment, setSegment] = useState<"all" | "domestic" | "export" | "private_label">("all");
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
 
   const onPresetChange = (val: string) => {
     setPreset(val);
@@ -255,6 +258,50 @@ export default function SalesAnalysisPage() {
       return { ...c, cumulative: cum, cumulativePct: grossSales > 0 ? (cum / grossSales) * 100 : 0, share: grossSales > 0 ? (c.revenue / grossSales) * 100 : 0 };
     });
   }, [lines, grossSales]);
+
+  // Per-customer invoice (dispatch) breakdown for the expanded row. Groups the
+  // customer's dispatch lines into invoices/dispatches, each with a product-level
+  // breakup, all derived from the same order-price lines as the leaderboard so
+  // the numbers reconcile with the customer's revenue above.
+  const customerBreakdown = useMemo(() => {
+    if (!expandedCustomer) return [];
+    const byDispatch: Record<string, {
+      dispatch_id: string;
+      dispatch_number: string;
+      dispatch_date: string;
+      order_number: string;
+      segment: string;
+      revenue: number;
+      qty: number;
+      items: { product_id: string; name: string; code: string; qty: number; price: number; amount: number }[];
+    }> = {};
+    (lines || []).forEach((r) => {
+      if ((r.customer_id || "unknown") !== expandedCustomer) return;
+      const d = (byDispatch[r.dispatch_id] ||= {
+        dispatch_id: r.dispatch_id,
+        dispatch_number: r.dispatch_number,
+        dispatch_date: r.dispatch_date,
+        order_number: r.order_number,
+        segment: r.sales_segment,
+        revenue: 0,
+        qty: 0,
+        items: [],
+      });
+      d.revenue += r.amount;
+      d.qty += r.qty;
+      d.items.push({
+        product_id: r.product_id,
+        name: r.product_name,
+        code: r.product_code,
+        qty: r.qty,
+        price: r.price,
+        amount: r.amount,
+      });
+    });
+    return Object.values(byDispatch)
+      .map((d) => ({ ...d, items: d.items.sort((a, b) => b.amount - a.amount) }))
+      .sort((a, b) => (a.dispatch_date < b.dispatch_date ? 1 : -1));
+  }, [lines, expandedCustomer]);
 
   // 80/20 rule — customers driving 80% of revenue
   const top80Index = customerRows.findIndex((c) => c.cumulativePct >= 80);
@@ -568,6 +615,7 @@ export default function SalesAnalysisPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">#</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
@@ -580,10 +628,19 @@ export default function SalesAnalysisPage() {
                 </TableHeader>
                 <TableBody>
                   {!customerRows.length && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No data</TableCell></TableRow>
                   )}
-                  {customerRows.slice(0, 50).map((c, i) => (
-                    <TableRow key={c.id}>
+                  {customerRows.slice(0, 50).map((c, i) => {
+                    const isExpanded = expandedCustomer === c.id;
+                    return (
+                    <Fragment key={c.id}>
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setExpandedCustomer(isExpanded ? null : c.id)}
+                    >
+                      <TableCell className="text-muted-foreground">
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="text-sm">
                         {c.name}{" "}
@@ -596,7 +653,61 @@ export default function SalesAnalysisPage() {
                       <TableCell className="text-right text-xs">{c.share.toFixed(1)}%</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">{c.cumulativePct.toFixed(1)}%</TableCell>
                     </TableRow>
-                  ))}
+                    {isExpanded && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={9} className="bg-muted/30 p-4">
+                          <div className="text-xs font-medium text-muted-foreground mb-2">
+                            Invoices / Dispatches for {c.name} ({customerBreakdown.length})
+                          </div>
+                          {customerBreakdown.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">No line-level detail.</div>
+                          ) : (
+                            <div className="space-y-3">
+                              {customerBreakdown.map((d) => (
+                                <div key={d.dispatch_id} className="rounded-md border bg-background">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <span className="font-medium">{d.dispatch_number || "Dispatch"}</span>
+                                      <span className="text-muted-foreground">{d.dispatch_date ? format(parseISO(d.dispatch_date), "dd MMM yyyy") : "—"}</span>
+                                      {d.order_number && <Badge variant="outline" className="text-[10px] py-0">SO {d.order_number}</Badge>}
+                                      <Badge variant="secondary" className="text-[10px] py-0">{d.segment}</Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {d.qty.toLocaleString()} Dz · <span className="font-medium text-foreground">Rs. {d.revenue.toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead className="h-8 text-[11px]">Code</TableHead>
+                                        <TableHead className="h-8 text-[11px]">Product</TableHead>
+                                        <TableHead className="h-8 text-[11px] text-right">Qty (Dz)</TableHead>
+                                        <TableHead className="h-8 text-[11px] text-right">Price/Dz</TableHead>
+                                        <TableHead className="h-8 text-[11px] text-right">Amount</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {d.items.map((it, idx) => (
+                                        <TableRow key={`${d.dispatch_id}-${it.product_id}-${idx}`}>
+                                          <TableCell className="py-1.5 font-mono text-[11px]">{it.code || "—"}</TableCell>
+                                          <TableCell className="py-1.5 text-xs">{it.name}</TableCell>
+                                          <TableCell className="py-1.5 text-right text-xs">{it.qty.toLocaleString()}</TableCell>
+                                          <TableCell className="py-1.5 text-right text-xs">Rs. {it.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                          <TableCell className="py-1.5 text-right text-xs font-medium">Rs. {it.amount.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {customerRows.length > 50 && (
