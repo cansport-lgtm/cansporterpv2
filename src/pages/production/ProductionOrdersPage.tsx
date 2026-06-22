@@ -113,10 +113,12 @@ const priorityColors: Record<string, string> = {
 
 export default function ProductionOrdersPage() {
   const { toast } = useToast();
-  const { user, roles } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   const queryClient = useQueryClient();
 
   const isOrderManagement = roles.some((r) => r.role === "order_management");
+  const canCreate = hasModulePermission("production", "create");
+  const canEditOrders = hasModulePermission("production", "edit");
   const Layout = isOrderManagement ? OrderManagementLayout : ERPLayout;
   const isMobile = useIsMobile();
 
@@ -717,7 +719,7 @@ export default function ProductionOrdersPage() {
             <Eye className="h-4 w-4 mr-1" />
             View
           </Button>
-          {!isOrderManagement && (order.status === "draft" || order.status === "in_progress") && (
+          {!isOrderManagement && canEditOrders && (order.status === "draft" || order.status === "in_progress") && (
             <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenEdit(order)}>
               <Edit2 className="h-4 w-4 mr-1" />
               Edit
@@ -791,7 +793,7 @@ export default function ProductionOrdersPage() {
           >
             <Eye className="h-4 w-4" />
           </Button>
-          {!isOrderManagement && (row.status === "draft" || row.status === "in_progress") && (
+          {!isOrderManagement && canEditOrders && (row.status === "draft" || row.status === "in_progress") && (
             <Button
               variant="ghost"
               size="icon"
@@ -846,7 +848,7 @@ export default function ProductionOrdersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {!isOrderManagement && (
+              {!isOrderManagement && canCreate && (
                 <Button onClick={handleOpenCreate} className="self-end">
                   <Plus className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">New Order</span>
