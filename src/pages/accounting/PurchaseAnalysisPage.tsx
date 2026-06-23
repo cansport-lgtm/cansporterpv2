@@ -561,22 +561,22 @@ export default function PurchaseAnalysisPage() {
   return (
     <ERPLayout>
       <PageHeader title="Purchase Analysis" description="Deep insights — spend, supplier concentration, items, fulfilment & delivery">
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="grid grid-cols-2 gap-2 items-center w-full sm:flex sm:flex-wrap sm:w-auto">
           <Select value={preset} onValueChange={onPresetChange}>
-            <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PRESETS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPreset("custom"); }} className="w-[150px]" />
-          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPreset("custom"); }} className="w-[150px]" />
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[170px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {CATEGORIES.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={handleExport} disabled={!lines?.length}>
+          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPreset("custom"); }} className="w-full sm:w-[150px]" />
+          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPreset("custom"); }} className="w-full sm:w-[150px]" />
+          <Button size="sm" variant="outline" onClick={handleExport} disabled={!lines?.length} className="col-span-2 w-full sm:w-auto">
             <Download className="h-4 w-4 mr-1" />Export
           </Button>
         </div>
@@ -641,7 +641,7 @@ export default function PurchaseAnalysisPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3" />Top 5 Suppliers</div>
           <div className="text-2xl font-semibold">{top5Share.toFixed(1)}%</div>
@@ -729,13 +729,15 @@ export default function PurchaseAnalysisPage() {
       </div>
 
       <Tabs defaultValue="suppliers" className="mb-6">
-        <TabsList>
-          <TabsTrigger value="suppliers">Supplier Leaderboard</TabsTrigger>
-          <TabsTrigger value="items">Item Leaderboard</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="status">Status Mix</TabsTrigger>
-          <TabsTrigger value="pareto">Pareto / Concentration</TabsTrigger>
-        </TabsList>
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <TabsList className="w-max">
+            <TabsTrigger value="suppliers">Supplier Leaderboard</TabsTrigger>
+            <TabsTrigger value="items">Item Leaderboard</TabsTrigger>
+            <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="status">Status Mix</TabsTrigger>
+            <TabsTrigger value="pareto">Pareto / Concentration</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="suppliers">
           <Card>

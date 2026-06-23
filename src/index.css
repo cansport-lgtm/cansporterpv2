@@ -398,7 +398,7 @@
 
   /* Page Headers */
   .page-header {
-    @apply mb-6 flex items-center justify-between;
+    @apply mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
   }
 
   .page-title {
