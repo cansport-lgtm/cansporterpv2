@@ -172,6 +172,15 @@ export function ProtectedRoute({
       return <Navigate to="/production/daily-entry" replace />;
     }
 
+    // For closing data poster, redirect to the Planning Daily Stock Closing page when
+    // accessing anything outside their two allowed stock-closing pages.
+    if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {
+      const allowed = ['/planning/stock-closing', '/consumption/stock-closing'];
+      if (!allowed.includes(location.pathname)) {
+        return <Navigate to="/planning/stock-closing" replace />;
+      }
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

@@ -12141,6 +12141,7 @@ export type Database = {
         | "dispatch_operator"
         | "sales_order_manager"
         | "production_operator"
+        | "closing_data_poster"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -12335,6 +12336,7 @@ export const Constants = {
         "dispatch_operator",
         "sales_order_manager",
         "production_operator",
+        "closing_data_poster",
       ],
       asset_category: [
         "office_assets",

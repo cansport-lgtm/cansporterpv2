@@ -12,7 +12,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster';
 }
 
 // Define which modules each special role can access
@@ -40,6 +40,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Production operator: full Production + Production Planning access. Can post and edit
   // within a 48h window (enforced in the entry/planning pages). No delete/approve.
   production_operator: ['production', 'planning', 'dashboard'],
+  // Closing Data Poster: posts Daily Stock Closing (Production Planning) and Stock Closing
+  // (Material Consumption). Module access opens both sidebar groups; route restrictions below
+  // confine it to just the two stock-closing pages.
+  closing_data_poster: ['planning', 'material_consumption', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
   // Accounting Officer: accounting (no P&L / Balance Sheet) + cross-module operational
@@ -73,6 +77,9 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   ],
   // Production operator: full Production + Planning modules (prefix match covers all their pages).
   production_operator: ['/production', '/planning', '/dashboard'],
+  // Closing Data Poster: ONLY the two stock-closing pages — Daily Stock Closing (Planning)
+  // and Stock Closing (Material Consumption). Nothing else in those modules is reachable.
+  closing_data_poster: ['/planning/stock-closing', '/consumption/stock-closing'],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -123,6 +130,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
+  'closing_data_poster',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -133,6 +141,7 @@ const STRICT_LOCKED_ROLES = new Set([
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
+  'closing_data_poster',
 ]);
 
 interface ModulePermission {
@@ -492,6 +501,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (roles.some(r => r.role === 'production_operator')) {
       if (permission === 'delete' || permission === 'approve') return false;
       return module === 'production' || module === 'planning';
+    }
+
+    // Closing Data Poster: view/create/edit closing data in planning & material_consumption
+    // (no delete or approve). Confined to the two stock-closing pages via route restrictions.
+    if (roles.some(r => r.role === 'closing_data_poster')) {
+      if (permission === 'delete' || permission === 'approve') return false;
+      return module === 'planning' || module === 'material_consumption';
     }
 
     const perm = modulePermissions.find(p => p.module_name === module);

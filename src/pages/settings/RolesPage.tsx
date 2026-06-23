@@ -37,6 +37,7 @@ const roleDescriptions: Record<AppRole, string> = {
   dispatch_operator: "Domestic Dispatch page only – can create dispatches without seeing any prices",
   sales_order_manager: "Domestic sales orders + dispatch coordination & dashboards – no customer/product creation, no invoices, no prices",
   production_operator: "Production & Production Planning – can post and edit entries within 48 hours of creation (no delete/approve)",
+  closing_data_poster: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption) – limited to those two pages only",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -66,6 +67,7 @@ const roleColors: Record<AppRole, string> = {
   dispatch_operator: "bg-orange-600/10 text-orange-600 border-orange-600/20",
   sales_order_manager: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
   production_operator: "bg-blue-600/10 text-blue-600 border-blue-600/20",
+  closing_data_poster: "bg-purple-600/10 text-purple-600 border-purple-600/20",
 };
 
 export default function RolesPage() {
@@ -96,6 +98,7 @@ export default function RolesPage() {
     dispatch_operator: 0,
     sales_order_manager: 0,
     production_operator: 0,
+    closing_data_poster: 0,
   });
 
   useEffect(() => {
@@ -112,7 +115,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "dispatch_operator", "sales_order_manager", "production_operator", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>

@@ -87,6 +87,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "dispatch_operator", label: "Dispatch Operator (create dispatch, no prices)" },
   { value: "sales_order_manager", label: "Sales Order Management (orders + dispatch, no prices/invoices)" },
   { value: "production_operator", label: "Production Operator (post production + planning, edit ≤48h)" },
+  { value: "closing_data_poster", label: "Closing Data Poster (Daily Stock Closing + Stock Closing only)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -499,6 +500,7 @@ export default function UsersPage() {
       dispatch_operator: "bg-orange-600/10 text-orange-600",
       sales_order_manager: "bg-indigo-600/10 text-indigo-600",
       production_operator: "bg-blue-600/10 text-blue-600",
+      closing_data_poster: "bg-purple-600/10 text-purple-600",
     };
     return colors[role] || "";
   };
