@@ -482,33 +482,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return module === 'expenses';
     }
 
-    // Dispatch operator: view/create/edit dispatches in the sales/domestic module only
-    // (no delete or approve). The dispatch page itself never displays pricing.
-    if (roles.some(r => r.role === 'dispatch_operator')) {
-      if (permission === 'delete' || permission === 'approve') return false;
-      return module === 'sales' || module === 'domestic';
-    }
+    // Strict operational roles grant view/create/edit within their own module scope
+    // (never delete/approve). These checks are GRANT-ONLY (additive): when the role is
+    // out of scope they DO NOT return — they fall through so another strict role the same
+    // user also holds can still grant its own modules. A hard `return module === X` here
+    // used to let an earlier role veto a later one (e.g. a user holding both
+    // sales_order_manager + production_operator had production create blocked because the
+    // sales_order_manager branch returned false for the production module first).
+    //   • dispatch_operator     → sales / domestic (dispatch; no pricing pages)
+    //   • sales_order_manager   → sales / domestic (orders + dispatch)
+    //   • production_operator   → production / planning
+    //   • closing_data_poster   → planning / material_consumption (stock closing)
+    // Out-of-scope, delete and approve all fall through to the per-user module_permissions
+    // check below, which denies them (strict roles carry no module_permissions rows).
+    const grantsWithinScope = (modules: string[]): boolean =>
+      modules.includes(module) && permission !== 'delete' && permission !== 'approve';
 
-    // Sales order manager: view/create/edit sales orders + dispatch in the sales/domestic
-    // module (no delete or approve). Customer/product creation and pricing are blocked in-page.
-    if (roles.some(r => r.role === 'sales_order_manager')) {
-      if (permission === 'delete' || permission === 'approve') return false;
-      return module === 'sales' || module === 'domestic';
-    }
-
-    // Production operator: view/create/edit in production & planning (no delete or approve).
-    // The 48h edit window is enforced in the entry/planning pages, not here.
-    if (roles.some(r => r.role === 'production_operator')) {
-      if (permission === 'delete' || permission === 'approve') return false;
-      return module === 'production' || module === 'planning';
-    }
-
-    // Closing Data Poster: view/create/edit closing data in planning & material_consumption
-    // (no delete or approve). Confined to the two stock-closing pages via route restrictions.
-    if (roles.some(r => r.role === 'closing_data_poster')) {
-      if (permission === 'delete' || permission === 'approve') return false;
-      return module === 'planning' || module === 'material_consumption';
-    }
+    if (roles.some(r => r.role === 'dispatch_operator') && grantsWithinScope(['sales', 'domestic'])) return true;
+    if (roles.some(r => r.role === 'sales_order_manager') && grantsWithinScope(['sales', 'domestic'])) return true;
+    if (roles.some(r => r.role === 'production_operator') && grantsWithinScope(['production', 'planning'])) return true;
+    if (roles.some(r => r.role === 'closing_data_poster') && grantsWithinScope(['planning', 'material_consumption'])) return true;
 
     const perm = modulePermissions.find(p => p.module_name === module);
     if (!perm) return false;
