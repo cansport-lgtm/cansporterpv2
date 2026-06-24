@@ -9,10 +9,13 @@ interface AppUser {
   designation: string | null;
   is_active: boolean;
   last_login: string | null;
+  // Distributor Order Management: which distributor this user belongs to.
+  // NULL for company staff (super_admin/admin/etc.); set for distributor users.
+  distributor_id: string | null;
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
 }
 
 // Define which modules each special role can access
@@ -52,6 +55,12 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Action limits in hasModulePermission.
   accounting_officer: ['accounting', 'dashboard', 'production', 'sales', 'domestic', 'export', 'purchase', 'master_data'],
   accounting_manager: ['accounting', 'dashboard'],
+  // Distributor Order Management — a self-contained external module. All three
+  // distributor roles are confined to the 'distributor' module (+ dashboard shell).
+  // Per-distributor data isolation is enforced in-page by filtering on distributor_id.
+  distributor_sales: ['distributor', 'dashboard'],
+  distributor_manager: ['distributor', 'dashboard'],
+  distributor_admin: ['distributor', 'dashboard'],
 };
 
 // Define specific route restrictions for roles (only these exact routes are allowed)
@@ -96,6 +105,34 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/accounting/party-ledger',
     '/accounting/parties',
   ],
+  // Distributor Sales: create customers, manage their own product list & pricing,
+  // and make/submit orders. No approvals, no dispatch, no user management.
+  distributor_sales: [
+    '/distributor/dashboard',
+    '/distributor/customers',
+    '/distributor/products',
+    '/distributor/orders',
+  ],
+  // Distributor Manager: everything sales can do, plus approve/reject/edit orders
+  // and run the dispatch sheet. No user management.
+  distributor_manager: [
+    '/distributor/dashboard',
+    '/distributor/customers',
+    '/distributor/products',
+    '/distributor/orders',
+    '/distributor/approvals',
+    '/distributor/dispatch',
+  ],
+  // Distributor Admin: full distributor module + manage their own sales/manager users.
+  distributor_admin: [
+    '/distributor/dashboard',
+    '/distributor/customers',
+    '/distributor/products',
+    '/distributor/orders',
+    '/distributor/approvals',
+    '/distributor/dispatch',
+    '/distributor/admin',
+  ],
 };
 
 // Routes a role is explicitly DENIED even though it otherwise has broad access to the module.
@@ -131,6 +168,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'sales_order_manager',
   'production_operator',
   'closing_data_poster',
+  'distributor_sales',
+  'distributor_manager',
+  'distributor_admin',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -142,6 +182,9 @@ const STRICT_LOCKED_ROLES = new Set([
   'sales_order_manager',
   'production_operator',
   'closing_data_poster',
+  'distributor_sales',
+  'distributor_manager',
+  'distributor_admin',
 ]);
 
 interface ModulePermission {
@@ -175,6 +218,9 @@ interface AuthContextType {
   canAccessModule: (module: string) => boolean;
   canAccessRoute: (route: string) => boolean;
   canViewPrices: () => boolean;
+  // Distributor scope: company staff (super_admin) see all distributors; a distributor
+  // user is confined to their own distributor_id. Pages use this to filter every query.
+  getDistributorScope: () => { isCompany: boolean; distributorId: string | null };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -276,6 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         designation: 'Demo',
         is_active: true,
         last_login: new Date().toISOString(),
+        distributor_id: null,
       });
       setRoles([{ role: 'super_admin' }]);
       setModulePermissions([]);
@@ -369,6 +416,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canViewPrices = (): boolean => {
     if (roles.some(r => r.role === 'super_admin')) return true;
     return !roles.some(r => r.role === 'sales_order_manager');
+  };
+
+  // Distributor data-isolation scope. super_admin is the company actor that can see
+  // every distributor's data; any distributor user is locked to their own distributor_id.
+  const getDistributorScope = (): { isCompany: boolean; distributorId: string | null } => {
+    const isCompany = roles.some(r => r.role === 'super_admin');
+    return { isCompany, distributorId: user?.distributor_id ?? null };
   };
 
   // Check if user can access a specific module (module permissions are the source of truth)
@@ -503,6 +557,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (roles.some(r => r.role === 'production_operator') && grantsWithinScope(['production', 'planning'])) return true;
     if (roles.some(r => r.role === 'closing_data_poster') && grantsWithinScope(['planning', 'material_consumption'])) return true;
 
+    // Distributor Order Management roles — grants within the 'distributor' module only.
+    //   • distributor_sales   → view / create / edit (orders, customers, own catalog). No approve/delete.
+    //   • distributor_manager → view / create / edit / approve (approve/reject orders). No delete.
+    //   • distributor_admin   → full control (incl. delete) of the distributor module.
+    if (module === 'distributor') {
+      if (roles.some(r => r.role === 'distributor_admin')) return true;
+      if (roles.some(r => r.role === 'distributor_manager')) return permission !== 'delete';
+      if (roles.some(r => r.role === 'distributor_sales')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+    }
+
     const perm = modulePermissions.find(p => p.module_name === module);
     if (!perm) return false;
     
@@ -604,7 +670,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPurchaseCategoryPermission,
       canAccessModule,
       canAccessRoute,
-      canViewPrices
+      canViewPrices,
+      getDistributorScope
     }}>
       {children}
     </AuthContext.Provider>

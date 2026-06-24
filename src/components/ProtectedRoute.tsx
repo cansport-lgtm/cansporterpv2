@@ -81,6 +81,8 @@ export function ProtectedRoute({
         return 'crm';
       case 'marketing':
         return 'marketing';
+      case 'distributor':
+        return 'distributor';
       default:
         return undefined;
     }
@@ -178,6 +180,14 @@ export function ProtectedRoute({
       const allowed = ['/planning/stock-closing', '/consumption/stock-closing'];
       if (!allowed.includes(location.pathname)) {
         return <Navigate to="/planning/stock-closing" replace />;
+      }
+    }
+
+    // For distributor roles, redirect back to the distributor dashboard when accessing
+    // a page outside their allowed set (route whitelist enforced in AuthContext).
+    if (roles.some((r) => ['distributor_sales', 'distributor_manager', 'distributor_admin'].includes(r.role as string))) {
+      if (location.pathname !== '/distributor/dashboard') {
+        return <Navigate to="/distributor/dashboard" replace />;
       }
     }
 
