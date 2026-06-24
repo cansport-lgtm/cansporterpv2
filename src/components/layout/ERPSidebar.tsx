@@ -575,6 +575,10 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/distributor/dashboard" },
       { title: "Distributors", href: "/distributor/distributors", superAdminOnly: true },
       { title: "Customers", href: "/distributor/customers" },
+      { title: "Products & Pricing", href: "/distributor/products" },
+      { title: "Orders", href: "/distributor/orders" },
+      // Approvals only renders for manager/admin (route whitelist hides it from sales).
+      { title: "Approvals", href: "/distributor/approvals" },
       { title: "Manage Users", href: "/distributor/admin/users" },
     ],
   },

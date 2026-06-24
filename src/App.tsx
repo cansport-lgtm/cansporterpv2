@@ -375,6 +375,9 @@ import DistributorDashboard from "./pages/distributor/DistributorDashboard";
 import DistributorsMasterPage from "./pages/distributor/DistributorsMasterPage";
 import DistributorCustomersPage from "./pages/distributor/DistributorCustomersPage";
 import DistributorUsersPage from "./pages/distributor/DistributorUsersPage";
+import DistributorProductsPage from "./pages/distributor/DistributorProductsPage";
+import DistributorOrdersPage from "./pages/distributor/DistributorOrdersPage";
+import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
 
 const queryClient = new QueryClient();
 
@@ -824,6 +827,9 @@ const App = () => (
             <Route path="/distributor/dashboard" element={<ProtectedRoute requiredModule="distributor"><DistributorDashboard /></ProtectedRoute>} />
             <Route path="/distributor/distributors" element={<ProtectedRoute requiredRole="super_admin"><DistributorsMasterPage /></ProtectedRoute>} />
             <Route path="/distributor/customers" element={<ProtectedRoute requiredModule="distributor"><DistributorCustomersPage /></ProtectedRoute>} />
+            <Route path="/distributor/products" element={<ProtectedRoute requiredModule="distributor"><DistributorProductsPage /></ProtectedRoute>} />
+            <Route path="/distributor/orders" element={<ProtectedRoute requiredModule="distributor"><DistributorOrdersPage /></ProtectedRoute>} />
+            <Route path="/distributor/approvals" element={<ProtectedRoute requiredModule="distributor"><DistributorApprovalsPage /></ProtectedRoute>} />
             <Route path="/distributor/admin/users" element={<ProtectedRoute requiredModule="distributor"><DistributorUsersPage /></ProtectedRoute>} />
             <Route path="/distributor/*" element={<ProtectedRoute requiredModule="distributor"><ComingSoon title="Distributor Orders" /></ProtectedRoute>} />
 

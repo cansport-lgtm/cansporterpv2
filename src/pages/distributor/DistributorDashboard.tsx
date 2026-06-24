@@ -6,7 +6,9 @@ import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Users, UserCog, ShoppingCart, ClipboardCheck, ChevronRight } from "lucide-react";
+import { Building, Users, UserCog, ShoppingCart, ClipboardCheck, Package, ChevronRight } from "lucide-react";
+
+const OPEN_STATUSES = ["draft", "submitted", "approved", "dispatched"];
 
 export default function DistributorDashboard() {
   const { roles, getDistributorScope } = useAuth();
@@ -14,6 +16,7 @@ export default function DistributorDashboard() {
 
   const isAdmin = roles.some((r) => r.role === "distributor_admin");
   const isManager = roles.some((r) => r.role === "distributor_manager");
+  const canApprove = isManager || isAdmin || isCompany;
 
   // Company view: count distributors. Distributor view: count own customers.
   const { data: distributorCount = 0 } = useQuery({
@@ -54,11 +57,46 @@ export default function DistributorDashboard() {
     },
   });
 
+  const { data: openOrders = 0 } = useQuery({
+    queryKey: ["distributor-open-orders", isCompany, distributorId],
+    enabled: isCompany || !!distributorId,
+    queryFn: async () => {
+      let q = supabase
+        .from("distributor_orders")
+        .select("*", { count: "exact", head: true })
+        .in("status", OPEN_STATUSES);
+      if (!isCompany && distributorId) q = q.eq("distributor_id", distributorId);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: pendingApprovals = 0 } = useQuery({
+    queryKey: ["distributor-pending-approvals", isCompany, distributorId],
+    enabled: canApprove && (isCompany || !!distributorId),
+    queryFn: async () => {
+      let q = supabase
+        .from("distributor_orders")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "submitted");
+      if (!isCompany && distributorId) q = q.eq("distributor_id", distributorId);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   const quickLinks: { title: string; description: string; href: string; icon: typeof Users }[] = [];
   if (isCompany) {
     quickLinks.push({ title: "Distributors", description: "Manage distributor companies", href: "/distributor/distributors", icon: Building });
   }
   quickLinks.push({ title: "Customers", description: "Your distributor's customers", href: "/distributor/customers", icon: Users });
+  quickLinks.push({ title: "Products & Pricing", description: "Catalog & selling prices", href: "/distributor/products", icon: Package });
+  quickLinks.push({ title: "Orders", description: "Create & track orders", href: "/distributor/orders", icon: ShoppingCart });
+  if (canApprove) {
+    quickLinks.push({ title: "Approvals", description: "Review submitted orders", href: "/distributor/approvals", icon: ClipboardCheck });
+  }
   if (isAdmin) {
     quickLinks.push({ title: "Manage Users", description: "Sales & manager accounts", href: "/distributor/admin/users", icon: UserCog });
   }
@@ -82,10 +120,9 @@ export default function DistributorDashboard() {
           {isAdmin && !isCompany && (
             <MetricCard title="Team Members" value={userCount} icon={UserCog} />
           )}
-          {/* Orders & approvals land in Phase 2 — shown as placeholders so the layout is stable. */}
-          <MetricCard title="Open Orders" value="—" icon={ShoppingCart} description="Coming in Phase 2" />
-          {(isManager || isAdmin) && (
-            <MetricCard title="Pending Approvals" value="—" icon={ClipboardCheck} description="Coming in Phase 2" />
+          <MetricCard title="Open Orders" value={openOrders} icon={ShoppingCart} />
+          {canApprove && (
+            <MetricCard title="Pending Approvals" value={pendingApprovals} icon={ClipboardCheck} />
           )}
         </div>
 
@@ -111,9 +148,8 @@ export default function DistributorDashboard() {
         <Card>
           <CardContent className="p-5 text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">What's next</p>
-            Order creation, manager approvals, the distributor product catalog, pricing, and the
-            dispatch sheet arrive in the next phases. This Phase 1 release sets up distributors,
-            their teams, and their customers.
+            The dispatch sheet (with company-SKU totals + Excel export) and company oversight
+            views arrive in Phase 3.
           </CardContent>
         </Card>
       </div>

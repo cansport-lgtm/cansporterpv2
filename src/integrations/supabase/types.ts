@@ -3240,6 +3240,232 @@ export type Database = {
           },
         ]
       }
+      distributor_order_items: {
+        Row: {
+          amount: number
+          company_product_id: string | null
+          created_at: string
+          distributor_product_id: string | null
+          id: string
+          order_id: string
+          price: number
+          product_name: string
+          quantity: number
+          quantity_dispatched: number
+          remarks: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          company_product_id?: string | null
+          created_at?: string
+          distributor_product_id?: string | null
+          id?: string
+          order_id: string
+          price?: number
+          product_name: string
+          quantity?: number
+          quantity_dispatched?: number
+          remarks?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          company_product_id?: string | null
+          created_at?: string
+          distributor_product_id?: string | null
+          id?: string
+          order_id?: string
+          price?: number
+          product_name?: string
+          quantity?: number
+          quantity_dispatched?: number
+          remarks?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distributor_order_items_company_product_id_fkey"
+            columns: ["company_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_order_items_distributor_product_id_fkey"
+            columns: ["distributor_product_id"]
+            isOneToOne: false
+            referencedRelation: "distributor_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "distributor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distributor_orders: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          distributor_id: string
+          id: string
+          notes: string | null
+          order_date: string
+          order_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          required_date: string | null
+          status: string
+          submitted_at: string | null
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          distributor_id: string
+          id?: string
+          notes?: string | null
+          order_date?: string
+          order_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          required_date?: string | null
+          status?: string
+          submitted_at?: string | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          distributor_id?: string
+          id?: string
+          notes?: string | null
+          order_date?: string
+          order_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          required_date?: string | null
+          status?: string
+          submitted_at?: string | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distributor_orders_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "distributor_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_orders_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_orders_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distributor_products: {
+        Row: {
+          code: string | null
+          company_product_id: string | null
+          created_at: string
+          distributor_id: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          price: number
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          company_product_id?: string | null
+          created_at?: string
+          distributor_id: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          price?: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          company_product_id?: string | null
+          created_at?: string
+          distributor_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          price?: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distributor_products_company_product_id_fkey"
+            columns: ["company_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_products_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       distributors: {
         Row: {
           address: string | null
