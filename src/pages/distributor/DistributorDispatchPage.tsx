@@ -19,7 +19,7 @@ import {
 import { Truck, Download, PackageCheck, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import { buildDispatchSheetPdf } from "@/lib/dispatchSheetPdf";
 
 const ALL = "ALL";
 
@@ -201,21 +201,42 @@ export default function DistributorDispatchPage() {
       toast.error("Nothing to export");
       return;
     }
+    const dist = distributors.find((d) => d.id === scopeId);
     const scopeName = isAll
-      ? "All_Distributors"
-      : (distributors.find((d) => d.id === scopeId)?.code ?? "Distributor");
-    const rows = sheet.map((r) => ({
-      Product: r.product,
-      Unit: r.unit,
-      "Total Qty": r.quantity,
-      Orders: r.orders,
-      ...(isAll ? { Distributors: r.distributors } : {}),
-      Mapped: r.mapped ? "Yes" : "No",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Dispatch Sheet");
-    XLSX.writeFile(wb, `Dispatch_Sheet_${scopeName}_${format(new Date(), "yyyyMMdd")}.xlsx`);
+      ? "All Distributors (company-wide)"
+      : dist
+        ? `${dist.name}${dist.code ? ` (${dist.code})` : ""}`
+        : "Distributor";
+    const fileScope = isAll ? "All_Distributors" : (dist?.code ?? "Distributor");
+
+    // Distinct orders across the whole sheet (per-row counts would double-count
+    // an order that spans several products).
+    const orderIds = new Set<string>();
+    sheetItems.forEach((it) => { if (it.distributor_orders?.id) orderIds.add(it.distributor_orders.id); });
+
+    const blob = buildDispatchSheetPdf({
+      scopeName,
+      isAll,
+      generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+      rows: sheet.map((r) => ({
+        product: r.product,
+        unit: r.unit,
+        quantity: r.quantity.toLocaleString(),
+        orders: String(r.orders),
+        distributors: String(r.distributors),
+      })),
+      totalQty: totalUnits.toLocaleString(),
+      totalOrders: String(orderIds.size),
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Dispatch_Sheet_${fileScope}_${format(new Date(), "yyyyMMdd")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
@@ -378,7 +399,7 @@ export default function DistributorDispatchPage() {
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={exportSheet} disabled={!sheet.length}>
-                  <Download className="h-4 w-4 mr-1" /> Export Excel
+                  <Download className="h-4 w-4 mr-1" /> Export PDF
                 </Button>
               </CardHeader>
               <CardContent>
