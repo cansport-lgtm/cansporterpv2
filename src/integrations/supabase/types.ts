@@ -3317,6 +3317,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_id: string
+          delivered_at: string | null
+          dispatch_notes: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
           distributor_id: string
           id: string
           notes: string | null
@@ -3337,6 +3341,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_id: string
+          delivered_at?: string | null
+          dispatch_notes?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
           distributor_id: string
           id?: string
           notes?: string | null
@@ -3357,6 +3365,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_id?: string
+          delivered_at?: string | null
+          dispatch_notes?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
           distributor_id?: string
           id?: string
           notes?: string | null
@@ -3391,6 +3403,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "distributor_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distributor_orders_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
             referencedColumns: ["id"]
           },
           {
