@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -76,8 +77,15 @@ export default function DistributorUsersPage() {
     full_name: "",
     password: "",
     designation: "",
-    role: "distributor_sales" as DistributorRole,
+    roles: ["distributor_sales"] as DistributorRole[],
   });
+
+  const toggleRole = (role: DistributorRole, checked: boolean) => {
+    setForm((f) => ({
+      ...f,
+      roles: checked ? [...f.roles, role] : f.roles.filter((r) => r !== role),
+    }));
+  };
 
   const { data: distributors = [] } = useQuery({
     queryKey: ["distributors-active"],
@@ -141,14 +149,14 @@ export default function DistributorUsersPage() {
       if (linkError) throw linkError;
       const { error: roleError } = await supabase
         .from("user_roles")
-        .insert({ user_id: newId as string, role: form.role });
+        .insert(form.roles.map((role) => ({ user_id: newId as string, role })));
       if (roleError) throw roleError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["distributor_users", activeDistributorId] });
       toast.success("User created");
       setCreateOpen(false);
-      setForm({ user_id: "", full_name: "", password: "", designation: "", role: "distributor_sales" });
+      setForm({ user_id: "", full_name: "", password: "", designation: "", roles: ["distributor_sales"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to create user"),
   });
@@ -202,6 +210,10 @@ export default function DistributorUsersPage() {
   const handleCreate = () => {
     if (!form.user_id.trim() || !form.full_name.trim() || !form.password) {
       toast.error("User ID, full name and password are required");
+      return;
+    }
+    if (form.roles.length === 0) {
+      toast.error("Select at least one role");
       return;
     }
     createMutation.mutate();
@@ -346,17 +358,21 @@ export default function DistributorUsersPage() {
               <Input id="designation" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} placeholder="Optional" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as DistributorRole })}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Roles</Label>
+              <p className="text-xs text-muted-foreground">
+                Select one or more. Stack <strong>Admin + Manager</strong> so one person can both manage users and approve orders.
+              </p>
+              <div className="space-y-2 rounded-lg border p-3">
+                {ROLE_OPTIONS.map((o) => (
+                  <label key={o.value} className="flex items-center gap-3 cursor-pointer">
+                    <Checkbox
+                      checked={form.roles.includes(o.value)}
+                      onCheckedChange={(checked) => toggleRole(o.value, checked === true)}
+                    />
+                    <span className="text-sm">{o.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>
