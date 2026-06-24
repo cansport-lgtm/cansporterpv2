@@ -378,6 +378,7 @@ import DistributorUsersPage from "./pages/distributor/DistributorUsersPage";
 import DistributorProductsPage from "./pages/distributor/DistributorProductsPage";
 import DistributorOrdersPage from "./pages/distributor/DistributorOrdersPage";
 import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
+import DistributorDispatchPage from "./pages/distributor/DistributorDispatchPage";
 
 const queryClient = new QueryClient();
 
@@ -830,6 +831,7 @@ const App = () => (
             <Route path="/distributor/products" element={<ProtectedRoute requiredModule="distributor"><DistributorProductsPage /></ProtectedRoute>} />
             <Route path="/distributor/orders" element={<ProtectedRoute requiredModule="distributor"><DistributorOrdersPage /></ProtectedRoute>} />
             <Route path="/distributor/approvals" element={<ProtectedRoute requiredModule="distributor"><DistributorApprovalsPage /></ProtectedRoute>} />
+            <Route path="/distributor/dispatch" element={<ProtectedRoute requiredModule="distributor"><DistributorDispatchPage /></ProtectedRoute>} />
             <Route path="/distributor/admin/users" element={<ProtectedRoute requiredModule="distributor"><DistributorUsersPage /></ProtectedRoute>} />
             <Route path="/distributor/*" element={<ProtectedRoute requiredModule="distributor"><ComingSoon title="Distributor Orders" /></ProtectedRoute>} />
 
