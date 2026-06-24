@@ -370,6 +370,11 @@ import WIPStockEntryPage from "./pages/wip/WIPStockEntryPage";
 import WIPStagesPage from "./pages/wip/WIPStagesPage";
 import WIPThresholdsPage from "./pages/wip/WIPThresholdsPage";
 import WIPFlowAnalysisPage from "./pages/wip/WIPFlowAnalysisPage";
+// Distributor Order Management module
+import DistributorDashboard from "./pages/distributor/DistributorDashboard";
+import DistributorsMasterPage from "./pages/distributor/DistributorsMasterPage";
+import DistributorCustomersPage from "./pages/distributor/DistributorCustomersPage";
+import DistributorUsersPage from "./pages/distributor/DistributorUsersPage";
 
 const queryClient = new QueryClient();
 
@@ -814,6 +819,13 @@ const App = () => (
             <Route path="/wip/stages" element={<ProtectedRoute><WIPStagesPage /></ProtectedRoute>} />
             <Route path="/wip/thresholds" element={<ProtectedRoute><WIPThresholdsPage /></ProtectedRoute>} />
             <Route path="/wip/flow" element={<ProtectedRoute><WIPFlowAnalysisPage /></ProtectedRoute>} />
+
+            {/* Distributor Order Management module (Phase 1) */}
+            <Route path="/distributor/dashboard" element={<ProtectedRoute requiredModule="distributor"><DistributorDashboard /></ProtectedRoute>} />
+            <Route path="/distributor/distributors" element={<ProtectedRoute requiredRole="super_admin"><DistributorsMasterPage /></ProtectedRoute>} />
+            <Route path="/distributor/customers" element={<ProtectedRoute requiredModule="distributor"><DistributorCustomersPage /></ProtectedRoute>} />
+            <Route path="/distributor/admin/users" element={<ProtectedRoute requiredModule="distributor"><DistributorUsersPage /></ProtectedRoute>} />
+            <Route path="/distributor/*" element={<ProtectedRoute requiredModule="distributor"><ComingSoon title="Distributor Orders" /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

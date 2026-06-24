@@ -110,6 +110,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/projects" replace />;
   }
 
+  // Distributor roles (sales / manager / admin) land on the Distributor dashboard
+  if (roles.some(r => ['distributor_sales', 'distributor_manager', 'distributor_admin'].includes(r.role as string))) {
+    return <Navigate to="/distributor/dashboard" replace />;
+  }
+
   // Online Sales Packing goes to Online Orders page
   if (roles.some(r => (r.role as string) === 'online_sales_packing')) {
     return <Navigate to="/online-sales/orders" replace />;

@@ -88,6 +88,9 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "sales_order_manager", label: "Sales Order Management (orders + dispatch, no prices/invoices)" },
   { value: "production_operator", label: "Production Operator (post production + planning, edit ≤48h)" },
   { value: "closing_data_poster", label: "Closing Data Poster (Daily Stock Closing + Stock Closing only)" },
+  // Distributor roles are intentionally NOT listed here: they require a distributor_id,
+  // which is assigned in the Distributor module's "Manage Users" page (Distributor Orders →
+  // Manage Users). Creating them here would leave distributor_id NULL and break isolation.
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -501,6 +504,9 @@ export default function UsersPage() {
       sales_order_manager: "bg-indigo-600/10 text-indigo-600",
       production_operator: "bg-blue-600/10 text-blue-600",
       closing_data_poster: "bg-purple-600/10 text-purple-600",
+      distributor_sales: "bg-amber-500/10 text-amber-500",
+      distributor_manager: "bg-amber-600/10 text-amber-600",
+      distributor_admin: "bg-amber-700/10 text-amber-700",
     };
     return colors[role] || "";
   };
