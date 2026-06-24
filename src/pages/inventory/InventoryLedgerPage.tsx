@@ -380,7 +380,54 @@ export default function InventoryLedgerPage() {
         </Card>
       </div>
 
-      <DataTable columns={columns} data={ledgerEntries} />
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <DataTable columns={columns} data={ledgerEntries} />
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
+        {ledgerEntries.length === 0 ? (
+          <div className="text-center text-sm text-muted-foreground py-8 border rounded-lg bg-card">No data available</div>
+        ) : (
+          ledgerEntries.map((entry) => (
+            <div key={entry.id} className="border rounded-lg p-3 space-y-2 bg-card">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate">{getItemName(entry)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {format(new Date(entry.ledger_date), "dd MMM yyyy")} · {getLocationName(entry.location_id)}
+                  </div>
+                </div>
+                <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                  {TRANSACTION_TYPES.find((t) => t.value === entry.transaction_type)?.label || entry.transaction_type}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
+                <div>
+                  <div className="text-muted-foreground">Qty In</div>
+                  <div className="text-primary font-medium">{entry.quantity_in > 0 ? `+${entry.quantity_in.toLocaleString()}` : "-"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Qty Out</div>
+                  <div className="text-destructive font-medium">{entry.quantity_out > 0 ? `-${entry.quantity_out.toLocaleString()}` : "-"}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-muted-foreground">Balance</div>
+                  <div className="font-semibold">{entry.balance_quantity.toLocaleString()}</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Rate: ₹{entry.unit_cost.toFixed(2)}</span>
+                <span>Value: ₹{entry.balance_value.toLocaleString()}</span>
+              </div>
+              {entry.reference_number && (
+                <div className="text-xs text-muted-foreground">Ref: {entry.reference_number}</div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </ERPLayout>
   );
 }
