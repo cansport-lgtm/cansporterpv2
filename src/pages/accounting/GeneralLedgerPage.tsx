@@ -166,14 +166,14 @@ export default function GeneralLedgerPage() {
   return (
     <ERPLayout>
       <PageHeader title="General Ledger" description="Drill into any account's transactions">
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap sm:w-auto">
           {isDrillDown && (
-            <Button size="sm" variant="outline" onClick={() => navigate(-1)} title="Back (Esc)">
+            <Button size="sm" variant="outline" onClick={() => navigate(-1)} title="Back (Esc)" className="w-full sm:w-auto">
               <ArrowLeft className="h-4 w-4 mr-1" />Back
             </Button>
           )}
           <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="asset">Asset</SelectItem>
@@ -188,15 +188,17 @@ export default function GeneralLedgerPage() {
             onValueChange={setAccountId}
             options={(filteredAccountsList || []).map((a: any) => ({ value: a.id, label: `${a.code} — ${a.name}`, search: a.name }))}
             placeholder="Account"
-            triggerClassName="w-[320px]"
+            triggerClassName="w-full sm:w-[320px]"
           />
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full sm:w-[150px]" />
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full sm:w-[150px]" />
+          </div>
         </div>
       </PageHeader>
 
       {selected && (
-        <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Account</div><div className="text-sm font-semibold">{selected.code} — {selected.name}</div><div className="text-xs text-muted-foreground capitalize">{selected.account_type}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Opening (Dr−Cr)</div><div className="text-xl font-semibold">Rs. {Number(opening || 0).toLocaleString()}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Period Movement</div><div className="text-xs text-green-600">Dr: Rs. {totalDr.toLocaleString()}</div><div className="text-xs text-red-600">Cr: Rs. {totalCr.toLocaleString()}</div></CardContent></Card>
@@ -204,7 +206,8 @@ export default function GeneralLedgerPage() {
         </div>
       )}
 
-      <div className="border rounded-lg">
+      {/* Desktop table */}
+      <div className="hidden md:block border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -254,6 +257,61 @@ export default function GeneralLedgerPage() {
             </TableRow>
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
+        <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/40">
+          <span className="text-xs italic text-muted-foreground">Opening Balance</span>
+          <span className="text-sm font-semibold">Rs. {Number(opening || 0).toLocaleString()}</span>
+        </div>
+        {!rows.length && (
+          <div className="text-center text-sm text-muted-foreground py-6 border rounded-lg">No transactions in this range</div>
+        )}
+        {rows.map((r: any) => (
+          <div key={r.id} className="border rounded-lg p-3 space-y-2 bg-card">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm">
+                  <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
+                  <button
+                    type="button"
+                    onClick={() => setViewVoucherId(r.voucher_id)}
+                    className="text-primary hover:underline"
+                    title="Open voucher"
+                  >
+                    {r.voucher?.voucher_number}
+                  </button>
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[10px] text-muted-foreground">Balance</div>
+                <div className="text-sm font-semibold">Rs. {r.runningBalance.toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="text-xs"><span className="text-muted-foreground">Contra: </span>{contraData?.[r.voucher_id] || "—"}</div>
+            <div className="text-xs"><span className="text-muted-foreground">Party: </span>{r.party?.name || "—"}</div>
+            <div className="text-xs text-muted-foreground">{r.line_narration || r.voucher?.narration || "—"}</div>
+            <div className="flex items-center justify-between gap-2 pt-2 border-t text-xs">
+              <span className="text-green-600">Dr: {Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</span>
+              <span className="text-red-600">Cr: {Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</span>
+            </div>
+          </div>
+        ))}
+        <div className="border rounded-lg p-3 bg-muted/40 space-y-1">
+          <div className="text-xs font-semibold">Period Total / Closing</div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-green-600">Dr: Rs. {totalDr.toLocaleString()}</span>
+            <span className="text-red-600">Cr: Rs. {totalCr.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm font-semibold">
+            <span>Closing</span>
+            <span>Rs. {closing.toLocaleString()}</span>
+          </div>
+        </div>
       </div>
 
       <VoucherViewDialog voucherId={viewVoucherId} onOpenChange={(o) => !o && setViewVoucherId(null)} />

@@ -60,7 +60,7 @@ export function DataTable<T extends { id: string | number }>({
   const hasExpandable = !!expandedRowRender;
 
   return (
-    <div className={cn("rounded-lg border bg-card overflow-hidden", className)}>
+    <div className={cn("rounded-lg border bg-card overflow-x-auto", className)}>
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">

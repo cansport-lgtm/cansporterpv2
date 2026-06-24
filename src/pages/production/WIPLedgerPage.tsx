@@ -381,30 +381,61 @@ export default function WIPLedgerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-32">Date</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead className="text-right">In</TableHead>
-                      <TableHead className="text-right">Out</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No movements in selected period</TableCell></TableRow>
-                    ) : rows.map((r, i) => (
-                      <TableRow key={i} className={r.isOpening ? "bg-muted/40 font-medium" : ""}>
-                        <TableCell>{format(parseISO(r.date), "dd MMM yyyy")}</TableCell>
-                        <TableCell>{r.ref}</TableCell>
-                        <TableCell className="text-right text-green-500">{r.inQty ? fmtNum(r.inQty) : "—"}</TableCell>
-                        <TableCell className="text-right text-blue-500">{r.outQty ? fmtNum(r.outQty) : "—"}</TableCell>
-                        <TableCell className="text-right font-medium">{fmtNum(r.balance)}</TableCell>
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-32">Date</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead className="text-right">In</TableHead>
+                        <TableHead className="text-right">Out</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No movements in selected period</TableCell></TableRow>
+                      ) : rows.map((r, i) => (
+                        <TableRow key={i} className={r.isOpening ? "bg-muted/40 font-medium" : ""}>
+                          <TableCell>{format(parseISO(r.date), "dd MMM yyyy")}</TableCell>
+                          <TableCell>{r.ref}</TableCell>
+                          <TableCell className="text-right text-green-500">{r.inQty ? fmtNum(r.inQty) : "—"}</TableCell>
+                          <TableCell className="text-right text-blue-500">{r.outQty ? fmtNum(r.outQty) : "—"}</TableCell>
+                          <TableCell className="text-right font-medium">{fmtNum(r.balance)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile card list */}
+                <div className="md:hidden p-3 space-y-2">
+                  {rows.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-6 text-sm">No movements in selected period</div>
+                  ) : rows.map((r, i) => (
+                    <div key={i} className={`border rounded-lg p-3 flex items-center justify-between gap-2 ${r.isOpening ? "bg-muted/40 font-medium" : "bg-card"}`}>
+                      <div className="min-w-0">
+                        <div className="text-sm truncate">{r.ref}</div>
+                        <div className="text-xs text-muted-foreground">{format(parseISO(r.date), "dd MMM yyyy")}</div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-xs text-right">
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">In</div>
+                          <div className="text-green-500">{r.inQty ? fmtNum(r.inQty) : "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">Out</div>
+                          <div className="text-blue-500">{r.outQty ? fmtNum(r.outQty) : "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">Balance</div>
+                          <div className="font-semibold">{fmtNum(r.balance)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           );
