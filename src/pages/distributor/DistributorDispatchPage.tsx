@@ -16,10 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Truck, Download, PackageCheck, CheckCircle2 } from "lucide-react";
+import { Truck, Download, PackageCheck, CheckCircle2, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { DispatchSheetPrintView } from "@/components/distributor/DispatchSheetPrintView";
 
 const ALL = "ALL";
 
@@ -116,6 +117,7 @@ export default function DistributorDispatchPage() {
   const hasScope = scopeId !== "";
 
   const [orderStatus, setOrderStatus] = useState<"approved" | "dispatched" | "delivered">("approved");
+  const [printOrderId, setPrintOrderId] = useState<string | null>(null);
 
   const { data: distributors = [] } = useQuery({
     queryKey: ["distributors-active"],
@@ -300,6 +302,14 @@ export default function DistributorDispatchPage() {
       header: "Actions",
       render: (o: OrderRow) => (
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPrintOrderId(o.id)}
+            title="Print / save dispatch sheet as PDF"
+          >
+            <Printer className="h-3 w-3 mr-1" /> Dispatch Sheet
+          </Button>
           {o.status === "approved" && (
             <Button
               size="sm"
@@ -334,6 +344,7 @@ export default function DistributorDispatchPage() {
 
   return (
     <ERPLayout>
+      <div className="print:hidden">
       <PageHeader
         title="Dispatch"
         description="Aggregate approved-order requirements into a dispatch sheet, then mark orders dispatched and delivered."
@@ -444,6 +455,10 @@ export default function DistributorDispatchPage() {
           </>
         )}
       </div>
+      </div>
+
+      {/* Must live OUTSIDE the print:hidden wrapper above, or it is display:none in print → blank page */}
+      <DispatchSheetPrintView orderId={printOrderId} onAfterPrint={() => setPrintOrderId(null)} />
     </ERPLayout>
   );
 }
