@@ -183,9 +183,17 @@ export function ProtectedRoute({
       }
     }
 
-    // For distributor roles, redirect back to the distributor dashboard when accessing
-    // a page outside their allowed set (route whitelist enforced in AuthContext).
-    if (roles.some((r) => ['distributor_sales', 'distributor_manager', 'distributor_admin'].includes(r.role as string))) {
+    // Distributor Sales can ONLY make sales orders — send them back to the orders page
+    // whenever they land anywhere else (route whitelist enforced in AuthContext).
+    if (roles.some((r) => (r.role as string) === 'distributor_sales')) {
+      if (location.pathname !== '/distributor/orders') {
+        return <Navigate to="/distributor/orders" replace />;
+      }
+    }
+
+    // For the other distributor roles (manager / admin), redirect back to the distributor
+    // dashboard when accessing a page outside their allowed set.
+    else if (roles.some((r) => ['distributor_manager', 'distributor_admin'].includes(r.role as string))) {
       if (location.pathname !== '/distributor/dashboard') {
         return <Navigate to="/distributor/dashboard" replace />;
       }
