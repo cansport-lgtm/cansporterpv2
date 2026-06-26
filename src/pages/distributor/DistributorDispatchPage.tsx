@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Truck, Download, PackageCheck, CheckCircle2, Printer, ChevronDown, ChevronRight } from "lucide-react";
+import { Truck, Download, PackageCheck, CheckCircle2, Printer, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
@@ -115,6 +115,7 @@ function MobileOrderCard({
   selected,
   onToggleSelect,
   onPrint,
+  onShare,
   onDispatch,
   onDeliver,
   dispatching,
@@ -126,6 +127,7 @@ function MobileOrderCard({
   selected: boolean;
   onToggleSelect: () => void;
   onPrint: () => void;
+  onShare: () => void;
   onDispatch: () => void;
   onDeliver: () => void;
   dispatching: boolean;
@@ -174,6 +176,14 @@ function MobileOrderCard({
         <Button variant="outline" size="sm" onClick={onPrint}>
           <Printer className="h-3 w-3 mr-1" /> Dispatch Sheet
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-green-700 border-green-600/40 hover:bg-green-50"
+          onClick={onShare}
+        >
+          <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+        </Button>
         {o.status === "approved" && (
           <Button
             size="sm"
@@ -218,7 +228,7 @@ export default function DistributorDispatchPage() {
   const hasScope = scopeId !== "";
 
   const [orderStatus, setOrderStatus] = useState<"approved" | "dispatched" | "delivered">("approved");
-  const [printOrderId, setPrintOrderId] = useState<string | null>(null);
+  const [orderAction, setOrderAction] = useState<{ id: string; mode: "print" | "share" } | null>(null);
   const [printRequest, setPrintRequest] = useState<ConsolidatedRequest | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
 
@@ -433,10 +443,19 @@ export default function DistributorDispatchPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPrintOrderId(o.id)}
+            onClick={() => setOrderAction({ id: o.id, mode: "print" })}
             title="Print / save dispatch sheet as PDF"
           >
             <Printer className="h-3 w-3 mr-1" /> Dispatch Sheet
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-green-700 border-green-600/40 hover:bg-green-50"
+            onClick={() => setOrderAction({ id: o.id, mode: "share" })}
+            title="Share dispatch sheet on WhatsApp"
+          >
+            <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
           </Button>
           {o.status === "approved" && (
             <Button
@@ -469,6 +488,9 @@ export default function DistributorDispatchPage() {
   ];
 
   const totalUnits = sheet.reduce((s, r) => s + r.quantity, 0);
+  const scopeLabel = isAll
+    ? "All Distributors"
+    : distributors.find((d) => d.id === scopeId)?.name ?? "Distributor";
 
   return (
     <ERPLayout>
@@ -519,17 +541,19 @@ export default function DistributorDispatchPage() {
                   <Button
                     size="sm"
                     className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() =>
-                      setPrintRequest({
-                        scopeId,
-                        label: isAll
-                          ? "All Distributors"
-                          : distributors.find((d) => d.id === scopeId)?.name ?? "Distributor",
-                      })
-                    }
+                    onClick={() => setPrintRequest({ scopeId, label: scopeLabel, mode: "print" })}
                     disabled={!sheet.length}
                   >
                     <Printer className="h-4 w-4 mr-1" /> Print All Approved
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 sm:flex-none text-green-700 border-green-600/40 hover:bg-green-50"
+                    onClick={() => setPrintRequest({ scopeId, label: scopeLabel, mode: "share" })}
+                    disabled={!sheet.length}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
                   </Button>
                   <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={exportSheet} disabled={!sheet.length}>
                     <Download className="h-4 w-4 mr-1" /> Export Excel
@@ -598,18 +622,35 @@ export default function DistributorDispatchPage() {
                 </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   {selectedOrders.size > 0 && (
-                    <Button
-                      size="sm"
-                      className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white"
-                      onClick={() =>
-                        setPrintRequest({
-                          orderIds: [...selectedOrders],
-                          label: `${selectedOrders.size} selected order${selectedOrders.size === 1 ? "" : "s"}`,
-                        })
-                      }
-                    >
-                      <Printer className="h-4 w-4 mr-1" /> Print Dispatch Sheet ({selectedOrders.size})
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white"
+                        onClick={() =>
+                          setPrintRequest({
+                            orderIds: [...selectedOrders],
+                            label: `${selectedOrders.size} selected order${selectedOrders.size === 1 ? "" : "s"}`,
+                            mode: "print",
+                          })
+                        }
+                      >
+                        <Printer className="h-4 w-4 mr-1" /> Print ({selectedOrders.size})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 sm:flex-none text-green-700 border-green-600/40 hover:bg-green-50"
+                        onClick={() =>
+                          setPrintRequest({
+                            orderIds: [...selectedOrders],
+                            label: `${selectedOrders.size} selected order${selectedOrders.size === 1 ? "" : "s"}`,
+                            mode: "share",
+                          })
+                        }
+                      >
+                        <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp ({selectedOrders.size})
+                      </Button>
+                    </>
                   )}
                   <div className="w-full sm:w-44">
                     <Select
@@ -677,7 +718,8 @@ export default function DistributorDispatchPage() {
                         showPrices={showPrices}
                         selected={selectedOrders.has(o.id)}
                         onToggleSelect={() => toggleOrder(o.id)}
-                        onPrint={() => setPrintOrderId(o.id)}
+                        onPrint={() => setOrderAction({ id: o.id, mode: "print" })}
+                        onShare={() => setOrderAction({ id: o.id, mode: "share" })}
                         onDispatch={() => dispatchMutation.mutate(o)}
                         onDeliver={() => deliverMutation.mutate(o)}
                         dispatching={dispatchMutation.isPending}
@@ -693,7 +735,11 @@ export default function DistributorDispatchPage() {
       </div>
 
       {/* Print via hidden iframe (printDocument) — these render nothing in the page. */}
-      <DispatchSheetPrintView orderId={printOrderId} onAfterPrint={() => setPrintOrderId(null)} />
+      <DispatchSheetPrintView
+        orderId={orderAction?.id ?? null}
+        mode={orderAction?.mode}
+        onAfterPrint={() => setOrderAction(null)}
+      />
       <DispatchConsolidatedPrintView
         request={printRequest}
         allValue={ALL}

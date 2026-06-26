@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import cansportLogo from "@/assets/cansport-logo.png";
 import { printDocument, esc } from "@/lib/printDocument";
+import { buildBulkDispatchSheetPdf } from "@/lib/dispatchSheetPdf";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
 
 /**
  * What to print. Either an entire scope (all approved orders for a distributor / company-wide)
@@ -16,6 +19,8 @@ export interface ConsolidatedRequest {
   scopeId?: string;
   /** Explicit order ids — prints exactly these (bulk dispatch). Takes precedence over scopeId. */
   orderIds?: string[];
+  /** "print" opens the print dialog; "share" builds a PDF and opens the share sheet (WhatsApp). */
+  mode?: "print" | "share";
 }
 
 interface DispatchConsolidatedPrintViewProps {
@@ -70,14 +75,16 @@ export function DispatchConsolidatedPrintView({
   const orderIds = request?.orderIds ?? null;
   const scopeId = request?.scopeId ?? null;
   const scopeLabel = request?.label ?? "";
+  const mode = request?.mode ?? "print";
   const isAll = scopeId === allValue;
   // Stable key for the active request (selected ids take precedence over scope).
-  const reqKey = orderIds && orderIds.length ? `ids:${[...orderIds].sort().join(",")}` : scopeId ? `scope:${scopeId}` : null;
+  const baseKey = orderIds && orderIds.length ? `ids:${[...orderIds].sort().join(",")}` : scopeId ? `scope:${scopeId}` : null;
+  const reqKey = baseKey ? `${baseKey}:${mode}` : null;
   const printedFor = useRef<string | null>(null);
 
   const { data: lines } = useQuery({
-    queryKey: ["dispatch-consolidated-print", reqKey],
-    enabled: !!reqKey,
+    queryKey: ["dispatch-consolidated-print", baseKey],
+    enabled: !!baseKey,
     queryFn: async () => {
       let q = supabase
         .from("distributor_order_items")
@@ -149,6 +156,41 @@ export function DispatchConsolidatedPrintView({
       (a.order_number ?? "").localeCompare(b.order_number ?? "")
     );
     const totalUnits = pickList.reduce((s, r) => s + r.quantity, 0);
+
+    // --- WhatsApp / file share: build a PDF blob and open the share sheet ---
+    if (mode === "share") {
+      const pdf = buildBulkDispatchSheetPdf({
+        scopeLabel,
+        printedOn: format(new Date(), "dd MMM yyyy HH:mm"),
+        totalUnits: totalUnits.toLocaleString(),
+        pickList: pickList.map((r) => ({
+          product: r.product,
+          unit: r.unit || "—",
+          quantity: r.quantity.toLocaleString(),
+        })),
+        orders: orders.map((o) => ({
+          orderNumber: o.order_number ?? "—",
+          customer: o.customer,
+          distributor: isAll ? o.distributor : undefined,
+          when: o.required_date ? `Required: ${o.required_date}` : `Order: ${o.order_date}`,
+          items: o.items.map((it) => ({
+            product: it.product,
+            unit: it.unit,
+            quantity: it.quantity.toLocaleString(),
+          })),
+        })),
+      });
+      const fileName = `Dispatch_Sheet_${scopeLabel.replace(/[^\w-]+/g, "_")}.pdf`;
+      const summary = `Dispatch Sheet — ${scopeLabel}: ${orders.length} order${orders.length === 1 ? "" : "s"}, ${totalUnits.toLocaleString()} units`;
+      shareOrDownloadPdf({ blob: pdf, fileName, title: "Dispatch Sheet", text: summary })
+        .then((r) => {
+          if (r === "shared") toast.success("Shared");
+          else if (r === "downloaded") toast.success("PDF downloaded — attach it in WhatsApp");
+        })
+        .catch(() => toast.error("Could not share the dispatch sheet"));
+      onAfterPrint();
+      return;
+    }
 
     const pickRows = pickList
       .map(

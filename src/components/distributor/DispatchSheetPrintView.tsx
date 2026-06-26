@@ -1,14 +1,21 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import cansportLogo from "@/assets/cansport-logo.png";
 import { printDocument, esc } from "@/lib/printDocument";
+import { buildDispatchSheetPdf } from "@/lib/dispatchSheetPdf";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
+
+export type DispatchActionMode = "print" | "share";
 
 interface DispatchSheetPrintViewProps {
-  /** When non-null, the order is fetched and printed via a hidden iframe. */
+  /** When non-null, the order is fetched and printed/shared. */
   orderId: string | null;
-  /** Called after the print dialog has been triggered so the caller can clear its state. */
+  /** "print" opens the print dialog; "share" builds a PDF and opens the share sheet (WhatsApp). */
+  mode?: DispatchActionMode;
+  /** Called after the action has been triggered so the caller can clear its state. */
   onAfterPrint: () => void;
 }
 
@@ -62,7 +69,7 @@ const logoUrl =
  * Fetches a single distributor order + its lines and prints a Dispatch Sheet
  * (delivery / picking slip) into an isolated iframe (see printDocument). Renders nothing.
  */
-export function DispatchSheetPrintView({ orderId, onAfterPrint }: DispatchSheetPrintViewProps) {
+export function DispatchSheetPrintView({ orderId, mode = "print", onAfterPrint }: DispatchSheetPrintViewProps) {
   const printedFor = useRef<string | null>(null);
 
   const { data: order } = useQuery({
@@ -97,11 +104,58 @@ export function DispatchSheetPrintView({ orderId, onAfterPrint }: DispatchSheetP
 
   useEffect(() => {
     if (!orderId || !order || !items) return;
-    if (printedFor.current === orderId) return;
-    printedFor.current = orderId;
+    const key = `${orderId}:${mode}`;
+    if (printedFor.current === key) return;
+    printedFor.current = key;
 
     const totalOrdered = items.reduce((s, it) => s + Number(it.quantity ?? 0), 0);
     const totalDispatched = items.reduce((s, it) => s + Number(it.quantity_dispatched ?? 0), 0);
+
+    const fmt = (d: string | null) => (d ? format(parseISO(d), "dd MMM yyyy") : undefined);
+    const addr = (p: typeof order.distributors) =>
+      p ? [p.address, p.area, p.city].filter(Boolean).join(", ") : undefined;
+
+    // --- WhatsApp / file share: build a PDF blob and open the share sheet ---
+    if (mode === "share") {
+      const pdf = buildDispatchSheetPdf({
+        orderNumber: order.order_number ?? "",
+        orderDate: format(parseISO(order.order_date), "dd MMM yyyy"),
+        requiredDate: fmt(order.required_date),
+        dispatchedDate: fmt(order.dispatched_at),
+        status: order.status,
+        distributorName: order.distributors?.name ?? "",
+        distributorCode: order.distributors?.code ?? undefined,
+        distributorAddress: addr(order.distributors),
+        distributorPhone: order.distributors?.phone ?? undefined,
+        customerName: order.distributor_customers?.name ?? "",
+        customerCode: order.distributor_customers?.code ?? undefined,
+        customerAddress: addr(order.distributor_customers),
+        customerContact: order.distributor_customers?.contact_person ?? undefined,
+        customerPhone: order.distributor_customers?.phone ?? undefined,
+        items: items.map((it) => ({
+          product: it.product_name,
+          sku: it.company_product?.code ?? undefined,
+          unit: it.unit ?? "",
+          ordered: Number(it.quantity ?? 0).toLocaleString(),
+          dispatched: Number(it.quantity_dispatched ?? 0).toLocaleString(),
+          remarks: it.remarks ?? undefined,
+        })),
+        totalOrdered: totalOrdered.toLocaleString(),
+        totalDispatched: totalDispatched.toLocaleString(),
+        notes: [order.notes, order.dispatch_notes].filter(Boolean).join(" — ") || undefined,
+        generatedOn: format(new Date(), "dd MMM yyyy HH:mm"),
+      });
+      const fileName = `Dispatch_${(order.order_number ?? "sheet").replace(/[^\w-]+/g, "_")}.pdf`;
+      const summary = `Dispatch Sheet ${order.order_number ?? ""} — ${order.distributor_customers?.name ?? ""} (${totalOrdered.toLocaleString()} units)`;
+      shareOrDownloadPdf({ blob: pdf, fileName, title: "Dispatch Sheet", text: summary })
+        .then((r) => {
+          if (r === "shared") toast.success("Shared");
+          else if (r === "downloaded") toast.success("PDF downloaded — attach it in WhatsApp");
+        })
+        .catch(() => toast.error("Could not share the dispatch sheet"));
+      onAfterPrint();
+      return;
+    }
 
     const rows = items
       .map((it, i) => {
@@ -187,7 +241,7 @@ export function DispatchSheetPrintView({ orderId, onAfterPrint }: DispatchSheetP
     onAfterPrint();
     // onAfterPrint intentionally omitted from deps; fire once per order load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, order, items]);
+  }, [orderId, order, items, mode]);
 
   // Reset the guard when the caller clears the id, so the same order can be reprinted.
   useEffect(() => {
