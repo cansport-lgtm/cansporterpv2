@@ -346,7 +346,6 @@ export default function DistributorDispatchPage() {
 
   return (
     <ERPLayout>
-      <div className="print:hidden">
       <PageHeader
         title="Dispatch"
         description="Aggregate approved-order requirements into a dispatch sheet, then mark orders dispatched and delivered."
@@ -467,9 +466,8 @@ export default function DistributorDispatchPage() {
           </>
         )}
       </div>
-      </div>
 
-      {/* Must live OUTSIDE the print:hidden wrapper above, or it is display:none in print → blank page */}
+      {/* Print via hidden iframe (printDocument) — these render nothing in the page. */}
       <DispatchSheetPrintView orderId={printOrderId} onAfterPrint={() => setPrintOrderId(null)} />
       <DispatchConsolidatedPrintView
         scopeId={printConsolidated}
