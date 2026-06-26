@@ -21,7 +21,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { DispatchSheetPrintView } from "@/components/distributor/DispatchSheetPrintView";
-import { DispatchConsolidatedPrintView } from "@/components/distributor/DispatchConsolidatedPrintView";
+import {
+  DispatchConsolidatedPrintView,
+  type ConsolidatedRequest,
+} from "@/components/distributor/DispatchConsolidatedPrintView";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const ALL = "ALL";
 
@@ -119,7 +123,8 @@ export default function DistributorDispatchPage() {
 
   const [orderStatus, setOrderStatus] = useState<"approved" | "dispatched" | "delivered">("approved");
   const [printOrderId, setPrintOrderId] = useState<string | null>(null);
-  const [printConsolidated, setPrintConsolidated] = useState<string | null>(null);
+  const [printRequest, setPrintRequest] = useState<ConsolidatedRequest | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
 
   const { data: distributors = [] } = useQuery({
     queryKey: ["distributors-active"],
@@ -287,7 +292,32 @@ export default function DistributorDispatchPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update order"),
   });
 
+  const toggleOrder = (id: string) =>
+    setSelectedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allVisibleSelected = orders.length > 0 && orders.every((o) => selectedOrders.has(o.id));
+  const toggleSelectAll = () =>
+    setSelectedOrders((prev) =>
+      allVisibleSelected ? new Set() : new Set(orders.map((o) => o.id))
+    );
+
   const orderColumns = [
+    {
+      key: "select",
+      header: "",
+      render: (o: OrderRow) => (
+        <Checkbox
+          checked={selectedOrders.has(o.id)}
+          onCheckedChange={() => toggleOrder(o.id)}
+          aria-label={`Select ${o.order_number ?? "order"}`}
+        />
+      ),
+    },
     { key: "order_number", header: "Order #", render: (o: OrderRow) => o.order_number ?? "—" },
     ...(isAll
       ? [{ key: "distributor", header: "Distributor", render: (o: OrderRow) => o.distributors?.name ?? "—" }]
@@ -355,7 +385,7 @@ export default function DistributorDispatchPage() {
       <div className="space-y-6">
         {isCompany && (
           <div className="w-full sm:w-80">
-            <Select value={selected} onValueChange={setSelected}>
+            <Select value={selected} onValueChange={(v) => { setSelected(v); setSelectedOrders(new Set()); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a distributor..." />
               </SelectTrigger>
@@ -393,10 +423,17 @@ export default function DistributorDispatchPage() {
                   <Button
                     size="sm"
                     className="bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() => setPrintConsolidated(scopeId)}
+                    onClick={() =>
+                      setPrintRequest({
+                        scopeId,
+                        label: isAll
+                          ? "All Distributors"
+                          : distributors.find((d) => d.id === scopeId)?.name ?? "Distributor",
+                      })
+                    }
                     disabled={!sheet.length}
                   >
-                    <Printer className="h-4 w-4 mr-1" /> Print Dispatch Sheet
+                    <Printer className="h-4 w-4 mr-1" /> Print All Approved
                   </Button>
                   <Button variant="outline" size="sm" onClick={exportSheet} disabled={!sheet.length}>
                     <Download className="h-4 w-4 mr-1" /> Export Excel
@@ -441,20 +478,61 @@ export default function DistributorDispatchPage() {
                 <CardTitle className="flex items-center gap-2">
                   <Truck className="h-5 w-5 text-violet-500" /> Orders
                 </CardTitle>
-                <div className="w-44">
-                  <Select value={orderStatus} onValueChange={(v) => setOrderStatus(v as typeof orderStatus)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="approved">To Dispatch (approved)</SelectItem>
-                      <SelectItem value="dispatched">Dispatched</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-2">
+                  {selectedOrders.size > 0 && (
+                    <Button
+                      size="sm"
+                      className="bg-violet-600 hover:bg-violet-700 text-white"
+                      onClick={() =>
+                        setPrintRequest({
+                          orderIds: [...selectedOrders],
+                          label: `${selectedOrders.size} selected order${selectedOrders.size === 1 ? "" : "s"}`,
+                        })
+                      }
+                    >
+                      <Printer className="h-4 w-4 mr-1" /> Print Dispatch Sheet ({selectedOrders.size})
+                    </Button>
+                  )}
+                  <div className="w-44">
+                    <Select
+                      value={orderStatus}
+                      onValueChange={(v) => {
+                        setOrderStatus(v as typeof orderStatus);
+                        setSelectedOrders(new Set());
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="approved">To Dispatch (approved)</SelectItem>
+                        <SelectItem value="dispatched">Dispatched</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
+                {orders.length > 0 && (
+                  <div className="flex items-center gap-2 pb-3 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all orders"
+                    />
+                    <span>
+                      {selectedOrders.size > 0
+                        ? `${selectedOrders.size} selected — tick orders to build a bulk dispatch sheet`
+                        : "Select all / tick orders to print one dispatch sheet for multiple customers"}
+                    </span>
+                    {selectedOrders.size > 0 && (
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedOrders(new Set())}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <DataTable
                   columns={orderColumns}
                   data={orders}
@@ -470,14 +548,9 @@ export default function DistributorDispatchPage() {
       {/* Print via hidden iframe (printDocument) — these render nothing in the page. */}
       <DispatchSheetPrintView orderId={printOrderId} onAfterPrint={() => setPrintOrderId(null)} />
       <DispatchConsolidatedPrintView
-        scopeId={printConsolidated}
+        request={printRequest}
         allValue={ALL}
-        scopeLabel={
-          isAll
-            ? "All Distributors"
-            : distributors.find((d) => d.id === scopeId)?.name ?? "Distributor"
-        }
-        onAfterPrint={() => setPrintConsolidated(null)}
+        onAfterPrint={() => setPrintRequest(null)}
       />
     </ERPLayout>
   );
