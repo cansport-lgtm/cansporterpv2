@@ -564,9 +564,10 @@ const navigationItems: NavItem[] = [
   },
   {
     // Distributor Order Management — external module for distributors' sales teams.
-    // Child visibility is driven by canAccessRoute(), so distributor_sales sees only
-    // Dashboard/Customers/Products/Orders, distributor_admin also sees Manage Users,
-    // and super_admin additionally sees the company-level Distributors master.
+    // Child visibility is driven by canAccessRoute(), so distributor_sales sees ONLY
+    // Orders (they can do nothing but make sales orders), distributor_manager also sees
+    // Approvals/Dispatch, distributor_admin additionally sees Manage Users, and
+    // super_admin additionally sees the company-level Distributors master.
     title: "Distributor Orders",
     icon: Building,
     color: "text-amber-400",

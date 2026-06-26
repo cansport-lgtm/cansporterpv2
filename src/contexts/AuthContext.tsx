@@ -105,14 +105,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/accounting/party-ledger',
     '/accounting/parties',
   ],
-  // Distributor Sales: create customers, manage their own product list & pricing,
-  // and make/submit orders. No approvals, no dispatch, no user management.
+  // Distributor Sales: ONLY make/submit sales orders. The orders page is fully
+  // self-contained — customers and products load inside the order dialog — so no
+  // customers, products, analysis, approvals, dispatch, dashboard or user pages.
   distributor_sales: [
-    '/distributor/dashboard',
-    '/distributor/customers',
-    '/distributor/products',
     '/distributor/orders',
-    '/distributor/analysis',
   ],
   // Distributor Manager: everything sales can do, plus approve/reject/edit orders
   // and run the dispatch sheet. No user management.
