@@ -5,13 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import cansportLogo from "@/assets/cansport-logo.png";
 import { printDocument, esc } from "@/lib/printDocument";
 
+/**
+ * What to print. Either an entire scope (all approved orders for a distributor / company-wide)
+ * or an explicit list of hand-picked order ids (bulk dispatch from the Orders list selection).
+ */
+export interface ConsolidatedRequest {
+  /** Header label (distributor name, "All Distributors", or e.g. "3 selected orders"). */
+  label: string;
+  /** Distributor id or the ALL sentinel — prints every approved order in scope. */
+  scopeId?: string;
+  /** Explicit order ids — prints exactly these (bulk dispatch). Takes precedence over scopeId. */
+  orderIds?: string[];
+}
+
 interface DispatchConsolidatedPrintViewProps {
-  /** Distributor id, the ALL sentinel, or null. When non-null, fetch + print fires. */
-  scopeId: string | null;
+  /** When non-null, fetch + print fires. */
+  request: ConsolidatedRequest | null;
   /** ALL sentinel value (company-wide). */
   allValue: string;
-  /** Human label for the header (distributor name, or "All Distributors"). */
-  scopeLabel: string;
   /** Called after the print dialog has been triggered so the caller can clear its state. */
   onAfterPrint: () => void;
 }
@@ -52,25 +63,34 @@ function label(it: Line): string {
  * isolated iframe (see printDocument). Renders nothing.
  */
 export function DispatchConsolidatedPrintView({
-  scopeId,
+  request,
   allValue,
-  scopeLabel,
   onAfterPrint,
 }: DispatchConsolidatedPrintViewProps) {
+  const orderIds = request?.orderIds ?? null;
+  const scopeId = request?.scopeId ?? null;
+  const scopeLabel = request?.label ?? "";
   const isAll = scopeId === allValue;
+  // Stable key for the active request (selected ids take precedence over scope).
+  const reqKey = orderIds && orderIds.length ? `ids:${[...orderIds].sort().join(",")}` : scopeId ? `scope:${scopeId}` : null;
   const printedFor = useRef<string | null>(null);
 
   const { data: lines } = useQuery({
-    queryKey: ["dispatch-consolidated-print", scopeId],
-    enabled: !!scopeId,
+    queryKey: ["dispatch-consolidated-print", reqKey],
+    enabled: !!reqKey,
     queryFn: async () => {
       let q = supabase
         .from("distributor_order_items")
         .select(
           "order_id, product_name, unit, quantity, company_product_id, company_product:products(code, name), distributor_orders!inner(id, order_number, order_date, required_date, distributor_id, status, distributors(name, code), distributor_customers(name, code))"
-        )
-        .eq("distributor_orders.status", "approved");
-      if (!isAll) q = q.eq("distributor_orders.distributor_id", scopeId as string);
+        );
+      if (orderIds && orderIds.length) {
+        // Bulk dispatch from hand-picked orders — print exactly these, any status.
+        q = q.in("distributor_orders.id", orderIds);
+      } else {
+        q = q.eq("distributor_orders.status", "approved");
+        if (!isAll) q = q.eq("distributor_orders.distributor_id", scopeId as string);
+      }
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as Line[];
@@ -78,9 +98,9 @@ export function DispatchConsolidatedPrintView({
   });
 
   useEffect(() => {
-    if (!scopeId || !lines) return;
-    if (printedFor.current === scopeId) return;
-    printedFor.current = scopeId;
+    if (!reqKey || !lines) return;
+    if (printedFor.current === reqKey) return;
+    printedFor.current = reqKey;
 
     // Aggregated pick list: total qty per product (mapped SKUs aggregate by code).
     const pick = new Map<string, { product: string; unit: string; quantity: number }>();
@@ -192,13 +212,13 @@ export function DispatchConsolidatedPrintView({
 
     printDocument(`Dispatch Sheet — ${scopeLabel}`, body);
     onAfterPrint();
-    // onAfterPrint intentionally omitted; fire once per scope load.
+    // onAfterPrint intentionally omitted; fire once per request load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeId, lines]);
+  }, [reqKey, lines]);
 
   useEffect(() => {
-    if (!scopeId) printedFor.current = null;
-  }, [scopeId]);
+    if (!reqKey) printedFor.current = null;
+  }, [reqKey]);
 
   return null;
 }
