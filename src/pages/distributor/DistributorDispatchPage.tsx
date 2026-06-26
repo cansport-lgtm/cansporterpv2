@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { DispatchSheetPrintView } from "@/components/distributor/DispatchSheetPrintView";
+import { DispatchConsolidatedPrintView } from "@/components/distributor/DispatchConsolidatedPrintView";
 
 const ALL = "ALL";
 
@@ -118,6 +119,7 @@ export default function DistributorDispatchPage() {
 
   const [orderStatus, setOrderStatus] = useState<"approved" | "dispatched" | "delivered">("approved");
   const [printOrderId, setPrintOrderId] = useState<string | null>(null);
+  const [printConsolidated, setPrintConsolidated] = useState<string | null>(null);
 
   const { data: distributors = [] } = useQuery({
     queryKey: ["distributors-active"],
@@ -388,9 +390,19 @@ export default function DistributorDispatchPage() {
                     {isAll ? " (all distributors)" : ""}.
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={exportSheet} disabled={!sheet.length}>
-                  <Download className="h-4 w-4 mr-1" /> Export Excel
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={() => setPrintConsolidated(scopeId)}
+                    disabled={!sheet.length}
+                  >
+                    <Printer className="h-4 w-4 mr-1" /> Print Dispatch Sheet
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportSheet} disabled={!sheet.length}>
+                    <Download className="h-4 w-4 mr-1" /> Export Excel
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {sheetLoading ? (
@@ -459,6 +471,16 @@ export default function DistributorDispatchPage() {
 
       {/* Must live OUTSIDE the print:hidden wrapper above, or it is display:none in print → blank page */}
       <DispatchSheetPrintView orderId={printOrderId} onAfterPrint={() => setPrintOrderId(null)} />
+      <DispatchConsolidatedPrintView
+        scopeId={printConsolidated}
+        allValue={ALL}
+        scopeLabel={
+          isAll
+            ? "All Distributors"
+            : distributors.find((d) => d.id === scopeId)?.name ?? "Distributor"
+        }
+        onAfterPrint={() => setPrintConsolidated(null)}
+      />
     </ERPLayout>
   );
 }
