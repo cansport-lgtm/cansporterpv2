@@ -13,7 +13,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
+import { buildLedgerPdf } from "@/lib/ledgerPdf";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { format, subDays, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -163,8 +166,155 @@ export default function GeneralLedgerPage() {
   // For display, negative balance flipped for Cr-normal accounts:
   const displayBalance = isDrNormal ? closing : -closing;
 
+  const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
+
+  const handlePrint = () => {
+    if (!selected) return;
+    window.print();
+  };
+
+  // Build a self-contained PDF of the current account ledger view.
+  const buildPdf = (): { blob: Blob; fileName: string } | null => {
+    if (!selected) return null;
+    const pdfRows = rows.map((r: any) => {
+      const contra = contraData?.[r.voucher_id] || "";
+      const party = r.party?.name ? `[${r.party.name}] ` : "";
+      return {
+        date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
+        voucher: `${r.voucher?.voucher_type || ""} ${r.voucher?.voucher_number || ""}`.trim(),
+        against: contra || "-",
+        narration: `${party}${r.line_narration || r.voucher?.narration || "-"}`,
+        debit: Number(r.debit_amount) > 0 ? Number(r.debit_amount).toLocaleString() : "",
+        credit: Number(r.credit_amount) > 0 ? Number(r.credit_amount).toLocaleString() : "",
+        balance: r.runningBalance.toLocaleString(),
+      };
+    });
+    const blob = buildLedgerPdf({
+      title: "General Ledger",
+      partyName: `${selected.code} — ${selected.name}`,
+      partyType: selected.account_type || undefined,
+      period: periodLabel,
+      opening: `Rs. ${Number(opening || 0).toLocaleString()}`,
+      rows: pdfRows,
+      totalDr: `Rs. ${totalDr.toLocaleString()}`,
+      totalCr: `Rs. ${totalCr.toLocaleString()}`,
+      closing: `Rs. ${Math.abs(displayBalance).toLocaleString()} ${isDrNormal ? "Dr" : "Cr"}`,
+      generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+    });
+    const fileName = `General-Ledger-${selected.code}-${selected.name}-${format(parseISO(toDate), "yyyyMMdd")}`
+      .replace(/[^\w-]+/g, "_") + ".pdf";
+    return { blob, fileName };
+  };
+
+  const [sharing, setSharing] = useState(false);
+
+  // Share the ledger PDF to WhatsApp (native share sheet on mobile, download
+  // fallback elsewhere).
+  const handleShareWhatsApp = async () => {
+    if (!selected) return;
+    try {
+      setSharing(true);
+      const pdf = buildPdf();
+      if (!pdf) return;
+      const summary =
+        `General Ledger - ${selected.code} ${selected.name}\n` +
+        `Period: ${periodLabel}\n` +
+        `Closing: Rs. ${Math.abs(displayBalance).toLocaleString()} ${isDrNormal ? "Dr" : "Cr"}`;
+      const result = await shareOrDownloadPdf({
+        blob: pdf.blob,
+        fileName: pdf.fileName,
+        title: `General Ledger - ${selected.name}`,
+        text: summary,
+      });
+      if (result === "downloaded") {
+        toast.message("Ledger PDF downloaded", {
+          description: "Attach the downloaded PDF to your WhatsApp chat.",
+        });
+      }
+    } catch (e) {
+      toast.error((e as { message?: string })?.message || "Failed to share ledger");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <ERPLayout>
+      {/* === PRINT VIEW (only visible when printing) === */}
+      {selected && (
+        <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:p-8 print:z-50 print:text-foreground">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-gray-800">
+              <div>
+                <h1 className="text-2xl font-bold">General Ledger</h1>
+              </div>
+              <div className="text-right text-sm">
+                <div className="font-bold">{selected.code} — {selected.name}</div>
+                <div className="text-xs capitalize">{selected.account_type}</div>
+                <div className="text-xs mt-1">Period: {periodLabel}</div>
+              </div>
+            </div>
+
+            <table className="w-full text-xs mb-4 border-collapse [&_th]:px-2 [&_td]:px-2 [&_th]:align-bottom [&_td]:align-top">
+              <thead>
+                <tr className="border-b-2 border-gray-800">
+                  <th className="text-left py-1.5">Date</th>
+                  <th className="text-left py-1.5">Voucher</th>
+                  <th className="text-left py-1.5">Contra A/c</th>
+                  <th className="text-left py-1.5">Party</th>
+                  <th className="text-left py-1.5">Narration</th>
+                  <th className="text-right py-1.5">Debit</th>
+                  <th className="text-right py-1.5">Credit</th>
+                  <th className="text-right py-1.5">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-gray-300 bg-gray-50">
+                  <td colSpan={7} className="py-1.5 italic">Opening Balance</td>
+                  <td className="text-right py-1.5 font-semibold">Rs. {Number(opening || 0).toLocaleString()}</td>
+                </tr>
+                {!rows.length && (
+                  <tr><td colSpan={8} className="text-center py-3 text-gray-500">No transactions in this period.</td></tr>
+                )}
+                {rows.map((r: any) => (
+                  <tr key={r.id} className="border-b border-gray-200">
+                    <td className="py-1.5">{r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM yyyy")}</td>
+                    <td className="py-1.5">
+                      <span className="font-mono mr-1">{r.voucher?.voucher_type}</span>
+                      {r.voucher?.voucher_number}
+                    </td>
+                    <td className="py-1.5">{contraData?.[r.voucher_id] || "—"}</td>
+                    <td className="py-1.5">{r.party?.name || "—"}</td>
+                    <td className="py-1.5">{r.line_narration || r.voucher?.narration || "—"}</td>
+                    <td className="text-right py-1.5">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</td>
+                    <td className="text-right py-1.5">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</td>
+                    <td className="text-right py-1.5">Rs. {r.runningBalance.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-800 font-bold">
+                  <td colSpan={5} className="text-right py-2">Period Total / Closing</td>
+                  <td className="text-right py-2">Rs. {totalDr.toLocaleString()}</td>
+                  <td className="text-right py-2">Rs. {totalCr.toLocaleString()}</td>
+                  <td className="text-right py-2">Rs. {Math.abs(displayBalance).toLocaleString()} <span className="font-normal">{isDrNormal ? "Dr" : "Cr"}</span></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="text-xs text-gray-500 border-t pt-3 mt-6">
+              <div className="grid grid-cols-2 gap-8 mt-6">
+                <div className="border-t pt-1">Prepared by</div>
+                <div className="border-t pt-1">Authorised Signature</div>
+              </div>
+              <div className="mt-4 text-[10px]">E. & O. E. — figures subject to internal audit. Subject to Karachi jurisdiction.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === MAIN UI (hidden when printing) === */}
+      <div className="print:hidden">
       <PageHeader title="General Ledger" description="Drill into any account's transactions">
         <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap sm:w-auto">
           {isDrillDown && (
@@ -193,6 +343,21 @@ export default function GeneralLedgerPage() {
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full sm:w-[150px]" />
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full sm:w-[150px]" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selected} className="w-full sm:w-auto">
+              <Printer className="h-4 w-4 mr-1" />Print
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleShareWhatsApp}
+              disabled={!selected || sharing}
+              className="w-full sm:w-auto text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+              title="Share ledger PDF on WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4 mr-1" />{sharing ? "Preparing…" : "WhatsApp"}
+            </Button>
           </div>
         </div>
       </PageHeader>
@@ -315,6 +480,7 @@ export default function GeneralLedgerPage() {
       </div>
 
       <VoucherViewDialog voucherId={viewVoucherId} onOpenChange={(o) => !o && setViewVoucherId(null)} />
+      </div>
     </ERPLayout>
   );
 }
