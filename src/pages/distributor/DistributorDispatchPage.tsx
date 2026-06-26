@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Truck, Download, PackageCheck, CheckCircle2, Printer } from "lucide-react";
+import { Truck, Download, PackageCheck, CheckCircle2, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
@@ -104,6 +104,102 @@ function OrderItemsExpand({ orderId, showPrices }: { orderId: string; showPrices
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function MobileOrderCard({
+  o,
+  isAll,
+  showPrices,
+  selected,
+  onToggleSelect,
+  onPrint,
+  onDispatch,
+  onDeliver,
+  dispatching,
+  delivering,
+}: {
+  o: OrderRow;
+  isAll: boolean;
+  showPrices: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onPrint: () => void;
+  onDispatch: () => void;
+  onDeliver: () => void;
+  dispatching: boolean;
+  delivering: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border rounded-xl p-3 space-y-2 bg-card shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <Checkbox checked={selected} onCheckedChange={onToggleSelect} className="mt-1" aria-label="Select order" />
+          <div>
+            <div className="font-mono font-semibold text-primary text-sm">{o.order_number ?? "—"}</div>
+            <div className="text-xs text-muted-foreground">
+              {o.order_date}
+              {o.required_date ? ` · req ${o.required_date}` : ""}
+            </div>
+          </div>
+        </div>
+        <OrderStatusBadge status={o.status} />
+      </div>
+
+      <div>
+        <div className="font-medium text-sm">{o.distributor_customers?.name ?? "—"}</div>
+        {isAll && <div className="text-xs text-muted-foreground">{o.distributors?.name ?? "—"}</div>}
+      </div>
+
+      {showPrices && (
+        <div className="text-sm font-bold">{Number(o.total_amount ?? 0).toLocaleString()}</div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-violet-600"
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} Order lines
+      </button>
+      {open && (
+        <div className="rounded-lg border bg-muted/30">
+          <OrderItemsExpand orderId={o.id} showPrices={showPrices} />
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+        <Button variant="outline" size="sm" onClick={onPrint}>
+          <Printer className="h-3 w-3 mr-1" /> Dispatch Sheet
+        </Button>
+        {o.status === "approved" && (
+          <Button
+            size="sm"
+            className="bg-violet-600 hover:bg-violet-700 text-white"
+            onClick={onDispatch}
+            disabled={dispatching}
+          >
+            <Truck className="h-3 w-3 mr-1" /> Mark Dispatched
+          </Button>
+        )}
+        {o.status === "dispatched" && (
+          <Button
+            size="sm"
+            className="bg-teal-600 hover:bg-teal-700 text-white"
+            onClick={onDeliver}
+            disabled={delivering}
+          >
+            <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Delivered
+          </Button>
+        )}
+        {o.status === "delivered" && (
+          <span className="text-xs text-muted-foreground">
+            {o.delivered_at ? `Delivered ${format(new Date(o.delivered_at), "dd MMM yyyy")}` : "Delivered"}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -409,7 +505,7 @@ export default function DistributorDispatchPage() {
           <>
             {/* Dispatch Sheet (aggregated requirements) */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <PackageCheck className="h-5 w-5 text-violet-500" /> Dispatch Sheet — Requirements
@@ -419,10 +515,10 @@ export default function DistributorDispatchPage() {
                     {isAll ? " (all distributors)" : ""}.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
-                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                    className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white"
                     onClick={() =>
                       setPrintRequest({
                         scopeId,
@@ -435,7 +531,7 @@ export default function DistributorDispatchPage() {
                   >
                     <Printer className="h-4 w-4 mr-1" /> Print All Approved
                   </Button>
-                  <Button variant="outline" size="sm" onClick={exportSheet} disabled={!sheet.length}>
+                  <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={exportSheet} disabled={!sheet.length}>
                     <Download className="h-4 w-4 mr-1" /> Export Excel
                   </Button>
                 </div>
@@ -446,43 +542,65 @@ export default function DistributorDispatchPage() {
                 ) : !sheet.length ? (
                   <div className="p-4 text-sm text-muted-foreground">No approved orders awaiting dispatch.</div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead className="text-right">Total Qty</TableHead>
-                        <TableHead className="text-right">Orders</TableHead>
-                        {isAll && <TableHead className="text-right">Distributors</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sheet.map((r) => (
-                        <TableRow key={r.key}>
-                          <TableCell className="font-medium">{r.product}</TableCell>
-                          <TableCell>{r.unit}</TableCell>
-                          <TableCell className="text-right">{r.quantity.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{r.orders}</TableCell>
-                          {isAll && <TableCell className="text-right">{r.distributors}</TableCell>}
+                  <>
+                    {/* Desktop table */}
+                    <Table className="hidden md:table">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead className="text-right">Total Qty</TableHead>
+                          <TableHead className="text-right">Orders</TableHead>
+                          {isAll && <TableHead className="text-right">Distributors</TableHead>}
                         </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sheet.map((r) => (
+                          <TableRow key={r.key}>
+                            <TableCell className="font-medium">{r.product}</TableCell>
+                            <TableCell>{r.unit}</TableCell>
+                            <TableCell className="text-right">{r.quantity.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{r.orders}</TableCell>
+                            {isAll && <TableCell className="text-right">{r.distributors}</TableCell>}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {/* Mobile cards */}
+                    <div className="md:hidden space-y-2">
+                      {sheet.map((r) => (
+                        <div key={r.key} className="flex items-center justify-between gap-2 rounded-lg border bg-card p-3">
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">{r.product}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {r.unit} · {r.orders} order{r.orders === 1 ? "" : "s"}
+                              {isAll ? ` · ${r.distributors} distributor${r.distributors === 1 ? "" : "s"}` : ""}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-bold">{r.quantity.toLocaleString()}</div>
+                            <div className="text-xs text-muted-foreground">qty</div>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
 
             {/* Orders to dispatch / track */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Truck className="h-5 w-5 text-violet-500" /> Orders
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selectedOrders.size > 0 && (
                     <Button
                       size="sm"
-                      className="bg-violet-600 hover:bg-violet-700 text-white"
+                      className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white"
                       onClick={() =>
                         setPrintRequest({
                           orderIds: [...selectedOrders],
@@ -493,7 +611,7 @@ export default function DistributorDispatchPage() {
                       <Printer className="h-4 w-4 mr-1" /> Print Dispatch Sheet ({selectedOrders.size})
                     </Button>
                   )}
-                  <div className="w-44">
+                  <div className="w-full sm:w-44">
                     <Select
                       value={orderStatus}
                       onValueChange={(v) => {
@@ -523,8 +641,8 @@ export default function DistributorDispatchPage() {
                     />
                     <span>
                       {selectedOrders.size > 0
-                        ? `${selectedOrders.size} selected — tick orders to build a bulk dispatch sheet`
-                        : "Select all / tick orders to print one dispatch sheet for multiple customers"}
+                        ? `${selectedOrders.size} selected — print one bulk dispatch sheet`
+                        : "Select orders to print one sheet for multiple customers"}
                     </span>
                     {selectedOrders.size > 0 && (
                       <Button variant="ghost" size="sm" onClick={() => setSelectedOrders(new Set())}>
@@ -533,12 +651,41 @@ export default function DistributorDispatchPage() {
                     )}
                   </div>
                 )}
-                <DataTable
-                  columns={orderColumns}
-                  data={orders}
-                  emptyMessage={ordersLoading ? "Loading..." : "No orders in this state"}
-                  expandedRowRender={(o) => <OrderItemsExpand orderId={o.id} showPrices={showPrices} />}
-                />
+
+                {/* Desktop table */}
+                <div className="hidden md:block">
+                  <DataTable
+                    columns={orderColumns}
+                    data={orders}
+                    emptyMessage={ordersLoading ? "Loading..." : "No orders in this state"}
+                    expandedRowRender={(o) => <OrderItemsExpand orderId={o.id} showPrices={showPrices} />}
+                  />
+                </div>
+
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {orders.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      {ordersLoading ? "Loading..." : "No orders in this state"}
+                    </div>
+                  ) : (
+                    orders.map((o) => (
+                      <MobileOrderCard
+                        key={o.id}
+                        o={o}
+                        isAll={isAll}
+                        showPrices={showPrices}
+                        selected={selectedOrders.has(o.id)}
+                        onToggleSelect={() => toggleOrder(o.id)}
+                        onPrint={() => setPrintOrderId(o.id)}
+                        onDispatch={() => dispatchMutation.mutate(o)}
+                        onDeliver={() => deliverMutation.mutate(o)}
+                        dispatching={dispatchMutation.isPending}
+                        delivering={deliverMutation.isPending}
+                      />
+                    ))
+                  )}
+                </div>
               </CardContent>
             </Card>
           </>
