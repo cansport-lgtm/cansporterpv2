@@ -92,7 +92,7 @@ export function DistributorOrderMenu({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("distributor_products")
-        .select("id, name, code, price, unit, company_product_id")
+        .select("id, name, code, price, unit, company_product_id, image_url")
         .eq("distributor_id", distributorId)
         .eq("is_active", true)
         .order("name");
@@ -359,8 +359,8 @@ export function DistributorOrderMenu({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 border-t px-4 py-3 sm:grid-cols-3">
-          <div className="space-y-1">
+        <div className="grid grid-cols-2 gap-3 border-t px-4 py-3 sm:grid-cols-3">
+          <div className="col-span-2 space-y-1 sm:col-span-1">
             <Label className="text-xs text-muted-foreground">Customer *</Label>
             <SearchableSelect
               value={customerId}
@@ -440,7 +440,7 @@ export function DistributorOrderMenu({
               )}
             </div>
 
-            <div className="grid flex-1 content-start gap-3 overflow-auto p-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+            <div className="grid flex-1 content-start gap-3 overflow-auto p-4 pb-28 sm:pb-4 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] sm:[grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
               {filteredProducts.length === 0 ? (
                 <div className="col-span-full py-12 text-center text-muted-foreground">
                   No products found.
@@ -460,9 +460,18 @@ export function DistributorOrderMenu({
                           {line.quantity}
                         </span>
                       )}
-                      <div className="flex h-16 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 text-xl font-bold text-primary">
-                        {(p.code || p.name).slice(0, 3).toUpperCase()}
-                      </div>
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url}
+                          alt={p.name}
+                          loading="lazy"
+                          className="h-24 w-full rounded-lg border object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 text-xl font-bold text-primary">
+                          {(p.code || p.name).slice(0, 3).toUpperCase()}
+                        </div>
+                      )}
                       {p.code && (
                         <div className="text-xs font-medium text-muted-foreground">{p.code}</div>
                       )}
@@ -755,28 +764,41 @@ export function DistributorOrderMenu({
 
       {/* Footer actions for the review step */}
       {step === "review" && (
-        <div className="flex items-center justify-between gap-3 border-t bg-card px-4 py-3">
-          <Button variant="outline" onClick={() => setStep("menu")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Back to menu
-          </Button>
-          {readOnly ? (
-            <Button onClick={() => onOpenChange(false)}>Close</Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => persist.mutate(false)}
-                disabled={persist.isPending}
-              >
-                Save Draft
+        <div className="border-t bg-card px-4 py-3">
+          <div className="mx-auto flex max-w-3xl flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setStep("menu")}
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back to menu
+            </Button>
+            {readOnly ? (
+              <Button className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
+                Close
               </Button>
-              {canSubmit && (
-                <Button onClick={() => persist.mutate(true)} disabled={persist.isPending}>
-                  Post & Submit for Approval
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={() => persist.mutate(false)}
+                  disabled={persist.isPending}
+                >
+                  Save Draft
                 </Button>
-              )}
-            </div>
-          )}
+                {canSubmit && (
+                  <Button
+                    className="h-12 w-full text-base sm:h-10 sm:w-auto sm:text-sm"
+                    onClick={() => persist.mutate(true)}
+                    disabled={persist.isPending}
+                  >
+                    Post &amp; Submit for Approval
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

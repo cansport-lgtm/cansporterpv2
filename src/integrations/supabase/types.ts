@@ -3435,6 +3435,7 @@ export type Database = {
           created_at: string
           distributor_id: string
           id: string
+          image_url: string | null
           is_active: boolean
           name: string
           notes: string | null
@@ -3448,6 +3449,7 @@ export type Database = {
           created_at?: string
           distributor_id: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name: string
           notes?: string | null
@@ -3461,6 +3463,7 @@ export type Database = {
           created_at?: string
           distributor_id?: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name?: string
           notes?: string | null
