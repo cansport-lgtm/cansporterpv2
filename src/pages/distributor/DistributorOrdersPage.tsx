@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
-import { OrderEditorDialog } from "@/components/distributor/OrderEditorDialog";
+import { DistributorOrderMenu } from "@/components/distributor/DistributorOrderMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -247,7 +247,7 @@ export default function DistributorOrdersPage() {
       </div>
 
       {activeDistributorId && (
-        <OrderEditorDialog
+        <DistributorOrderMenu
           open={editorOpen}
           onOpenChange={setEditorOpen}
           distributorId={activeDistributorId}
