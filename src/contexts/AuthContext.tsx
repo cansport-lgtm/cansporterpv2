@@ -112,6 +112,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/customers',
     '/distributor/products',
     '/distributor/orders',
+    '/distributor/analysis',
   ],
   // Distributor Manager: everything sales can do, plus approve/reject/edit orders
   // and run the dispatch sheet. No user management.
@@ -120,6 +121,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/customers',
     '/distributor/products',
     '/distributor/orders',
+    '/distributor/analysis',
     '/distributor/approvals',
     '/distributor/dispatch',
   ],
@@ -129,6 +131,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/customers',
     '/distributor/products',
     '/distributor/orders',
+    '/distributor/analysis',
     '/distributor/approvals',
     '/distributor/dispatch',
     '/distributor/admin',

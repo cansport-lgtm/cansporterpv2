@@ -377,6 +377,7 @@ import DistributorCustomersPage from "./pages/distributor/DistributorCustomersPa
 import DistributorUsersPage from "./pages/distributor/DistributorUsersPage";
 import DistributorProductsPage from "./pages/distributor/DistributorProductsPage";
 import DistributorOrdersPage from "./pages/distributor/DistributorOrdersPage";
+import DistributorOrderAnalysisPage from "./pages/distributor/DistributorOrderAnalysisPage";
 import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
 import DistributorDispatchPage from "./pages/distributor/DistributorDispatchPage";
 
@@ -830,6 +831,7 @@ const App = () => (
             <Route path="/distributor/customers" element={<ProtectedRoute requiredModule="distributor"><DistributorCustomersPage /></ProtectedRoute>} />
             <Route path="/distributor/products" element={<ProtectedRoute requiredModule="distributor"><DistributorProductsPage /></ProtectedRoute>} />
             <Route path="/distributor/orders" element={<ProtectedRoute requiredModule="distributor"><DistributorOrdersPage /></ProtectedRoute>} />
+            <Route path="/distributor/analysis" element={<ProtectedRoute requiredModule="distributor"><DistributorOrderAnalysisPage /></ProtectedRoute>} />
             <Route path="/distributor/approvals" element={<ProtectedRoute requiredModule="distributor"><DistributorApprovalsPage /></ProtectedRoute>} />
             <Route path="/distributor/dispatch" element={<ProtectedRoute requiredModule="distributor"><DistributorDispatchPage /></ProtectedRoute>} />
             <Route path="/distributor/admin/users" element={<ProtectedRoute requiredModule="distributor"><DistributorUsersPage /></ProtectedRoute>} />

@@ -6,7 +6,7 @@ import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Users, UserCog, ShoppingCart, ClipboardCheck, Package, ChevronRight } from "lucide-react";
+import { Building, Users, UserCog, ShoppingCart, ClipboardCheck, Package, ChevronRight, BarChart3 } from "lucide-react";
 
 const OPEN_STATUSES = ["draft", "submitted", "approved", "dispatched"];
 
@@ -94,6 +94,7 @@ export default function DistributorDashboard() {
   quickLinks.push({ title: "Customers", description: "Your distributor's customers", href: "/distributor/customers", icon: Users });
   quickLinks.push({ title: "Products & Pricing", description: "Catalog & selling prices", href: "/distributor/products", icon: Package });
   quickLinks.push({ title: "Orders", description: "Create & track orders", href: "/distributor/orders", icon: ShoppingCart });
+  quickLinks.push({ title: "Order Analysis", description: "Trends, value & top performers", href: "/distributor/analysis", icon: BarChart3 });
   if (canApprove) {
     quickLinks.push({ title: "Approvals", description: "Review submitted orders", href: "/distributor/approvals", icon: ClipboardCheck });
   }
