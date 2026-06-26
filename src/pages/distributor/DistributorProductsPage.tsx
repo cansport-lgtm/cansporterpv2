@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, Pencil, Trash2, Search } from "lucide-react";
+import { Package, Pencil, Trash2, Search, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Database } from "@/integrations/supabase/types";
 
@@ -51,6 +51,7 @@ const emptyForm = {
   unit: "",
   is_active: true,
   notes: "",
+  image_url: "",
 };
 
 export default function DistributorProductsPage() {
@@ -66,6 +67,35 @@ export default function DistributorProductsPage() {
   const [deleteTarget, setDeleteTarget] = useState<DistributorProduct | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [search, setSearch] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be smaller than 5 MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${activeDistributorId}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("distributor-products")
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("distributor-products").getPublicUrl(filePath);
+      setForm((f) => ({ ...f, image_url: publicUrl }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const { data: distributors = [] } = useQuery({
     queryKey: ["distributors-active"],
@@ -127,6 +157,7 @@ export default function DistributorProductsPage() {
         unit: form.unit.trim() || null,
         is_active: form.is_active,
         notes: form.notes.trim() || null,
+        image_url: form.image_url || null,
       };
       if (editing) {
         const { error } = await supabase
@@ -176,6 +207,7 @@ export default function DistributorProductsPage() {
       unit: p.unit ?? "",
       is_active: p.is_active,
       notes: p.notes ?? "",
+      image_url: p.image_url ?? "",
     });
     setDialogOpen(true);
   };
@@ -195,6 +227,22 @@ export default function DistributorProductsPage() {
   );
 
   const columns = [
+    {
+      key: "image_url",
+      header: "",
+      render: (p: DistributorProduct) =>
+        p.image_url ? (
+          <img
+            src={p.image_url}
+            alt={p.name}
+            className="h-10 w-10 rounded-md border object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+            <Package className="h-4 w-4" />
+          </div>
+        ),
+    },
     { key: "code", header: "Code" },
     { key: "name", header: "Name" },
     {
@@ -299,6 +347,51 @@ export default function DistributorProductsPage() {
             <DialogDescription>Product details and selling price</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-2">
+            <div className="space-y-2">
+              <Label>Product Picture</Label>
+              <div className="flex items-center gap-4">
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                  {form.image_url ? (
+                    <>
+                      <img src={form.image_url} alt="Product" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, image_url: "" })}
+                        className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-destructive shadow"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                      <Package className="h-7 w-7" />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="product_image"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    {uploading ? "Uploading…" : form.image_url ? "Change picture" : "Upload picture"}
+                  </Label>
+                  <Input
+                    id="product_image"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading || !activeDistributorId}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Shown on the order menu. PNG/JPG, up to 5 MB.</p>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="code">Code</Label>
