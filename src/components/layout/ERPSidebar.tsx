@@ -417,6 +417,7 @@ const navigationItems: NavItem[] = [
     module: "expenses",
     children: [
       { title: "Dashboard", href: "/expenses/dashboard" },
+      { title: "Operating Expenses Analysis", href: "/expenses/operating-analysis" },
       { title: "Petty Cash", href: "/expenses/petty-cash" },
       { title: "General Expenses", href: "/expenses/general" },
       { title: "Utility Bills", href: "/expenses/utilities" },
