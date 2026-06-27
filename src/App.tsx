@@ -195,7 +195,8 @@ import GeneralExpensesPage from "./pages/expenses/GeneralExpensesPage";
 import UtilityBillsPage from "./pages/expenses/UtilityBillsPage";
 import ExpenseBudgetsPage from "./pages/expenses/ExpenseBudgetsPage";
 import ExpenseMasterPage from "./pages/expenses/ExpenseMasterPage";
- 
+import OperatingExpensesAnalysisPage from "./pages/expenses/OperatingExpensesAnalysisPage";
+
 // Material Consumption pages
 import ConsumptionDashboard from "./pages/consumption/ConsumptionDashboard";
 import ConsumptionProductionDashboard from "./pages/consumption/ConsumptionProductionDashboard";
@@ -644,6 +645,7 @@ const App = () => (
             <Route path="/expenses/utilities" element={<ProtectedRoute><UtilityBillsPage /></ProtectedRoute>} />
             <Route path="/expenses/budgets" element={<ProtectedRoute><ExpenseBudgetsPage /></ProtectedRoute>} />
             <Route path="/expenses/master" element={<ProtectedRoute><ExpenseMasterPage /></ProtectedRoute>} />
+            <Route path="/expenses/operating-analysis" element={<ProtectedRoute><OperatingExpensesAnalysisPage /></ProtectedRoute>} />
             <Route path="/expenses/*" element={<ProtectedRoute><ComingSoon title="Expense Management" /></ProtectedRoute>} />
 
             {/* Production Planning Routes */}

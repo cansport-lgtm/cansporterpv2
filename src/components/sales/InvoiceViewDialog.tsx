@@ -74,6 +74,8 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
       };
       const invItems: InvItem[] = items || [];
       const totalQty = invItems.reduce((s, it) => s + Number(it.quantity_dozens || 0), 0);
+      const itemsSubtotal = invItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+      const discount = Number(invoice.discount || 0);
       const blob = buildInvoicePdf({
         invoiceNumber: invoice.invoice_number || "Invoice",
         invoiceDate: format(new Date(invoice.invoice_date), "dd MMM yyyy"),
@@ -92,6 +94,12 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
           amount: Number(it.amount).toLocaleString(),
         })),
         totalQty: `${totalQty.toLocaleString()} Dz`,
+        ...(discount > 0
+          ? {
+              subtotal: `Rs. ${itemsSubtotal.toLocaleString()}`,
+              discount: `Rs. ${discount.toLocaleString()}`,
+            }
+          : {}),
         totalAmount: `Rs. ${Number(invoice.total_amount).toLocaleString()}`,
         notes: invoice.notes || undefined,
         generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
@@ -165,6 +173,18 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
               <span className="text-muted-foreground">Total Qty</span>
               <span>{(items || []).reduce((s: number, it: any) => s + Number(it.quantity_dozens || 0), 0).toLocaleString()} Dz</span>
             </div>
+            {Number(invoice.discount) > 0 && (
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>Rs. {(items || []).reduce((s: number, it: any) => s + Number(it.amount || 0), 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Discount</span>
+                  <span>- Rs. {Number(invoice.discount).toLocaleString()}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between items-center font-bold">
               <span>Total</span>
               <span>Rs. {Number(invoice.total_amount).toLocaleString()}</span>

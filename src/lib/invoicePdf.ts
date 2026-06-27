@@ -23,6 +23,10 @@ export interface InvoicePdfOptions {
   dispatchNumber?: string;
   items: InvoicePdfItem[];
   totalQty: string;
+  /** Sum of line items before discount. Only shown when a discount is present. */
+  subtotal?: string;
+  /** Discount amount. The subtotal/discount lines are only printed when this is set. */
+  discount?: string;
   totalAmount: string;
   notes?: string;
   generatedOn?: string;
@@ -124,8 +128,21 @@ function buildPages(opts: InvoicePdfOptions): PdfToken[][] {
   });
 
   // Totals
-  ensure(LINE_H * 2, true);
+  const hasDiscount = !!opts.discount;
+  ensure(LINE_H * (hasDiscount ? 4 : 2), true);
   pushLine({ text: "-".repeat(HEADER_LINE.length), bold: false, size: BODY_SIZE });
+  if (hasDiscount) {
+    pushLine({
+      text: itemLine("", "Subtotal", "", "", "", opts.subtotal || opts.totalAmount),
+      bold: false,
+      size: BODY_SIZE,
+    });
+    pushLine({
+      text: itemLine("", "Discount", "", "", "", `- ${opts.discount}`),
+      bold: false,
+      size: BODY_SIZE,
+    });
+  }
   pushLine({
     text: itemLine("", "TOTAL", "", opts.totalQty, "", opts.totalAmount),
     bold: true,

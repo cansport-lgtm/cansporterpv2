@@ -115,7 +115,21 @@ export function InvoicePrintView({ invoiceId, onAfterPrint }: InvoicePrintViewPr
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-gray-800 font-bold">
+            {Number(invoice.discount) > 0 && (
+              <>
+                <tr className="border-t-2 border-gray-800">
+                  <td colSpan={3} className="text-right py-2">Subtotal</td>
+                  <td className="text-right py-2">{(items || []).reduce((s: number, it: any) => s + Number(it.quantity_dozens || 0), 0).toLocaleString()} Dz</td>
+                  <td></td>
+                  <td className="text-right py-2">Rs. {(items || []).reduce((s: number, it: any) => s + Number(it.amount || 0), 0).toLocaleString()}</td>
+                </tr>
+                <tr>
+                  <td colSpan={5} className="text-right py-2">Discount</td>
+                  <td className="text-right py-2">- Rs. {Number(invoice.discount).toLocaleString()}</td>
+                </tr>
+              </>
+            )}
+            <tr className={`font-bold ${Number(invoice.discount) > 0 ? "" : "border-t-2 border-gray-800"}`}>
               <td colSpan={3} className="text-right py-3">TOTAL</td>
               <td className="text-right py-3">{(items || []).reduce((s: number, it: any) => s + Number(it.quantity_dozens || 0), 0).toLocaleString()} Dz</td>
               <td></td>
