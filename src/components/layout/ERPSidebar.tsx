@@ -146,6 +146,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Report", href: "/accounting/sales-report" },
       { title: "Sales Analysis", href: "/accounting/sales-analysis" },
       { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
+      { title: "Expenses Analysis", href: "/accounting/expenses-analysis" },
 
       { title: "Reconciliation", href: "", isHeader: true },
       { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
