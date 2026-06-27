@@ -26,6 +26,9 @@ import {
   TrendingUp, Wallet, Landmark, Receipt,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandGroup,
 } from "@/components/ui/command";
@@ -58,9 +61,12 @@ type Period = "yesterday" | "today" | "week" | "month" | "custom";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
   const [isExporting, setIsExporting] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [backupPassword, setBackupPassword] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
   const [period, setPeriod] = useState<Period>("yesterday");
   const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>(() => {
@@ -1304,6 +1310,42 @@ export default function Dashboard() {
     return result;
   };
 
+  // Full schema + data backup via the service-role `db-backup` Edge Function.
+  // Super-admin only and re-confirmed with the user's password (the app keeps no
+  // session token). Downloads a restorable .sql and a .json of the whole DB.
+  const runBackup = async () => {
+    if (!user) return;
+    if (!backupPassword) { toast.error("Enter your password to continue"); return; }
+    setBackupBusy(true);
+    try {
+      toast.info("Generating backup… this can take a minute for a large database.");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      for (const fmt of ["sql", "json"] as const) {
+        const { data, error } = await supabase.functions.invoke("db-backup", {
+          body: { userId: user.user_id, password: backupPassword, format: fmt },
+        });
+        if (error) throw new Error("Backup failed — check your password and that you are a super admin.");
+        const text = typeof data === "string" ? data : data instanceof Blob ? await data.text() : JSON.stringify(data);
+        const blob = new Blob([text], { type: fmt === "sql" ? "application/sql" : "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `cansport_backup_${ts}.${fmt}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      toast.success("Backup downloaded (.sql + .json)");
+      setBackupOpen(false);
+      setBackupPassword("");
+    } catch (e: any) {
+      toast.error(e?.message || "Backup failed");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   const handleExportData = async () => {
     setIsExporting(true);
     toast.info("Exporting data...");
@@ -1398,19 +1440,51 @@ export default function Dashboard() {
                     Export
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 bg-popover">
-                  <DropdownMenuItem asChild>
-                    <a href="/cansport_erp_schema.sql" download className="flex items-center gap-2 cursor-pointer">
-                      <Database className="h-4 w-4" />
-                      PostgreSQL Schema (SQL)
-                    </a>
+                <DropdownMenuContent align="end" className="w-72 bg-popover">
+                  <DropdownMenuItem onClick={() => setBackupOpen(true)} className="flex items-center gap-2 cursor-pointer">
+                    <Database className="h-4 w-4" />
+                    Full Database Backup (SQL + JSON)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportData} className="flex items-center gap-2 cursor-pointer">
                     <FileJson className="h-4 w-4" />
-                    All Data (JSON)
+                    Quick Data Export (JSON)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {isSuperAdmin && (
+              <Dialog open={backupOpen} onOpenChange={(o) => { if (!backupBusy) { setBackupOpen(o); if (!o) setBackupPassword(""); } }}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2"><Database className="h-4 w-4" /> Full Database Backup</DialogTitle>
+                    <DialogDescription>
+                      Downloads a complete schema + data backup of the database as a restorable
+                      <span className="font-medium"> .sql</span> file and a <span className="font-medium">.json</span> file.
+                      Confirm your password to continue. Large databases may take a minute and produce sizable files.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2 py-2">
+                    <Label htmlFor="backup-password">Your password</Label>
+                    <Input
+                      id="backup-password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={backupPassword}
+                      onChange={(e) => setBackupPassword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !backupBusy) runBackup(); }}
+                      placeholder="Re-enter your password"
+                      disabled={backupBusy}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setBackupOpen(false)} disabled={backupBusy}>Cancel</Button>
+                    <Button onClick={runBackup} disabled={backupBusy || !backupPassword} className="gap-2">
+                      {backupBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {backupBusy ? "Generating…" : "Create & Download"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         </div>
