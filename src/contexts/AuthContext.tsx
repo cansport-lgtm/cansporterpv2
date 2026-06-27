@@ -55,6 +55,11 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Action limits in hasModulePermission.
   accounting_officer: ['accounting', 'dashboard', 'production', 'sales', 'domestic', 'export', 'purchase', 'master_data'],
   accounting_manager: ['accounting', 'dashboard'],
+  // Purchase roles operate the Purchase module (+ dashboard shell). Officer creates
+  // purchase orders/requests and receives goods; Manager additionally approves and
+  // handles purchase invoices/returns. Confined to purchase routes via ROLE_ROUTE_RESTRICTIONS.
+  purchase_officer: ['purchase', 'dashboard'],
+  purchase_manager: ['purchase', 'dashboard'],
   // Distributor Order Management — a self-contained external module. All three
   // distributor roles are confined to the 'distributor' module (+ dashboard shell).
   // Per-distributor data isolation is enforced in-page by filtering on distributor_id.
@@ -104,6 +109,25 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/accounting/general-ledger',
     '/accounting/party-ledger',
     '/accounting/parties',
+  ],
+  // Purchase Officer: create purchase orders & requests, receive goods, view suppliers.
+  // No approvals (separation of duties) and no purchase invoices/returns.
+  purchase_officer: [
+    '/purchase/dashboard',
+    '/purchase/suppliers',
+    '/purchase/requests',
+    '/purchase/orders',
+    '/purchase/grn',
+  ],
+  // Purchase Manager: full purchase operations incl. approvals, invoices and returns.
+  purchase_manager: [
+    '/purchase/dashboard',
+    '/purchase/suppliers',
+    '/purchase/requests',
+    '/purchase/orders',
+    '/purchase/grn',
+    '/purchase/invoices',
+    '/purchase/returns',
   ],
   // Distributor Sales: ONLY make/submit sales orders. The orders page is fully
   // self-contained — customers and products load inside the order dialog — so no
@@ -164,6 +188,8 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'accounting_poster',
   'accounting_officer',
   'accounting_manager',
+  'purchase_officer',
+  'purchase_manager',
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
@@ -459,6 +485,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
+    // Purchase officer / manager: the purchase-module grant is role-driven and additive,
+    // so it applies even when the account also holds a flexible role (which would otherwise
+    // route to per-user module permissions below and hide the Purchase module).
+    if (
+      roles.some((r) => r.role === 'purchase_officer' || r.role === 'purchase_manager') &&
+      ROLE_MODULE_ACCESS['purchase_officer']?.includes(mod)
+    ) {
+      return true;
+    }
+
     const hardRestrictedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
     const hasFlexibleRole = roles.some((r) => !HARD_RESTRICTED_MODULE_ROLES.has(r.role));
 
@@ -521,6 +557,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       !roles.some(r => r.role === 'purchase_manager')
     ) {
       return false;
+    }
+
+    // Purchase officer / manager operate the Purchase module.
+    //   • purchase_manager → view / create / edit / approve (delete reserved for super admin)
+    //   • purchase_officer → view / create / edit (approve already denied above)
+    if (module === 'purchase') {
+      if (roles.some(r => r.role === 'purchase_manager')) return permission !== 'delete';
+      if (roles.some(r => r.role === 'purchase_officer')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
     }
 
     // Private label distributor: view-only access (no create, edit, delete, approve)
@@ -593,6 +639,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // all purchase categories (so the Purchase Invoices list and Goods Receipt category flows
     // work). Approval stays reserved for purchase managers.
     if (roles.some(r => r.role === 'accounting_officer')) {
+      return permission === 'view' || permission === 'create';
+    }
+
+    // Purchase officer / manager operate across all purchase categories so they can
+    // create POs in any category. Manager additionally approves; officer cannot.
+    if (roles.some(r => r.role === 'purchase_manager')) return true;
+    if (roles.some(r => r.role === 'purchase_officer')) {
       return permission === 'view' || permission === 'create';
     }
 
