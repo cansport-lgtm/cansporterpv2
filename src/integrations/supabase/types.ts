@@ -5853,6 +5853,24 @@ export type Database = {
           },
         ]
       }
+      integration_secrets: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       inventory_ledger: {
         Row: {
           balance_quantity: number
@@ -8482,6 +8500,9 @@ export type Database = {
           booked_at: string | null
           booking_weight: number | null
           city: string | null
+          claim_filed_at: string | null
+          claim_notes: string | null
+          claim_status: string | null
           confirmed_at: string | null
           confirmed_by: string | null
           courier_order_status: string | null
@@ -8526,6 +8547,9 @@ export type Database = {
           booked_at?: string | null
           booking_weight?: number | null
           city?: string | null
+          claim_filed_at?: string | null
+          claim_notes?: string | null
+          claim_status?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           courier_order_status?: string | null
@@ -8570,6 +8594,9 @@ export type Database = {
           booked_at?: string | null
           booking_weight?: number | null
           city?: string | null
+          claim_filed_at?: string | null
+          claim_notes?: string | null
+          claim_status?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           courier_order_status?: string | null

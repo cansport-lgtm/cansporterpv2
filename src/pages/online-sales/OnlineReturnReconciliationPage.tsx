@@ -9,13 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PackageCheck, Search, CheckCircle2, AlertTriangle, RotateCcw, Banknote, ScanLine } from "lucide-react";
+import { PackageCheck, Search, CheckCircle2, AlertTriangle, RotateCcw, Banknote, ScanLine, FileWarning } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { OrderTrackingDialog } from "@/components/online-sales/OrderTrackingDialog";
 
 const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : null;
+const CLAIM_DAYS = 14; // not received back after this many days => lost-in-return claim candidate
 
 export default function OnlineReturnReconciliationPage() {
   const { user } = useAuth();
@@ -33,7 +34,7 @@ export default function OnlineReturnReconciliationPage() {
     // Parcels the courier says are returning/returned.
     const { data: ords } = await supabase
       .from("online_orders")
-      .select("id, order_number, tracking_number, customer_name, platform, city, order_value, status, courier_order_status, last_tracked_at")
+      .select("id, order_number, tracking_number, customer_name, platform, city, order_value, status, courier_order_status, last_tracked_at, claim_status, claim_filed_at")
       .in("status", ["returned", "return_awaited"])
       .order("last_tracked_at", { ascending: true, nullsFirst: true });
     const list = ords || [];
@@ -77,6 +78,17 @@ export default function OnlineReturnReconciliationPage() {
     toast.success(`Acknowledged: ${order.order_number || order.tracking_number} — ${order.customer_name}`);
   };
 
+  // Update claim lifecycle on a lost-in-return parcel.
+  const setClaim = async (order: any, status: "filed" | "recovered" | "written_off") => {
+    const patch: any = { claim_status: status };
+    if (status === "filed") patch.claim_filed_at = new Date().toISOString();
+    const { error } = await supabase.from("online_orders").update(patch as any).eq("id", order.id);
+    if (error) { toast.error(error.message); return; }
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, ...patch } : o));
+    const label = status === "filed" ? "Claim filed" : status === "recovered" ? "Marked recovered" : "Written off";
+    toast.success(`${label}: ${order.order_number || order.tracking_number}`);
+  };
+
   const quickAcknowledge = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = quick.trim(); setQuick("");
@@ -89,30 +101,37 @@ export default function OnlineReturnReconciliationPage() {
     quickRef.current?.focus();
   };
 
-  const { awaiting, received, atRisk } = useMemo(() => {
+  const resolved = (o: any) => o.claim_status === "recovered" || o.claim_status === "written_off";
+
+  const { awaiting, received, claims, atRisk } = useMemo(() => {
     const s = search.toLowerCase();
     const match = (o: any) => !search || o.order_number?.toLowerCase().includes(s) ||
       o.tracking_number?.toLowerCase().includes(s) || o.customer_name?.toLowerCase().includes(s);
-    const awaiting = orders.filter(o => !receivedMap[o.id] && match(o))
+    // Not physically received and claim not yet resolved.
+    const awaiting = orders.filter(o => !receivedMap[o.id] && !resolved(o) && match(o))
       .map(o => ({ ...o, age: daysSince(o.last_tracked_at) }));
     const received = orders.filter(o => receivedMap[o.id] && match(o));
-    const atRisk = orders.filter(o => !receivedMap[o.id]).reduce((sum, o) => sum + Number(o.order_value || 0), 0);
-    return { awaiting, received, atRisk };
+    // Claim candidates: aged past threshold (or already filed), not received, not resolved.
+    const claims = awaiting.filter(o => (o.age ?? 0) >= CLAIM_DAYS || o.claim_status === "filed");
+    const atRisk = orders.filter(o => !receivedMap[o.id] && !resolved(o)).reduce((sum, o) => sum + Number(o.order_value || 0), 0);
+    return { awaiting, received, claims, atRisk };
   }, [orders, receivedMap, search]);
 
-  const outstandingCount = orders.filter(o => !receivedMap[o.id]).length;
+  const outstandingCount = orders.filter(o => !receivedMap[o.id] && !resolved(o)).length;
   const receivedCount = orders.filter(o => receivedMap[o.id]).length;
-  const agedCount = orders.filter(o => !receivedMap[o.id] && (daysSince(o.last_tracked_at) ?? 0) >= 7).length;
+  const agedCount = orders.filter(o => !receivedMap[o.id] && !resolved(o) && (daysSince(o.last_tracked_at) ?? 0) >= 7).length;
+  const claimCount = claims.length;
 
   return (
     <ERPLayout>
       <div className="space-y-6">
         <PageHeader title="Return Reconciliation" description="Acknowledge parcels physically received back; track returns the courier shows but you haven't got" icon={PackageCheck} iconColor="bg-red-600 text-white" />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <MetricCard title="Courier Returned" value={orders.length} icon={RotateCcw} iconColor="text-orange-600" />
           <MetricCard title="Received Back" value={receivedCount} icon={CheckCircle2} iconColor="text-emerald-600" />
           <MetricCard title="Not Received (chase)" value={outstandingCount} icon={AlertTriangle} iconColor="text-red-600" description={`${agedCount} over 7 days`} />
+          <MetricCard title={`Claim Candidates (${CLAIM_DAYS}d+)`} value={claimCount} icon={FileWarning} iconColor="text-red-700" description="lost in return" />
           <MetricCard title="Value at Risk" value={`Rs. ${Math.round(atRisk).toLocaleString()}`} icon={Banknote} iconColor="text-red-600" />
         </div>
 
@@ -137,6 +156,7 @@ export default function OnlineReturnReconciliationPage() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="awaiting">Awaiting Acknowledgement ({outstandingCount})</TabsTrigger>
+            <TabsTrigger value="claims">Claim Candidates ({claimCount})</TabsTrigger>
             <TabsTrigger value="received">Received Back ({receivedCount})</TabsTrigger>
           </TabsList>
 
@@ -167,6 +187,40 @@ export default function OnlineReturnReconciliationPage() {
                       <TableCell className="text-right whitespace-nowrap">
                         <Button size="sm" variant="ghost" className="h-8" onClick={() => setTrackOrder(o)}>Track</Button>
                         <Button size="sm" variant="outline" className="h-8 ml-1" onClick={() => acknowledge(o)}>Acknowledge</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="claims">
+            <Card><CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Order #</TableHead><TableHead>Tracking #</TableHead><TableHead>Customer</TableHead>
+                  <TableHead className="text-right">Value</TableHead><TableHead className="text-right">Age</TableHead>
+                  <TableHead>Claim</TableHead><TableHead className="text-right">Action</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {claims.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No claim candidates — nothing overdue {CLAIM_DAYS}+ days</TableCell></TableRow>
+                  ) : claims.map(o => (
+                    <TableRow key={o.id} className="bg-red-50/40">
+                      <TableCell className="font-medium">{o.order_number}</TableCell>
+                      <TableCell className="font-mono text-xs">{o.tracking_number || "-"}</TableCell>
+                      <TableCell>{o.customer_name}</TableCell>
+                      <TableCell className="text-right">{Number(o.order_value || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right"><Badge variant="destructive">{o.age}d</Badge></TableCell>
+                      <TableCell>{o.claim_status === "filed" ? <Badge className="bg-amber-100 text-amber-800 border-amber-400">Filed</Badge> : <Badge variant="secondary">Candidate</Badge>}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button size="sm" variant="ghost" className="h-8" onClick={() => setTrackOrder(o)}>Track</Button>
+                        {o.claim_status !== "filed" && (
+                          <Button size="sm" variant="outline" className="h-8 ml-1" onClick={() => setClaim(o, "filed")}>File Claim</Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-8 ml-1 text-emerald-700" onClick={() => setClaim(o, "recovered")}>Recovered</Button>
+                        <Button size="sm" variant="ghost" className="h-8 ml-1 text-muted-foreground" onClick={() => setClaim(o, "written_off")}>Write Off</Button>
                       </TableCell>
                     </TableRow>
                   ))}
