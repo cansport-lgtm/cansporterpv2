@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShoppingBag, Plus, Search, Download, Upload, Printer, Truck, ScanLine, Weight, FileUp, Trash2, MapPin, RefreshCw } from "lucide-react";
+import { ShoppingBag, Plus, Search, Download, Upload, Printer, Truck, ScanLine, Weight, FileUp, Trash2, MapPin, RefreshCw, ShieldAlert } from "lucide-react";
 import { QRScannerDialog } from "@/components/fixed-assets/QRScannerDialog";
 import { OrderTrackingDialog } from "@/components/online-sales/OrderTrackingDialog";
 import { toast } from "sonner";
@@ -66,6 +66,7 @@ export default function OnlineOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [onlineItems, setOnlineItems] = useState<any[]>([]);
+  const [custFlags, setCustFlags] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -102,7 +103,31 @@ export default function OnlineOrdersPage() {
     fetchOrders();
     fetchPlatforms();
     fetchOnlineItems();
+    fetchCustFlags();
   }, []);
+
+  const fetchCustFlags = async () => {
+    const { data } = await supabase.from("online_customers").select("phone, is_blacklisted, risk_note");
+    const m: Record<string, any> = {};
+    (data || []).forEach((c: any) => (m[String(c.phone).replace(/\s+/g, "").trim()] = c));
+    setCustFlags(m);
+  };
+
+  // Combine the persistent blacklist flag with live return history for a phone.
+  const normPhone = (p?: string) => String(p || "").replace(/\s+/g, "").trim();
+  const phoneRisk = (phoneRaw?: string) => {
+    const phone = normPhone(phoneRaw);
+    if (!phone) return null;
+    const hist = orders.filter(o => normPhone(o.customer_phone) === phone);
+    const delivered = hist.filter(o => o.status === "delivered").length;
+    const returned = hist.filter(o => o.status === "returned" || o.status === "return_awaited").length;
+    const resolved = delivered + returned;
+    const rate = resolved ? returned / resolved : 0;
+    const f = custFlags[phone];
+    const blacklisted = !!f?.is_blacklisted;
+    const level = blacklisted ? "blacklist" : (hist.length >= 2 && rate >= 0.5) ? "high" : (resolved >= 1 && rate >= 0.3) ? "medium" : "low";
+    return { phone, delivered, returned, resolved, rate, blacklisted, note: f?.risk_note || null, level, orders: hist.length };
+  };
 
   const fetchPlatforms = async () => {
     const { data } = await supabase.from("online_platforms").select("name").eq("is_active", true).order("name");
@@ -155,6 +180,8 @@ export default function OnlineOrdersPage() {
       toast.error("Customer name and platform are required");
       return;
     }
+    const risk = phoneRisk(form.customer_phone);
+    if (risk?.blacklisted && !window.confirm(`⚠️ This customer (${risk.phone}) is BLACKLISTED${risk.note ? `\nNote: ${risk.note}` : ""}\n\n${risk.returned} of ${risk.resolved} parcels returned. Create the order anyway?`)) return;
     const { error } = await supabase.from("online_orders").insert({
       ...form,
       order_number: "",
@@ -183,6 +210,12 @@ export default function OnlineOrdersPage() {
 
   // Book a parcel on PostEx via the server-side Edge Function (token stays server-side).
   const bookOnPostex = async (id: string) => {
+    const ord = orders.find(o => o.id === id);
+    const risk = phoneRisk(ord?.customer_phone);
+    if (risk && (risk.blacklisted || risk.level === "high")) {
+      const label = risk.blacklisted ? "BLACKLISTED" : "HIGH RISK (frequent returner)";
+      if (!window.confirm(`⚠️ ${risk.phone} is ${label}.\n${risk.returned} of ${risk.resolved} parcels returned${risk.note ? `\nNote: ${risk.note}` : ""}\n\nBook this COD parcel on PostEx anyway?`)) return;
+    }
     setPostexBusy(true);
     const { data, error } = await supabase.functions.invoke("postex", { body: { action: "book", orderId: id } });
     setPostexBusy(false);
@@ -887,7 +920,17 @@ export default function OnlineOrdersPage() {
                     <TableCell>{o.platform}</TableCell>
                     <TableCell className="text-xs font-mono">{o._tracking || "-"}</TableCell>
                     <TableCell>{format(new Date(o.order_date), "dd MMM yyyy")}</TableCell>
-                    <TableCell>{o.customer_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <span>{o.customer_name}</span>
+                        {(() => {
+                          const risk = phoneRisk(o.customer_phone);
+                          if (risk?.blacklisted) return <Badge className="bg-black text-white text-[9px] px-1 py-0">Blacklisted</Badge>;
+                          if (risk?.level === "high") return <Badge className="bg-red-100 text-red-800 border-red-300 text-[9px] px-1 py-0">High risk</Badge>;
+                          return null;
+                        })()}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate" title={o._itemDisplay}>{o._itemDisplay}</TableCell>
                     <TableCell>{o.city || "-"}</TableCell>
                     <TableCell className="text-xs">
@@ -992,6 +1035,17 @@ export default function OnlineOrdersPage() {
             <div>
               <Label>Phone</Label>
               <Input value={form.customer_phone} onChange={e => setForm(p => ({ ...p, customer_phone: e.target.value }))} />
+              {(() => {
+                const risk = phoneRisk(form.customer_phone);
+                if (!risk || (risk.level !== "blacklist" && risk.level !== "high" && risk.level !== "medium")) return null;
+                const cls = risk.blacklisted ? "bg-black text-white" : risk.level === "high" ? "bg-red-100 text-red-800 border border-red-300" : "bg-amber-100 text-amber-800 border border-amber-300";
+                return (
+                  <div className={`mt-1.5 rounded px-2 py-1.5 text-xs flex items-start gap-1.5 ${cls}`}>
+                    <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <span>{risk.blacklisted ? "BLACKLISTED customer." : risk.level === "high" ? "High-risk returner." : "Caution."} {risk.returned}/{risk.resolved} parcels returned across {risk.orders} order(s).{risk.note ? ` Note: ${risk.note}` : ""}</span>
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <Label>Email</Label>
