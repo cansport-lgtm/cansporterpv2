@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, Banknote, ReceiptText, TrendingUp, Truck, Clock, Search, RefreshCw, Download } from "lucide-react";
+import { Wallet, Banknote, ReceiptText, TrendingUp, Truck, Clock, Search, RefreshCw, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatPKR } from "@/lib/currency";
 
 const ACTIVE = ["sent_to_courier", "dispatched", "return_awaited"];
+const OVERDUE_DAYS = 7; // delivered COD unpaid beyond this => chase PostEx
+const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : null;
 
 export default function OnlineMoneyPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -28,7 +30,7 @@ export default function OnlineMoneyPage() {
     setLoading(true);
     const { data } = await supabase
       .from("online_orders")
-      .select("id, order_number, tracking_number, customer_name, status, cod_amount, order_value, shipping_charges, gst, net_amount, settled, settled_at, payment_ref, last_tracked_at")
+      .select("id, order_number, tracking_number, customer_name, status, cod_amount, order_value, shipping_charges, gst, net_amount, settled, settled_at, payment_ref, last_tracked_at, delivered_at")
       .or("cod_amount.gt.0,payment_mode.eq.cod")
       .order("settled_at", { ascending: false, nullsFirst: true });
     setOrders(data || []);
@@ -56,6 +58,7 @@ export default function OnlineMoneyPage() {
     const inTransit = orders.filter(o => ACTIVE.includes(o.status) && cod(o));
     const settled = delivered.filter(o => o.settled);
     const unsettled = delivered.filter(o => !o.settled);
+    const overdue = unsettled.filter(o => (daysSince(o.delivered_at) ?? 0) >= OVERDUE_DAYS);
     return {
       codGross: delivered.reduce((s, o) => s + Number(o.cod_amount || 0), 0),
       deductions: delivered.reduce((s, o) => s + Number(o.shipping_charges || 0) + Number(o.gst || 0), 0),
@@ -63,6 +66,8 @@ export default function OnlineMoneyPage() {
       received: settled.reduce((s, o) => s + net(o), 0),
       owed: unsettled.reduce((s, o) => s + net(o), 0),
       owedCount: unsettled.length,
+      overdue: overdue.reduce((s, o) => s + net(o), 0),
+      overdueCount: overdue.length,
       pipeline: inTransit.reduce((s, o) => s + Number(o.cod_amount || 0), 0),
       pipelineCount: inTransit.length,
     };
@@ -106,12 +111,13 @@ export default function OnlineMoneyPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <MetricCard title="COD Collected" value={formatPKR(t.codGross)} icon={Banknote} iconColor="text-blue-600" description="delivered parcels" />
           <MetricCard title="Courier Deductions" value={formatPKR(t.deductions)} icon={ReceiptText} iconColor="text-amber-600" description="fees + tax" />
           <MetricCard title="Net Receivable" value={formatPKR(t.netReceivable)} icon={TrendingUp} iconColor="text-slate-600" description="COD − deductions" />
           <MetricCard title="Received (settled)" value={formatPKR(t.received)} icon={Wallet} iconColor="text-emerald-600" />
           <MetricCard title="Owed to us" value={formatPKR(t.owed)} icon={Banknote} iconColor="text-red-600" description={`${t.owedCount} parcels unpaid`} />
+          <MetricCard title={`Overdue (${OVERDUE_DAYS}d+)`} value={formatPKR(t.overdue)} icon={AlertTriangle} iconColor="text-red-700" description={`${t.overdueCount} to chase`} />
           <MetricCard title="In-Transit Pipeline" value={formatPKR(t.pipeline)} icon={Truck} iconColor="text-purple-600" description={`${t.pipelineCount} COD coming`} />
         </div>
 
@@ -150,16 +156,20 @@ export default function OnlineMoneyPage() {
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">COD</TableHead><TableHead className="text-right">Deductions</TableHead>
                   <TableHead className="text-right">Net</TableHead><TableHead>Settled</TableHead>
+                  <TableHead className="text-right">Unpaid Age</TableHead>
                   <TableHead>Settled Date</TableHead><TableHead>Payment Ref</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No parcels</TableCell></TableRow>
-                ) : rows.map(o => (
-                  <TableRow key={o.id}>
+                  <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No parcels</TableCell></TableRow>
+                ) : rows.map(o => {
+                  const unpaidAge = (o.status === "delivered" && Number(o.cod_amount || 0) > 0 && !o.settled) ? daysSince(o.delivered_at) : null;
+                  const overdue = (unpaidAge ?? 0) >= OVERDUE_DAYS;
+                  return (
+                  <TableRow key={o.id} className={overdue ? "bg-red-50/50" : ""}>
                     <TableCell className="font-medium">{o.order_number}</TableCell>
                     <TableCell className="font-mono text-xs">{o.tracking_number || "-"}</TableCell>
                     <TableCell>{o.customer_name}</TableCell>
@@ -168,10 +178,12 @@ export default function OnlineMoneyPage() {
                     <TableCell className="text-right text-amber-700">{(Number(o.shipping_charges || 0) + Number(o.gst || 0)).toLocaleString()}</TableCell>
                     <TableCell className="text-right font-semibold">{net(o).toLocaleString()}</TableCell>
                     <TableCell>{o.settled ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-400">Paid</Badge> : <Badge variant="destructive">Unpaid</Badge>}</TableCell>
+                    <TableCell className="text-right">{unpaidAge != null ? <Badge variant={overdue ? "destructive" : "secondary"}>{unpaidAge}d</Badge> : "-"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{o.settled_at ? format(new Date(o.settled_at), "dd MMM yyyy") : "-"}</TableCell>
                     <TableCell className="font-mono text-xs">{o.payment_ref || "-"}</TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
