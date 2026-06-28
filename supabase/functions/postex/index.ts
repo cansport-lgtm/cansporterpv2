@@ -179,13 +179,12 @@ Deno.serve(async (req: Request) => {
 
     // --- track (one order, or all in-transit) --------------------------------
     if (action === "track") {
-      const { orderId } = body;
+      const { orderId, all } = body;
       let q = supabase.from("online_orders")
         .select("id, tracking_number, status")
-        .not("tracking_number", "is", null);
-      q = orderId
-        ? q.eq("id", orderId)
-        : q.in("status", ["sent_to_courier", "dispatched", "return_awaited"]);
+        .not("tracking_number", "is", null).neq("tracking_number", "");
+      if (orderId) q = q.eq("id", orderId);
+      else if (!all) q = q.not("status", "in", "(delivered,returned,cancelled)"); // skip terminal
       const { data: orders } = await q;
       if (!orders || orders.length === 0) return json({ ok: true, tracked: 0 });
 
