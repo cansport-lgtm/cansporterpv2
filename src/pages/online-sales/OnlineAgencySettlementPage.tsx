@@ -70,6 +70,13 @@ export default function OnlineAgencySettlementPage() {
   const fixed = agency ? Number(agency.monthly_fixed || 0) : 0;
   const total = commission + fixed;
 
+  // Shape the live (unsaved) figures so Print / WhatsApp work before saving too.
+  const currentStatement = {
+    period, commission_base: calc?.base || 0, commission_pct: Number(agency?.commission_pct || 0),
+    commission_amount: commission, fixed_amount: fixed, total_amount: total, status: "pending",
+    paid_at: null, payment_ref: null,
+  };
+
   const saveSettlement = async () => {
     if (!agency || !calc) return;
     const { error } = await supabase.from("agency_settlements").upsert({
@@ -163,8 +170,10 @@ export default function OnlineAgencySettlementPage() {
               <MetricCard title="Total Payable" value={formatPKR(total)} icon={Handshake} iconColor="text-emerald-600" />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={saveSettlement} disabled={!calc} className="gap-1"><Save className="h-4 w-4" /> Save Settlement for {period}</Button>
+              <Button variant="outline" disabled={!calc} className="gap-1" onClick={() => printStatement(currentStatement)}><Printer className="h-4 w-4" /> Print</Button>
+              <Button variant="outline" disabled={!calc} className="gap-1 text-emerald-700" onClick={() => whatsappShare(currentStatement)}><MessageCircle className="h-4 w-4" /> WhatsApp</Button>
             </div>
 
             <Card>
