@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function OnlineSalesDashboard() {
-  const [period, setPeriod] = useState("month");
+  const [period, setPeriod] = useState("quarter");
   const [orders, setOrders] = useState<any[]>([]);
   const [_loading, setLoading] = useState(true);
 
@@ -33,6 +33,8 @@ export default function OnlineSalesDashboard() {
     const now = new Date();
     if (period === "week") return { from: subDays(now, 7), to: now };
     if (period === "month") return { from: startOfMonth(now), to: endOfMonth(now) };
+    if (period === "halfyear") return { from: subDays(now, 180), to: now };
+    if (period === "all") return { from: new Date(2000, 0, 1), to: now };
     return { from: subDays(now, 90), to: now };
   };
 
@@ -104,6 +106,8 @@ export default function OnlineSalesDashboard() {
               <SelectItem value="week">Last 7 Days</SelectItem>
               <SelectItem value="month">This Month</SelectItem>
               <SelectItem value="quarter">Last 90 Days</SelectItem>
+              <SelectItem value="halfyear">Last 180 Days</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
             </SelectContent>
           </Select>
         </div>

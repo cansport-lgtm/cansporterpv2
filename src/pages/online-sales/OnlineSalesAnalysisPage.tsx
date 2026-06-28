@@ -18,9 +18,11 @@ interface ReturnRow { order_id: string; refund_amount: number | null }
 
 const fmtPKR = formatPKR;
 
+// Default range starts 90 days back so historical data is visible on load.
 function firstOfMonth() {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  d.setDate(d.getDate() - 90);
+  return d.toISOString().slice(0, 10);
 }
 function today() {
   return new Date().toISOString().slice(0, 10);
