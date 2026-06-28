@@ -254,6 +254,16 @@ Deno.serve(async (req: Request) => {
             last_tracked_at: new Date().toISOString(),
           };
           if (mapped && mapped !== o.status) patch.status = mapped;
+
+          // Capture courier financials from PostEx (forward + reversal legs).
+          const shippingFee = Number(dist?.transactionFee || 0) + Number(dist?.reversalFee || 0);
+          const courierTax = Number(dist?.transactionTax || 0) + Number(dist?.reversalTax || 0);
+          const courierWt = dist?.actualWeight ? Math.round(Number(dist.actualWeight) * 1000) : null;
+          const settled = Number(dist?.upfrontPayment || 0);
+          patch.shipping_charges = shippingFee;
+          patch.gst = courierTax;
+          if (settled) patch.net_amount = settled;
+          if (courierWt) patch.courier_weight = courierWt;
           await supabase.from("online_orders").update(patch).eq("id", o.id);
 
           await supabase.from("online_tracking_events").insert({
