@@ -353,6 +353,101 @@ export type Database = {
           },
         ]
       }
+      agencies: {
+        Row: {
+          commission_pct: number
+          contact: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          monthly_fixed: number
+          name: string
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          commission_pct?: number
+          contact?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_fixed?: number
+          name: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          commission_pct?: number
+          contact?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_fixed?: number
+          name?: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      agency_settlements: {
+        Row: {
+          agency_id: string
+          commission_amount: number | null
+          commission_base: number | null
+          commission_pct: number | null
+          created_at: string | null
+          created_by: string | null
+          fixed_amount: number | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          payment_ref: string | null
+          period: string
+          status: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          agency_id: string
+          commission_amount?: number | null
+          commission_base?: number | null
+          commission_pct?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          fixed_amount?: number | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_ref?: string | null
+          period: string
+          status?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          agency_id?: string
+          commission_amount?: number | null
+          commission_base?: number | null
+          commission_pct?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          fixed_amount?: number | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_ref?: string | null
+          period?: string
+          status?: string | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_settlements_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           description: string | null

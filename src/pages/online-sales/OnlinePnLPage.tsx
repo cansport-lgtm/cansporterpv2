@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Download, Wallet, Package, Percent, Truck, ReceiptText, Megaphone } from "lucide-react";
+import { TrendingUp, Download, Wallet, Package, Percent, Truck, ReceiptText, Megaphone, Handshake, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPKR } from "@/lib/currency";
 
@@ -37,6 +37,7 @@ export default function OnlinePnLPage() {
   const [returns, setReturns] = useState<ReturnRow[]>([]);
   const [lineItems, setLineItems] = useState<{ order_id: string; item_id: string | null; quantity: number | null }[]>([]);
   const [adSpend, setAdSpend] = useState(0);
+  const [agencies, setAgencies] = useState<{ name: string; monthly_fixed: number | null; commission_pct: number | null }[]>([]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -71,6 +72,10 @@ export default function OnlinePnLPage() {
       const { data: msData } = await supabase.from("marketing_spend")
         .select("amount").gte("spend_date", from).lte("spend_date", to);
       setAdSpend((msData || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0));
+
+      const { data: agData } = await supabase.from("agencies")
+        .select("name,monthly_fixed,commission_pct").eq("is_active", true);
+      setAgencies((agData as any[]) || []);
 
       setOrders(orderRows);
       setItems((iRes.data as ItemRow[]) || []);
@@ -157,7 +162,20 @@ export default function OnlinePnLPage() {
 
   const shippingTotal = totals.shippingFwd + totals.shippingRet;
   const netSales = totals.revenue - totals.returned - totals.refunds;
-  const netProfit = netSales - totals.cogs - totals.commission - shippingTotal - totals.taxes - adSpend;
+
+  // Agency costs: a monthly fixed retainer plus a commission charged on net sales
+  // defined as gross − returns − shipping (the agency's agreed base). The fixed fee
+  // is pro-rated by the number of calendar months covered by the selected range.
+  const monthsInRange = useMemo(() => {
+    const a = new Date(`${from}T00:00:00`); const b = new Date(`${to}T00:00:00`);
+    if (isNaN(a.getTime()) || isNaN(b.getTime()) || b < a) return 1;
+    return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1;
+  }, [from, to]);
+  const agencyBase = Math.max(0, totals.revenue - totals.returned - shippingTotal);
+  const agencyCommission = agencies.reduce((s, a) => s + agencyBase * Number(a.commission_pct || 0) / 100, 0);
+  const agencyFixed = agencies.reduce((s, a) => s + Number(a.monthly_fixed || 0) * monthsInRange, 0);
+
+  const netProfit = netSales - totals.cogs - totals.commission - shippingTotal - totals.taxes - adSpend - agencyCommission - agencyFixed;
   const margin = netSales > 0 ? (netProfit / netSales) * 100 : 0;
 
   const waterfall: { label: string; value: number; sign: 1 | -1; icon: any; bold?: boolean }[] = [
@@ -171,12 +189,14 @@ export default function OnlinePnLPage() {
     { label: "Less: Return Shipping", value: totals.shippingRet, sign: -1, icon: Truck },
     { label: "Less: Taxes (GST + WHT)", value: totals.taxes, sign: -1, icon: ReceiptText },
     { label: "Less: Marketing / Ad Spend", value: adSpend, sign: -1, icon: Megaphone },
+    { label: `Less: Agency Commission${agencies.length ? ` (${agencies.reduce((m, a) => Math.max(m, Number(a.commission_pct || 0)), 0)}% of net sales)` : ""}`, value: agencyCommission, sign: -1, icon: Percent },
+    { label: `Less: Agency Fixed Fee${monthsInRange > 1 ? ` (${monthsInRange} mo)` : ""}`, value: agencyFixed, sign: -1, icon: Building2 },
   ];
 
   const exportCSV = () => {
-    const header = ["Platform", "Orders", "Gross Sales", "Returned", "Refunds", "Net Sales", "COGS", "Commission", "Shipping", "Taxes", "Net Profit"];
-    const rows = byPlatform.map(p => [p.platform, p.orders, p.revenue, p.returned, p.refunds, p.revenue - p.returned - p.refunds, p.cogs, p.commission, p.shipping, p.taxes, p.profit]);
-    rows.push(["TOTAL", totals.orders, totals.revenue, totals.returned, totals.refunds, netSales, totals.cogs, totals.commission, shippingTotal, totals.taxes, netProfit]);
+    const header = ["Platform", "Orders", "Gross Sales", "Returned", "Refunds", "Net Sales", "COGS", "Commission", "Shipping", "Taxes", "Ad Spend", "Agency Commission", "Agency Fixed", "Net Profit"];
+    const rows = byPlatform.map(p => [p.platform, p.orders, p.revenue, p.returned, p.refunds, p.revenue - p.returned - p.refunds, p.cogs, p.commission, p.shipping, p.taxes, "", "", "", p.profit]);
+    rows.push(["TOTAL", totals.orders, totals.revenue, totals.returned, totals.refunds, netSales, totals.cogs, totals.commission, shippingTotal, totals.taxes, adSpend, agencyCommission, agencyFixed, netProfit]);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -201,7 +221,7 @@ export default function OnlinePnLPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard title="Net Sales" value={formatPKR(netSales)} icon={Wallet} iconColor="text-blue-600" description={`Gross ${formatPKR(totals.revenue)} − ${formatPKR(totals.returned + totals.refunds)} returns`} />
-          <MetricCard title="Total Costs" value={formatPKR(totals.cogs + totals.commission + shippingTotal + totals.taxes + adSpend)} icon={ReceiptText} iconColor="text-amber-600" description="COGS + commission + shipping + tax + ads" />
+          <MetricCard title="Total Costs" value={formatPKR(totals.cogs + totals.commission + shippingTotal + totals.taxes + adSpend + agencyCommission + agencyFixed)} icon={ReceiptText} iconColor="text-amber-600" description="COGS + commission + shipping + tax + ads + agency" />
           <MetricCard title="Net Profit" value={formatPKR(netProfit)} icon={TrendingUp} iconColor={netProfit >= 0 ? "text-emerald-600" : "text-destructive"} description={`${totals.orders} orders`} />
           <MetricCard title="Net Margin" value={`${margin.toFixed(1)}%`} icon={Percent} iconColor={margin >= 0 ? "text-emerald-600" : "text-destructive"} />
         </div>
