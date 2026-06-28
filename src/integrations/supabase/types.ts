@@ -9148,9 +9148,20 @@ export type Database = {
           bank_ref: string | null
           created_at: string | null
           created_by: string | null
+          delivered_cod: number | null
+          delivered_count: number | null
+          gst: number | null
+          imported_at: string | null
           notes: string | null
+          official_net: number | null
           payment_ref: string
           received_amount: number | null
+          returned_cod: number | null
+          returned_count: number | null
+          shipping: number | null
+          statement_date: string | null
+          wh_income: number | null
+          wh_sales: number | null
         }
         Insert: {
           acknowledged?: boolean
@@ -9158,9 +9169,20 @@ export type Database = {
           bank_ref?: string | null
           created_at?: string | null
           created_by?: string | null
+          delivered_cod?: number | null
+          delivered_count?: number | null
+          gst?: number | null
+          imported_at?: string | null
           notes?: string | null
+          official_net?: number | null
           payment_ref: string
           received_amount?: number | null
+          returned_cod?: number | null
+          returned_count?: number | null
+          shipping?: number | null
+          statement_date?: string | null
+          wh_income?: number | null
+          wh_sales?: number | null
         }
         Update: {
           acknowledged?: boolean
@@ -9168,9 +9190,20 @@ export type Database = {
           bank_ref?: string | null
           created_at?: string | null
           created_by?: string | null
+          delivered_cod?: number | null
+          delivered_count?: number | null
+          gst?: number | null
+          imported_at?: string | null
           notes?: string | null
+          official_net?: number | null
           payment_ref?: string
           received_amount?: number | null
+          returned_cod?: number | null
+          returned_count?: number | null
+          shipping?: number | null
+          statement_date?: string | null
+          wh_income?: number | null
+          wh_sales?: number | null
         }
         Relationships: []
       }
