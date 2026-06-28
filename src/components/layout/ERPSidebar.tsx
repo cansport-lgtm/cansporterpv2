@@ -508,6 +508,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Analysis", href: "/online-sales/analysis" },
       { title: "Profit & Loss", href: "/online-sales/pnl" },
       { title: "Money / COD Settlement", href: "/online-sales/money" },
+      { title: "Marketing / Ad Spend", href: "/online-sales/marketing" },
       { title: "Expenses", href: "/online-sales/expenses" },
       { title: "Platform Master", href: "/online-sales/platforms" },
       { title: "Item Master", href: "/online-sales/items" },

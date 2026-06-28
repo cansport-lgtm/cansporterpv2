@@ -8207,6 +8207,42 @@ export type Database = {
           },
         ]
       }
+      marketing_spend: {
+        Row: {
+          amount: number
+          campaign: string | null
+          created_at: string | null
+          created_by: string | null
+          external_id: string | null
+          id: string
+          platform: string
+          source: string
+          spend_date: string
+        }
+        Insert: {
+          amount?: number
+          campaign?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          external_id?: string | null
+          id?: string
+          platform?: string
+          source?: string
+          spend_date?: string
+        }
+        Update: {
+          amount?: number
+          campaign?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          external_id?: string | null
+          id?: string
+          platform?: string
+          source?: string
+          spend_date?: string
+        }
+        Relationships: []
+      }
       module_permissions: {
         Row: {
           can_approve: boolean | null
@@ -8513,6 +8549,7 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           customer_phone: string | null
+          delivered_at: string | null
           delivery_date: string | null
           delivery_return_date: string | null
           gst: number | null
@@ -8564,6 +8601,7 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           customer_phone?: string | null
+          delivered_at?: string | null
           delivery_date?: string | null
           delivery_return_date?: string | null
           gst?: number | null
@@ -8615,6 +8653,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string | null
+          delivered_at?: string | null
           delivery_date?: string | null
           delivery_return_date?: string | null
           gst?: number | null
