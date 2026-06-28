@@ -506,6 +506,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/online-sales/dashboard" },
       { title: "Sales Analysis", href: "/online-sales/analysis" },
+      { title: "Profit & Loss", href: "/online-sales/pnl" },
       { title: "Platform Master", href: "/online-sales/platforms" },
       { title: "Item Master", href: "/online-sales/items" },
       { title: "Orders", href: "/online-sales/orders" },

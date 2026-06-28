@@ -21,6 +21,7 @@ interface OnlineItem {
   code: string | null;
   description: string | null;
   price: number | null;
+  cost_price: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -30,7 +31,7 @@ export default function OnlineItemMasterPage() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", code: "", description: "", price: "", is_active: true });
+  const [form, setForm] = useState({ name: "", code: "", description: "", price: "", cost_price: "", is_active: true });
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -43,13 +44,13 @@ export default function OnlineItemMasterPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: "", code: "", description: "", price: "", is_active: true });
+    setForm({ name: "", code: "", description: "", price: "", cost_price: "", is_active: true });
     setIsDialogOpen(true);
   };
 
   const openEdit = (item: OnlineItem) => {
     setEditingId(item.id);
-    setForm({ name: item.name, code: item.code || "", description: item.description || "", price: item.price != null ? String(item.price) : "", is_active: item.is_active });
+    setForm({ name: item.name, code: item.code || "", description: item.description || "", price: item.price != null ? String(item.price) : "", cost_price: item.cost_price != null ? String(item.cost_price) : "", is_active: item.is_active });
     setIsDialogOpen(true);
   };
 
@@ -63,6 +64,7 @@ export default function OnlineItemMasterPage() {
       code: form.code.trim().toUpperCase() || null,
       description: form.description.trim() || null,
       price: form.price.trim() === "" ? 0 : Number(form.price),
+      cost_price: form.cost_price.trim() === "" ? 0 : Number(form.cost_price),
       is_active: form.is_active,
       updated_at: new Date().toISOString(),
     };
@@ -99,22 +101,36 @@ export default function OnlineItemMasterPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Margin</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                 ) : items.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No items found</TableCell></TableRow>
-                ) : items.map(item => (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No items found</TableCell></TableRow>
+                ) : items.map(item => {
+                  const price = Number(item.price || 0);
+                  const cost = Number(item.cost_price || 0);
+                  const marginPct = price > 0 ? ((price - cost) / price) * 100 : null;
+                  return (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.code || "-"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.description || "-"}</TableCell>
-                    <TableCell className="text-right">{item.price != null ? Number(item.price).toLocaleString() : "-"}</TableCell>
+                    <TableCell className="text-right">{item.cost_price != null ? cost.toLocaleString() : "-"}</TableCell>
+                    <TableCell className="text-right">{item.price != null ? price.toLocaleString() : "-"}</TableCell>
+                    <TableCell className="text-right">
+                      {marginPct != null ? (
+                        <span className={marginPct < 0 ? "text-destructive" : marginPct < 15 ? "text-amber-600" : "text-emerald-600"}>
+                          {marginPct.toFixed(1)}%
+                        </span>
+                      ) : "-"}
+                    </TableCell>
                     <TableCell><Badge variant={item.is_active ? "default" : "secondary"}>{item.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -137,7 +153,8 @@ export default function OnlineItemMasterPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
@@ -160,9 +177,15 @@ export default function OnlineItemMasterPage() {
               <Label>Description</Label>
               <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} />
             </div>
-            <div>
-              <Label>Price</Label>
-              <Input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Cost Price (Rs.)</Label>
+                <Input type="number" min="0" step="0.01" value={form.cost_price} onChange={e => setForm(p => ({ ...p, cost_price: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div>
+                <Label>Selling Price (Rs.)</Label>
+                <Input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>

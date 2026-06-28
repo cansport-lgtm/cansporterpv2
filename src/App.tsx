@@ -343,6 +343,7 @@ import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEn
 import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
 // Online Sales v1 additions
 import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPage";
+import OnlinePnLPage from "./pages/online-sales/OnlinePnLPage";
 // Planning v1 additions
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
@@ -707,6 +708,7 @@ const App = () => (
             <Route path="/online-sales/returns" element={<ProtectedRoute><OnlineReturnsPage /></ProtectedRoute>} />
             
             <Route path="/online-sales/analysis" element={<ProtectedRoute><OnlineSalesAnalysisPage /></ProtectedRoute>} />
+            <Route path="/online-sales/pnl" element={<ProtectedRoute><OnlinePnLPage /></ProtectedRoute>} />
             <Route path="/online-sales/*" element={<ProtectedRoute><ComingSoon title="Online Sales" /></ProtectedRoute>} />
 
             {/* Project Management Routes */}
