@@ -260,6 +260,7 @@ Deno.serve(async (req: Request) => {
           const courierTax = Number(dist?.transactionTax || 0) + Number(dist?.reversalTax || 0);
           const courierWt = dist?.actualWeight ? Math.round(Number(dist.actualWeight) * 1000) : null;
           const cod = Number(dist?.invoicePayment || 0);
+          const dstep = (dist?.transactionStatusHistory || []).find((h: any) => h.transactionStatusMessageCode === "0005");
           patch.shipping_charges = shippingFee;
           patch.gst = courierTax;
           patch.cod_amount = cod;
@@ -269,6 +270,7 @@ Deno.serve(async (req: Request) => {
             patch.net_amount = Math.max(0, cod - shippingFee - courierTax);
           }
           if (courierWt) patch.courier_weight = courierWt;
+          if (dstep?.updatedAt) patch.delivered_at = dstep.updatedAt; // actual delivery time
           await supabase.from("online_orders").update(patch).eq("id", o.id);
 
           await supabase.from("online_tracking_events").insert({
@@ -283,11 +285,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- settlement: did PostEx pay us out for each delivered COD parcel? ----
+    // Only re-check parcels not yet settled — settlement is terminal, so this
+    // shrinks over time and is fast enough to run on page open.
     if (action === "settlement") {
       const { data: orders } = await supabase.from("online_orders")
         .select("id, tracking_number, settled")
         .not("tracking_number", "is", null).neq("tracking_number", "")
-        .eq("status", "delivered");
+        .eq("status", "delivered").not("settled", "is", true);
       if (!orders || orders.length === 0) return json({ ok: true, checked: 0, settled: 0 });
 
       let checked = 0, settledCount = 0;
