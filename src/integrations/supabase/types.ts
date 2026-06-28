@@ -9141,6 +9141,39 @@ export type Database = {
           },
         ]
       }
+      payment_receipts: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          bank_ref: string | null
+          created_at: string | null
+          created_by: string | null
+          notes: string | null
+          payment_ref: string
+          received_amount: number | null
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          bank_ref?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          notes?: string | null
+          payment_ref: string
+          received_amount?: number | null
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          bank_ref?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          notes?: string | null
+          payment_ref?: string
+          received_amount?: number | null
+        }
+        Relationships: []
+      }
       performance_daily_tracking: {
         Row: {
           actual_value: number | null
