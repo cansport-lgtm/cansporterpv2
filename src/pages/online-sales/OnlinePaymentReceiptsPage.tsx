@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatPKR } from "@/lib/currency";
+import { parsePostexCprPdf } from "@/lib/sales/parsePostexCpr";
 import * as XLSX from "xlsx";
 
 interface Stmt {
@@ -123,35 +124,65 @@ export default function OnlinePaymentReceiptsPage() {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const cpr = importForm.cpr.trim();
-    if (!cpr) { toast.error("Enter the CPR number first"); if (fileRef.current) fileRef.current.value = ""; return; }
     setImporting(true);
     try {
-      const wb = XLSX.read(await file.arrayBuffer());
-      const rowsRaw: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const rows = rowsRaw.map(r => { const m: Record<string, any> = {}; Object.entries(r).forEach(([k, v]) => (m[norm(k)] = v)); return m; });
-      const pick = (m: Record<string, any>, keys: string[]) => { for (const k of keys) if (m[k] != null && m[k] !== "") return m[k]; return undefined; };
+      const isPdf = /\.pdf$/i.test(file.name);
 
-      const date = importForm.date || null;
+      // Normalise both PDF and CSV/Excel into {track,status,cod,shipping,net,gst,whInc,whSal}
+      type Row = { track: string; status: "delivered" | "returned"; cod: number; shipping: number; net: number; gst: number; whInc: number; whSal: number };
+      let parsed: Row[] = [];
+      let cpr = importForm.cpr.trim();
+      let date: string | null = importForm.date || null;
+
+      // Round each line to 2 decimals exactly like PostEx's CPR statement.
+      const r2 = (x: number) => Math.round((x + 1e-9) * 100) / 100;
+      const calc = (status: "delivered" | "returned", cod: number, shipping: number) => {
+        const gst = r2(shipping * rates.gst / 100);
+        const whInc = status === "delivered" ? r2(cod * rates.whInc / 100) : 0;
+        const whSal = status === "delivered" ? r2(cod * rates.whSales / 100) : 0;
+        const net = status === "delivered" ? r2(cod - shipping - gst - whInc - whSal) : r2(-(shipping + gst));
+        return { gst, whInc, whSal, net };
+      };
+
+      if (isPdf) {
+        const p = await parsePostexCprPdf(await file.arrayBuffer());
+        if (!cpr) cpr = p.cpr;
+        if (!date) date = p.date || null;
+        parsed = p.rows.map(r => ({ track: r.tracking, status: r.status, cod: r.cod, shipping: r.shipping, ...calc(r.status, r.cod, r.shipping) }));
+      } else {
+        const wb = XLSX.read(await file.arrayBuffer());
+        const rowsRaw: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        const pick = (m: Record<string, any>, keys: string[]) => { for (const k of keys) if (m[k] != null && m[k] !== "") return m[k]; return undefined; };
+        parsed = rowsRaw.map(r => {
+          const m: Record<string, any> = {}; Object.entries(r).forEach(([k, v]) => (m[norm(k)] = v));
+          const track = String(pick(m, ["trackingnumber", "trackingno", "cn", "tracking"]) ?? "").trim();
+          const statusRaw = String(pick(m, ["status", "ordertype", "transactionstatus"]) ?? "").toLowerCase();
+          const status: "delivered" | "returned" = statusRaw.includes("return") ? "returned" : "delivered";
+          const cod = numOf(pick(m, ["codamount", "cod", "invoicepayment"]));
+          const shipping = numOf(pick(m, ["shippingcharges", "shipping", "deliverycharges"]));
+          const c = calc(status, cod, shipping);
+          const netAmt = pick(m, ["netamount", "net", "payableamount", "payable"]);
+          return { track, status, cod, shipping, net: netAmt != null ? numOf(netAmt) : c.net,
+            gst: numOf(pick(m, ["gst"])) || c.gst,
+            whInc: numOf(pick(m, ["whinctax2", "whincometax2", "whinctax", "whincometax", "whinc"])) || c.whInc,
+            whSal: numOf(pick(m, ["whsalestax2", "whsalestax", "whsales"])) || c.whSal };
+        }).filter(r => r.track);
+      }
+
+      if (!cpr) { toast.error("Could not detect the CPR number — enter it in the dialog"); setImporting(false); return; }
+      if (parsed.length === 0) { toast.error("No parcels found in the file"); setImporting(false); return; }
+
       const { data: existing } = await supabase.from("online_orders").select("id, tracking_number").not("tracking_number", "is", null);
       const byTrack = new Map((existing || []).map((o: any) => [String(o.tracking_number), o.id]));
 
       let updated = 0, inserted = 0, skipped = 0;
       let dC = 0, dCod = 0, rC = 0, rCod = 0, ship = 0, gstT = 0, whi = 0, whs = 0, netT = 0;
 
-      for (const m of rows) {
-        const track = String(pick(m, ["trackingnumber", "trackingno", "cn", "tracking"]) ?? "").trim();
+      for (const p of parsed) {
+        const track = p.track;
         if (!track) { skipped++; continue; }
-        const statusRaw = String(pick(m, ["status", "ordertype", "transactionstatus"]) ?? "").toLowerCase();
-        const status = statusRaw.includes("return") ? "returned" : statusRaw.includes("deliver") ? "delivered" : "delivered";
-        const cod = numOf(pick(m, ["codamount", "cod", "invoicepayment"]));
-        const shipping = numOf(pick(m, ["shippingcharges", "shipping", "deliverycharges"]));
-        const netAmt = numOf(pick(m, ["netamount", "net", "payableamount", "payable"]));
-        const gst = numOf(pick(m, ["gst"]));
-        const whInc = numOf(pick(m, ["whinctax2", "whincometax2", "whinctax", "whincometax", "whinc"]));
-        const whSal = numOf(pick(m, ["whsalestax2", "whsalestax", "whsales"]));
+        const { status, cod, shipping, net: netAmt, gst, whInc, whSal } = p;
 
-        // totals (official)
         if (status === "returned") { rC++; rCod += cod; } else { dC++; dCod += cod; }
         ship += shipping; gstT += gst; whi += whInc; whs += whSal; netT += netAmt;
 
@@ -279,16 +310,16 @@ export default function OnlinePaymentReceiptsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Import PostEx CPR</DialogTitle>
-            <DialogDescription>Download the CPR as CSV/Excel from PostEx, enter its number & date, then choose the file. Parcels are matched by tracking number; missing ones are backfilled.</DialogDescription>
+            <DialogDescription>Upload the CPR <b>PDF</b> from PostEx (CSV/Excel also accepted). The CPR number & date are auto-detected from the PDF. Parcels are matched by tracking number; missing ones are backfilled into the system.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div><Label>CPR Number</Label><Input value={importForm.cpr} onChange={e => setImportForm(p => ({ ...p, cpr: e.target.value }))} placeholder="e.g. CPR-16GMX982296" /></div>
-            <div><Label>CPR Date</Label><Input type="date" value={importForm.date} onChange={e => setImportForm(p => ({ ...p, date: e.target.value }))} /></div>
-            <Button onClick={() => fileRef.current?.click()} disabled={importing || !importForm.cpr.trim()} className="gap-1 w-full">
-              <Upload className="h-4 w-4" /> {importing ? "Importing…" : "Choose CSV / Excel file"}
+            <div><Label>CPR Number <span className="text-muted-foreground font-normal">(optional for PDF — auto-detected)</span></Label><Input value={importForm.cpr} onChange={e => setImportForm(p => ({ ...p, cpr: e.target.value }))} placeholder="e.g. CPR-16GMX982296" /></div>
+            <div><Label>CPR Date <span className="text-muted-foreground font-normal">(optional for PDF)</span></Label><Input type="date" value={importForm.date} onChange={e => setImportForm(p => ({ ...p, date: e.target.value }))} /></div>
+            <Button onClick={() => fileRef.current?.click()} disabled={importing} className="gap-1 w-full">
+              <Upload className="h-4 w-4" /> {importing ? "Importing…" : "Choose PDF / CSV / Excel file"}
             </Button>
-            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
-            <p className="text-xs text-muted-foreground">Expected columns (header names flexible): Tracking Number, Status, Shipping Charges, COD Amount, Net Amount, GST, WH Income Tax, WH Sales Tax.</p>
+            <input ref={fileRef} type="file" accept=".pdf,.csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
+            <p className="text-xs text-muted-foreground">PDF: the full CPR (delivered + returned parcels) is parsed; net/GST/WHT are computed with PostEx's formula. CSV/Excel columns (flexible): Tracking Number, Status, Shipping Charges, COD Amount, Net Amount.</p>
           </div>
         </DialogContent>
       </Dialog>
