@@ -8503,6 +8503,7 @@ export type Database = {
           claim_filed_at: string | null
           claim_notes: string | null
           claim_status: string | null
+          cod_amount: number | null
           confirmed_at: string | null
           confirmed_by: string | null
           courier_order_status: string | null
@@ -8526,6 +8527,7 @@ export type Database = {
           order_value: number | null
           origin_city: string | null
           payment_mode: string | null
+          payment_ref: string | null
           pickup_date: string | null
           pincode: string | null
           platform: string
@@ -8533,6 +8535,8 @@ export type Database = {
           quantity: number | null
           remarks: string | null
           return_city: string | null
+          settled: boolean | null
+          settled_at: string | null
           shipping_address: string | null
           shipping_charges: number | null
           state: string | null
@@ -8550,6 +8554,7 @@ export type Database = {
           claim_filed_at?: string | null
           claim_notes?: string | null
           claim_status?: string | null
+          cod_amount?: number | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           courier_order_status?: string | null
@@ -8573,6 +8578,7 @@ export type Database = {
           order_value?: number | null
           origin_city?: string | null
           payment_mode?: string | null
+          payment_ref?: string | null
           pickup_date?: string | null
           pincode?: string | null
           platform?: string
@@ -8580,6 +8586,8 @@ export type Database = {
           quantity?: number | null
           remarks?: string | null
           return_city?: string | null
+          settled?: boolean | null
+          settled_at?: string | null
           shipping_address?: string | null
           shipping_charges?: number | null
           state?: string | null
@@ -8597,6 +8605,7 @@ export type Database = {
           claim_filed_at?: string | null
           claim_notes?: string | null
           claim_status?: string | null
+          cod_amount?: number | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           courier_order_status?: string | null
@@ -8620,6 +8629,7 @@ export type Database = {
           order_value?: number | null
           origin_city?: string | null
           payment_mode?: string | null
+          payment_ref?: string | null
           pickup_date?: string | null
           pincode?: string | null
           platform?: string
@@ -8627,6 +8637,8 @@ export type Database = {
           quantity?: number | null
           remarks?: string | null
           return_city?: string | null
+          settled?: boolean | null
+          settled_at?: string | null
           shipping_address?: string | null
           shipping_charges?: number | null
           state?: string | null

@@ -259,10 +259,15 @@ Deno.serve(async (req: Request) => {
           const shippingFee = Number(dist?.transactionFee || 0) + Number(dist?.reversalFee || 0);
           const courierTax = Number(dist?.transactionTax || 0) + Number(dist?.reversalTax || 0);
           const courierWt = dist?.actualWeight ? Math.round(Number(dist.actualWeight) * 1000) : null;
-          const settled = Number(dist?.upfrontPayment || 0);
+          const cod = Number(dist?.invoicePayment || 0);
           patch.shipping_charges = shippingFee;
           patch.gst = courierTax;
-          if (settled) patch.net_amount = settled;
+          patch.cod_amount = cod;
+          if (cod > 0) {
+            // COD parcel: courier collects `cod`, deducts fees+tax, remits the net to us.
+            patch.payment_mode = "cod";
+            patch.net_amount = Math.max(0, cod - shippingFee - courierTax);
+          }
           if (courierWt) patch.courier_weight = courierWt;
           await supabase.from("online_orders").update(patch).eq("id", o.id);
 
@@ -275,6 +280,33 @@ Deno.serve(async (req: Request) => {
         } catch { /* skip this parcel, continue the batch */ }
       }
       return json({ ok: true, tracked, updated });
+    }
+
+    // --- settlement: did PostEx pay us out for each delivered COD parcel? ----
+    if (action === "settlement") {
+      const { data: orders } = await supabase.from("online_orders")
+        .select("id, tracking_number, settled")
+        .not("tracking_number", "is", null).neq("tracking_number", "")
+        .eq("status", "delivered");
+      if (!orders || orders.length === 0) return json({ ok: true, checked: 0, settled: 0 });
+
+      let checked = 0, settledCount = 0;
+      for (const o of orders) {
+        try {
+          const r = await fetch(`${base}${cfg.payment_status_path}/${o.tracking_number}`, { headers });
+          if (!r.ok) continue;
+          const result = await r.json();
+          const d = result?.dist || {};
+          checked++;
+          const patch: Record<string, unknown> = {};
+          if (typeof d.settle === "boolean") patch.settled = d.settle;
+          if (d.settlementDate) patch.settled_at = d.settlementDate;
+          if (d.cpr1 || d.cpr) patch.payment_ref = d.cpr1 || d.cpr;
+          if (Object.keys(patch).length) await supabase.from("online_orders").update(patch).eq("id", o.id);
+          if (d.settle) settledCount++;
+        } catch { /* skip */ }
+      }
+      return json({ ok: true, checked, settled: settledCount });
     }
 
     return json({ error: `unknown action: ${action}` }, 400);
