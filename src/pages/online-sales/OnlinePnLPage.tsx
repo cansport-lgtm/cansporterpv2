@@ -35,6 +35,7 @@ export default function OnlinePnLPage() {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [platforms, setPlatforms] = useState<PlatformRow[]>([]);
   const [returns, setReturns] = useState<ReturnRow[]>([]);
+  const [lineItems, setLineItems] = useState<{ order_id: string; item_id: string | null; quantity: number | null }[]>([]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -53,16 +54,24 @@ export default function OnlinePnLPage() {
       const orderRows = (oRes.data as OrderRow[]) || [];
       const orderIds = orderRows.map(o => o.id);
       let returnRows: ReturnRow[] = [];
+      let lineRows: { order_id: string; item_id: string | null; quantity: number | null }[] = [];
       if (orderIds.length) {
         const { data: rData, error: rErr } = await supabase
           .from("online_returns").select("order_id,refund_amount").in("order_id", orderIds);
         if (rErr) throw rErr;
         returnRows = (rData as ReturnRow[]) || [];
+
+        // COGS source: the per-line items table (orders can have multiple items).
+        const { data: liData, error: liErr } = await supabase
+          .from("online_order_items").select("order_id,item_id,quantity").in("order_id", orderIds);
+        if (liErr) throw liErr;
+        lineRows = (liData as any[]) || [];
       }
       setOrders(orderRows);
       setItems((iRes.data as ItemRow[]) || []);
       setPlatforms((pRes.data as PlatformRow[]) || []);
       setReturns(returnRows);
+      setLineItems(lineRows);
     } catch (e: any) {
       toast.error(e.message || "Failed to load data");
     } finally {
@@ -79,6 +88,18 @@ export default function OnlinePnLPage() {
     const refundByOrder = new Map<string, number>();
     returns.forEach(r => refundByOrder.set(r.order_id, (refundByOrder.get(r.order_id) || 0) + Number(r.refund_amount || 0)));
 
+    // COGS per order from the line-items table (qty x item cost_price).
+    const cogsByOrder = new Map<string, { cogs: number; costed: boolean; lines: number }>();
+    lineItems.forEach(li => {
+      const it = li.item_id ? itemById.get(li.item_id) : undefined;
+      const cost = Number(it?.cost_price || 0);
+      const cur = cogsByOrder.get(li.order_id) || { cogs: 0, costed: false, lines: 0 };
+      cur.cogs += cost * Number(li.quantity || 0);
+      cur.lines += 1;
+      if (cost > 0) cur.costed = true;
+      cogsByOrder.set(li.order_id, cur);
+    });
+
     const t = { revenue: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0, unmappedCogs: 0 };
     type Agg = { platform: string; revenue: number; refunds: number; cogs: number; commission: number; shipping: number; taxes: number; orders: number };
     const plat = new Map<string, Agg>();
@@ -87,20 +108,29 @@ export default function OnlinePnLPage() {
       if (o.status === "cancelled") return; // cancelled orders are not revenue
       const platform = o.platform || "(none)";
       const qty = Number(o.quantity || 0);
-      let item = o.item_id ? itemById.get(o.item_id) : undefined;
-      if (!item && o.item_name) item = itemByName.get(o.item_name.trim().toLowerCase());
 
       const revenue = Number(o.order_value || 0);
       const refund = refundByOrder.get(o.id) || 0;
-      const cost = Number(item?.cost_price || 0);
-      const cogs = cost * qty;
+
+      // Prefer line-item COGS; fall back to the order's single item_id/item_name.
+      const line = cogsByOrder.get(o.id);
+      let cogs = 0, costed = false;
+      if (line && line.lines > 0) {
+        cogs = line.cogs; costed = line.costed;
+      } else {
+        let item = o.item_id ? itemById.get(o.item_id) : undefined;
+        if (!item && o.item_name) item = itemByName.get(o.item_name.trim().toLowerCase());
+        const cost = Number(item?.cost_price || 0);
+        cogs = cost * qty; costed = !!item && cost > 0;
+      }
+
       const commission = revenue * (commissionByPlatform.get(platform) || 0) / 100;
       const shipping = Number(o.shipping_charges || 0);
       const taxes = Number(o.gst || 0) + Number(o.wh_income_tax || 0) + Number(o.wh_sales_tax || 0);
 
       t.revenue += revenue; t.refunds += refund; t.cogs += cogs;
       t.commission += commission; t.shipping += shipping; t.taxes += taxes; t.orders += 1;
-      if (!item || cost === 0) t.unmappedCogs += 1;
+      if (!costed) t.unmappedCogs += 1;
 
       const cur = plat.get(platform) || { platform, revenue: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0 };
       cur.revenue += revenue; cur.refunds += refund; cur.cogs += cogs;
@@ -113,7 +143,7 @@ export default function OnlinePnLPage() {
       .sort((a, b) => b.profit - a.profit);
 
     return { totals: t, byPlatform };
-  }, [orders, items, platforms, returns]);
+  }, [orders, items, platforms, returns, lineItems]);
 
   const netRevenue = totals.revenue - totals.refunds;
   const netProfit = netRevenue - totals.cogs - totals.commission - totals.shipping - totals.taxes;
