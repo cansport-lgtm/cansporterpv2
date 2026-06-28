@@ -61,6 +61,7 @@ interface LiveItem {
 export default function OnlineOrdersPage() {
   const { user, roles } = useAuth();
   const isPackingRole = roles.some(r => (r.role as string) === 'online_sales_packing');
+  const isSuperAdmin = roles.some(r => (r.role as string) === 'super_admin');
   const [orders, setOrders] = useState<any[]>([]);
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [onlineItems, setOnlineItems] = useState<any[]>([]);
@@ -177,6 +178,25 @@ export default function OnlineOrdersPage() {
       return;
     }
     toast.success(`Booked on PostEx — tracking ${(data as any)?.trackingNumber}`);
+    fetchOrders();
+  };
+
+  // Import unbooked orders created on the PostEx portal (super admin only).
+  const importFromPostex = async () => {
+    const end = new Date();
+    const start = new Date(); start.setDate(start.getDate() - 30);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    setPostexBusy(true);
+    const { data, error } = await supabase.functions.invoke("postex", {
+      body: { action: "import", startDate: fmt(start), endDate: fmt(end) },
+    });
+    setPostexBusy(false);
+    if (error || (data && (data as any).error)) {
+      toast.error(`Import failed: ${(data as any)?.error || error?.message || "unknown error"}`);
+      return;
+    }
+    const d = data as any;
+    toast.success(`Imported ${d?.inserted ?? 0} new orders (${d?.found ?? 0} found, ${d?.skipped ?? 0} already present)`);
     fetchOrders();
   };
 
@@ -778,6 +798,11 @@ export default function OnlineOrdersPage() {
           {!isPackingRole && (
             <Button variant="outline" size="sm" onClick={syncTracking} disabled={postexBusy} className="gap-1">
               <Truck className="h-4 w-4" /> {postexBusy ? "Syncing..." : "Sync Tracking"}
+            </Button>
+          )}
+          {isSuperAdmin && (
+            <Button variant="outline" size="sm" onClick={importFromPostex} disabled={postexBusy} className="gap-1">
+              <Download className="h-4 w-4" /> {postexBusy ? "Importing..." : "Import from PostEx"}
             </Button>
           )}
           {!isPackingRole && (
