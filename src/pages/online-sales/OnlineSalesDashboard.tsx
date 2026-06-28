@@ -23,8 +23,6 @@ const STATUS_COLORS: Record<string, string> = {
 export default function OnlineSalesDashboard() {
   const [period, setPeriod] = useState("month");
   const [orders, setOrders] = useState<any[]>([]);
-  const [dispatches, setDispatches] = useState<any[]>([]);
-  const [returns, setReturns] = useState<any[]>([]);
   const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,23 +42,21 @@ export default function OnlineSalesDashboard() {
     const fromStr = format(from, "yyyy-MM-dd");
     const toStr = format(to, "yyyy-MM-dd");
 
-    const [ordersRes, dispatchesRes, returnsRes] = await Promise.all([
-      supabase.from("online_orders").select("*").gte("order_date", fromStr).lte("order_date", toStr),
-      supabase.from("online_dispatches").select("*").gte("dispatch_date", fromStr).lte("dispatch_date", toStr),
-      supabase.from("online_returns").select("*").gte("return_date", fromStr).lte("return_date", toStr),
-    ]);
+    const { data: ordersData } = await supabase.from("online_orders").select("*").gte("order_date", fromStr).lte("order_date", toStr);
 
-    setOrders(ordersRes.data || []);
-    setDispatches(dispatchesRes.data || []);
-    setReturns(returnsRes.data || []);
+    setOrders(ordersData || []);
     setLoading(false);
   };
 
   const totalOrders = orders.length;
   const totalValue = orders.reduce((s, o) => s + (o.order_value || 0), 0);
   const confirmedOrders = orders.filter(o => o.status === "confirmed" || o.status === "dispatched" || o.status === "delivered").length;
-  const totalDispatches = dispatches.length;
-  const totalReturns = returns.length;
+  // Dispatched is derived from order status, not the (unused) online_dispatches
+  // table, which previously made this metric always read ~0.
+  const dispatchedStatuses = ["sent_to_courier", "dispatched", "delivered", "return_awaited", "returned"];
+  const totalDispatches = orders.filter(o => dispatchedStatuses.includes(o.status)).length;
+  // Cohort-correct: returns measured against the orders in this period.
+  const totalReturns = orders.filter(o => o.status === "returned" || o.status === "return_awaited").length;
   const returnRate = totalOrders > 0 ? ((totalReturns / totalOrders) * 100).toFixed(1) : "0";
   const codOrders = orders.filter(o => o.payment_mode === "cod").length;
   const prepaidOrders = orders.filter(o => o.payment_mode === "prepaid").length;
