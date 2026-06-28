@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Handshake, Save, Printer, CheckCircle2, Wallet, Percent, Building2 } from "lucide-react";
+import { Handshake, Save, Printer, CheckCircle2, Wallet, Percent, Building2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,6 +115,27 @@ export default function OnlineAgencySettlementPage() {
     const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
   };
 
+  const whatsappShare = (s: any) => {
+    const a = agency;
+    const rs = (n: number) => "Rs. " + Math.round(Number(n || 0)).toLocaleString();
+    const lines = [
+      "*Cansport — Agency Settlement*",
+      `Agency: ${a?.name || ""}`,
+      `Period: ${s.period}`,
+      "————————————",
+      `Net Sales (base): ${rs(s.commission_base)}`,
+      `Commission @ ${Number(s.commission_pct)}%: ${rs(s.commission_amount)}`,
+      `Monthly Fixed Fee: ${rs(s.fixed_amount)}`,
+      `*Total Payable: ${rs(s.total_amount)}*`,
+      `Status: ${(s.status || "pending").toUpperCase()}${s.paid_at ? ` (paid${s.payment_ref ? ", ref " + s.payment_ref : ""})` : ""}`,
+    ];
+    const text = encodeURIComponent(lines.join("\n"));
+    // If the agency contact looks like a phone number, address the chat to it.
+    const digits = (a?.contact || "").replace(/[^\d]/g, "");
+    const url = digits.length >= 10 ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+    window.open(url, "_blank");
+  };
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -167,7 +188,8 @@ export default function OnlineAgencySettlementPage() {
                         <TableCell className="text-right font-semibold">{formatPKR(s.total_amount)}</TableCell>
                         <TableCell>{s.status === "paid" ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-400">Paid</Badge> : <Badge variant="secondary">Pending</Badge>}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
-                          <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={() => printStatement(s)}><Printer className="h-3.5 w-3.5" /> Share</Button>
+                          <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={() => printStatement(s)}><Printer className="h-3.5 w-3.5" /> Print</Button>
+                          <Button size="sm" variant="ghost" className="h-8 ml-1 gap-1 text-emerald-700" onClick={() => whatsappShare(s)}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</Button>
                           {s.status !== "paid" && <Button size="sm" variant="outline" className="h-8 ml-1 gap-1" onClick={() => { setPayTarget(s); setPayForm({ payment_ref: "", notes: "" }); setPayOpen(true); }}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
                         </TableCell>
                       </TableRow>
