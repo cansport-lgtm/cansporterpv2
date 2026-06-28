@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart3, Download, Wallet, Banknote, Package, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
+import { formatPKR } from "@/lib/currency";
 
 interface OrderRow { id: string; item_id: string | null; item_name: string | null; quantity: number | null; payment_mode: string | null; order_date: string; order_value: number | null }
 interface ItemRow { id: string; name: string; price: number | null }
 interface ReturnRow { order_id: string; refund_amount: number | null }
 
-const fmtPKR = (n: number) => `Rs. ${Math.round(n).toLocaleString()}`;
+const fmtPKR = formatPKR;
 
 function firstOfMonth() {
   const d = new Date();

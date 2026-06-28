@@ -5,9 +5,10 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingBag, Truck, RotateCcw, FileText, IndianRupee, CheckCircle } from "lucide-react";
+import { ShoppingBag, Truck, RotateCcw, FileText, Wallet, CheckCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { formatPKR } from "@/lib/currency";
 
 const PLATFORM_COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444"];
 const STATUS_COLORS: Record<string, string> = {
@@ -113,7 +114,7 @@ export default function OnlineSalesDashboard() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <MetricCard title="Total Orders" value={totalOrders} icon={ShoppingBag} />
-          <MetricCard title="Order Value" value={`₹${totalValue.toLocaleString()}`} icon={IndianRupee} />
+          <MetricCard title="Order Value" value={formatPKR(totalValue)} icon={Wallet} />
           <MetricCard title="Confirmed" value={confirmedOrders} icon={CheckCircle} />
           <MetricCard title="Dispatched" value={totalDispatches} icon={Truck} />
           <MetricCard title="Returns" value={totalReturns} icon={RotateCcw} />

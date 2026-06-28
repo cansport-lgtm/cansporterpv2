@@ -317,7 +317,7 @@ export default function OnlineReturnsPage() {
                       <TableHead>Tracking #</TableHead>
                       <TableHead>Platform</TableHead>
                       <TableHead>City</TableHead>
-                      <TableHead className="text-right">Value (₹)</TableHead>
+                      <TableHead className="text-right">Value (Rs.)</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -356,7 +356,7 @@ export default function OnlineReturnsPage() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Reason</TableHead>
-                      <TableHead className="text-right">Refund (₹)</TableHead>
+                      <TableHead className="text-right">Refund (Rs.)</TableHead>
                       <TableHead>Refund Status</TableHead>
                       <TableHead>Received</TableHead>
                       <TableHead>Actions</TableHead>
@@ -428,7 +428,7 @@ export default function OnlineReturnsPage() {
               </Select>
             </div>
             <div>
-              <Label>Refund Amount (₹)</Label>
+              <Label>Refund Amount (Rs.)</Label>
               <Input type="number" value={form.refund_amount} onChange={e => setForm(p => ({ ...p, refund_amount: e.target.value }))} />
             </div>
             <div>
