@@ -87,6 +87,57 @@ Deno.serve(async (req: Request) => {
       return json(await r.json(), r.status);
     }
 
+    // --- import unbooked orders from PostEx ----------------------------------
+    // Pulls orders created on the PostEx portal (not yet booked) into the system.
+    // Access is gated to super_admin in the UI (the app has no server-side auth).
+    if (action === "import") {
+      const { startDate, endDate } = body;
+      if (!startDate || !endDate) return json({ error: "startDate and endDate required" }, 400);
+
+      const r = await fetch(`${base}${cfg.unbooked_orders_path}?startDate=${startDate}&endDate=${endDate}`, { headers });
+      const result = await r.json();
+      if (!r.ok) return json({ error: "PostEx list failed", detail: result }, 502);
+      const list: any[] = result?.dist || [];
+
+      const { data: existing } = await supabase
+        .from("online_orders").select("platform_order_id, tracking_number");
+      const seenRef = new Set((existing || []).filter((o: any) => o.platform_order_id).map((o: any) => o.platform_order_id));
+      const seenTrack = new Set((existing || []).filter((o: any) => o.tracking_number).map((o: any) => o.tracking_number));
+
+      let inserted = 0, skipped = 0;
+      for (const po of list) {
+        const ref = String(po.orderRefNumber || po.orderRefNo || po.merchantOrderId || "").trim();
+        const track = po.trackingNumber ? String(po.trackingNumber) : null;
+        if ((ref && seenRef.has(ref)) || (track && seenTrack.has(track))) { skipped++; continue; }
+
+        const invoice = Number(po.invoicePayment || po.codAmount || 0);
+        const rawDate = po.transactionDate || po.orderDate || po.orderDateTime || new Date().toISOString();
+        const row = {
+          order_number: "",
+          platform: "PostEx",
+          platform_order_id: ref || null,
+          tracking_number: track,
+          customer_name: po.customerName || "Unknown",
+          customer_phone: po.customerPhone || null,
+          shipping_address: po.deliveryAddress || po.customerAddress || null,
+          city: po.cityName || null,
+          payment_mode: invoice > 0 ? "cod" : "prepaid",
+          order_value: invoice,
+          order_date: String(rawDate).slice(0, 10),
+          status: track ? "sent_to_courier" : "pending",
+          courier_partner_id: partner.id,
+          courier_order_status: po.orderStatus || "UnBooked",
+          remarks: po.orderDetail || null,
+        };
+        const { error } = await supabase.from("online_orders").insert(row);
+        if (error) { skipped++; continue; }
+        inserted++;
+        if (ref) seenRef.add(ref);
+        if (track) seenTrack.add(track);
+      }
+      return json({ ok: true, found: list.length, inserted, skipped });
+    }
+
     // --- book a shipment -----------------------------------------------------
     if (action === "book") {
       const { orderId } = body;
