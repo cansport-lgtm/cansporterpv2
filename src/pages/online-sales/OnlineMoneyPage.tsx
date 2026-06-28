@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wallet, Banknote, ReceiptText, TrendingUp, Truck, Clock, Search, RefreshCw, Download, AlertTriangle } from "lucide-react";
+import { Wallet, Banknote, ReceiptText, TrendingUp, Truck, Clock, Search, RefreshCw, Download, AlertTriangle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatPKR } from "@/lib/currency";
@@ -18,6 +19,9 @@ const ACTIVE = ["sent_to_courier", "dispatched", "return_awaited"];
 const OVERDUE_DAYS = 7; // delivered COD unpaid beyond this => chase PostEx
 const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : null;
 
+const defaultFrom = () => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); };
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
 export default function OnlineMoneyPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,13 +29,16 @@ export default function OnlineMoneyPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("owed");
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [from, setFrom] = useState(defaultFrom());
+  const [to, setTo] = useState(todayStr());
 
   const fetchData = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("online_orders")
-      .select("id, order_number, tracking_number, customer_name, status, cod_amount, order_value, shipping_charges, gst, net_amount, settled, settled_at, payment_ref, last_tracked_at, delivered_at")
+      .select("id, order_number, tracking_number, customer_name, status, cod_amount, order_value, shipping_charges, gst, net_amount, settled, settled_at, payment_ref, last_tracked_at, delivered_at, order_date")
       .or("cod_amount.gt.0,payment_mode.eq.cod")
+      .gte("order_date", from).lte("order_date", to)
       .order("settled_at", { ascending: false, nullsFirst: true });
     setOrders(data || []);
     setLastSync((data || []).reduce((m: string | null, o: any) => o.last_tracked_at && (!m || o.last_tracked_at > m) ? o.last_tracked_at : m, null));
@@ -66,12 +73,18 @@ export default function OnlineMoneyPage() {
 
   const t = useMemo(() => {
     const cod = (o: any) => Number(o.cod_amount || 0) > 0;
+    const codOrders = orders.filter(o => cod(o) && o.status !== "cancelled");
     const delivered = orders.filter(o => o.status === "delivered" && cod(o));
     const inTransit = orders.filter(o => ACTIVE.includes(o.status) && cod(o));
+    const returned = orders.filter(o => (o.status === "returned" || o.status === "return_awaited") && cod(o));
     const settled = delivered.filter(o => o.settled);
     const unsettled = delivered.filter(o => !o.settled);
     const overdue = unsettled.filter(o => (daysSince(o.delivered_at) ?? 0) >= OVERDUE_DAYS);
     return {
+      booked: codOrders.reduce((s, o) => s + Number(o.cod_amount || 0), 0),
+      bookedCount: codOrders.length,
+      returnedCod: returned.reduce((s, o) => s + Number(o.cod_amount || 0), 0),
+      returnedCount: returned.length,
       codGross: delivered.reduce((s, o) => s + Number(o.cod_amount || 0), 0),
       deductions: delivered.reduce((s, o) => s + Number(o.shipping_charges || 0) + Number(o.gst || 0), 0),
       netReceivable: delivered.reduce((s, o) => s + net(o), 0),
@@ -123,14 +136,23 @@ export default function OnlineMoneyPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <Card><CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <div><Label>From</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-44" /></div>
+          <div><Label>To</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-44" /></div>
+          <Button onClick={fetchData} disabled={loading}>{loading ? "Loading…" : "Apply"}</Button>
+          <span className="text-xs text-muted-foreground">Filtered by order date</span>
+        </CardContent></Card>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <MetricCard title="COD Booked" value={formatPKR(t.booked)} icon={Banknote} iconColor="text-indigo-600" description={`${t.bookedCount} COD orders`} />
           <MetricCard title="COD Collected" value={formatPKR(t.codGross)} icon={Banknote} iconColor="text-blue-600" description="delivered parcels" />
+          <MetricCard title="Returned COD" value={formatPKR(t.returnedCod)} icon={RotateCcw} iconColor="text-red-600" description={`${t.returnedCount} not collected`} />
+          <MetricCard title="In-Transit Pipeline" value={formatPKR(t.pipeline)} icon={Truck} iconColor="text-purple-600" description={`${t.pipelineCount} COD coming`} />
           <MetricCard title="Courier Deductions" value={formatPKR(t.deductions)} icon={ReceiptText} iconColor="text-amber-600" description="fees + tax" />
           <MetricCard title="Net Receivable" value={formatPKR(t.netReceivable)} icon={TrendingUp} iconColor="text-slate-600" description="COD − deductions" />
           <MetricCard title="Received (settled)" value={formatPKR(t.received)} icon={Wallet} iconColor="text-emerald-600" />
           <MetricCard title="Owed to us" value={formatPKR(t.owed)} icon={Banknote} iconColor="text-red-600" description={`${t.owedCount} parcels unpaid`} />
           <MetricCard title={`Overdue (${OVERDUE_DAYS}d+)`} value={formatPKR(t.overdue)} icon={AlertTriangle} iconColor="text-red-700" description={`${t.overdueCount} to chase`} />
-          <MetricCard title="In-Transit Pipeline" value={formatPKR(t.pipeline)} icon={Truck} iconColor="text-purple-600" description={`${t.pipelineCount} COD coming`} />
         </div>
 
         <Card className="bg-muted/30">
