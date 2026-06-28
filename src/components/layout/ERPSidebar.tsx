@@ -515,6 +515,7 @@ const navigationItems: NavItem[] = [
       { title: "Expenses", href: "/online-sales/expenses" },
       { title: "Platform Master", href: "/online-sales/platforms" },
       { title: "Item Master", href: "/online-sales/items" },
+      { title: "Inventory", href: "/online-sales/inventory" },
       { title: "Orders", href: "/online-sales/orders" },
       { title: "Customers", href: "/online-sales/customers" },
       { title: "Live Status", href: "/online-sales/live-status" },

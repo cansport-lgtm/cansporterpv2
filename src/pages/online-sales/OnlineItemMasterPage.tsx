@@ -22,6 +22,7 @@ interface OnlineItem {
   description: string | null;
   price: number | null;
   cost_price: number | null;
+  reorder_level: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -31,7 +32,7 @@ export default function OnlineItemMasterPage() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", code: "", description: "", price: "", cost_price: "", is_active: true });
+  const [form, setForm] = useState({ name: "", code: "", description: "", price: "", cost_price: "", reorder_level: "", is_active: true });
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -44,13 +45,13 @@ export default function OnlineItemMasterPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: "", code: "", description: "", price: "", cost_price: "", is_active: true });
+    setForm({ name: "", code: "", description: "", price: "", cost_price: "", reorder_level: "", is_active: true });
     setIsDialogOpen(true);
   };
 
   const openEdit = (item: OnlineItem) => {
     setEditingId(item.id);
-    setForm({ name: item.name, code: item.code || "", description: item.description || "", price: item.price != null ? String(item.price) : "", cost_price: item.cost_price != null ? String(item.cost_price) : "", is_active: item.is_active });
+    setForm({ name: item.name, code: item.code || "", description: item.description || "", price: item.price != null ? String(item.price) : "", cost_price: item.cost_price != null ? String(item.cost_price) : "", reorder_level: item.reorder_level != null ? String(item.reorder_level) : "", is_active: item.is_active });
     setIsDialogOpen(true);
   };
 
@@ -65,6 +66,7 @@ export default function OnlineItemMasterPage() {
       description: form.description.trim() || null,
       price: form.price.trim() === "" ? 0 : Number(form.price),
       cost_price: form.cost_price.trim() === "" ? 0 : Number(form.cost_price),
+      reorder_level: form.reorder_level.trim() === "" ? 0 : Number(form.reorder_level),
       is_active: form.is_active,
       updated_at: new Date().toISOString(),
     };
@@ -186,6 +188,10 @@ export default function OnlineItemMasterPage() {
                 <Label>Selling Price (Rs.)</Label>
                 <Input type="number" min="0" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" />
               </div>
+            </div>
+            <div>
+              <Label>Reorder Level <span className="text-muted-foreground font-normal">(low-stock alert when on-hand ≤ this)</span></Label>
+              <Input type="number" min="0" step="1" value={form.reorder_level} onChange={e => setForm(p => ({ ...p, reorder_level: e.target.value }))} placeholder="0" />
             </div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>

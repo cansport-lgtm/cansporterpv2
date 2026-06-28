@@ -8546,6 +8546,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           price: number
+          reorder_level: number
           updated_at: string | null
         }
         Insert: {
@@ -8557,6 +8558,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           price?: number
+          reorder_level?: number
           updated_at?: string | null
         }
         Update: {
@@ -8568,6 +8570,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           price?: number
+          reorder_level?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -8941,6 +8944,56 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "online_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      online_stock_movements: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          direction: string
+          id: string
+          item_id: string
+          movement_date: string
+          note: string | null
+          quantity: number
+          reference: string | null
+          type: string
+          unit_cost: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          direction: string
+          id?: string
+          item_id: string
+          movement_date?: string
+          note?: string | null
+          quantity: number
+          reference?: string | null
+          type: string
+          unit_cost?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          direction?: string
+          id?: string
+          item_id?: string
+          movement_date?: string
+          note?: string | null
+          quantity?: number
+          reference?: string | null
+          type?: string
+          unit_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "online_stock_movements_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "online_items"
             referencedColumns: ["id"]
           },
         ]
