@@ -3,7 +3,22 @@
 Single function (`postex`) that brokers all calls to the PostEx COD Merchant API.
 The PostEx token stays server-side; the browser never sees it.
 
-## Go-live checklist (do in order)
+## Current deployment status
+
+DEPLOYED and verified live on project `ojejlhnthhdvgbgpsgvi`:
+- Function `postex` deployed with `--no-verify-jwt` (app is anon-only).
+- Token stored in the private `integration_secrets` table (key `POSTEX_API_TOKEN`),
+  read by the function via the service role. The table has RLS enabled with no
+  policies, so anon/authenticated cannot read it. (Prefer a real Edge Function
+  secret of the same name if/when available — the function checks env first.)
+- Merchant pickup `addressCode` `001` set in `courier_partners.config`.
+- `cities` + `addresses` actions verified returning live PostEx data.
+- Tracking sync scheduled via pg_cron (`postex-track-sync`, every 3 hours).
+
+Still recommended: rotate the token (it was shared in plaintext) and update the
+`integration_secrets` row with the new value.
+
+## Original go-live checklist (for reference / fresh setup)
 
 1. **Rotate the PostEx API token.** The previous token was shared in plaintext —
    ask your PostEx account manager to reissue it before going live.

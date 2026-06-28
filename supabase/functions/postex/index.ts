@@ -44,13 +44,20 @@ function mapStatus(raw: string): string | null {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const token = Deno.env.get("POSTEX_API_TOKEN");
-  if (!token) return json({ error: "POSTEX_API_TOKEN not configured" }, 500);
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // Prefer a real Edge Function secret; fall back to the private
+  // integration_secrets table (anon cannot read it; service role bypasses RLS).
+  let token = Deno.env.get("POSTEX_API_TOKEN");
+  if (!token) {
+    const { data: secret } = await supabase
+      .from("integration_secrets").select("value").eq("key", "POSTEX_API_TOKEN").single();
+    token = secret?.value;
+  }
+  if (!token) return json({ error: "POSTEX_API_TOKEN not configured" }, 500);
 
   // Load the PostEx courier config (base URL + endpoint paths).
   const { data: partner, error: partnerErr } = await supabase
