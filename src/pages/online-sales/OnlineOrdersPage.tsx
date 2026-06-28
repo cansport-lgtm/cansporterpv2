@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShoppingBag, Plus, Search, Download, Upload, Printer, Truck, ScanLine, Weight, FileUp, Trash2 } from "lucide-react";
+import { ShoppingBag, Plus, Search, Download, Upload, Printer, Truck, ScanLine, Weight, FileUp, Trash2, MapPin, RefreshCw } from "lucide-react";
 import { QRScannerDialog } from "@/components/fixed-assets/QRScannerDialog";
+import { OrderTrackingDialog } from "@/components/online-sales/OrderTrackingDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -167,6 +168,18 @@ export default function OnlineOrdersPage() {
   };
 
   const [postexBusy, setPostexBusy] = useState(false);
+  const [trackOrder, setTrackOrder] = useState<any>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  // Re-pull live status for a single order from PostEx.
+  const refreshOrder = async (id: string) => {
+    setRefreshingId(id);
+    const { data, error } = await supabase.functions.invoke("postex", { body: { action: "track", orderId: id } });
+    setRefreshingId(null);
+    if (error || (data as any)?.error) { toast.error(`Refresh failed: ${(data as any)?.error || error?.message}`); return; }
+    toast.success("Status refreshed");
+    fetchOrders();
+  };
 
   // Book a parcel on PostEx via the server-side Edge Function (token stays server-side).
   const bookOnPostex = async (id: string) => {
@@ -912,6 +925,16 @@ export default function OnlineOrdersPage() {
                               <Truck className="h-3.5 w-3.5" /> Book
                             </Button>
                           )}
+                          {o._tracking && (
+                            <>
+                              <Button size="sm" variant="ghost" className="h-8 px-2 gap-1" onClick={() => setTrackOrder({ id: o.id, order_number: o.order_number, customer_name: o.customer_name, tracking_number: o._tracking || o.tracking_number })} title="Live tracking timeline">
+                                <MapPin className="h-3.5 w-3.5" /> Track
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => refreshOrder(o.id)} disabled={refreshingId === o.id} title="Refresh status from PostEx">
+                                <RefreshCw className={`h-3.5 w-3.5 ${refreshingId === o.id ? "animate-spin" : ""}`} />
+                              </Button>
+                            </>
+                          )}
                           {transitions.length > 0 && (
                             <Select onValueChange={(v) => updateStatus(o.id, v)}>
                               <SelectTrigger className="h-8 w-[140px] text-xs">
@@ -1118,6 +1141,9 @@ export default function OnlineOrdersPage() {
         onAssetScanned={handleWeightQRScanned}
         scannedCodes={scannedCodes}
       />
+
+      {/* Live tracking timeline */}
+      <OrderTrackingDialog order={trackOrder} open={!!trackOrder} onOpenChange={v => !v && setTrackOrder(null)} />
     </ERPLayout>
   );
 }
