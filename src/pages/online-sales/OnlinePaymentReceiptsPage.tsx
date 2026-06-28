@@ -29,10 +29,14 @@ interface Stmt {
 
 const norm = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
 const numOf = (v: any) => { const n = parseFloat(String(v ?? "").replace(/[(),\s]/g, "")); return isNaN(n) ? 0 : n; };
+const ninetyAgo = () => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); };
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 export default function OnlinePaymentReceiptsPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
+  const [from, setFrom] = useState(ninetyAgo());
+  const [to, setTo] = useState(todayStr());
   const [acks, setAcks] = useState<Record<string, any>>({});
   const [rates, setRates] = useState({ gst: 15, whInc: 2, whSales: 2 });
   const [loading, setLoading] = useState(true);
@@ -92,14 +96,22 @@ export default function OnlinePaymentReceiptsPage() {
     }).sort((a, b) => (b.settled_date || "").localeCompare(a.settled_date || ""));
   }, [orders, acks, rates]);
 
-  const pending = receipts.filter(r => !r.acknowledged);
-  const acknowledged = receipts.filter(r => r.acknowledged);
+  // Filter by CPR / settlement date. Receipts with no date are always kept so
+  // they aren't silently hidden.
+  const filteredReceipts = useMemo(() => receipts.filter(r => {
+    if (!r.settled_date) return true;
+    const d = r.settled_date.slice(0, 10);
+    return d >= from && d <= to;
+  }), [receipts, from, to]);
+
+  const pending = filteredReceipts.filter(r => !r.acknowledged);
+  const acknowledged = filteredReceipts.filter(r => r.acknowledged);
   const expectedOf = (r: Stmt) => r.officialNet ?? r.net;
   const totals = useMemo(() => ({
-    net: receipts.reduce((s, r) => s + expectedOf(r), 0),
+    net: filteredReceipts.reduce((s, r) => s + expectedOf(r), 0),
     ack: acknowledged.reduce((s, r) => s + (r.received_amount ?? expectedOf(r)), 0),
     pend: pending.reduce((s, r) => s + expectedOf(r), 0),
-  }), [receipts, pending, acknowledged]);
+  }), [filteredReceipts, pending, acknowledged]);
 
   const openAck = (r: Stmt) => {
     setAckTarget(r);
@@ -286,8 +298,17 @@ export default function OnlinePaymentReceiptsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="p-4 flex flex-wrap items-end gap-3">
+            <div><Label>From</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-44" /></div>
+            <div><Label>To</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-44" /></div>
+            <Button variant="outline" onClick={() => { setFrom(ninetyAgo()); setTo(todayStr()); }}>Reset</Button>
+            <span className="text-xs text-muted-foreground">Filters by CPR / settlement date</span>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard title="Receipts" value={receipts.length} icon={FileText} iconColor="text-slate-600" />
+          <MetricCard title="Receipts" value={filteredReceipts.length} icon={FileText} iconColor="text-slate-600" />
           <MetricCard title="Net Payable" value={formatPKR(totals.net)} icon={Banknote} iconColor="text-blue-600" description="official where imported" />
           <MetricCard title="Acknowledged" value={formatPKR(totals.ack)} icon={CheckCircle2} iconColor="text-emerald-600" description={`${acknowledged.length} receipts`} />
           <MetricCard title="Pending" value={formatPKR(totals.pend)} icon={Clock} iconColor="text-amber-600" description={`${pending.length} receipts`} />
@@ -297,11 +318,11 @@ export default function OnlinePaymentReceiptsPage() {
           <TabsList>
             <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
             <TabsTrigger value="acknowledged">Acknowledged ({acknowledged.length})</TabsTrigger>
-            <TabsTrigger value="all">All ({receipts.length})</TabsTrigger>
+            <TabsTrigger value="all">All ({filteredReceipts.length})</TabsTrigger>
           </TabsList>
           <TabsContent value="pending">{renderTable(pending)}</TabsContent>
           <TabsContent value="acknowledged">{renderTable(acknowledged)}</TabsContent>
-          <TabsContent value="all">{renderTable(receipts)}</TabsContent>
+          <TabsContent value="all">{renderTable(filteredReceipts)}</TabsContent>
         </Tabs>
       </div>
 
