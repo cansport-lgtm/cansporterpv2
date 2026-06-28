@@ -350,6 +350,7 @@ import OnlineLiveStatusPage from "./pages/online-sales/OnlineLiveStatusPage";
 import OnlineReturnReconciliationPage from "./pages/online-sales/OnlineReturnReconciliationPage";
 import OnlineMoneyPage from "./pages/online-sales/OnlineMoneyPage";
 import OnlineMarketingPage from "./pages/online-sales/OnlineMarketingPage";
+import OnlinePaymentReceiptsPage from "./pages/online-sales/OnlinePaymentReceiptsPage";
 // Planning v1 additions
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
@@ -717,6 +718,7 @@ const App = () => (
             <Route path="/online-sales/return-reconciliation" element={<ProtectedRoute><OnlineReturnReconciliationPage /></ProtectedRoute>} />
             <Route path="/online-sales/money" element={<ProtectedRoute><OnlineMoneyPage /></ProtectedRoute>} />
             <Route path="/online-sales/marketing" element={<ProtectedRoute><OnlineMarketingPage /></ProtectedRoute>} />
+            <Route path="/online-sales/payment-receipts" element={<ProtectedRoute><OnlinePaymentReceiptsPage /></ProtectedRoute>} />
             
             <Route path="/online-sales/analysis" element={<ProtectedRoute><OnlineSalesAnalysisPage /></ProtectedRoute>} />
             <Route path="/online-sales/pnl" element={<ProtectedRoute><OnlinePnLPage /></ProtectedRoute>} />
