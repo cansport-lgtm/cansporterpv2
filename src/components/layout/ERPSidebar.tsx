@@ -511,7 +511,8 @@ const navigationItems: NavItem[] = [
       { title: "Platform Master", href: "/online-sales/platforms" },
       { title: "Item Master", href: "/online-sales/items" },
       { title: "Orders", href: "/online-sales/orders" },
-      
+      { title: "Live Status", href: "/online-sales/live-status" },
+
       { title: "Returns", href: "/online-sales/returns" },
       { title: "Returns & Reconciliation", href: "/online-sales/returns-analytics" },
       
