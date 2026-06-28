@@ -22,7 +22,8 @@ interface OrderRow {
 }
 interface ReturnRow { order_id: string; return_reason: string | null; refund_amount: number | null; received_back: boolean | null }
 
-function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); }
+// Default range starts 90 days back so historical data is visible on load.
+function firstOfMonth() { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); }
 function today() { return new Date().toISOString().slice(0, 10); }
 const daysBetween = (a: Date, b: Date) => Math.floor((b.getTime() - a.getTime()) / 86400000);
 
