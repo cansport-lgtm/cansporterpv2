@@ -5,9 +5,10 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingBag, Truck, RotateCcw, FileText, IndianRupee, CheckCircle } from "lucide-react";
+import { ShoppingBag, Truck, RotateCcw, FileText, Wallet, CheckCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { formatPKR } from "@/lib/currency";
 
 const PLATFORM_COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444"];
 const STATUS_COLORS: Record<string, string> = {
@@ -22,8 +23,6 @@ const STATUS_COLORS: Record<string, string> = {
 export default function OnlineSalesDashboard() {
   const [period, setPeriod] = useState("month");
   const [orders, setOrders] = useState<any[]>([]);
-  const [dispatches, setDispatches] = useState<any[]>([]);
-  const [returns, setReturns] = useState<any[]>([]);
   const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,23 +42,21 @@ export default function OnlineSalesDashboard() {
     const fromStr = format(from, "yyyy-MM-dd");
     const toStr = format(to, "yyyy-MM-dd");
 
-    const [ordersRes, dispatchesRes, returnsRes] = await Promise.all([
-      supabase.from("online_orders").select("*").gte("order_date", fromStr).lte("order_date", toStr),
-      supabase.from("online_dispatches").select("*").gte("dispatch_date", fromStr).lte("dispatch_date", toStr),
-      supabase.from("online_returns").select("*").gte("return_date", fromStr).lte("return_date", toStr),
-    ]);
+    const { data: ordersData } = await supabase.from("online_orders").select("*").gte("order_date", fromStr).lte("order_date", toStr);
 
-    setOrders(ordersRes.data || []);
-    setDispatches(dispatchesRes.data || []);
-    setReturns(returnsRes.data || []);
+    setOrders(ordersData || []);
     setLoading(false);
   };
 
   const totalOrders = orders.length;
   const totalValue = orders.reduce((s, o) => s + (o.order_value || 0), 0);
   const confirmedOrders = orders.filter(o => o.status === "confirmed" || o.status === "dispatched" || o.status === "delivered").length;
-  const totalDispatches = dispatches.length;
-  const totalReturns = returns.length;
+  // Dispatched is derived from order status, not the (unused) online_dispatches
+  // table, which previously made this metric always read ~0.
+  const dispatchedStatuses = ["sent_to_courier", "dispatched", "delivered", "return_awaited", "returned"];
+  const totalDispatches = orders.filter(o => dispatchedStatuses.includes(o.status)).length;
+  // Cohort-correct: returns measured against the orders in this period.
+  const totalReturns = orders.filter(o => o.status === "returned" || o.status === "return_awaited").length;
   const returnRate = totalOrders > 0 ? ((totalReturns / totalOrders) * 100).toFixed(1) : "0";
   const codOrders = orders.filter(o => o.payment_mode === "cod").length;
   const prepaidOrders = orders.filter(o => o.payment_mode === "prepaid").length;
@@ -113,7 +110,7 @@ export default function OnlineSalesDashboard() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <MetricCard title="Total Orders" value={totalOrders} icon={ShoppingBag} />
-          <MetricCard title="Order Value" value={`₹${totalValue.toLocaleString()}`} icon={IndianRupee} />
+          <MetricCard title="Order Value" value={formatPKR(totalValue)} icon={Wallet} />
           <MetricCard title="Confirmed" value={confirmedOrders} icon={CheckCircle} />
           <MetricCard title="Dispatched" value={totalDispatches} icon={Truck} />
           <MetricCard title="Returns" value={totalReturns} icon={RotateCcw} />

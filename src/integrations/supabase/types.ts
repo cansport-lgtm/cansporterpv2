@@ -1268,6 +1268,39 @@ export type Database = {
           },
         ]
       }
+      courier_partners: {
+        Row: {
+          api_base_url: string | null
+          code: string
+          config: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_base_url?: string | null
+          code: string
+          config?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_base_url?: string | null
+          code?: string
+          config?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       crm_activities: {
         Row: {
           activity_type: string
@@ -8321,6 +8354,7 @@ export type Database = {
       online_items: {
         Row: {
           code: string | null
+          cost_price: number
           created_at: string | null
           description: string | null
           id: string
@@ -8331,6 +8365,7 @@ export type Database = {
         }
         Insert: {
           code?: string | null
+          cost_price?: number
           created_at?: string | null
           description?: string | null
           id?: string
@@ -8341,6 +8376,7 @@ export type Database = {
         }
         Update: {
           code?: string | null
+          cost_price?: number
           created_at?: string | null
           description?: string | null
           id?: string
@@ -8443,10 +8479,13 @@ export type Database = {
       online_orders: {
         Row: {
           actual_weight: number | null
+          booked_at: string | null
           booking_weight: number | null
           city: string | null
           confirmed_at: string | null
           confirmed_by: string | null
+          courier_order_status: string | null
+          courier_partner_id: string | null
           courier_weight: number | null
           created_at: string | null
           customer_email: string | null
@@ -8458,6 +8497,8 @@ export type Database = {
           id: string
           item_id: string | null
           item_name: string | null
+          label_url: string | null
+          last_tracked_at: string | null
           net_amount: number | null
           order_date: string
           order_number: string
@@ -8482,10 +8523,13 @@ export type Database = {
         }
         Insert: {
           actual_weight?: number | null
+          booked_at?: string | null
           booking_weight?: number | null
           city?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
+          courier_order_status?: string | null
+          courier_partner_id?: string | null
           courier_weight?: number | null
           created_at?: string | null
           customer_email?: string | null
@@ -8497,6 +8541,8 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name?: string | null
+          label_url?: string | null
+          last_tracked_at?: string | null
           net_amount?: number | null
           order_date?: string
           order_number: string
@@ -8521,10 +8567,13 @@ export type Database = {
         }
         Update: {
           actual_weight?: number | null
+          booked_at?: string | null
           booking_weight?: number | null
           city?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
+          courier_order_status?: string | null
+          courier_partner_id?: string | null
           courier_weight?: number | null
           created_at?: string | null
           customer_email?: string | null
@@ -8536,6 +8585,8 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name?: string | null
+          label_url?: string | null
+          last_tracked_at?: string | null
           net_amount?: number | null
           order_date?: string
           order_number?: string
@@ -8567,6 +8618,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "online_orders_courier_partner_id_fkey"
+            columns: ["courier_partner_id"]
+            isOneToOne: false
+            referencedRelation: "courier_partners"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "online_orders_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
@@ -8578,6 +8636,7 @@ export type Database = {
       online_platforms: {
         Row: {
           code: string
+          commission_pct: number
           created_at: string | null
           id: string
           is_active: boolean | null
@@ -8586,6 +8645,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          commission_pct?: number
           created_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -8594,6 +8654,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          commission_pct?: number
           created_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -8668,6 +8729,47 @@ export type Database = {
           },
           {
             foreignKeyName: "online_returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "online_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      online_tracking_events: {
+        Row: {
+          created_at: string | null
+          event_time: string | null
+          id: string
+          order_id: string | null
+          raw: Json | null
+          status: string | null
+          status_message: string | null
+          tracking_number: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_time?: string | null
+          id?: string
+          order_id?: string | null
+          raw?: Json | null
+          status?: string | null
+          status_message?: string | null
+          tracking_number?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_time?: string | null
+          id?: string
+          order_id?: string | null
+          raw?: Json | null
+          status?: string | null
+          status_message?: string | null
+          tracking_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "online_tracking_events_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "online_orders"
@@ -14741,6 +14843,8 @@ export type Database = {
           unpriced_rm_count: number
         }[]
       }
+      backup_list_tables: { Args: never; Returns: string[] }
+      backup_schema_sql: { Args: never; Returns: string }
       create_app_user: {
         Args: {
           p_department_id?: string

@@ -18,6 +18,7 @@ interface Platform {
   id: string;
   name: string;
   code: string;
+  commission_pct: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -27,7 +28,7 @@ export default function OnlinePlatformMasterPage() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", code: "", is_active: true });
+  const [form, setForm] = useState({ name: "", code: "", commission_pct: "", is_active: true });
 
   useEffect(() => { fetchPlatforms(); }, []);
 
@@ -40,13 +41,13 @@ export default function OnlinePlatformMasterPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: "", code: "", is_active: true });
+    setForm({ name: "", code: "", commission_pct: "", is_active: true });
     setIsDialogOpen(true);
   };
 
   const openEdit = (p: Platform) => {
     setEditingId(p.id);
-    setForm({ name: p.name, code: p.code, is_active: p.is_active });
+    setForm({ name: p.name, code: p.code, commission_pct: p.commission_pct != null ? String(p.commission_pct) : "", is_active: p.is_active });
     setIsDialogOpen(true);
   };
 
@@ -56,11 +57,11 @@ export default function OnlinePlatformMasterPage() {
       return;
     }
     if (editingId) {
-      const { error } = await supabase.from("online_platforms").update({ name: form.name.trim(), code: form.code.trim().toUpperCase(), is_active: form.is_active, updated_at: new Date().toISOString() }).eq("id", editingId);
+      const { error } = await supabase.from("online_platforms").update({ name: form.name.trim(), code: form.code.trim().toUpperCase(), commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active, updated_at: new Date().toISOString() }).eq("id", editingId);
       if (error) { toast.error(error.message); return; }
       toast.success("Platform updated");
     } else {
-      const { error } = await supabase.from("online_platforms").insert({ name: form.name.trim(), code: form.code.trim().toUpperCase(), is_active: form.is_active });
+      const { error } = await supabase.from("online_platforms").insert({ name: form.name.trim(), code: form.code.trim().toUpperCase(), commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active });
       if (error) { toast.error(error.message); return; }
       toast.success("Platform created");
     }
@@ -87,19 +88,21 @@ export default function OnlinePlatformMasterPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
+                  <TableHead className="text-right">Commission %</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                 ) : platforms.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No platforms found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No platforms found</TableCell></TableRow>
                 ) : platforms.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{p.code}</TableCell>
+                    <TableCell className="text-right">{p.commission_pct != null ? `${Number(p.commission_pct)}%` : "-"}</TableCell>
                     <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -140,6 +143,10 @@ export default function OnlinePlatformMasterPage() {
             <div>
               <Label>Code *</Label>
               <Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. AMZ" className="uppercase" />
+            </div>
+            <div>
+              <Label>Commission % (deducted in P&L)</Label>
+              <Input type="number" min="0" max="100" step="0.01" value={form.commission_pct} onChange={e => setForm(p => ({ ...p, commission_pct: e.target.value }))} placeholder="e.g. 5" />
             </div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>
