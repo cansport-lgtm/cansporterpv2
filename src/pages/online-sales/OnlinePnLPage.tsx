@@ -105,58 +105,64 @@ export default function OnlinePnLPage() {
       cogsByOrder.set(li.order_id, cur);
     });
 
-    const t = { revenue: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0, unmappedCogs: 0 };
-    type Agg = { platform: string; revenue: number; refunds: number; cogs: number; commission: number; shipping: number; taxes: number; orders: number };
+    const t = { revenue: 0, returned: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0, returnedOrders: 0, unmappedCogs: 0 };
+    type Agg = { platform: string; revenue: number; returned: number; refunds: number; cogs: number; commission: number; shipping: number; taxes: number; orders: number };
     const plat = new Map<string, Agg>();
 
     orders.forEach(o => {
       if (o.status === "cancelled") return; // cancelled orders are not revenue
       const platform = o.platform || "(none)";
       const qty = Number(o.quantity || 0);
+      const isReturn = o.status === "returned" || o.status === "return_awaited";
 
       const revenue = Number(o.order_value || 0);
       const refund = refundByOrder.get(o.id) || 0;
 
-      // Prefer line-item COGS; fall back to the order's single item_id/item_name.
-      const line = cogsByOrder.get(o.id);
-      let cogs = 0, costed = false;
-      if (line && line.lines > 0) {
-        cogs = line.cogs; costed = line.costed;
-      } else {
-        let item = o.item_id ? itemById.get(o.item_id) : undefined;
-        if (!item && o.item_name) item = itemByName.get(o.item_name.trim().toLowerCase());
-        const cost = Number(item?.cost_price || 0);
-        cogs = cost * qty; costed = !!item && cost > 0;
+      // Returned parcels are not a sale: the goods come back, so no COGS and no
+      // commission; their value is deducted from gross to get net sales.
+      let cogs = 0, costed = true;
+      if (!isReturn) {
+        const line = cogsByOrder.get(o.id);
+        if (line && line.lines > 0) { cogs = line.cogs; costed = line.costed; }
+        else {
+          let item = o.item_id ? itemById.get(o.item_id) : undefined;
+          if (!item && o.item_name) item = itemByName.get(o.item_name.trim().toLowerCase());
+          const cost = Number(item?.cost_price || 0);
+          cogs = cost * qty; costed = !!item && cost > 0;
+        }
       }
-
-      const commission = revenue * (commissionByPlatform.get(platform) || 0) / 100;
-      const shipping = Number(o.shipping_charges || 0);
+      const commission = isReturn ? 0 : revenue * (commissionByPlatform.get(platform) || 0) / 100;
+      const shipping = Number(o.shipping_charges || 0);   // real cost even on returns
       const taxes = Number(o.gst || 0) + Number(o.wh_income_tax || 0) + Number(o.wh_sales_tax || 0);
 
       t.revenue += revenue; t.refunds += refund; t.cogs += cogs;
       t.commission += commission; t.shipping += shipping; t.taxes += taxes; t.orders += 1;
-      if (!costed) t.unmappedCogs += 1;
+      if (isReturn) { t.returned += revenue; t.returnedOrders += 1; }
+      if (!isReturn && !costed) t.unmappedCogs += 1;
 
-      const cur = plat.get(platform) || { platform, revenue: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0 };
+      const cur = plat.get(platform) || { platform, revenue: 0, returned: 0, refunds: 0, cogs: 0, commission: 0, shipping: 0, taxes: 0, orders: 0 };
       cur.revenue += revenue; cur.refunds += refund; cur.cogs += cogs;
       cur.commission += commission; cur.shipping += shipping; cur.taxes += taxes; cur.orders += 1;
+      if (isReturn) cur.returned += revenue;
       plat.set(platform, cur);
     });
 
     const byPlatform = Array.from(plat.values())
-      .map(p => ({ ...p, profit: p.revenue - p.refunds - p.cogs - p.commission - p.shipping - p.taxes }))
+      .map(p => ({ ...p, profit: p.revenue - p.returned - p.refunds - p.cogs - p.commission - p.shipping - p.taxes }))
       .sort((a, b) => b.profit - a.profit);
 
     return { totals: t, byPlatform };
   }, [orders, items, platforms, returns, lineItems]);
 
-  const netRevenue = totals.revenue - totals.refunds;
-  const netProfit = netRevenue - totals.cogs - totals.commission - totals.shipping - totals.taxes - adSpend;
-  const margin = totals.revenue > 0 ? (netProfit / totals.revenue) * 100 : 0;
+  const netSales = totals.revenue - totals.returned - totals.refunds;
+  const netProfit = netSales - totals.cogs - totals.commission - totals.shipping - totals.taxes - adSpend;
+  const margin = netSales > 0 ? (netProfit / netSales) * 100 : 0;
 
-  const waterfall: { label: string; value: number; sign: 1 | -1; icon: any }[] = [
-    { label: "Gross Revenue", value: totals.revenue, sign: 1, icon: Wallet },
-    { label: "Less: Returns / Refunds", value: totals.refunds, sign: -1, icon: ReceiptText },
+  const waterfall: { label: string; value: number; sign: 1 | -1; icon: any; bold?: boolean }[] = [
+    { label: "Gross Sales", value: totals.revenue, sign: 1, icon: Wallet },
+    { label: "Less: Returned Parcels", value: totals.returned, sign: -1, icon: ReceiptText },
+    { label: "Less: Refunds", value: totals.refunds, sign: -1, icon: ReceiptText },
+    { label: "Net Sales", value: netSales, sign: 1, icon: Wallet, bold: true },
     { label: "Less: COGS", value: totals.cogs, sign: -1, icon: Package },
     { label: "Less: Platform Commission", value: totals.commission, sign: -1, icon: Percent },
     { label: "Less: Shipping", value: totals.shipping, sign: -1, icon: Truck },
@@ -165,9 +171,9 @@ export default function OnlinePnLPage() {
   ];
 
   const exportCSV = () => {
-    const header = ["Platform", "Orders", "Revenue", "Refunds", "COGS", "Commission", "Shipping", "Taxes", "Net Profit"];
-    const rows = byPlatform.map(p => [p.platform, p.orders, p.revenue, p.refunds, p.cogs, p.commission, p.shipping, p.taxes, p.profit]);
-    rows.push(["TOTAL", totals.orders, totals.revenue, totals.refunds, totals.cogs, totals.commission, totals.shipping, totals.taxes, netProfit]);
+    const header = ["Platform", "Orders", "Gross Sales", "Returned", "Refunds", "Net Sales", "COGS", "Commission", "Shipping", "Taxes", "Net Profit"];
+    const rows = byPlatform.map(p => [p.platform, p.orders, p.revenue, p.returned, p.refunds, p.revenue - p.returned - p.refunds, p.cogs, p.commission, p.shipping, p.taxes, p.profit]);
+    rows.push(["TOTAL", totals.orders, totals.revenue, totals.returned, totals.refunds, netSales, totals.cogs, totals.commission, totals.shipping, totals.taxes, netProfit]);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -191,7 +197,7 @@ export default function OnlinePnLPage() {
         </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Net Revenue" value={formatPKR(netRevenue)} icon={Wallet} iconColor="text-blue-600" description={`Gross ${formatPKR(totals.revenue)}`} />
+          <MetricCard title="Net Sales" value={formatPKR(netSales)} icon={Wallet} iconColor="text-blue-600" description={`Gross ${formatPKR(totals.revenue)} − ${formatPKR(totals.returned + totals.refunds)} returns`} />
           <MetricCard title="Total Costs" value={formatPKR(totals.cogs + totals.commission + totals.shipping + totals.taxes + adSpend)} icon={ReceiptText} iconColor="text-amber-600" description="COGS + commission + shipping + tax + ads" />
           <MetricCard title="Net Profit" value={formatPKR(netProfit)} icon={TrendingUp} iconColor={netProfit >= 0 ? "text-emerald-600" : "text-destructive"} description={`${totals.orders} orders`} />
           <MetricCard title="Net Margin" value={`${margin.toFixed(1)}%`} icon={Percent} iconColor={margin >= 0 ? "text-emerald-600" : "text-destructive"} />
@@ -212,9 +218,9 @@ export default function OnlinePnLPage() {
               <Table>
                 <TableBody>
                   {waterfall.map((w, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="flex items-center gap-2"><w.icon className="h-4 w-4 text-muted-foreground" />{w.label}</TableCell>
-                      <TableCell className={`text-right font-medium ${w.sign < 0 ? "text-red-600" : ""}`}>
+                    <TableRow key={i} className={w.bold ? "border-t bg-muted/40" : ""}>
+                      <TableCell className={`flex items-center gap-2 ${w.bold ? "font-semibold" : ""}`}><w.icon className="h-4 w-4 text-muted-foreground" />{w.label}</TableCell>
+                      <TableCell className={`text-right ${w.bold ? "font-bold" : "font-medium"} ${w.sign < 0 ? "text-red-600" : ""}`}>
                         {w.sign < 0 ? "-" : ""}{formatPKR(w.value)}
                       </TableCell>
                     </TableRow>
@@ -236,7 +242,7 @@ export default function OnlinePnLPage() {
                   <TableRow>
                     <TableHead>Platform</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
-                    <TableHead className="text-right">Net Revenue</TableHead>
+                    <TableHead className="text-right">Net Sales</TableHead>
                     <TableHead className="text-right">Net Profit</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -249,7 +255,7 @@ export default function OnlinePnLPage() {
                     <TableRow key={i}>
                       <TableCell className="font-medium">{p.platform}</TableCell>
                       <TableCell className="text-right">{p.orders}</TableCell>
-                      <TableCell className="text-right">{formatPKR(p.revenue - p.refunds)}</TableCell>
+                      <TableCell className="text-right">{formatPKR(p.revenue - p.returned - p.refunds)}</TableCell>
                       <TableCell className={`text-right font-semibold ${p.profit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{formatPKR(p.profit)}</TableCell>
                     </TableRow>
                   ))}
@@ -259,7 +265,7 @@ export default function OnlinePnLPage() {
                     <TableRow>
                       <TableCell className="font-bold">Total</TableCell>
                       <TableCell className="text-right font-bold">{totals.orders}</TableCell>
-                      <TableCell className="text-right font-bold">{formatPKR(netRevenue)}</TableCell>
+                      <TableCell className="text-right font-bold">{formatPKR(netSales)}</TableCell>
                       <TableCell className={`text-right font-bold ${netProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{formatPKR(netProfit)}</TableCell>
                     </TableRow>
                   </TableFooter>
