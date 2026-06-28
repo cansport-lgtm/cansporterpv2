@@ -514,7 +514,8 @@ const navigationItems: NavItem[] = [
       { title: "Live Status", href: "/online-sales/live-status" },
 
       { title: "Returns", href: "/online-sales/returns" },
-      { title: "Returns & Reconciliation", href: "/online-sales/returns-analytics" },
+      { title: "Return Reconciliation", href: "/online-sales/return-reconciliation" },
+      { title: "Returns Analytics", href: "/online-sales/returns-analytics" },
       
     ],
   },
