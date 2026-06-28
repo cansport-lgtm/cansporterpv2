@@ -8427,6 +8427,42 @@ export type Database = {
           },
         ]
       }
+      online_customers: {
+        Row: {
+          city: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_blacklisted: boolean
+          name: string | null
+          phone: string
+          risk_note: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_blacklisted?: boolean
+          name?: string | null
+          phone: string
+          risk_note?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_blacklisted?: boolean
+          name?: string | null
+          phone?: string
+          risk_note?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       online_dispatches: {
         Row: {
           awb_number: string | null
