@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
       const { data: orders } = await supabase.from("online_orders")
         .select("id, tracking_number, settled")
         .not("tracking_number", "is", null).neq("tracking_number", "")
-        .eq("status", "delivered").not("settled", "is", true);
+        .in("status", ["delivered", "returned"]).not("settled", "is", true);
       if (!orders || orders.length === 0) return json({ ok: true, checked: 0, settled: 0 });
 
       let checked = 0, settledCount = 0;
