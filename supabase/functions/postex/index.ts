@@ -1,21 +1,20 @@
 // PostEx courier integration — single Edge Function with multiple actions.
 //
 // Why server-side: the app's frontend ships a public Supabase key, so the PostEx
-// API token must never live in the browser. This function holds the token
-// (POSTEX_API_TOKEN secret) and is the only thing that talks to PostEx. It uses
-// the service-role key to read/write the online_* tables (bypassing RLS).
+// API token must never live in the browser. This function holds the token and is
+// the only thing that talks to PostEx. It uses the service-role key to read/write
+// the online_* tables (bypassing RLS).
 //
 // Actions (POST JSON { action, ... }):
-//   book      { orderId }            -> create the shipment on PostEx, save tracking #
-//   track     { orderId? }           -> sync status for one order, or all in-transit orders
-//   cancel    { orderId }            -> cancel a booked shipment
-//   cities                           -> list PostEx operational cities (for dropdowns)
-//   orderTypes                       -> list PostEx order types
-//   addresses                        -> list merchant pickup addresses
+//   book   { orderId }        -> create the shipment on PostEx, save tracking #
+//   track  { orderId? | all? }-> sync one order, all non-terminal orders, or (all:true) every AWB
+//   cancel { orderId }        -> cancel a booked shipment
+//   cities                    -> list PostEx operational cities (for dropdowns)
+//   orderTypes                -> list PostEx order types
+//   addresses                 -> list merchant pickup addresses
 //
-// NOTE: verify_jwt is disabled for this function because the app has no Supabase
-// Auth (anon-only). The security win here is that the PostEx token stays
-// server-side. Real per-caller auth requires the app-wide auth migration.
+// NOTE: verify_jwt is disabled because the app has no Supabase Auth (anon-only).
+// The security win is that the PostEx token stays server-side.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -177,15 +176,14 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
-    // --- track (one order, or all in-transit) --------------------------------
+    // --- track (one order, all non-terminal, or every AWB with all:true) -----
     if (action === "track") {
-      const { orderId } = body;
+      const { orderId, all } = body;
       let q = supabase.from("online_orders")
         .select("id, tracking_number, status")
-        .not("tracking_number", "is", null);
-      q = orderId
-        ? q.eq("id", orderId)
-        : q.in("status", ["sent_to_courier", "dispatched", "return_awaited"]);
+        .not("tracking_number", "is", null).neq("tracking_number", "");
+      if (orderId) q = q.eq("id", orderId);
+      else if (!all) q = q.not("status", "in", "(delivered,returned,cancelled)"); // skip terminal
       const { data: orders } = await q;
       if (!orders || orders.length === 0) return json({ ok: true, tracked: 0 });
 
