@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Download, Wallet, Package, Percent, Truck, ReceiptText } from "lucide-react";
+import { TrendingUp, Download, Wallet, Package, Percent, Truck, ReceiptText, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 import { formatPKR } from "@/lib/currency";
 
@@ -36,6 +36,7 @@ export default function OnlinePnLPage() {
   const [platforms, setPlatforms] = useState<PlatformRow[]>([]);
   const [returns, setReturns] = useState<ReturnRow[]>([]);
   const [lineItems, setLineItems] = useState<{ order_id: string; item_id: string | null; quantity: number | null }[]>([]);
+  const [adSpend, setAdSpend] = useState(0);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -67,6 +68,10 @@ export default function OnlinePnLPage() {
         if (liErr) throw liErr;
         lineRows = (liData as any[]) || [];
       }
+      const { data: msData } = await supabase.from("marketing_spend")
+        .select("amount").gte("spend_date", from).lte("spend_date", to);
+      setAdSpend((msData || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0));
+
       setOrders(orderRows);
       setItems((iRes.data as ItemRow[]) || []);
       setPlatforms((pRes.data as PlatformRow[]) || []);
@@ -146,7 +151,7 @@ export default function OnlinePnLPage() {
   }, [orders, items, platforms, returns, lineItems]);
 
   const netRevenue = totals.revenue - totals.refunds;
-  const netProfit = netRevenue - totals.cogs - totals.commission - totals.shipping - totals.taxes;
+  const netProfit = netRevenue - totals.cogs - totals.commission - totals.shipping - totals.taxes - adSpend;
   const margin = totals.revenue > 0 ? (netProfit / totals.revenue) * 100 : 0;
 
   const waterfall: { label: string; value: number; sign: 1 | -1; icon: any }[] = [
@@ -156,6 +161,7 @@ export default function OnlinePnLPage() {
     { label: "Less: Platform Commission", value: totals.commission, sign: -1, icon: Percent },
     { label: "Less: Shipping", value: totals.shipping, sign: -1, icon: Truck },
     { label: "Less: Taxes (GST + WHT)", value: totals.taxes, sign: -1, icon: ReceiptText },
+    { label: "Less: Marketing / Ad Spend", value: adSpend, sign: -1, icon: Megaphone },
   ];
 
   const exportCSV = () => {
@@ -186,7 +192,7 @@ export default function OnlinePnLPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard title="Net Revenue" value={formatPKR(netRevenue)} icon={Wallet} iconColor="text-blue-600" description={`Gross ${formatPKR(totals.revenue)}`} />
-          <MetricCard title="Total Costs" value={formatPKR(totals.cogs + totals.commission + totals.shipping + totals.taxes)} icon={ReceiptText} iconColor="text-amber-600" description="COGS + commission + shipping + tax" />
+          <MetricCard title="Total Costs" value={formatPKR(totals.cogs + totals.commission + totals.shipping + totals.taxes + adSpend)} icon={ReceiptText} iconColor="text-amber-600" description="COGS + commission + shipping + tax + ads" />
           <MetricCard title="Net Profit" value={formatPKR(netProfit)} icon={TrendingUp} iconColor={netProfit >= 0 ? "text-emerald-600" : "text-destructive"} description={`${totals.orders} orders`} />
           <MetricCard title="Net Margin" value={`${margin.toFixed(1)}%`} icon={Percent} iconColor={margin >= 0 ? "text-emerald-600" : "text-destructive"} />
         </div>
