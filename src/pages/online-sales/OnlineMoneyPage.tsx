@@ -38,7 +38,19 @@ export default function OnlineMoneyPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // On open: show last-known figures immediately, then refresh settlement live
+  // in the background so "Owed to us" reflects PostEx's latest payouts.
+  useEffect(() => {
+    (async () => {
+      await fetchData();
+      setSyncing(true);
+      try {
+        await supabase.functions.invoke("postex", { body: { action: "settlement" } });
+        await fetchData();
+      } catch { /* keep last-known figures */ }
+      setSyncing(false);
+    })();
+  }, []);
 
   const syncSettlement = async () => {
     setSyncing(true);
@@ -126,7 +138,7 @@ export default function OnlineMoneyPage() {
             <Clock className="h-3.5 w-3.5" />
             Figures are pulled per parcel from PostEx: COD amount &amp; courier fees from tracking, and settled status / date / payment reference from PostEx's payment endpoint.
             {lastSync && <span>· Last synced {format(new Date(lastSync), "dd MMM yyyy HH:mm")}</span>}
-            <span>· Use “Sync Settlement” to refresh payouts.</span>
+            <span>· {syncing ? "Refreshing settlement live…" : "Settlement auto-refreshes on open (unpaid parcels re-checked against PostEx)."}</span>
           </CardContent>
         </Card>
 
