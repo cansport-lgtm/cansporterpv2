@@ -950,6 +950,7 @@ export default function DomesticDispatchPage() {
                                             <Input
                                               type="number"
                                               min="0"
+                                              step="0.01"
                                               max={item.available_qty}
                                               value={item.quantity_dozens}
                                               onChange={(e) => updateItem(item.originalIndex, 'quantity_dozens', e.target.value)}
