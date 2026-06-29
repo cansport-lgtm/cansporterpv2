@@ -553,6 +553,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Super admin has all permissions
     if (roles.some(r => r.role === 'super_admin')) return true;
 
+    // Purchase manager owns the full Purchase scope (view / create / edit / approve;
+    // delete stays with super admin). Granted up-front so a more-restrictive role the
+    // same user also holds — e.g. accounting_officer, which grants Purchase only
+    // view/create/edit via an early return below — cannot veto the manager's approval
+    // rights. (See the "earlier role vetoes a later one" note further down.)
+    if (module === 'purchase' && roles.some(r => r.role === 'purchase_manager')) {
+      return permission !== 'delete';
+    }
+
     // Accounting access tiers (accounting module only; action perms implied by the role)
     if (module === 'accounting') {
       if (roles.some(r => r.role === 'accounting_manager')) return true; // full incl. delete + approve
@@ -681,6 +690,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Super admin has all permissions
     if (roles.some(r => r.role === 'super_admin')) return true;
 
+    // Purchase manager approves across all purchase categories. Granted up-front so a
+    // more-restrictive role the same user also holds (e.g. accounting_officer, which
+    // grants only view/create below) cannot veto the manager's approval rights.
+    if (roles.some(r => r.role === 'purchase_manager')) return true;
+
     // Accounting Officer: operates the full Purchase module — allow viewing & creating across
     // all purchase categories (so the Purchase Invoices list and Goods Receipt category flows
     // work). Approval stays reserved for purchase managers.
@@ -688,9 +702,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return permission === 'view' || permission === 'create';
     }
 
-    // Purchase officer / manager operate across all purchase categories so they can
-    // create POs in any category. Manager additionally approves; officer cannot.
-    if (roles.some(r => r.role === 'purchase_manager')) return true;
+    // Purchase officer operates across all purchase categories so they can create POs in
+    // any category, but cannot approve (manager handled above).
     if (roles.some(r => r.role === 'purchase_officer')) {
       return permission === 'view' || permission === 'create';
     }
