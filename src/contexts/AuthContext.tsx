@@ -15,7 +15,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
 }
 
 // Define which modules each special role can access
@@ -32,6 +32,14 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   store_operator: ['material_consumption'], // Store operator: stock closing page only
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
   online_sales_packing: ['online_sales'], // Online sales packing: online orders page only (scan & weigh)
+  // Online Sales access tiers — confined to the Online Sales module (+ dashboard shell).
+  //   • online_sales_admin   — full module: every page incl. financials & masters, all actions.
+  //   • online_sales_manager — full module visibility incl. financials; all actions except delete.
+  //   • online_sales_agent   — operational fulfilment only (orders/customers/returns/live-status/
+  //                            inventory) via ROLE_ROUTE_RESTRICTIONS; never sees money (canViewPrices).
+  online_sales_admin: ['online_sales', 'dashboard'],
+  online_sales_manager: ['online_sales', 'dashboard'],
+  online_sales_agent: ['online_sales', 'dashboard'],
   // Dispatch operator: domestic dispatch page only. 'sales' keeps the Sales sidebar group
   // visible; 'domestic' satisfies the /domestic/* module check in ProtectedRoute. No pricing
   // page (Orders/Invoices) is reachable, so prices are never exposed.
@@ -77,6 +85,22 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
+  // Online Sales Admin & Manager: the whole module. The '/online-sales' prefix matches every
+  // page under it; the Admin/Manager distinction is purely in action permissions (Manager
+  // cannot delete — see hasModulePermission), not in which pages they can open.
+  online_sales_admin: ['/online-sales'],
+  online_sales_manager: ['/online-sales'],
+  // Online Sales Agent: front-line fulfilment only — make/edit orders, manage customers,
+  // process returns, watch live status and check stock. NO financial, analytics, settlement
+  // or master-config pages (P&L, Money/COD, Payment Receipts, Marketing, Agencies, Agency
+  // Settlement, Expenses, Sales Analysis, Returns Analytics, Reconciliation, Platform/Item Master).
+  online_sales_agent: [
+    '/online-sales/orders',
+    '/online-sales/customers',
+    '/online-sales/returns',
+    '/online-sales/live-status',
+    '/online-sales/inventory',
+  ],
   dispatch_operator: ['/domestic/dispatch'], // Dispatch operator: domestic dispatch page only (no pricing pages)
   // Sales order manager: order making + dispatch coordination + dashboards (NO products, invoices, or pricing pages)
   sales_order_manager: [
@@ -185,6 +209,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'store_operator',
   'project_manager',
   'online_sales_packing',
+  'online_sales_admin',
+  'online_sales_manager',
+  'online_sales_agent',
   'accounting_poster',
   'accounting_officer',
   'accounting_manager',
@@ -211,6 +238,11 @@ const STRICT_LOCKED_ROLES = new Set([
   'distributor_sales',
   'distributor_manager',
   'distributor_admin',
+  // Online Sales tiers are security-sensitive (the Agent must never see money), so their
+  // module/route lockdown is enforced even if the user also holds a flexible role.
+  'online_sales_admin',
+  'online_sales_manager',
+  'online_sales_agent',
 ]);
 
 interface ModulePermission {
@@ -441,7 +473,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Roles that manage logistics/orders without commercial visibility are hidden from money.
   const canViewPrices = (): boolean => {
     if (roles.some(r => r.role === 'super_admin')) return true;
-    return !roles.some(r => r.role === 'sales_order_manager');
+    // sales_order_manager (domestic logistics) and online_sales_agent (online fulfilment)
+    // operate orders without any commercial visibility — hide every monetary value from them.
+    return !roles.some(r => r.role === 'sales_order_manager' || r.role === 'online_sales_agent');
   };
 
   // Distributor data-isolation scope. super_admin is the company actor that can see
@@ -611,6 +645,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (roles.some(r => r.role === 'distributor_admin')) return true;
       if (roles.some(r => r.role === 'distributor_manager')) return permission !== 'delete';
       if (roles.some(r => r.role === 'distributor_sales')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+    }
+
+    // Online Sales access tiers — grants within the 'online_sales' module only.
+    //   • online_sales_admin   → full control incl. delete and approve.
+    //   • online_sales_manager → view / create / edit / approve (no delete).
+    //   • online_sales_agent   → view / create / edit (no delete, no approve).
+    if (module === 'online_sales') {
+      if (roles.some(r => r.role === 'online_sales_admin')) return true;
+      if (roles.some(r => r.role === 'online_sales_manager')) return permission !== 'delete';
+      if (roles.some(r => r.role === 'online_sales_agent')) {
         return permission === 'view' || permission === 'create' || permission === 'edit';
       }
     }

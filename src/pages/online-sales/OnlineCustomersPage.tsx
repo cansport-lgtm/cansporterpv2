@@ -29,7 +29,8 @@ interface Cust {
 const RETURNED = ["returned", "return_awaited"];
 
 export default function OnlineCustomersPage() {
-  const { user } = useAuth();
+  const { user, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const [orders, setOrders] = useState<any[]>([]);
   const [flags, setFlags] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -178,13 +179,13 @@ export default function OnlineCustomersPage() {
               <TableHead>Customer</TableHead><TableHead>City</TableHead>
               <TableHead className="text-right">Orders</TableHead><TableHead className="text-right">Delivered</TableHead>
               <TableHead className="text-right">Returned</TableHead><TableHead className="text-right">Return %</TableHead>
-              <TableHead className="text-right">Spent</TableHead><TableHead>Risk</TableHead><TableHead className="text-right">Action</TableHead>
+              {showPrices && <TableHead className="text-right">Spent</TableHead>}<TableHead>Risk</TableHead><TableHead className="text-right">Action</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={showPrices ? 9 : 8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No customers</TableCell></TableRow>
+                <TableRow><TableCell colSpan={showPrices ? 9 : 8} className="text-center py-8 text-muted-foreground">No customers</TableCell></TableRow>
               ) : filtered.slice(0, 500).map(c => (
                 <TableRow key={c.phone} className={c.blacklisted ? "bg-red-50/50" : ""}>
                   <TableCell>
@@ -198,7 +199,7 @@ export default function OnlineCustomersPage() {
                   <TableCell className="text-right text-emerald-700">{c.delivered}</TableCell>
                   <TableCell className="text-right text-red-600">{c.returned}</TableCell>
                   <TableCell className="text-right font-medium">{c.resolved ? `${Math.round(c.returnRate * 100)}%` : "-"}</TableCell>
-                  <TableCell className="text-right">{formatPKR(c.spent)}</TableCell>
+                  {showPrices && <TableCell className="text-right">{formatPKR(c.spent)}</TableCell>}
                   <TableCell>{riskBadge(c)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" className="h-8" onClick={() => openNote(c)}>Note</Button>
@@ -252,14 +253,14 @@ export default function OnlineCustomersPage() {
               <div className="border-t pt-2">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Order history ({detailOrders.length})</p>
                 <Table>
-                  <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Platform</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Value</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Platform</TableHead><TableHead>Status</TableHead>{showPrices && <TableHead className="text-right">Value</TableHead>}</TableRow></TableHeader>
                   <TableBody>
                     {detailOrders.map((o, i) => (
                       <TableRow key={i}>
                         <TableCell className="text-xs">{o.order_date ? format(new Date(o.order_date), "dd MMM yy") : "-"}</TableCell>
                         <TableCell className="text-xs">{o.platform || "-"}</TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{(o.status || "").replace(/_/g, " ")}</Badge></TableCell>
-                        <TableCell className="text-right text-xs">{Number(o.order_value || 0).toLocaleString()}</TableCell>
+                        {showPrices && <TableCell className="text-right text-xs">{Number(o.order_value || 0).toLocaleString()}</TableCell>}
                       </TableRow>
                     ))}
                   </TableBody>

@@ -125,6 +125,16 @@ export function RoleBasedRedirect() {
     return <Navigate to="/online-sales/orders" replace />;
   }
 
+  // Online Sales Admin / Manager land on the Online Sales dashboard (full module overview)
+  if (roles.some(r => (r.role as string) === 'online_sales_admin' || (r.role as string) === 'online_sales_manager')) {
+    return <Navigate to="/online-sales/dashboard" replace />;
+  }
+
+  // Online Sales Agent goes straight to the Orders page (fulfilment is the primary job)
+  if (roles.some(r => (r.role as string) === 'online_sales_agent')) {
+    return <Navigate to="/online-sales/orders" replace />;
+  }
+
   // Accounting Poster lands on New Voucher (post-only; no financial dashboard/reports)
   if (roles.some(r => (r.role as string) === 'accounting_poster')) {
     return <Navigate to="/accounting/vouchers/new" replace />;

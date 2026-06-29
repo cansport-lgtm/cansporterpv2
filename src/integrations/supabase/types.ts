@@ -15261,6 +15261,9 @@ export type Database = {
         | "store_operator"
         | "project_manager"
         | "online_sales_packing"
+        | "online_sales_admin"
+        | "online_sales_manager"
+        | "online_sales_agent"
         | "accounting_poster"
         | "accounting_officer"
         | "accounting_manager"
@@ -15468,6 +15471,9 @@ export const Constants = {
         "store_operator",
         "project_manager",
         "online_sales_packing",
+        "online_sales_admin",
+        "online_sales_manager",
+        "online_sales_agent",
         "accounting_poster",
         "accounting_officer",
         "accounting_manager",

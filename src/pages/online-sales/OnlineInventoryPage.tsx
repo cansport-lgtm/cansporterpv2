@@ -32,7 +32,8 @@ const OUT_TYPES = [
 const typeLabel = (t: string) => [...IN_TYPES, ...OUT_TYPES].find(x => x.v === t)?.l || t;
 
 export default function OnlineInventoryPage() {
-  const { user } = useAuth();
+  const { user, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const [items, setItems] = useState<any[]>([]);
   const [moves, setMoves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +121,9 @@ export default function OnlineInventoryPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard title="SKUs" value={totals.skus} icon={Layers} iconColor="text-slate-600" />
-          <MetricCard title="Stock Value" value={formatPKR(totals.value)} icon={Wallet} iconColor="text-blue-600" description="on-hand qty × cost" />
+          {showPrices && (
+            <MetricCard title="Stock Value" value={formatPKR(totals.value)} icon={Wallet} iconColor="text-blue-600" description="on-hand qty × cost" />
+          )}
           <MetricCard title="Low Stock" value={totals.low} icon={AlertTriangle} iconColor="text-amber-600" />
           <MetricCard title="Out of Stock" value={totals.out} icon={AlertTriangle} iconColor="text-red-600" />
         </div>
@@ -146,21 +149,23 @@ export default function OnlineInventoryPage() {
                 <TableHeader><TableRow>
                   <TableHead>Item</TableHead><TableHead>Code</TableHead>
                   <TableHead className="text-right">On Hand</TableHead><TableHead className="text-right">Reorder</TableHead>
-                  <TableHead className="text-right">Cost</TableHead><TableHead className="text-right">Stock Value</TableHead><TableHead>Status</TableHead>
+                  {showPrices && (<><TableHead className="text-right">Cost</TableHead><TableHead className="text-right">Stock Value</TableHead></>)}<TableHead>Status</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {loading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={showPrices ? 7 : 5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                   ) : stock.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No items — add items in Item Master first</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={showPrices ? 7 : 5} className="text-center py-8 text-muted-foreground">No items — add items in Item Master first</TableCell></TableRow>
                   ) : stock.map(x => (
                     <TableRow key={x.id} className={x.status === "out" ? "bg-red-50/40" : x.status === "low" ? "bg-amber-50/40" : ""}>
                       <TableCell className="font-medium">{x.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{x.code || "-"}</TableCell>
                       <TableCell className="text-right font-semibold">{x.qty}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{x.reorder || "-"}</TableCell>
-                      <TableCell className="text-right">{formatPKR(Number(x.cost_price || 0))}</TableCell>
-                      <TableCell className="text-right">{formatPKR(x.qty > 0 ? x.value : 0)}</TableCell>
+                      {showPrices && (<>
+                        <TableCell className="text-right">{formatPKR(Number(x.cost_price || 0))}</TableCell>
+                        <TableCell className="text-right">{formatPKR(x.qty > 0 ? x.value : 0)}</TableCell>
+                      </>)}
                       <TableCell>{statusBadge(x.status)}</TableCell>
                     </TableRow>
                   ))}
@@ -174,21 +179,21 @@ export default function OnlineInventoryPage() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Type</TableHead>
-                  <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit Cost</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>{showPrices && (<TableHead className="text-right">Unit Cost</TableHead>)}
                   <TableHead>Reference</TableHead><TableHead>Note</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {loading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={showPrices ? 7 : 6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                   ) : moves.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No movements yet</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={showPrices ? 7 : 6} className="text-center py-8 text-muted-foreground">No movements yet</TableCell></TableRow>
                   ) : moves.map(m => (
                     <TableRow key={m.id}>
                       <TableCell className="text-sm">{m.movement_date ? format(new Date(m.movement_date), "dd MMM yyyy") : "-"}</TableCell>
                       <TableCell className="font-medium">{itemName(m.item_id)}</TableCell>
                       <TableCell><Badge variant="outline" className="text-xs">{typeLabel(m.type)}</Badge></TableCell>
                       <TableCell className={`text-right font-medium ${m.direction === "out" ? "text-red-600" : "text-emerald-700"}`}>{m.direction === "out" ? "−" : "+"}{Number(m.quantity)}</TableCell>
-                      <TableCell className="text-right">{m.unit_cost != null ? formatPKR(Number(m.unit_cost)) : "-"}</TableCell>
+                      {showPrices && (<TableCell className="text-right">{m.unit_cost != null ? formatPKR(Number(m.unit_cost)) : "-"}</TableCell>)}
                       <TableCell className="text-sm text-muted-foreground">{m.reference || "-"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{m.note || "-"}</TableCell>
                     </TableRow>
@@ -222,7 +227,7 @@ export default function OnlineInventoryPage() {
               </div>
               <div><Label>Quantity</Label><Input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} placeholder="0" /></div>
             </div>
-            {dir === "in" && (form.type === "purchase" || form.type === "opening") && (
+            {showPrices && dir === "in" && (form.type === "purchase" || form.type === "opening") && (
               <>
                 <div><Label>Unit Cost (Rs.)</Label><Input type="number" min="0" step="0.01" value={form.unit_cost} onChange={e => setForm(p => ({ ...p, unit_cost: e.target.value }))} placeholder="cost per unit" /></div>
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
