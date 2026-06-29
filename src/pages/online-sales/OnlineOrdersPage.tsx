@@ -60,7 +60,8 @@ interface LiveItem {
 }
 
 export default function OnlineOrdersPage() {
-  const { user, roles } = useAuth();
+  const { user, roles, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const isPackingRole = roles.some(r => (r.role as string) === 'online_sales_packing');
   const isSuperAdmin = roles.some(r => (r.role as string) === 'super_admin');
   const [orders, setOrders] = useState<any[]>([]);
@@ -316,7 +317,7 @@ export default function OnlineOrdersPage() {
         <td style="border:1px solid #333;padding:6px;text-align:center">${o.actual_weight ? `${o.actual_weight} g` : "-"}</td>
         <td style="border:1px solid #333;padding:6px;text-align:center">${o.quantity || 0}</td>
         <td style="border:1px solid #333;padding:6px;text-align:center">${(o.payment_mode || "").toUpperCase()}</td>
-        <td style="border:1px solid #333;padding:6px;text-align:right">Rs. ${(o.order_value || 0).toLocaleString()}</td>
+        ${showPrices ? `<td style="border:1px solid #333;padding:6px;text-align:right">Rs. ${(o.order_value || 0).toLocaleString()}</td>` : ''}
       </tr>`).join("");
 
     const codOrders = selected.filter(o => (o.payment_mode || "").toLowerCase() === "cod");
@@ -360,8 +361,8 @@ export default function OnlineOrdersPage() {
         <div style="padding:10px 20px;background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;font-size:14px;text-align:center"><strong>Total Parcels</strong><br/>${selected.length}</div>
         <div style="padding:10px 20px;background:#e3f2fd;border:1px solid #2196f3;border-radius:6px;font-size:14px;text-align:center"><strong>Total Weight</strong><br/>${totalWeight} g</div>
         <div style="padding:10px 20px;background:#f3e5f5;border:1px solid #9c27b0;border-radius:6px;font-size:14px;text-align:center"><strong>Total Qty</strong><br/>${totalQty}</div>
-        <div style="padding:10px 20px;background:#e0f7fa;border:1px solid #00bcd4;border-radius:6px;font-size:14px;text-align:center"><strong>Total Amount</strong><br/>Rs. ${totalAmount.toLocaleString()}</div>
-        ${totalCodAmount > 0 ? `<div style="padding:10px 20px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:14px;text-align:center"><strong>COD Amount</strong><br/>Rs. ${totalCodAmount.toLocaleString()} (${codOrders.length} parcels)</div>` : ''}
+        ${showPrices ? `<div style="padding:10px 20px;background:#e0f7fa;border:1px solid #00bcd4;border-radius:6px;font-size:14px;text-align:center"><strong>Total Amount</strong><br/>Rs. ${totalAmount.toLocaleString()}</div>` : ''}
+        ${showPrices && totalCodAmount > 0 ? `<div style="padding:10px 20px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:14px;text-align:center"><strong>COD Amount</strong><br/>Rs. ${totalCodAmount.toLocaleString()} (${codOrders.length} parcels)</div>` : ''}
       </div>
       ${itemWiseSummary ? `<div style="margin:8px 0 4px;padding:8px 12px;background:#f9f9f9;border:1px solid #ddd;border-radius:6px">
         <strong style="font-size:12px;color:#555">Item-wise Qty:</strong>
@@ -381,7 +382,7 @@ export default function OnlineOrdersPage() {
             <th style="border:1px solid #333;padding:6px">Weight</th>
             <th style="border:1px solid #333;padding:6px">Qty</th>
             <th style="border:1px solid #333;padding:6px">Payment</th>
-            <th style="border:1px solid #333;padding:6px">Value</th>
+            ${showPrices ? '<th style="border:1px solid #333;padding:6px">Value</th>' : ''}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -895,7 +896,7 @@ export default function OnlineOrdersPage() {
                   <TableHead>Weight (g)</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Payment</TableHead>
-                  <TableHead className="text-right">Value (Rs.)</TableHead>
+                  {showPrices && <TableHead className="text-right">Value (Rs.)</TableHead>}
                   <TableHead>Status</TableHead>
                   {!isPackingRole && (
                     <TableHead>Actions</TableHead>
@@ -904,9 +905,9 @@ export default function OnlineOrdersPage() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                   <TableRow><TableCell colSpan={isPackingRole ? 12 : 14} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                   <TableRow><TableCell colSpan={(isPackingRole ? 12 : 14) - (showPrices ? 0 : 1)} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                  ) : filtered.length === 0 ? (
-                   <TableRow><TableCell colSpan={isPackingRole ? 12 : 14} className="text-center py-8 text-muted-foreground">No orders found</TableCell></TableRow>
+                   <TableRow><TableCell colSpan={(isPackingRole ? 12 : 14) - (showPrices ? 0 : 1)} className="text-center py-8 text-muted-foreground">No orders found</TableCell></TableRow>
                 ) : filtered.map(o => {
                   const transitions = STATUS_TRANSITIONS[o.status] || [];
                   return (
@@ -948,7 +949,7 @@ export default function OnlineOrdersPage() {
                       )}
                     </TableCell>
                     <TableCell><Badge variant={o.payment_mode === "cod" ? "destructive" : "default"}>{o.payment_mode?.toUpperCase()}</Badge></TableCell>
-                    <TableCell className="text-right font-medium">{(o.order_value || 0).toLocaleString()}</TableCell>
+                    {showPrices && <TableCell className="text-right font-medium">{(o.order_value || 0).toLocaleString()}</TableCell>}
                     <TableCell>
                       <Badge
                         variant={getStatusBadgeVariant(o.status)}
@@ -1077,10 +1078,12 @@ export default function OnlineOrdersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Order Value (Rs.)</Label>
-              <Input type="number" value={form.order_value} onChange={e => setForm(p => ({ ...p, order_value: e.target.value }))} />
-            </div>
+            {showPrices && (
+              <div>
+                <Label>Order Value (Rs.)</Label>
+                <Input type="number" value={form.order_value} onChange={e => setForm(p => ({ ...p, order_value: e.target.value }))} />
+              </div>
+            )}
             <div className="col-span-2">
               <Label>Remarks</Label>
               <Textarea value={form.remarks} onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))} rows={2} />

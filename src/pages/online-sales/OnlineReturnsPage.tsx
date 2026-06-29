@@ -30,7 +30,8 @@ type ReceiveLogEntry = {
 const RETURN_REASONS = ["Damaged in transit", "Wrong product", "Size mismatch", "Quality issue", "Customer changed mind", "Not as described", "RTO - Undelivered", "Other"];
 
 export default function OnlineReturnsPage() {
-  const { user } = useAuth();
+  const { user, canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const [returns, setReturns] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [returnAwaitedOrders, setReturnAwaitedOrders] = useState<any[]>([]);
@@ -317,15 +318,15 @@ export default function OnlineReturnsPage() {
                       <TableHead>Tracking #</TableHead>
                       <TableHead>Platform</TableHead>
                       <TableHead>City</TableHead>
-                      <TableHead className="text-right">Value (Rs.)</TableHead>
+                      {showPrices && <TableHead className="text-right">Value (Rs.)</TableHead>}
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={showPrices ? 7 : 6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                     ) : filteredAwaiting.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No return-awaited parcels</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={showPrices ? 7 : 6} className="text-center py-8 text-muted-foreground">No return-awaited parcels</TableCell></TableRow>
                     ) : filteredAwaiting.map(o => (
                       <TableRow key={o.id}>
                         <TableCell className="font-medium">{o.order_number}</TableCell>
@@ -333,7 +334,7 @@ export default function OnlineReturnsPage() {
                         <TableCell className="font-mono text-xs">{o.tracking_number || "-"}</TableCell>
                         <TableCell>{o.platform}</TableCell>
                         <TableCell>{o.city || "-"}</TableCell>
-                        <TableCell className="text-right font-medium">{(o.order_value || 0).toLocaleString()}</TableCell>
+                        {showPrices && <TableCell className="text-right font-medium">{(o.order_value || 0).toLocaleString()}</TableCell>}
                         <TableCell>
                           <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">return awaited</Badge>
                         </TableCell>
@@ -356,7 +357,7 @@ export default function OnlineReturnsPage() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Reason</TableHead>
-                      <TableHead className="text-right">Refund (Rs.)</TableHead>
+                      {showPrices && <TableHead className="text-right">Refund (Rs.)</TableHead>}
                       <TableHead>Refund Status</TableHead>
                       <TableHead>Received</TableHead>
                       <TableHead>Actions</TableHead>
@@ -364,9 +365,9 @@ export default function OnlineReturnsPage() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={showPrices ? 9 : 8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                     ) : filteredReturns.length === 0 ? (
-                      <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No returns found</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={showPrices ? 9 : 8} className="text-center py-8 text-muted-foreground">No returns found</TableCell></TableRow>
                     ) : filteredReturns.map(r => (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium">{r.return_number}</TableCell>
@@ -374,7 +375,7 @@ export default function OnlineReturnsPage() {
                         <TableCell>{r.online_orders?.customer_name}</TableCell>
                         <TableCell>{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
                         <TableCell className="text-sm">{r.return_reason}</TableCell>
-                        <TableCell className="text-right font-medium">{(r.refund_amount || 0).toLocaleString()}</TableCell>
+                        {showPrices && <TableCell className="text-right font-medium">{(r.refund_amount || 0).toLocaleString()}</TableCell>}
                         <TableCell>
                           <Badge variant={r.refund_status === "refunded" ? "default" : r.refund_status === "rejected" ? "destructive" : "secondary"}>{r.refund_status}</Badge>
                         </TableCell>
@@ -427,10 +428,12 @@ export default function OnlineReturnsPage() {
                 <SelectContent>{RETURN_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Refund Amount (Rs.)</Label>
-              <Input type="number" value={form.refund_amount} onChange={e => setForm(p => ({ ...p, refund_amount: e.target.value }))} />
-            </div>
+            {showPrices && (
+              <div>
+                <Label>Refund Amount (Rs.)</Label>
+                <Input type="number" value={form.refund_amount} onChange={e => setForm(p => ({ ...p, refund_amount: e.target.value }))} />
+              </div>
+            )}
             <div>
               <Label>Remarks</Label>
               <Textarea value={form.remarks} onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))} rows={2} />

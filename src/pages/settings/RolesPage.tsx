@@ -28,6 +28,9 @@ const roleDescriptions: Record<AppRole, string> = {
   store_operator: "Access to Stock Closing page in Material Consumption module only",
   project_manager: "Access to Project Management module – can only see assigned projects",
   online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",
+  online_sales_admin: "Online Sales – full module access including financials, masters and settings (all actions)",
+  online_sales_manager: "Online Sales – full module visibility incl. financials; can approve but not delete",
+  online_sales_agent: "Online Sales – order/customer/return fulfilment only (orders, customers, returns, live status, inventory); no money/financial pages",
   accounting_poster: "Accounting – post vouchers/receipts/payments and review books & ledgers; no financial reports",
   accounting_officer: "Accounting (no P&L / Balance Sheet) + Production view-only (incl. WIP Ledger) + Sales & Purchase invoicing/returns + Master Data (products/items)",
   accounting_manager: "Accounting – full access to all entries and reports, including approve",
@@ -61,6 +64,9 @@ const roleColors: Record<AppRole, string> = {
   store_operator: "bg-sky-500/10 text-sky-500 border-sky-500/20",
   project_manager: "bg-violet-500/10 text-violet-500 border-violet-500/20",
   online_sales_packing: "bg-rose-500/10 text-rose-500 border-rose-500/20",
+  online_sales_admin: "bg-rose-700/10 text-rose-700 border-rose-700/20",
+  online_sales_manager: "bg-rose-600/10 text-rose-600 border-rose-600/20",
+  online_sales_agent: "bg-pink-600/10 text-pink-600 border-pink-600/20",
   accounting_poster: "bg-teal-500/10 text-teal-500 border-teal-500/20",
   accounting_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
   accounting_manager: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
@@ -95,6 +101,9 @@ export default function RolesPage() {
     store_operator: 0,
     project_manager: 0,
     online_sales_packing: 0,
+    online_sales_admin: 0,
+    online_sales_manager: 0,
+    online_sales_agent: 0,
     accounting_poster: 0,
     accounting_officer: 0,
     accounting_manager: 0,
@@ -124,7 +133,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
