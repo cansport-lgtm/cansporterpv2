@@ -502,11 +502,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Always allow the main dashboard shell so users have somewhere to land
     if (mod === 'dashboard') return true;
 
-    // Strict-locked roles enforce their own module scope regardless of any other (flexible)
-    // role the user may also hold. This closes the "stray Viewer/Manager bypasses the lockdown" gap.
+    // Strict-locked roles enforce their own module scope regardless of any FLEXIBLE role the
+    // user may also hold (closes the "stray Viewer/Manager bypasses the lockdown" gap). When the
+    // user also holds another *scoped* role (e.g. pettycash_handler alongside dispatch_operator),
+    // grant the union of all their hard-restricted module scopes — a flexible role still cannot
+    // widen this, which is the whole point of "strict".
     const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
     if (strictRoles.length > 0) {
-      return strictRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod));
+      const scopedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
+      return scopedRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod));
     }
 
     // Accounting Officer: its module grants are role-driven and additive — they apply even
@@ -619,10 +623,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return module === 'sales';
     }
 
-    // Pettycash handler: view and create only for expenses module (no edit, delete, approve)
-    if (roles.some(r => r.role === 'pettycash_handler')) {
-      if (permission !== 'view' && permission !== 'create') return false;
-      return module === 'expenses';
+    // Pettycash handler: view and create only for the expenses module. GRANT-ONLY (additive)
+    // so it never vetoes another scoped role the same user also holds — e.g. a user who is
+    // also dispatch_operator must still get domestic create. Out-of-scope falls through.
+    if (
+      roles.some(r => r.role === 'pettycash_handler') &&
+      module === 'expenses' &&
+      (permission === 'view' || permission === 'create')
+    ) {
+      return true;
     }
 
     // Strict operational roles grant view/create/edit within their own module scope
@@ -736,10 +745,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Strict-locked roles confine the user to their explicit route whitelist even if the user
-    // also holds a flexible role. Enforced before the flexible-role bypass below.
+    // also holds a flexible role. When the user also holds another route-restricted role
+    // (e.g. pettycash_handler alongside dispatch_operator), confine to the UNION of all their
+    // restricted whitelists — a flexible role (no whitelist) still cannot widen this.
     const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
     if (strictRoles.length > 0) {
-      return strictRoles.some((r) => {
+      const restrictedRoles = roles.filter((r) => ROLE_ROUTE_RESTRICTIONS[r.role]);
+      return restrictedRoles.some((r) => {
         const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] || [];
         return allowedRoutes.some((allowed) => route === allowed || route.startsWith(allowed + '/'));
       });
