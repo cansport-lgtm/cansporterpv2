@@ -31,6 +31,7 @@ const PARAM_TYPES: { value: ParamType; label: string }[] = [
 interface ParamForm {
   id?: string;
   parameter_name: string;
+  parameter_name_ur: string;
   parameter_type: ParamType;
   unit: string;
   min_value: string;
@@ -43,6 +44,7 @@ interface ParamForm {
 
 const emptyForm = (order: number): ParamForm => ({
   parameter_name: "",
+  parameter_name_ur: "",
   parameter_type: "numeric",
   unit: "",
   min_value: "",
@@ -125,6 +127,7 @@ export default function QCParametersPage() {
     setForm({
       id: p.id,
       parameter_name: p.parameter_name || "",
+      parameter_name_ur: p.parameter_name_ur || "",
       parameter_type: (p.parameter_type || "numeric") as ParamType,
       unit: p.unit || "",
       min_value: p.min_value != null ? String(p.min_value) : "",
@@ -152,6 +155,7 @@ export default function QCParametersPage() {
       const payload = {
         item_id: selectedItemId,
         parameter_name: f.parameter_name.trim(),
+        parameter_name_ur: f.parameter_name_ur.trim() || null,
         parameter_type: f.parameter_type,
         unit: f.unit.trim() || null,
         min_value: f.parameter_type === "numeric" && f.min_value !== "" ? parseFloat(f.min_value) : null,
@@ -253,7 +257,14 @@ export default function QCParametersPage() {
             {(params || []).map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell>{p.sequence_order}</TableCell>
-                <TableCell className="font-medium">{p.parameter_name}</TableCell>
+                <TableCell className="font-medium">
+                  {p.parameter_name}
+                  {p.parameter_name_ur && (
+                    <div className="text-sm text-muted-foreground font-normal" dir="rtl" lang="ur">
+                      {p.parameter_name_ur}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge variant="outline">
                     {PARAM_TYPES.find((t) => t.value === p.parameter_type)?.label || p.parameter_type}
@@ -288,13 +299,25 @@ export default function QCParametersPage() {
             <DialogTitle>{form.id ? "Edit Checkpoint" : "Add Checkpoint"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Checkpoint Name *</Label>
-              <Input
-                value={form.parameter_name}
-                onChange={(e) => setForm({ ...form, parameter_name: e.target.value })}
-                placeholder="e.g. Moisture, Melt Flow Index, Color"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Checkpoint Name (English) *</Label>
+                <Input
+                  value={form.parameter_name}
+                  onChange={(e) => setForm({ ...form, parameter_name: e.target.value })}
+                  placeholder="e.g. Moisture, Melt Flow Index, Color"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Checkpoint Name (Urdu)</Label>
+                <Input
+                  dir="rtl"
+                  lang="ur"
+                  value={form.parameter_name_ur}
+                  onChange={(e) => setForm({ ...form, parameter_name_ur: e.target.value })}
+                  placeholder="مثلاً نمی، رنگ"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
