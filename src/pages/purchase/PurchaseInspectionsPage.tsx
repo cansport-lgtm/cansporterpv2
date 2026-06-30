@@ -14,10 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Eye, Check, X, ClipboardCheck } from "lucide-react";
+import { Plus, Eye, Check, X, ClipboardCheck, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { printQCInspection } from "@/lib/purchase/printQCInspection";
 
 // New QC tables aren't in the generated client types union the same way the
 // rest of the module is queried, so use a loosely-typed handle (mirrors the
@@ -543,6 +544,14 @@ export default function PurchaseInspectionsPage() {
     setDialogOpen(false);
   };
 
+  const handlePrint = async (id: string) => {
+    try {
+      await printQCInspection(id);
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to prepare print');
+    }
+  };
+
   const columns: Column<any>[] = [
     { key: 'qc_number', header: 'QC #' },
     {
@@ -578,9 +587,14 @@ export default function PurchaseInspectionsPage() {
       key: 'id',
       header: 'Actions',
       render: (i) => (
-        <Button variant="ghost" size="icon" onClick={() => setViewId(i.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="flex">
+          <Button variant="ghost" size="icon" onClick={() => setViewId(i.id)} title="View">
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => handlePrint(i.id)} title="Print">
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -905,6 +919,9 @@ export default function PurchaseInspectionsPage() {
               )}
 
               <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" className="sm:mr-auto" onClick={() => handlePrint(viewInspection.id)}>
+                  <Printer className="h-4 w-4 mr-1" /> Print
+                </Button>
                 {viewInspection.status === 'pending' && canApprove && (
                   <>
                     <Button
