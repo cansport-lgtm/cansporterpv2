@@ -121,6 +121,30 @@ export default function GoodsReceiptPage() {
     enabled: !!selectedPO?.id,
   });
 
+  // QC-accepted quantities per PO line (raw material only). Used to pre-fill the
+  // receiving quantities so only inspected & accepted material is received.
+  const { data: qcAccepted } = useQuery({
+    queryKey: ['qc-accepted-for-po', selectedPO?.id],
+    queryFn: async () => {
+      const map: Record<string, number> = {};
+      if (!selectedPO?.id || selectedPO.category !== 'raw_material') return map;
+      const { data, error } = await (supabase as any)
+        .from('purchase_qc_inspections')
+        .select('purchase_qc_inspection_items(po_item_id, quantity_accepted)')
+        .eq('purchase_order_id', selectedPO.id)
+        .eq('status', 'approved');
+      if (error) throw error;
+      (data || []).forEach((insp: any) => {
+        (insp.purchase_qc_inspection_items || []).forEach((it: any) => {
+          if (!it.po_item_id) return;
+          map[it.po_item_id] = (map[it.po_item_id] || 0) + Number(it.quantity_accepted || 0);
+        });
+      });
+      return map;
+    },
+    enabled: !!selectedPO?.id,
+  });
+
   // Check category permission
   const canAccessCategory = (category: PurchaseCategory) => {
     return hasPurchaseCategoryPermission(category, 'view');
@@ -132,8 +156,13 @@ export default function GoodsReceiptPage() {
     return category && canAccessCategory(category as PurchaseCategory);
   });
 
-  // Filter POs by user's category permissions
-  const filteredPOs = purchaseOrders?.filter(po => canAccessCategory(po.category as PurchaseCategory));
+  // Filter POs by user's category permissions, and apply the QC gate:
+  // raw-material POs only become receivable once their quality inspection has
+  // passed (qc_status === 'passed'). Other categories are exempt.
+  const filteredPOs = purchaseOrders?.filter(po =>
+    canAccessCategory(po.category as PurchaseCategory) &&
+    (po.category !== 'raw_material' || (po as any).qc_status === 'passed')
+  );
 
   // Save mutation
   const saveMutation = useMutation({
@@ -241,14 +270,24 @@ export default function GoodsReceiptPage() {
   // When PO items are loaded, populate form items
   const loadPOItems = () => {
     if (poItems && poItems.length > 0) {
-      const items: GRNItem[] = poItems.map((item: any) => ({
-        po_item_id: item.id,
-        item_id: item.item_id,
-        description: item.description || item.items?.name || '',
-        quantity_ordered: item.quantity,
-        quantity_received: (item.quantity - (item.quantity_received || 0)).toString(),
-        unit_price: item.unit_price,
-      }));
+      const isRawMaterial = selectedPO?.category === 'raw_material';
+      const items: GRNItem[] = poItems.map((item: any) => {
+        const remaining = Number(item.quantity) - Number(item.quantity_received || 0);
+        // For raw material, default to the QC-accepted quantity (capped at the
+        // outstanding quantity). For other categories, default to the remaining qty.
+        const accepted = qcAccepted?.[item.id] ?? remaining;
+        const defaultQty = isRawMaterial
+          ? Math.max(0, Math.min(accepted, remaining))
+          : remaining;
+        return {
+          po_item_id: item.id,
+          item_id: item.item_id,
+          description: item.description || item.items?.name || '',
+          quantity_ordered: item.quantity,
+          quantity_received: defaultQty.toString(),
+          unit_price: item.unit_price,
+        };
+      });
       setFormData(prev => ({ ...prev, items }));
     }
   };
@@ -360,6 +399,12 @@ export default function GoodsReceiptPage() {
                     <div><strong>Supplier:</strong> {selectedPO.suppliers?.name}</div>
                     <div><strong>Category:</strong> {CATEGORIES.find(c => c.value === selectedPO.category)?.label}</div>
                     <div><strong>PO Date:</strong> {format(new Date(selectedPO.order_date), 'dd/MM/yyyy')}</div>
+                    {selectedPO.category === 'raw_material' && (
+                      <div className="flex items-center gap-1">
+                        <strong>QC:</strong>
+                        <Badge className="bg-green-500">inspection passed</Badge>
+                      </div>
+                    )}
                   </div>
                 )}
 

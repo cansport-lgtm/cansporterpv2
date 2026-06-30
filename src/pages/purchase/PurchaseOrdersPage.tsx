@@ -51,6 +51,22 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-500',
 };
 
+// Incoming-material QC gate (raw material only). Drives the badge shown on the
+// order detail so buyers know whether goods receipt is unlocked.
+const QC_STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-amber-500',
+  passed: 'bg-green-500',
+  failed: 'bg-red-500',
+  not_required: 'bg-slate-400',
+};
+
+const QC_STATUS_LABELS: Record<string, string> = {
+  pending: 'inspection pending',
+  passed: 'inspection passed',
+  failed: 'inspection failed',
+  not_required: 'not required',
+};
+
 const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
   { value: "raw_material", label: "Raw Material" },
   { value: "office_supplies", label: "Office Supplies" },
@@ -845,6 +861,14 @@ export default function PurchaseOrdersPage() {
                 <div><strong>Expected Date:</strong> {viewOrder.expected_date ? format(new Date(viewOrder.expected_date), 'dd/MM/yyyy') : '-'}</div>
                 <div><strong>Status:</strong> <Badge className={STATUS_COLORS[viewOrder.status]}>{viewOrder.status?.replace('_', ' ')}</Badge></div>
                 <div><strong>Total:</strong> Rs. {viewOrder.total_amount?.toLocaleString()}</div>
+                {viewOrder.category === 'raw_material' && (
+                  <div className="flex items-center gap-1">
+                    <strong>Quality:</strong>
+                    <Badge className={QC_STATUS_COLORS[viewOrder.qc_status] || 'bg-gray-500'}>
+                      {QC_STATUS_LABELS[viewOrder.qc_status] || viewOrder.qc_status}
+                    </Badge>
+                  </div>
+                )}
               </div>
 
               {orderItems && orderItems.length > 0 && (
