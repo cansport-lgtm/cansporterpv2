@@ -14,11 +14,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Eye, Check, X, ClipboardCheck, Printer } from "lucide-react";
+import { Plus, Eye, Check, X, ClipboardCheck, Printer, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { printQCInspection } from "@/lib/purchase/printQCInspection";
+import { shareQCInspectionPdf } from "@/lib/purchase/qcInspectionPdf";
 
 // New QC tables aren't in the generated client types union the same way the
 // rest of the module is queried, so use a loosely-typed handle (mirrors the
@@ -552,6 +553,26 @@ export default function PurchaseInspectionsPage() {
     }
   };
 
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const handleShare = async (id: string) => {
+    setSharingId(id);
+    const t = toast.loading('Preparing PDF…');
+    try {
+      const result = await shareQCInspectionPdf(id);
+      toast.dismiss(t);
+      if (result === 'downloaded') {
+        toast.success('PDF downloaded — attach it in WhatsApp');
+      } else if (result === 'shared') {
+        toast.success('Shared');
+      }
+    } catch (e: any) {
+      toast.dismiss(t);
+      toast.error(e?.message || 'Failed to share PDF');
+    } finally {
+      setSharingId(null);
+    }
+  };
+
   const columns: Column<any>[] = [
     { key: 'qc_number', header: 'QC #' },
     {
@@ -593,6 +614,16 @@ export default function PurchaseInspectionsPage() {
           </Button>
           <Button variant="ghost" size="icon" onClick={() => handlePrint(i.id)} title="Print">
             <Printer className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-green-600 hover:text-green-700"
+            onClick={() => handleShare(i.id)}
+            disabled={sharingId === i.id}
+            title="Share PDF on WhatsApp"
+          >
+            <MessageCircle className="h-4 w-4" />
           </Button>
         </div>
       ),
@@ -921,6 +952,15 @@ export default function PurchaseInspectionsPage() {
               <div className="flex justify-end gap-2 pt-2 border-t">
                 <Button variant="outline" className="sm:mr-auto" onClick={() => handlePrint(viewInspection.id)}>
                   <Printer className="h-4 w-4 mr-1" /> Print
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                  onClick={() => handleShare(viewInspection.id)}
+                  disabled={sharingId === viewInspection.id}
+                  title="Share this report as a PDF on WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
                 </Button>
                 {viewInspection.status === 'pending' && canApprove && (
                   <>
