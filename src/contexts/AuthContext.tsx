@@ -155,6 +155,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/requests',
     '/purchase/orders',
     '/purchase/grn',
+    '/purchase/qc-parameters',
     '/purchase/invoices',
     '/purchase/returns',
   ],
