@@ -11190,6 +11190,150 @@ export type Database = {
           },
         ]
       }
+      purchase_qc_inspection_items: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          inspection_id: string
+          item_id: string | null
+          po_item_id: string | null
+          quantity_accepted: number
+          quantity_inspected: number
+          quantity_ordered: number | null
+          quantity_rejected: number
+          remarks: string | null
+          result: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          inspection_id: string
+          item_id?: string | null
+          po_item_id?: string | null
+          quantity_accepted?: number
+          quantity_inspected?: number
+          quantity_ordered?: number | null
+          quantity_rejected?: number
+          remarks?: string | null
+          result?: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          inspection_id?: string
+          item_id?: string | null
+          po_item_id?: string | null
+          quantity_accepted?: number
+          quantity_inspected?: number
+          quantity_ordered?: number | null
+          quantity_rejected?: number
+          remarks?: string | null
+          result?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspection_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_qc_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_items_po_item_id_fkey"
+            columns: ["po_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_qc_inspections: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          id: string
+          inspected_by: string | null
+          inspection_date: string
+          notes: string | null
+          purchase_order_id: string
+          qc_number: string
+          result: string | null
+          status: string
+          supplier_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          inspected_by?: string | null
+          inspection_date?: string
+          notes?: string | null
+          purchase_order_id: string
+          qc_number: string
+          result?: string | null
+          status?: string
+          supplier_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          inspected_by?: string | null
+          inspection_date?: string
+          notes?: string | null
+          purchase_order_id?: string
+          qc_number?: string
+          result?: string | null
+          status?: string
+          supplier_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspections_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_inspected_by_fkey"
+            columns: ["inspected_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           approved_at: string | null
@@ -11203,6 +11347,7 @@ export type Database = {
           order_date: string
           payment_terms: number | null
           po_number: string
+          qc_status: string
           shipping_address: string | null
           status: string
           supplier_id: string
@@ -11221,6 +11366,7 @@ export type Database = {
           order_date?: string
           payment_terms?: number | null
           po_number: string
+          qc_status?: string
           shipping_address?: string | null
           status?: string
           supplier_id: string
@@ -11239,6 +11385,7 @@ export type Database = {
           order_date?: string
           payment_terms?: number | null
           po_number?: string
+          qc_status?: string
           shipping_address?: string | null
           status?: string
           supplier_id?: string
