@@ -136,6 +136,7 @@ import SuppliersPage from "./pages/purchase/SuppliersPage";
 import PurchaseOrdersPage from "./pages/purchase/PurchaseOrdersPage";
 import GoodsReceiptPage from "./pages/purchase/GoodsReceiptPage";
 import PurchaseInspectionsPage from "./pages/purchase/PurchaseInspectionsPage";
+import QCParametersPage from "./pages/purchase/QCParametersPage";
 import PurchaseInvoicesPage from "./pages/purchase/PurchaseInvoicesPage";
 
 // Inventory pages
@@ -590,6 +591,7 @@ const App = () => (
             <Route path="/purchase/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
             <Route path="/purchase/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
             <Route path="/purchase/qc" element={<ProtectedRoute><PurchaseInspectionsPage /></ProtectedRoute>} />
+            <Route path="/purchase/qc-parameters" element={<ProtectedRoute><QCParametersPage /></ProtectedRoute>} />
             <Route path="/purchase/grn" element={<ProtectedRoute><GoodsReceiptPage /></ProtectedRoute>} />
             <Route path="/purchase/invoices" element={<ProtectedRoute><PurchaseInvoicesPage /></ProtectedRoute>} />
             <Route path="/purchase/returns" element={<ProtectedRoute><PurchaseReturnsPage /></ProtectedRoute>} />

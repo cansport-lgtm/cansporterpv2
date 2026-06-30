@@ -11334,6 +11334,137 @@ export type Database = {
           },
         ]
       }
+      purchase_qc_inspection_readings: {
+        Row: {
+          created_at: string | null
+          expected_value: string | null
+          id: string
+          inspection_item_id: string
+          is_required: boolean
+          is_within_spec: boolean | null
+          max_value: number | null
+          min_value: number | null
+          parameter_id: string | null
+          parameter_name: string
+          parameter_type: string
+          remarks: string | null
+          unit: string | null
+          value_boolean: boolean | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          inspection_item_id: string
+          is_required?: boolean
+          is_within_spec?: boolean | null
+          max_value?: number | null
+          min_value?: number | null
+          parameter_id?: string | null
+          parameter_name: string
+          parameter_type?: string
+          remarks?: string | null
+          unit?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          inspection_item_id?: string
+          is_required?: boolean
+          is_within_spec?: boolean | null
+          max_value?: number | null
+          min_value?: number | null
+          parameter_id?: string | null
+          parameter_name?: string
+          parameter_type?: string
+          remarks?: string | null
+          unit?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspection_readings_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_qc_inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_readings_parameter_id_fkey"
+            columns: ["parameter_id"]
+            isOneToOne: false
+            referencedRelation: "raw_material_qc_parameters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      raw_material_qc_parameters: {
+        Row: {
+          created_at: string | null
+          expected_value: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          item_id: string
+          max_value: number | null
+          min_value: number | null
+          options: Json | null
+          parameter_name: string
+          parameter_type: string
+          sequence_order: number
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          item_id: string
+          max_value?: number | null
+          min_value?: number | null
+          options?: Json | null
+          parameter_name: string
+          parameter_type?: string
+          sequence_order?: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          item_id?: string
+          max_value?: number | null
+          min_value?: number | null
+          options?: Json | null
+          parameter_name?: string
+          parameter_type?: string
+          sequence_order?: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_material_qc_parameters_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           approved_at: string | null

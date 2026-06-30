@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,25 @@ const RESULT_COLORS: Record<string, string> = {
   fail: 'bg-red-500',
 };
 
+type ParamType = 'numeric' | 'text' | 'boolean' | 'select';
+
+// A single checkpoint reading captured during inspection. The parameter spec is
+// snapshotted onto the reading so historical inspections never change if the
+// checkpoint master is later edited.
+interface ReadingInput {
+  parameter_id: string;
+  parameter_name: string;
+  parameter_type: ParamType;
+  unit: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  expected_value: string | null;
+  options: string[] | null;
+  is_required: boolean;
+  value: string;          // numeric / text / select entry
+  value_boolean: boolean; // boolean entry
+}
+
 interface QCInspectionItem {
   po_item_id: string;
   item_id: string | null;
@@ -51,6 +71,78 @@ interface QCInspectionItem {
   quantity_inspected: string;
   quantity_rejected: string;
   remarks: string;
+  readings: ReadingInput[];
+}
+
+// Evaluate a reading against its snapshotted spec. Returns true (in spec),
+// false (out of spec) or null (not yet entered / no spec to judge).
+function evalSpec(r: ReadingInput): boolean | null {
+  switch (r.parameter_type) {
+    case 'numeric': {
+      if (r.value.trim() === '') return null;
+      const n = parseFloat(r.value);
+      if (Number.isNaN(n)) return null;
+      if (r.min_value != null && n < r.min_value) return false;
+      if (r.max_value != null && n > r.max_value) return false;
+      return true;
+    }
+    case 'boolean':
+      return r.value_boolean === (r.expected_value !== 'false');
+    case 'select': {
+      if (r.value.trim() === '') return null;
+      // First option is the accepted value; anything else is out of spec.
+      const accepted = r.options?.[0];
+      return accepted ? r.value === accepted : true;
+    }
+    case 'text': {
+      if (!r.expected_value) return r.value.trim() === '' ? null : true; // free text
+      if (r.value.trim() === '') return null;
+      return r.value.trim().toLowerCase() === r.expected_value.trim().toLowerCase();
+    }
+    default:
+      return null;
+  }
+}
+
+// Short human-readable acceptance criteria for a reading row.
+function specText(r: ReadingInput): string {
+  switch (r.parameter_type) {
+    case 'numeric': {
+      const u = r.unit ? ` ${r.unit}` : '';
+      if (r.min_value != null && r.max_value != null) return `${r.min_value} – ${r.max_value}${u}`;
+      if (r.min_value != null) return `≥ ${r.min_value}${u}`;
+      if (r.max_value != null) return `≤ ${r.max_value}${u}`;
+      return 'any';
+    }
+    case 'boolean':
+      return `expected: ${r.expected_value !== 'false' ? 'Yes' : 'No'}`;
+    case 'select':
+      return r.options?.length ? `accept: ${r.options[0]}` : '';
+    case 'text':
+      return r.expected_value ? `expected: ${r.expected_value}` : 'free text';
+    default:
+      return '';
+  }
+}
+
+// Spec / value formatting for a stored reading row (DB shape) in the view dialog.
+function readingSpecText(r: any): string {
+  const u = r.unit ? ` ${r.unit}` : '';
+  if (r.parameter_type === 'numeric') {
+    if (r.min_value != null && r.max_value != null) return `${r.min_value} – ${r.max_value}${u}`;
+    if (r.min_value != null) return `≥ ${r.min_value}${u}`;
+    if (r.max_value != null) return `≤ ${r.max_value}${u}`;
+    return 'any';
+  }
+  if (r.parameter_type === 'boolean') return `expected: ${r.expected_value !== 'false' ? 'Yes' : 'No'}`;
+  if (r.parameter_type === 'text') return r.expected_value ? `expected: ${r.expected_value}` : 'free text';
+  return '';
+}
+
+function readingValueText(r: any): string {
+  if (r.parameter_type === 'numeric') return r.value_number != null ? `${r.value_number}${r.unit ? ` ${r.unit}` : ''}` : '—';
+  if (r.parameter_type === 'boolean') return r.value_boolean ? 'Yes' : 'No';
+  return r.value_text || '—';
 }
 
 export default function PurchaseInspectionsPage() {
@@ -168,6 +260,65 @@ export default function PurchaseInspectionsPage() {
     enabled: !!viewId,
   });
 
+  // Checkpoint readings for the viewed inspection, grouped by inspection line.
+  const { data: viewReadings } = useQuery({
+    queryKey: ['purchase-qc-inspection-readings', viewId, (viewItems || []).length],
+    queryFn: async () => {
+      const map: Record<string, any[]> = {};
+      const itemIds = (viewItems || []).map((i: any) => i.id);
+      if (itemIds.length === 0) return map;
+      const { data, error } = await sb
+        .from('purchase_qc_inspection_readings')
+        .select('*')
+        .in('inspection_item_id', itemIds);
+      if (error) throw error;
+      (data || []).forEach((r: any) => {
+        (map[r.inspection_item_id] = map[r.inspection_item_id] || []).push(r);
+      });
+      return map;
+    },
+    enabled: !!viewId && (viewItems || []).length > 0,
+  });
+
+  // Checkpoint definitions for the PO's raw-material items, grouped by item_id.
+  const { data: paramsByItem } = useQuery({
+    queryKey: ['qc-params-for-po', selectedPO?.id, (poItems || []).length],
+    queryFn: async () => {
+      const map: Record<string, any[]> = {};
+      const itemIds = [...new Set((poItems || []).map((i: any) => i.item_id).filter(Boolean))];
+      if (itemIds.length === 0) return map;
+      const { data, error } = await sb
+        .from('raw_material_qc_parameters')
+        .select('*')
+        .in('item_id', itemIds)
+        .eq('is_active', true)
+        .order('sequence_order');
+      if (error) throw error;
+      (data || []).forEach((p: any) => {
+        (map[p.item_id] = map[p.item_id] || []).push(p);
+      });
+      return map;
+    },
+    enabled: !!selectedPO?.id && (poItems || []).length > 0,
+  });
+
+  const buildReadings = (itemId: string | null): ReadingInput[] => {
+    const defs = (itemId && paramsByItem?.[itemId]) || [];
+    return defs.map((p: any) => ({
+      parameter_id: p.id,
+      parameter_name: p.parameter_name,
+      parameter_type: (p.parameter_type || 'numeric') as ParamType,
+      unit: p.unit ?? null,
+      min_value: p.min_value ?? null,
+      max_value: p.max_value ?? null,
+      expected_value: p.expected_value ?? null,
+      options: Array.isArray(p.options) ? p.options : null,
+      is_required: p.is_required ?? true,
+      value: '',
+      value_boolean: p.parameter_type === 'boolean' ? (p.expected_value !== 'false') : false,
+    }));
+  };
+
   const handlePOSelect = (poId: string) => {
     const po = selectablePOs.find((p: any) => p.id === poId);
     setSelectedPO(po || null);
@@ -185,6 +336,7 @@ export default function PurchaseInspectionsPage() {
         quantity_inspected: String(item.quantity),
         quantity_rejected: '0',
         remarks: '',
+        readings: buildReadings(item.item_id),
       }));
       setFormData(prev => ({ ...prev, items }));
     }
@@ -193,6 +345,14 @@ export default function PurchaseInspectionsPage() {
   const updateItem = (index: number, field: keyof QCInspectionItem, value: string) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
+    setFormData({ ...formData, items: newItems });
+  };
+
+  const updateReading = (itemIndex: number, readingIndex: number, patch: Partial<ReadingInput>) => {
+    const newItems = [...formData.items];
+    const readings = [...newItems[itemIndex].readings];
+    readings[readingIndex] = { ...readings[readingIndex], ...patch };
+    newItems[itemIndex] = { ...newItems[itemIndex], readings };
     setFormData({ ...formData, items: newItems });
   };
 
@@ -244,10 +404,46 @@ export default function PurchaseInspectionsPage() {
       });
 
       if (itemsToInsert.length > 0) {
-        const { error: itemsError } = await sb
+        const { data: insertedItems, error: itemsError } = await sb
           .from('purchase_qc_inspection_items')
-          .insert(itemsToInsert);
+          .insert(itemsToInsert)
+          .select('id, po_item_id');
         if (itemsError) throw itemsError;
+
+        // Persist the checkpoint readings against each inserted inspection line.
+        const idByPoItem: Record<string, string> = {};
+        (insertedItems || []).forEach((row: any) => { idByPoItem[row.po_item_id] = row.id; });
+
+        const readingsToInsert: any[] = [];
+        for (const it of data.items) {
+          const inspectionItemId = idByPoItem[it.po_item_id];
+          if (!inspectionItemId) continue;
+          for (const r of it.readings) {
+            const withinSpec = evalSpec(r);
+            readingsToInsert.push({
+              inspection_item_id: inspectionItemId,
+              parameter_id: r.parameter_id,
+              parameter_name: r.parameter_name,
+              parameter_type: r.parameter_type,
+              unit: r.unit,
+              min_value: r.min_value,
+              max_value: r.max_value,
+              expected_value: r.expected_value,
+              value_number: r.parameter_type === 'numeric' && r.value.trim() !== '' ? parseFloat(r.value) : null,
+              value_text: (r.parameter_type === 'text' || r.parameter_type === 'select') && r.value.trim() !== '' ? r.value.trim() : null,
+              value_boolean: r.parameter_type === 'boolean' ? r.value_boolean : null,
+              is_within_spec: withinSpec,
+              is_required: r.is_required,
+            });
+          }
+        }
+
+        if (readingsToInsert.length > 0) {
+          const { error: readingsError } = await sb
+            .from('purchase_qc_inspection_readings')
+            .insert(readingsToInsert);
+          if (readingsError) throw readingsError;
+        }
       }
 
       return newInsp;
@@ -456,60 +652,103 @@ export default function PurchaseInspectionsPage() {
                       )}
                     </div>
 
-                    {formData.items.length > 0 && (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Ordered</TableHead>
-                            <TableHead className="text-right w-28">Inspected</TableHead>
-                            <TableHead className="text-right w-28">Rejected</TableHead>
-                            <TableHead className="text-right">Accepted</TableHead>
-                            <TableHead className="w-40">Remarks</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {formData.items.map((item, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{item.code}</TableCell>
-                              <TableCell>{item.description}</TableCell>
-                              <TableCell className="text-right">{item.quantity_ordered}</TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.quantity_inspected}
-                                  onChange={(e) => updateItem(index, 'quantity_inspected', e.target.value)}
-                                  className="text-right"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.quantity_rejected}
-                                  onChange={(e) => updateItem(index, 'quantity_rejected', e.target.value)}
-                                  className="text-right"
-                                />
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {accepted(item)}
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  value={item.remarks}
-                                  onChange={(e) => updateItem(index, 'remarks', e.target.value)}
-                                  placeholder="Optional"
-                                />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                    {formData.items.map((item, index) => (
+                      <div key={index} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="font-medium">
+                            {item.description}
+                            {item.code && <span className="text-muted-foreground"> ({item.code})</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Ordered: {item.quantity_ordered}</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Inspected</Label>
+                            <Input type="number" min="0" step="0.01" value={item.quantity_inspected}
+                              onChange={(e) => updateItem(index, 'quantity_inspected', e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Rejected</Label>
+                            <Input type="number" min="0" step="0.01" value={item.quantity_rejected}
+                              onChange={(e) => updateItem(index, 'quantity_rejected', e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Accepted</Label>
+                            <div className="h-10 flex items-center font-medium">{accepted(item)}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Remarks</Label>
+                            <Input value={item.remarks}
+                              onChange={(e) => updateItem(index, 'remarks', e.target.value)} placeholder="Optional" />
+                          </div>
+                        </div>
+
+                        {/* Quality checkpoints for this raw material */}
+                        {item.readings.length > 0 ? (
+                          <div className="rounded-md border bg-muted/30 p-2 space-y-2">
+                            <div className="text-xs font-semibold text-muted-foreground">Quality Checkpoints</div>
+                            {item.readings.map((r, ri) => {
+                              const spec = evalSpec(r);
+                              return (
+                                <div key={ri} className="grid grid-cols-12 items-center gap-2 text-sm">
+                                  <div className="col-span-4 flex items-center gap-1">
+                                    {r.parameter_name}
+                                    {r.is_required && <span className="text-destructive">*</span>}
+                                    {r.unit && <span className="text-xs text-muted-foreground">({r.unit})</span>}
+                                  </div>
+                                  <div className="col-span-4 text-xs text-muted-foreground">{specText(r)}</div>
+                                  <div className="col-span-3">
+                                    {r.parameter_type === 'boolean' ? (
+                                      <Select value={r.value_boolean ? 'true' : 'false'}
+                                        onValueChange={(v) => updateReading(index, ri, { value_boolean: v === 'true' })}>
+                                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="true">Yes</SelectItem>
+                                          <SelectItem value="false">No</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    ) : r.parameter_type === 'select' ? (
+                                      <Select value={r.value || undefined}
+                                        onValueChange={(v) => updateReading(index, ri, { value: v })}>
+                                        <SelectTrigger className="h-8"><SelectValue placeholder="Select" /></SelectTrigger>
+                                        <SelectContent>
+                                          {(r.options || []).map((o) => (
+                                            <SelectItem key={o} value={o}>{o}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
+                                      <Input
+                                        className="h-8"
+                                        type={r.parameter_type === 'numeric' ? 'number' : 'text'}
+                                        step="any"
+                                        value={r.value}
+                                        onChange={(e) => updateReading(index, ri, { value: e.target.value })}
+                                        placeholder="Reading"
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="col-span-1 text-center">
+                                    {spec === null ? (
+                                      <span className="text-muted-foreground text-xs">—</span>
+                                    ) : spec ? (
+                                      <Badge className="bg-green-500">OK</Badge>
+                                    ) : (
+                                      <Badge className="bg-red-500">Out</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground italic">
+                            No quality checkpoints defined for this raw material. Add them under Purchase → QC Checkpoints.
+                          </div>
+                        )}
+                      </div>
+                    ))}
 
                     {formData.items.length > 0 && (
                       <div className="flex justify-end gap-6 pt-2 text-sm">
@@ -587,30 +826,58 @@ export default function PurchaseInspectionsPage() {
               </div>
 
               {viewItems && viewItems.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Inspected</TableHead>
-                      <TableHead className="text-right">Accepted</TableHead>
-                      <TableHead className="text-right">Rejected</TableHead>
-                      <TableHead>Remarks</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {viewItems.map((it: any) => (
-                      <TableRow key={it.id}>
-                        <TableCell>{it.items?.code || '—'}</TableCell>
-                        <TableCell>{it.description || it.items?.name}</TableCell>
-                        <TableCell className="text-right">{it.quantity_inspected}</TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">{it.quantity_accepted}</TableCell>
-                        <TableCell className="text-right text-destructive font-medium">{it.quantity_rejected}</TableCell>
-                        <TableCell>{it.remarks || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-3">
+                  {viewItems.map((it: any) => {
+                    const readings = viewReadings?.[it.id] || [];
+                    return (
+                      <div key={it.id} className="rounded-lg border p-3 space-y-2">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="font-medium text-sm">
+                            {it.description || it.items?.name}
+                            {it.items?.code && <span className="text-muted-foreground"> ({it.items.code})</span>}
+                          </div>
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground">Inspected: <span className="text-foreground">{it.quantity_inspected}</span></span>
+                            <span className="text-green-600">Accepted: {it.quantity_accepted}</span>
+                            <span className="text-destructive">Rejected: {it.quantity_rejected}</span>
+                          </div>
+                        </div>
+                        {it.remarks && <div className="text-xs text-muted-foreground">Remarks: {it.remarks}</div>}
+
+                        {readings.length > 0 && (
+                          <div className="rounded-md border bg-muted/30 overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-xs text-muted-foreground">
+                                  <th className="text-left font-medium p-2">Checkpoint</th>
+                                  <th className="text-left font-medium p-2">Spec</th>
+                                  <th className="text-left font-medium p-2">Reading</th>
+                                  <th className="text-center font-medium p-2">Result</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {readings.map((r: any) => (
+                                  <tr key={r.id} className="border-t">
+                                    <td className="p-2">{r.parameter_name}{r.is_required ? ' *' : ''}</td>
+                                    <td className="p-2 text-xs text-muted-foreground">{readingSpecText(r)}</td>
+                                    <td className="p-2">{readingValueText(r)}</td>
+                                    <td className="p-2 text-center">
+                                      {r.is_within_spec == null
+                                        ? <span className="text-muted-foreground text-xs">—</span>
+                                        : r.is_within_spec
+                                          ? <Badge className="bg-green-500">OK</Badge>
+                                          : <Badge className="bg-red-500">Out</Badge>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {viewInspection.notes && (
