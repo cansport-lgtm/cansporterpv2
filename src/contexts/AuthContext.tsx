@@ -15,7 +15,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
 }
 
 // Define which modules each special role can access
@@ -68,6 +68,11 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // handles purchase invoices/returns. Confined to purchase routes via ROLE_ROUTE_RESTRICTIONS.
   purchase_officer: ['purchase', 'dashboard'],
   purchase_manager: ['purchase', 'dashboard'],
+  // Purchase QC Inspector: a single-purpose quality role. 'purchase' keeps the
+  // Purchase sidebar group visible and satisfies the /purchase/* module check;
+  // route lockdown below confines it to just the Quality Inspection page, and it
+  // never sees prices (canViewPrices).
+  purchase_qc_inspector: ['purchase', 'dashboard'],
   // Distributor Order Management — a self-contained external module. All three
   // distributor roles are confined to the 'distributor' module (+ dashboard shell).
   // Per-distributor data isolation is enforced in-page by filtering on distributor_id.
@@ -153,6 +158,12 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/invoices',
     '/purchase/returns',
   ],
+  // Purchase QC Inspector: ONLY the Quality Inspection page. No orders, goods
+  // receipt, invoices, returns, suppliers or dashboard (all of which expose
+  // prices/amounts).
+  purchase_qc_inspector: [
+    '/purchase/qc',
+  ],
   // Distributor Sales: ONLY make/submit sales orders. The orders page is fully
   // self-contained — customers and products load inside the order dialog — so no
   // customers, products, analysis, approvals, dispatch, dashboard or user pages.
@@ -217,6 +228,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'accounting_manager',
   'purchase_officer',
   'purchase_manager',
+  'purchase_qc_inspector',
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
@@ -235,6 +247,9 @@ const STRICT_LOCKED_ROLES = new Set([
   'sales_order_manager',
   'production_operator',
   'closing_data_poster',
+  // Purchase QC Inspector must never gain price visibility or reach other purchase
+  // pages, even if the user also holds a flexible role — enforce its lockdown always.
+  'purchase_qc_inspector',
   'distributor_sales',
   'distributor_manager',
   'distributor_admin',
@@ -473,9 +488,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Roles that manage logistics/orders without commercial visibility are hidden from money.
   const canViewPrices = (): boolean => {
     if (roles.some(r => r.role === 'super_admin')) return true;
-    // sales_order_manager (domestic logistics) and online_sales_agent (online fulfilment)
-    // operate orders without any commercial visibility — hide every monetary value from them.
-    return !roles.some(r => r.role === 'sales_order_manager' || r.role === 'online_sales_agent');
+    // sales_order_manager (domestic logistics), online_sales_agent (online fulfilment) and
+    // purchase_qc_inspector (quality control) operate without any commercial visibility —
+    // hide every monetary value from them.
+    return !roles.some(r =>
+      r.role === 'sales_order_manager' ||
+      r.role === 'online_sales_agent' ||
+      r.role === 'purchase_qc_inspector'
+    );
   };
 
   // Distributor data-isolation scope. super_admin is the company actor that can see
@@ -703,6 +723,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // more-restrictive role the same user also holds (e.g. accounting_officer, which
     // grants only view/create below) cannot veto the manager's approval rights.
     if (roles.some(r => r.role === 'purchase_manager')) return true;
+
+    // Purchase QC Inspector records the inspection (create) and signs it off (approve)
+    // for incoming material — both actions on the Quality Inspection page.
+    if (roles.some(r => r.role === 'purchase_qc_inspector')) {
+      return permission === 'view' || permission === 'create' || permission === 'approve';
+    }
 
     // Accounting Officer: operates the full Purchase module — allow viewing & creating across
     // all purchase categories (so the Purchase Invoices list and Goods Receipt category flows
