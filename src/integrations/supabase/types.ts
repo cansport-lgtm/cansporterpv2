@@ -11346,6 +11346,7 @@ export type Database = {
           min_value: number | null
           parameter_id: string | null
           parameter_name: string
+          parameter_name_ur: string | null
           parameter_type: string
           remarks: string | null
           unit: string | null
@@ -11364,6 +11365,7 @@ export type Database = {
           min_value?: number | null
           parameter_id?: string | null
           parameter_name: string
+          parameter_name_ur?: string | null
           parameter_type?: string
           remarks?: string | null
           unit?: string | null
@@ -11382,6 +11384,7 @@ export type Database = {
           min_value?: number | null
           parameter_id?: string | null
           parameter_name?: string
+          parameter_name_ur?: string | null
           parameter_type?: string
           remarks?: string | null
           unit?: string | null
@@ -11418,6 +11421,7 @@ export type Database = {
           min_value: number | null
           options: Json | null
           parameter_name: string
+          parameter_name_ur: string | null
           parameter_type: string
           sequence_order: number
           unit: string | null
@@ -11434,6 +11438,7 @@ export type Database = {
           min_value?: number | null
           options?: Json | null
           parameter_name: string
+          parameter_name_ur?: string | null
           parameter_type?: string
           sequence_order?: number
           unit?: string | null
@@ -11450,6 +11455,7 @@ export type Database = {
           min_value?: number | null
           options?: Json | null
           parameter_name?: string
+          parameter_name_ur?: string | null
           parameter_type?: string
           sequence_order?: number
           unit?: string | null

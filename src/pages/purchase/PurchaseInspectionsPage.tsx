@@ -51,6 +51,7 @@ type ParamType = 'numeric' | 'text' | 'boolean' | 'select';
 interface ReadingInput {
   parameter_id: string;
   parameter_name: string;
+  parameter_name_ur: string | null;
   parameter_type: ParamType;
   unit: string | null;
   min_value: number | null;
@@ -307,6 +308,7 @@ export default function PurchaseInspectionsPage() {
     return defs.map((p: any) => ({
       parameter_id: p.id,
       parameter_name: p.parameter_name,
+      parameter_name_ur: p.parameter_name_ur ?? null,
       parameter_type: (p.parameter_type || 'numeric') as ParamType,
       unit: p.unit ?? null,
       min_value: p.min_value ?? null,
@@ -424,6 +426,7 @@ export default function PurchaseInspectionsPage() {
               inspection_item_id: inspectionItemId,
               parameter_id: r.parameter_id,
               parameter_name: r.parameter_name,
+              parameter_name_ur: r.parameter_name_ur,
               parameter_type: r.parameter_type,
               unit: r.unit,
               min_value: r.min_value,
@@ -692,10 +695,17 @@ export default function PurchaseInspectionsPage() {
                               const spec = evalSpec(r);
                               return (
                                 <div key={ri} className="grid grid-cols-12 items-center gap-2 text-sm">
-                                  <div className="col-span-4 flex items-center gap-1">
-                                    {r.parameter_name}
-                                    {r.is_required && <span className="text-destructive">*</span>}
-                                    {r.unit && <span className="text-xs text-muted-foreground">({r.unit})</span>}
+                                  <div className="col-span-4">
+                                    <div className="flex items-center gap-1">
+                                      {r.parameter_name}
+                                      {r.is_required && <span className="text-destructive">*</span>}
+                                      {r.unit && <span className="text-xs text-muted-foreground">({r.unit})</span>}
+                                    </div>
+                                    {r.parameter_name_ur && (
+                                      <div className="text-xs text-muted-foreground" dir="rtl" lang="ur">
+                                        {r.parameter_name_ur}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="col-span-4 text-xs text-muted-foreground">{specText(r)}</div>
                                   <div className="col-span-3">
@@ -858,7 +868,14 @@ export default function PurchaseInspectionsPage() {
                               <tbody>
                                 {readings.map((r: any) => (
                                   <tr key={r.id} className="border-t">
-                                    <td className="p-2">{r.parameter_name}{r.is_required ? ' *' : ''}</td>
+                                    <td className="p-2">
+                                      {r.parameter_name}{r.is_required ? ' *' : ''}
+                                      {r.parameter_name_ur && (
+                                        <div className="text-xs text-muted-foreground" dir="rtl" lang="ur">
+                                          {r.parameter_name_ur}
+                                        </div>
+                                      )}
+                                    </td>
                                     <td className="p-2 text-xs text-muted-foreground">{readingSpecText(r)}</td>
                                     <td className="p-2">{readingValueText(r)}</td>
                                     <td className="p-2 text-center">
