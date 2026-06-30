@@ -37,6 +37,7 @@ const roleDescriptions: Record<AppRole, string> = {
   billing_officer: "Sales & Purchase invoicing – access to Sales and Purchase modules (permission-driven)",
   purchase_officer: "Creates purchase orders – cannot approve (approval reserved for Purchase Manager)",
   purchase_manager: "Approves purchase orders raised by Purchase Officers",
+  purchase_qc_inspector: "Quality Inspection page only – inspects incoming raw material against POs and approves QC; no prices, no other purchase pages",
   dispatch_operator: "Domestic Dispatch page only – can create dispatches without seeing any prices",
   sales_order_manager: "Domestic sales orders + dispatch coordination & dashboards – no customer/product creation, no invoices, no prices",
   production_operator: "Production & Production Planning – can post and edit entries within 48 hours of creation (no delete/approve)",
@@ -73,6 +74,7 @@ const roleColors: Record<AppRole, string> = {
   billing_officer: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
   purchase_officer: "bg-teal-600/10 text-teal-600 border-teal-600/20",
   purchase_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
+  purchase_qc_inspector: "bg-emerald-600/10 text-emerald-600 border-emerald-600/20",
   dispatch_operator: "bg-orange-600/10 text-orange-600 border-orange-600/20",
   sales_order_manager: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
   production_operator: "bg-blue-600/10 text-blue-600 border-blue-600/20",
@@ -110,6 +112,7 @@ export default function RolesPage() {
     billing_officer: 0,
     purchase_officer: 0,
     purchase_manager: 0,
+    purchase_qc_inspector: 0,
     dispatch_operator: 0,
     sales_order_manager: 0,
     production_operator: 0,
@@ -133,7 +136,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>

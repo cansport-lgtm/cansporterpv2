@@ -174,6 +174,14 @@ export function ProtectedRoute({
       return <Navigate to="/production/daily-entry" replace />;
     }
 
+    // For purchase QC inspector, redirect back to the Quality Inspection page when
+    // accessing anything outside it (keeps them away from every pricing page).
+    if (roles.some((r) => (r.role as string) === 'purchase_qc_inspector')) {
+      if (location.pathname !== '/purchase/qc') {
+        return <Navigate to="/purchase/qc" replace />;
+      }
+    }
+
     // For closing data poster, redirect to the Planning Daily Stock Closing page when
     // accessing anything outside their two allowed stock-closing pages.
     if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {

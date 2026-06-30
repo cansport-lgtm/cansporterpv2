@@ -135,6 +135,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/online-sales/orders" replace />;
   }
 
+  // Purchase QC Inspector lands directly on the Quality Inspection page (their only page)
+  if (roles.some(r => (r.role as string) === 'purchase_qc_inspector')) {
+    return <Navigate to="/purchase/qc" replace />;
+  }
+
   // Accounting Poster lands on New Voucher (post-only; no financial dashboard/reports)
   if (roles.some(r => (r.role as string) === 'accounting_poster')) {
     return <Navigate to="/accounting/vouchers/new" replace />;

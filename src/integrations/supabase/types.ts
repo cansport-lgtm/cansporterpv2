@@ -15416,6 +15416,7 @@ export type Database = {
         | "accounting_manager"
         | "purchase_officer"
         | "purchase_manager"
+        | "purchase_qc_inspector"
         | "billing_officer"
         | "dispatch_operator"
         | "sales_order_manager"
@@ -15626,6 +15627,7 @@ export const Constants = {
         "accounting_manager",
         "purchase_officer",
         "purchase_manager",
+        "purchase_qc_inspector",
         "billing_officer",
         "dispatch_operator",
         "sales_order_manager",
