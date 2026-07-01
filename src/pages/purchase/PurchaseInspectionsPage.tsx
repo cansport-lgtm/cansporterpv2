@@ -372,6 +372,17 @@ export default function PurchaseInspectionsPage() {
         const rej = parseFloat(it.quantity_rejected) || 0;
         if (insp < 0 || rej < 0) throw new Error('Quantities cannot be negative');
         if (rej > insp) throw new Error(`Rejected qty cannot exceed inspected qty for ${it.description || it.code}`);
+        // Every required checkpoint must have a reading entered (out-of-spec is
+        // still allowed — the inspector decides quantities — but it can't be blank).
+        for (const r of it.readings) {
+          if (!r.is_required) continue;
+          const hasValue = r.parameter_type === 'boolean'
+            ? true // a yes/no answer always has a value
+            : String(r.value ?? '').trim() !== '';
+          if (!hasValue) {
+            throw new Error(`Enter a reading for required checkpoint "${r.parameter_name}" on ${it.description || it.code}`);
+          }
+        }
       }
 
       const { data: newInsp, error: inspError } = await sb
@@ -469,9 +480,53 @@ export default function PurchaseInspectionsPage() {
     mutationFn: async (inspectionId: string) => {
       const { data: items, error: itemsErr } = await sb
         .from('purchase_qc_inspection_items')
-        .select('quantity_accepted, quantity_rejected')
+        .select('id, item_id, quantity_accepted, quantity_rejected')
         .eq('inspection_id', inspectionId);
       if (itemsErr) throw itemsErr;
+
+      // Gate: every currently-active required checkpoint for each inspected
+      // material must have a recorded reading. This blocks signing off an
+      // "empty" inspection (e.g. one done before its checkpoints were defined).
+      const inspItemIds = (items || []).map((it: any) => it.id);
+      const materialIds = [...new Set((items || []).map((it: any) => it.item_id).filter(Boolean))];
+      if (materialIds.length > 0) {
+        const { data: reqParams, error: pErr } = await sb
+          .from('raw_material_qc_parameters')
+          .select('id, item_id, parameter_name')
+          .in('item_id', materialIds)
+          .eq('is_active', true)
+          .eq('is_required', true);
+        if (pErr) throw pErr;
+
+        const enteredByItem: Record<string, Set<string>> = {};
+        if (inspItemIds.length > 0 && (reqParams || []).length > 0) {
+          const { data: readings, error: rErr } = await sb
+            .from('purchase_qc_inspection_readings')
+            .select('inspection_item_id, parameter_id, value_number, value_text, value_boolean')
+            .in('inspection_item_id', inspItemIds);
+          if (rErr) throw rErr;
+          (readings || []).forEach((r: any) => {
+            const entered = r.value_number != null || r.value_boolean != null ||
+              (r.value_text != null && String(r.value_text).trim() !== '');
+            if (entered && r.parameter_id) {
+              (enteredByItem[r.inspection_item_id] = enteredByItem[r.inspection_item_id] || new Set()).add(r.parameter_id);
+            }
+          });
+        }
+
+        const reqByMaterial: Record<string, any[]> = {};
+        (reqParams || []).forEach((p: any) => {
+          (reqByMaterial[p.item_id] = reqByMaterial[p.item_id] || []).push(p);
+        });
+
+        for (const it of items || []) {
+          for (const req of reqByMaterial[it.item_id] || []) {
+            if (!enteredByItem[it.id]?.has(req.id)) {
+              throw new Error(`Required checkpoint "${req.parameter_name}" has no reading — reject and re-inspect this delivery before approving.`);
+            }
+          }
+        }
+      }
 
       const totalAccepted = (items || []).reduce((s: number, r: any) => s + Number(r.quantity_accepted || 0), 0);
       const totalRejected = (items || []).reduce((s: number, r: any) => s + Number(r.quantity_rejected || 0), 0);
