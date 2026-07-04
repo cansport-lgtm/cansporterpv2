@@ -26,7 +26,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Eye, Check, MessageCircle } from "lucide-react";
+import { Plus, Trash2, Eye, Check, MessageCircle, Pencil, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -89,6 +89,10 @@ export default function PurchaseOrdersPage() {
   const { user, hasModulePermission, hasPurchaseCategoryPermission, hasRole } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<any>(null);
+  // Pre-approval rate editing: local map of order-item id -> edited unit price string.
+  // Populated when the user enters "edit rates" mode on a draft/pending order.
+  const [editingRates, setEditingRates] = useState(false);
+  const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [formData, setFormData] = useState({
@@ -263,6 +267,70 @@ export default function PurchaseOrdersPage() {
       toast.error(error.message || 'Failed to approve');
     },
   });
+
+  // Rate edit mutation. Before a purchase order is approved, ANY user who can
+  // view it may correct the line-item rates (unit price). Each item's amount is
+  // recomputed from its quantity and the order total is re-summed.
+  const updateRatesMutation = useMutation({
+    mutationFn: async ({ orderId, items }: { orderId: string; items: any[] }) => {
+      let newTotal = 0;
+      const updates = items.map((item) => {
+        const qty = Number(item.quantity) || 0;
+        const rawPrice = rateDrafts[item.id];
+        const unitPrice = rawPrice !== undefined ? parseFloat(rawPrice) || 0 : Number(item.unit_price) || 0;
+        const amount = qty * unitPrice;
+        newTotal += amount;
+        return { id: item.id, unit_price: unitPrice, amount };
+      });
+
+      for (const u of updates) {
+        const { error } = await supabase
+          .from('purchase_order_items')
+          .update({ unit_price: u.unit_price, amount: u.amount })
+          .eq('id', u.id);
+        if (error) throw error;
+      }
+
+      const { error: totalError } = await supabase
+        .from('purchase_orders')
+        .update({ total_amount: newTotal })
+        .eq('id', orderId);
+      if (totalError) throw totalError;
+
+      return newTotal;
+    },
+    onSuccess: (newTotal) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-order-items', viewOrder?.id] });
+      toast.success('Rates updated');
+      setEditingRates(false);
+      setRateDrafts({});
+      setViewOrder((prev: any) => (prev ? { ...prev, total_amount: newTotal } : prev));
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update rates');
+    },
+  });
+
+  // A purchase order's rates stay editable only until it is approved. Draft and
+  // pending-approval orders qualify; once approved/ordered/received they lock.
+  const isPreApproval = (status?: string) =>
+    status === 'draft' || status === 'pending_approval';
+
+  // Enter/leave rate-editing mode, seeding the drafts from the current line items.
+  const startEditingRates = () => {
+    const seed: Record<string, string> = {};
+    (orderItems || []).forEach((item: any) => {
+      seed[item.id] = item.unit_price?.toString() ?? '0';
+    });
+    setRateDrafts(seed);
+    setEditingRates(true);
+  };
+
+  const cancelEditingRates = () => {
+    setEditingRates(false);
+    setRateDrafts({});
+  };
 
   // Delete mutation (super admin only). Line items are removed automatically
   // via the ON DELETE CASCADE foreign key on purchase_order_items.
@@ -491,6 +559,13 @@ export default function PurchaseOrdersPage() {
   const validItems = formData.items.filter(item => item.item_id);
   const totalAmount = validItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
   const hasValidItems = validItems.length > 0;
+
+  // Live order total while editing rates on the view dialog (qty × edited unit price).
+  const editedTotal = (orderItems || []).reduce((sum: number, item: any) => {
+    const draft = rateDrafts[item.id];
+    const unitPrice = draft !== undefined ? parseFloat(draft) || 0 : Number(item.unit_price) || 0;
+    return sum + (Number(item.quantity) || 0) * unitPrice;
+  }, 0);
 
   return (
     <ERPLayout>
@@ -847,7 +922,7 @@ export default function PurchaseOrdersPage() {
       )}
 
       {/* View Order Dialog */}
-      <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
+      <Dialog open={!!viewOrder} onOpenChange={() => { setViewOrder(null); cancelEditingRates(); }}>
         <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Purchase Order: {viewOrder?.po_number}</DialogTitle>
@@ -860,7 +935,7 @@ export default function PurchaseOrdersPage() {
                 <div><strong>Order Date:</strong> {format(new Date(viewOrder.order_date), 'dd/MM/yyyy')}</div>
                 <div><strong>Expected Date:</strong> {viewOrder.expected_date ? format(new Date(viewOrder.expected_date), 'dd/MM/yyyy') : '-'}</div>
                 <div><strong>Status:</strong> <Badge className={STATUS_COLORS[viewOrder.status]}>{viewOrder.status?.replace('_', ' ')}</Badge></div>
-                <div><strong>Total:</strong> Rs. {viewOrder.total_amount?.toLocaleString()}</div>
+                <div><strong>Total:</strong> Rs. {(editingRates ? editedTotal : viewOrder.total_amount)?.toLocaleString()}</div>
                 {viewOrder.category === 'raw_material' && (
                   <div className="flex items-center gap-1">
                     <strong>Quality:</strong>
@@ -887,40 +962,89 @@ export default function PurchaseOrdersPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orderItems.map((item: any) => (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.items?.code || '-'}</TableCell>
-                            <TableCell>{item.description || item.items?.name}</TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{item.quantity_received || 0}</TableCell>
-                            <TableCell className="text-right">Rs. {item.unit_price?.toLocaleString()}</TableCell>
-                            <TableCell className="text-right">Rs. {item.amount?.toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
+                        {orderItems.map((item: any) => {
+                          const draft = rateDrafts[item.id];
+                          const unitPrice = editingRates && draft !== undefined
+                            ? parseFloat(draft) || 0
+                            : Number(item.unit_price) || 0;
+                          const amount = editingRates
+                            ? (Number(item.quantity) || 0) * unitPrice
+                            : Number(item.amount) || 0;
+                          return (
+                            <TableRow key={item.id}>
+                              <TableCell>{item.items?.code || '-'}</TableCell>
+                              <TableCell>{item.description || item.items?.name}</TableCell>
+                              <TableCell className="text-right">{item.quantity}</TableCell>
+                              <TableCell className="text-right">{item.quantity_received || 0}</TableCell>
+                              <TableCell className="text-right">
+                                {editingRates ? (
+                                  <Input
+                                    type="number"
+                                    inputMode="decimal"
+                                    className="w-28 ml-auto text-right"
+                                    value={draft ?? ''}
+                                    onChange={(e) =>
+                                      setRateDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                    }
+                                  />
+                                ) : (
+                                  <>Rs. {item.unit_price?.toLocaleString()}</>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">Rs. {amount.toLocaleString()}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
 
                   {/* Mobile: stacked item cards */}
                   <div className="space-y-3 sm:hidden">
-                    {orderItems.map((item: any) => (
-                      <div key={item.id} className="rounded-lg border p-3 space-y-2 text-sm">
-                        <div className="font-medium">
-                          {item.description || item.items?.name}
-                          {item.items?.code && (
-                            <span className="text-muted-foreground"> ({item.items.code})</span>
+                    {orderItems.map((item: any) => {
+                      const draft = rateDrafts[item.id];
+                      const unitPrice = editingRates && draft !== undefined
+                        ? parseFloat(draft) || 0
+                        : Number(item.unit_price) || 0;
+                      const amount = editingRates
+                        ? (Number(item.quantity) || 0) * unitPrice
+                        : Number(item.amount) || 0;
+                      return (
+                        <div key={item.id} className="rounded-lg border p-3 space-y-2 text-sm">
+                          <div className="font-medium">
+                            {item.description || item.items?.name}
+                            {item.items?.code && (
+                              <span className="text-muted-foreground"> ({item.items.code})</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Qty: <span className="text-foreground">{item.quantity}</span></span>
+                            <span>Received: <span className="text-foreground">{item.quantity_received || 0}</span></span>
+                          </div>
+                          {editingRates ? (
+                            <div className="space-y-1">
+                              <Label className="text-xs">Unit Price</Label>
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                value={draft ?? ''}
+                                onChange={(e) =>
+                                  setRateDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                }
+                              />
+                              <div className="flex justify-end pt-1 text-muted-foreground">
+                                <span className="font-semibold text-foreground">Rs. {amount.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>Unit: <span className="text-foreground">Rs. {item.unit_price?.toLocaleString()}</span></span>
+                              <span className="font-semibold text-foreground">Rs. {amount.toLocaleString()}</span>
+                            </div>
                           )}
                         </div>
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>Qty: <span className="text-foreground">{item.quantity}</span></span>
-                          <span>Received: <span className="text-foreground">{item.quantity_received || 0}</span></span>
-                        </div>
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>Unit: <span className="text-foreground">Rs. {item.unit_price?.toLocaleString()}</span></span>
-                          <span className="font-semibold text-foreground">Rs. {item.amount?.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}
@@ -933,50 +1057,81 @@ export default function PurchaseOrdersPage() {
               )}
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t">
-                {canDelete && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 sm:mr-auto"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                {editingRates ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={cancelEditingRates}
+                      disabled={updateRatesMutation.isPending}
+                      className="sm:mr-auto"
+                    >
+                      <X className="h-4 w-4 mr-2" /> Cancel
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        updateRatesMutation.mutate({ orderId: viewOrder.id, items: orderItems || [] })
+                      }
+                      disabled={updateRatesMutation.isPending || !orderItems?.length}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      {updateRatesMutation.isPending ? 'Saving...' : 'Save Rates'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {canDelete && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 sm:mr-auto"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[95vw] max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete purchase order?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete {viewOrder.po_number} and all of its
+                              line items. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(viewOrder.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                    {/* Rate correction is open to any user while the order is still
+                        pending approval (draft / pending_approval). */}
+                    {isPreApproval(viewOrder.status) && orderItems && orderItems.length > 0 && (
+                      <Button variant="outline" onClick={startEditingRates}>
+                        <Pencil className="h-4 w-4 mr-2" /> Edit Rates
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="w-[95vw] max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete purchase order?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete {viewOrder.po_number} and all of its
-                          line items. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(viewOrder.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={handleWhatsAppShare}
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                      title="Send this purchase order to the vendor on WhatsApp"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+                    </Button>
+                    {viewOrder.status === 'draft' && canApproveForCategory(viewOrder.category) && (
+                      <Button onClick={() => approveMutation.mutate(viewOrder.id)}>
+                        <Check className="h-4 w-4 mr-2" /> Approve
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => setViewOrder(null)}>Close</Button>
+                  </>
                 )}
-                <Button
-                  variant="outline"
-                  onClick={handleWhatsAppShare}
-                  className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
-                  title="Send this purchase order to the vendor on WhatsApp"
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
-                </Button>
-                {viewOrder.status === 'draft' && canApproveForCategory(viewOrder.category) && (
-                  <Button onClick={() => approveMutation.mutate(viewOrder.id)}>
-                    <Check className="h-4 w-4 mr-2" /> Approve
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => setViewOrder(null)}>Close</Button>
               </div>
             </div>
           )}
