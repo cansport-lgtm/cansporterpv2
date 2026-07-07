@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 // Untyped surface so we can hit the new accounting_* tables before types are regenerated
 const sb = supabase as any;
 
+/**
+ * Normalize a party / billing name for tolerant matching: case-fold, trim, and
+ * collapse internal whitespace, and treat a trailing "s" (singular vs plural) as
+ * equivalent. This is what stops harmless spelling variations of the *same*
+ * billing customer — e.g. "Osama Trader" vs "Osama Traders" — from each spawning
+ * a separate accounting party and forking that customer's ledger balance.
+ */
+const normalizePartyName = (s: string): string =>
+  (s || "").toLowerCase().trim().replace(/\s+/g, " ").replace(/s$/, "");
+
 export interface BillingPartyResolution {
   partyId: string | null;
   /**
@@ -43,7 +53,7 @@ export async function resolveBillingCustomerParty(customer: {
 
   // Find an existing active billing-customer party by (case-insensitive) name.
   // `billing` is treated as a literal here (no callers pass wildcards), so an
-  // exact case-insensitive match is what we want.
+  // exact case-insensitive match is the fast path.
   const { data: matches } = await sb
     .from("accounting_parties")
     .select("id")
@@ -53,6 +63,20 @@ export async function resolveBillingCustomerParty(customer: {
     .limit(1);
 
   let partyId: string | null = matches?.[0]?.id || null;
+
+  // Before creating a new party, fall back to a tolerant (normalized) match so a
+  // spelling/spacing/plural variation of an existing customer's name reuses that
+  // party instead of forking the ledger into a duplicate. Only runs when the exact
+  // match misses (i.e. rarely), so the O(1) fast path above is preserved.
+  if (!partyId) {
+    const { data: candidates } = await sb
+      .from("accounting_parties")
+      .select("id, name")
+      .eq("party_type", "customer")
+      .eq("is_active", true);
+    const target = normalizePartyName(billing);
+    partyId = (candidates || []).find((p: any) => normalizePartyName(p.name) === target)?.id || null;
+  }
 
   if (!partyId) {
     const { data: created, error } = await sb
