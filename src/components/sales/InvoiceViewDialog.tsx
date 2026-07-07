@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Printer, MessageCircle } from "lucide-react";
+import { Printer, MessageCircle, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,38 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
     },
     enabled: !!invoiceId,
   });
+
+  // Products present on this invoice's dispatch, so we can flag any invoice line
+  // that isn't actually on the sales order / dispatch (a hand-added mismatch).
+  const { data: dispatchGuard } = useQuery({
+    queryKey: ["invoice-view-dispatch-guard", invoice?.dispatch_id],
+    queryFn: async () => {
+      if (!invoice?.dispatch_id) return { productIds: new Set<string>(), itemIds: new Set<string>(), hasItems: false };
+      const { data, error } = await sb
+        .from("sales_dispatch_items")
+        .select("id, order_item:sales_order_items(product_id)")
+        .eq("dispatch_id", invoice.dispatch_id);
+      if (error) throw error;
+      const rows = data || [];
+      return {
+        productIds: new Set<string>(rows.map((r: any) => r.order_item?.product_id).filter(Boolean)),
+        itemIds: new Set<string>(rows.map((r: any) => r.id)),
+        hasItems: rows.length > 0,
+      };
+    },
+    enabled: !!invoice?.dispatch_id,
+  });
+
+  // Off-dispatch = dispatch has items to compare against, but this line neither links
+  // to a dispatch item nor carries a product that is on the dispatch. Legacy invoices
+  // whose dispatch has no captured items are never flagged (nothing to compare).
+  const isOffDispatch = (it: any): boolean => {
+    if (!dispatchGuard?.hasItems) return false;
+    if (it.dispatch_item_id && dispatchGuard.itemIds.has(it.dispatch_item_id)) return false;
+    if (it.product_id && dispatchGuard.productIds.has(it.product_id)) return false;
+    return true;
+  };
+  const offDispatch = (items || []).filter(isOffDispatch);
 
   const [sharing, setSharing] = useState(false);
 
@@ -144,6 +176,16 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
                 <Badge variant="outline" className={STATUS_COLOR[invoice.status] || ""}>{invoice.status}</Badge>
               </div>
             </div>
+            {offDispatch.length > 0 && (
+              <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
+                <div>
+                  <strong>{offDispatch.length} line{offDispatch.length > 1 ? "s" : ""} not on dispatch {invoice.dispatch?.dispatch_number || ""}.</strong>{" "}
+                  The following {offDispatch.length > 1 ? "items are" : "item is"} on this invoice but not on the sales order / dispatch:{" "}
+                  <span className="font-medium">{offDispatch.map((it: any) => it.description || "(unnamed)").join(", ")}</span>.
+                </div>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -156,9 +198,10 @@ export function InvoiceViewDialog({ invoiceId, onOpenChange, onPrint }: InvoiceV
               </TableHeader>
               <TableBody>
                 {items?.map((it: any) => (
-                  <TableRow key={it.id}>
+                  <TableRow key={it.id} className={isOffDispatch(it) ? "bg-amber-50 dark:bg-amber-950/20" : ""}>
                     <TableCell className="text-xs">
                       {it.description || "—"}
+                      {isOffDispatch(it) ? <span className="ml-1 text-amber-600 font-medium">• not on dispatch</span> : null}
                       {it.details ? <div className="text-muted-foreground">{it.details}</div> : null}
                     </TableCell>
                     <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>

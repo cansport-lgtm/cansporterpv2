@@ -83,6 +83,44 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
     },
   });
 
+  // Products actually present on this invoice's dispatch. Used to flag lines that
+  // were added by hand but aren't on the dispatch/order (e.g. the "FB" mismatch),
+  // which would silently inflate the invoice and the posted AR/Sales voucher.
+  const { data: dispatchGuard } = useQuery({
+    queryKey: ["invoice-edit-dispatch-guard", invoice?.dispatch_id],
+    queryFn: async () => {
+      if (!invoice?.dispatch_id) return { productIds: new Set<string>(), itemIds: new Set<string>(), hasItems: false };
+      const { data, error } = await sb
+        .from("sales_dispatch_items")
+        .select("id, order_item:sales_order_items(product_id)")
+        .eq("dispatch_id", invoice.dispatch_id);
+      if (error) throw error;
+      const rows = data || [];
+      return {
+        productIds: new Set<string>(rows.map((r: any) => r.order_item?.product_id).filter(Boolean)),
+        itemIds: new Set<string>(rows.map((r: any) => r.id)),
+        hasItems: rows.length > 0,
+      };
+    },
+    enabled: !!invoice?.dispatch_id,
+  });
+
+  // A line is "off dispatch" when the dispatch has items to compare against and the
+  // line neither links to a dispatch item nor carries a product that is on the dispatch.
+  // Only checked once dispatch items are known, so legacy invoices whose dispatch has
+  // no captured items are never flagged (nothing to compare against).
+  const isOffDispatch = (l: LineForm): boolean => {
+    if (!dispatchGuard?.hasItems) return false;
+    if (l.dispatch_item_id && dispatchGuard.itemIds.has(l.dispatch_item_id)) return false;
+    if (l.product_id && dispatchGuard.productIds.has(l.product_id)) return false;
+    return true;
+  };
+  const offDispatchLines = useMemo(
+    () => lines.filter(isOffDispatch),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lines, dispatchGuard],
+  );
+
   // Initialize state when the invoice loads
   useEffect(() => {
     if (!invoice) return;
@@ -237,6 +275,18 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
               </div>
             </div>
 
+            {offDispatchLines.length > 0 && (
+              <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
+                <div>
+                  <strong>{offDispatchLines.length} line{offDispatchLines.length > 1 ? "s" : ""} not on dispatch {invoice.dispatch?.dispatch_number || ""}.</strong>{" "}
+                  These items are not on the sales order / dispatch and were added directly to the invoice:{" "}
+                  <span className="font-medium">{offDispatchLines.map((l) => l.description || "(unnamed)").join(", ")}</span>.
+                  Saving will bill and post them to the ledger. Remove them unless this is intentional.
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-semibold">Line Items</Label>
@@ -261,7 +311,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                   </TableHeader>
                   <TableBody>
                     {lines.map((l, i) => (
-                      <TableRow key={l.id || `new-${i}`}>
+                      <TableRow key={l.id || `new-${i}`} className={isOffDispatch(l) ? "bg-amber-50 dark:bg-amber-950/20" : ""}>
                         <TableCell>
                           <Select value={l.product_id || ""} onValueChange={(v) => {
                             const next = [...lines];
