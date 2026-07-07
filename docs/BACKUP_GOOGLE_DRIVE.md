@@ -101,7 +101,7 @@ The migrations create the `backup_log` table and schedule the daily cron job.
   curl -X POST \
     -H "x-backup-secret: <backup_cron_secret>" \
     -H "apikey: <supabase_publishable_key>" \
-    https://nkkzxnihjpqdalzerrhk.supabase.co/functions/v1/db-backup-drive
+    https://ojejlhnthhdvgbgpsgvi.supabase.co/functions/v1/db-backup-drive
   ```
 
   A success response looks like `{"ok":true,"files":[...],"pruned":0,"tables":N}`.

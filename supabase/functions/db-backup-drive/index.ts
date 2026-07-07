@@ -263,31 +263,21 @@ serve(async (req) => {
     // 2) Access token for Drive.
     const accessToken = await getGoogleAccessToken(clientId, clientSecret, refreshToken);
 
-    // 3) Generate + upload both formats.
+    // 3) Generate + upload both formats. Each dump is built, uploaded, and then
+    // released before the next one so peak memory stays close to one file's size.
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const uploaded: Array<{ id: string; name: string; size: number }> = [];
 
-    const sqlDump = await generateDump(svc, "sql", schema, tableList);
-    uploaded.push(
-      await uploadToDrive(
-        accessToken,
-        folderId,
-        `${FILE_PREFIX}${ts}.sql`,
-        "application/sql",
-        sqlDump,
-      ),
-    );
-
-    const jsonDump = await generateDump(svc, "json", schema, tableList);
-    uploaded.push(
-      await uploadToDrive(
-        accessToken,
-        folderId,
-        `${FILE_PREFIX}${ts}.json`,
-        "application/json",
-        jsonDump,
-      ),
-    );
+    for (const [fmt, ext, mime] of [
+      ["sql", "sql", "application/sql"],
+      ["json", "json", "application/json"],
+    ] as const) {
+      const dump = await generateDump(svc, fmt, schema, tableList);
+      uploaded.push(
+        await uploadToDrive(accessToken, folderId, `${FILE_PREFIX}${ts}.${ext}`, mime, dump),
+      );
+      // `dump` goes out of scope on the next iteration, freeing it for GC.
+    }
 
     // 4) Prune old backups (best-effort; a failure here doesn't fail the backup).
     let pruned = 0;

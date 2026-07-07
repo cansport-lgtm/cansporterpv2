@@ -24,7 +24,7 @@ SELECT cron.schedule(
   '0 20 * * *',
   $$
   SELECT net.http_post(
-    url := 'https://nkkzxnihjpqdalzerrhk.supabase.co/functions/v1/db-backup-drive',
+    url := 'https://ojejlhnthhdvgbgpsgvi.supabase.co/functions/v1/db-backup-drive',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'apikey', (SELECT value FROM public.integration_secrets WHERE key = 'supabase_publishable_key'),
