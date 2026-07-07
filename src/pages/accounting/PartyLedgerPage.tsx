@@ -315,7 +315,7 @@ export default function PartyLedgerPage() {
       {/* === PRINT VIEW (only visible when printing) === */}
       {/* Suppressed while printing a single invoice so only the invoice prints. */}
       {selectedParty && !printInvoiceId && (
-        <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:p-8 print:z-50 print:text-foreground">
+        <div className="hidden print:block print:bg-white print:p-8 print:text-foreground">
           <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-gray-800">
               <div>
