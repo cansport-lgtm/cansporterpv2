@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { FileText, Printer, Pencil, MessageCircle } from "lucide-react";
+import { FileText, Printer, Pencil, MessageCircle, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { buildLedgerPdf } from "@/lib/ledgerPdf";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
@@ -204,6 +205,39 @@ export default function PartyLedgerPage() {
   const handlePrint = () => {
     if (!selectedParty) return;
     window.print();
+  };
+
+  // Export the current ledger view to an .xlsx workbook. Mirrors the on-screen /
+  // PDF layout: heading block, opening balance, one row per line, then the
+  // period totals + closing. Debit/Credit/Balance are written as real numbers so
+  // they stay summable in Excel.
+  const handleExportExcel = () => {
+    if (!selectedParty) return;
+    const aoa: (string | number)[][] = [
+      [ledgerTitle],
+      [`${selectedParty.name}${selectedParty.code ? ` [${selectedParty.code}]` : ""} (${selectedParty.party_type})`],
+      [`Period: ${periodLabel}`],
+      [],
+      ["Date", "Voucher", "Against A/c", "Narration", "Debit", "Credit", "Balance"],
+      ["", "Opening Balance", "", "", "", "", Number(opening || 0)],
+      ...rows.map((r: any) => [
+        r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
+        `${r.voucher?.voucher_type || ""} ${r.voucher?.voucher_number || ""}`.trim(),
+        r.account?.name || "-",
+        r.line_narration || r.voucher?.narration || "-",
+        Number(r.debit_amount) > 0 ? Number(r.debit_amount) : "",
+        Number(r.credit_amount) > 0 ? Number(r.credit_amount) : "",
+        Number(r.runningBalance),
+      ]),
+      ["", "Total / Closing", "", "", totalDr, totalCr, `${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 12 }, { wch: 20 }, { wch: 24 }, { wch: 44 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ledger");
+    const fileName = `${ledgerTitle}-${selectedParty.name}-${format(parseISO(toDate), "yyyyMMdd")}`
+      .replace(/[^\w-]+/g, "_") + ".xlsx";
+    XLSX.writeFile(wb, fileName);
   };
 
   const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
@@ -419,6 +453,9 @@ export default function PartyLedgerPage() {
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selectedParty} className="w-full sm:w-auto">
               <Printer className="h-4 w-4 mr-1" />Print
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExportExcel} disabled={!selectedParty} className="w-full sm:w-auto text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-200">
+              <FileSpreadsheet className="h-4 w-4 mr-1" />Excel
             </Button>
             <Button
               size="sm"
