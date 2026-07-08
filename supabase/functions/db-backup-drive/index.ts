@@ -2,9 +2,14 @@
 //
 // This is the automated sibling of the manual `db-backup` function. It produces
 // the same restorable dumps (schema DDL + data), but instead of streaming them
-// to a browser it uploads them straight to a Google Drive folder and then prunes
-// backups older than the retention window. It is meant to be invoked once a day
-// by pg_cron (see the schedule_db_backup_drive migration).
+// to a browser it streams them straight into a Google Drive folder (resumable
+// upload) and then prunes backups older than the retention window. It is meant
+// to be invoked once a day by pg_cron (see the schedule_db_backup_drive migration).
+//
+// Memory: the dump is NEVER held whole in memory. Rows are paged from Postgres
+// and pushed to Drive in fixed 8 MB chunks, so peak memory stays ~one chunk
+// regardless of database size (a 95 MB DB previously OOM'd the worker when built
+// as a single string).
 //
 // Auth: this function is deployed with verify_jwt = false. It is protected by a
 // shared secret — the caller must send header `x-backup-secret` matching the
@@ -13,13 +18,9 @@
 //
 // All Google + Supabase config lives in `integration_secrets` (service-role only,
 // RLS-locked). Required keys:
-//   google_oauth_client_id       - OAuth 2.0 client id
-//   google_oauth_client_secret   - OAuth 2.0 client secret
-//   google_oauth_refresh_token   - long-lived refresh token (scope drive.file)
-//   google_drive_folder_id       - target Drive folder id
-//   backup_cron_secret           - shared secret guarding this function
-// Optional:
-//   backup_retention_days        - integer, default 30
+//   google_oauth_client_id, google_oauth_client_secret, google_oauth_refresh_token,
+//   google_drive_folder_id, backup_cron_secret
+// Optional: backup_retention_days (default 30)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -30,8 +31,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const PAGE = 1000;
+const PAGE = 5000;
 const FILE_PREFIX = "cansport_backup_";
+// Resumable-upload chunk size. Must be a multiple of 256 KiB (Google requirement
+// for all but the final chunk). 8 MiB = 32 * 256 KiB.
+const CHUNK = 8 * 1024 * 1024;
 
 function quote(s: string): string {
   return "'" + s.replace(/'/g, "''") + "'";
@@ -44,37 +48,160 @@ function sqlVal(v: unknown): string {
   return quote(String(v));
 }
 
-// Build a complete dump as a single string. Mirrors the paging/ordering logic of
-// the `db-backup` function so the two stay byte-compatible.
-async function generateDump(
+// Streams bytes to a Google Drive resumable-upload session in 8 MiB chunks so
+// the whole file never sits in memory. Call write() repeatedly, then finish().
+class DriveChunkedUploader {
+  private uri: string;
+  private parts: Uint8Array[] = [];
+  private pendingLen = 0;
+  private uploaded = 0;
+  private enc = new TextEncoder();
+  result: { id?: string; name?: string; size?: string } | null = null;
+
+  private constructor(uri: string) {
+    this.uri = uri;
+  }
+
+  static async open(
+    accessToken: string,
+    folderId: string,
+    name: string,
+    mimeType: string,
+  ): Promise<DriveChunkedUploader> {
+    const res = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Type": mimeType,
+        },
+        body: JSON.stringify({ name, parents: [folderId] }),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`Drive resumable init failed for ${name}: ${res.status} ${await res.text()}`);
+    }
+    const loc = res.headers.get("location") || res.headers.get("Location");
+    if (!loc) throw new Error(`Drive resumable init returned no session URI for ${name}`);
+    return new DriveChunkedUploader(loc);
+  }
+
+  async write(text: string): Promise<void> {
+    if (!text) return;
+    const bytes = this.enc.encode(text);
+    this.parts.push(bytes);
+    this.pendingLen += bytes.length;
+    if (this.pendingLen >= CHUNK) await this.flush(false);
+  }
+
+  private merge(): Uint8Array {
+    const buf = new Uint8Array(this.pendingLen);
+    let o = 0;
+    for (const p of this.parts) {
+      buf.set(p, o);
+      o += p.length;
+    }
+    this.parts = [];
+    this.pendingLen = 0;
+    return buf;
+  }
+
+  private async put(chunk: Uint8Array, start: number, totalOrStar: string): Promise<Response> {
+    const end = start + chunk.length - 1;
+    const res = await fetch(this.uri, {
+      method: "PUT",
+      headers: { "Content-Range": `bytes ${start}-${end}/${totalOrStar}` },
+      body: chunk,
+    });
+    return res;
+  }
+
+  private async flush(final: boolean): Promise<void> {
+    let buf = this.merge();
+    let offset = 0;
+    // Send full 8 MiB chunks with unknown total ("*"). On the final flush, keep
+    // the last piece back to send with the real total so Drive finalizes.
+    const keepLast = final;
+    while (buf.length - offset > CHUNK || (!keepLast && buf.length - offset >= CHUNK)) {
+      const chunk = buf.subarray(offset, offset + CHUNK);
+      const res = await this.put(chunk, this.uploaded, "*");
+      if (res.status !== 308 && !(res.status >= 200 && res.status < 300)) {
+        throw new Error(`Drive chunk upload failed: ${res.status} ${await res.text()}`);
+      }
+      this.uploaded += CHUNK;
+      offset += CHUNK;
+    }
+    const remainder = buf.slice(offset);
+    if (!final) {
+      if (remainder.length) {
+        this.parts = [remainder];
+        this.pendingLen = remainder.length;
+      }
+      return;
+    }
+    // Final piece with the true total length.
+    const total = this.uploaded + remainder.length;
+    let res: Response;
+    if (remainder.length === 0) {
+      // Everything already sent; ask Drive to finalize at `total`.
+      res = await fetch(this.uri, {
+        method: "PUT",
+        headers: { "Content-Range": `bytes */${total}` },
+      });
+    } else {
+      res = await this.put(remainder, this.uploaded, String(total));
+    }
+    if (res.status !== 200 && res.status !== 201) {
+      throw new Error(`Drive final upload failed: ${res.status} ${await res.text()}`);
+    }
+    this.uploaded = total;
+    this.result = await res.json().catch(() => ({}));
+  }
+
+  async finish(): Promise<{ id: string; name: string; size: number }> {
+    await this.flush(true);
+    return {
+      id: this.result?.id || "",
+      name: this.result?.name || "",
+      size: this.uploaded,
+    };
+  }
+}
+
+// Stream a full dump for one format into the uploader.
+async function streamDump(
   svc: SupabaseClient,
   fmt: "sql" | "json",
   schemaSql: string,
   tableList: string[],
-): Promise<string> {
-  const parts: string[] = [];
-
+  u: DriveChunkedUploader,
+): Promise<void> {
   if (fmt === "sql") {
-    parts.push(schemaSql || "");
-    parts.push("\n\n-- ============ DATA ============\n");
-    parts.push("SET session_replication_role = replica;\n\n");
+    await u.write(schemaSql || "");
+    await u.write("\n\n-- ============ DATA ============\n");
+    await u.write("SET session_replication_role = replica;\n\n");
   } else {
-    parts.push("{\n");
-    parts.push('"generated_at": ' + JSON.stringify(new Date().toISOString()) + ",\n");
-    parts.push('"schema_sql": ' + JSON.stringify(schemaSql || "") + ",\n");
-    parts.push('"tables": {\n');
+    await u.write("{\n");
+    await u.write('"generated_at": ' + JSON.stringify(new Date().toISOString()) + ",\n");
+    await u.write('"schema_sql": ' + JSON.stringify(schemaSql || "") + ",\n");
+    await u.write('"tables": {\n');
   }
 
   for (let ti = 0; ti < tableList.length; ti++) {
     const table = tableList[ti];
 
-    // Probe for a stable pagination key.
     const probe = await svc.from(table).select("*").limit(1);
     const sample = probe.data && probe.data[0];
     const cols = sample ? Object.keys(sample) : [];
     const orderCol = cols.includes("id") ? "id" : cols.includes("created_at") ? "created_at" : null;
 
-    if (fmt === "json") parts.push((ti > 0 ? ",\n" : "") + JSON.stringify(table) + ": [");
+    if (fmt === "json") await u.write((ti > 0 ? ",\n" : "") + JSON.stringify(table) + ": [");
+
+    // Column list is identical for every row of a table — build it once.
+    const colList = cols.map((k) => '"' + k + '"').join(", ");
+    const insertPrefix = `INSERT INTO public."${table}" (${colList}) VALUES (`;
 
     let from = 0;
     let firstRow = true;
@@ -84,41 +211,42 @@ async function generateDump(
       if (orderCol) q = q.order(orderCol, { ascending: true });
       const { data, error } = await q;
       if (error) {
-        if (fmt === "sql") parts.push(`-- ERROR dumping ${table}: ${error.message}\n`);
+        if (fmt === "sql") await u.write(`-- ERROR dumping ${table}: ${error.message}\n`);
         break;
       }
       if (!data || data.length === 0) break;
-      for (const row of data) {
-        if (fmt === "sql") {
-          const keys = Object.keys(row as Record<string, unknown>);
-          const colList = keys.map((k) => '"' + k + '"').join(", ");
-          const valList = keys.map((k) => sqlVal((row as Record<string, unknown>)[k])).join(", ");
-          if (!headerWritten) {
-            parts.push(`\n-- ${table}\n`);
-            headerWritten = true;
-          }
-          parts.push(`INSERT INTO public."${table}" (${colList}) VALUES (${valList});\n`);
-        } else {
-          parts.push((firstRow ? "" : ",") + JSON.stringify(row));
+      // Build the whole page's text once, then a single write() — this avoids an
+      // await + text-encode per row (the dominant overhead at ~400k rows).
+      const buf: string[] = [];
+      if (fmt === "sql") {
+        if (!headerWritten) {
+          buf.push(`\n-- ${table}\n`);
+          headerWritten = true;
+        }
+        for (const row of data) {
+          const valList = cols.map((k) => sqlVal((row as Record<string, unknown>)[k])).join(", ");
+          buf.push(insertPrefix, valList, ");\n");
+        }
+      } else {
+        for (const row of data) {
+          buf.push(firstRow ? "" : ",", JSON.stringify(row));
           firstRow = false;
         }
       }
+      await u.write(buf.join(""));
       if (data.length < PAGE) break;
       from += PAGE;
-      // Without a stable order key we cannot safely page; stop after one page.
-      if (!orderCol) break;
+      if (!orderCol) break; // no stable page key; one page only
     }
 
-    if (fmt === "json") parts.push("]");
+    if (fmt === "json") await u.write("]");
   }
 
   if (fmt === "sql") {
-    parts.push("\nSET session_replication_role = DEFAULT;\n");
+    await u.write("\nSET session_replication_role = DEFAULT;\n");
   } else {
-    parts.push("\n}\n}");
+    await u.write("\n}\n}");
   }
-
-  return parts.join("");
 }
 
 // Exchange a stored refresh token for a short-lived access token.
@@ -144,43 +272,6 @@ async function getGoogleAccessToken(
     );
   }
   return body.access_token as string;
-}
-
-// Multipart upload of one file into the target folder. Returns { id, name }.
-async function uploadToDrive(
-  accessToken: string,
-  folderId: string,
-  name: string,
-  mimeType: string,
-  content: string,
-): Promise<{ id: string; name: string; size: number }> {
-  const boundary = "-------cansportbackup" + name.length + content.length;
-  const meta = JSON.stringify({ name, parents: [folderId] });
-  const body =
-    `--${boundary}\r\n` +
-    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-    meta +
-    `\r\n--${boundary}\r\n` +
-    `Content-Type: ${mimeType}\r\n\r\n` +
-    content +
-    `\r\n--${boundary}--`;
-
-  const res = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body,
-    },
-  );
-  const out = await res.json().catch(() => ({}));
-  if (!res.ok || !out.id) {
-    throw new Error("Drive upload failed for " + name + ": " + (out.error?.message || res.status));
-  }
-  return { id: out.id, name: out.name, size: new TextEncoder().encode(content).length };
 }
 
 // Delete backup files older than `retentionDays`. Only the app's own files are
@@ -254,17 +345,13 @@ serve(async (req) => {
 
   const started = Date.now();
   try {
-    // 1) Gather schema + table list once, reuse for both formats.
     const { data: schemaSql } = await svc.rpc("backup_schema_sql");
     const { data: tables } = await svc.rpc("backup_list_tables");
     const tableList: string[] = tables || [];
     const schema = typeof schemaSql === "string" ? schemaSql : "";
 
-    // 2) Access token for Drive.
     const accessToken = await getGoogleAccessToken(clientId, clientSecret, refreshToken);
 
-    // 3) Generate + upload both formats. Each dump is built, uploaded, and then
-    // released before the next one so peak memory stays close to one file's size.
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const uploaded: Array<{ id: string; name: string; size: number }> = [];
 
@@ -272,14 +359,16 @@ serve(async (req) => {
       ["sql", "sql", "application/sql"],
       ["json", "json", "application/json"],
     ] as const) {
-      const dump = await generateDump(svc, fmt, schema, tableList);
-      uploaded.push(
-        await uploadToDrive(accessToken, folderId, `${FILE_PREFIX}${ts}.${ext}`, mime, dump),
+      const uploader = await DriveChunkedUploader.open(
+        accessToken,
+        folderId,
+        `${FILE_PREFIX}${ts}.${ext}`,
+        mime,
       );
-      // `dump` goes out of scope on the next iteration, freeing it for GC.
+      await streamDump(svc, fmt, schema, tableList, uploader);
+      uploaded.push(await uploader.finish());
     }
 
-    // 4) Prune old backups (best-effort; a failure here doesn't fail the backup).
     let pruned = 0;
     try {
       pruned = await pruneOldBackups(accessToken, folderId, retentionDays);
