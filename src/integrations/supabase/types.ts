@@ -15457,6 +15457,18 @@ export type Database = {
       }
       backup_list_tables: { Args: never; Returns: string[] }
       backup_schema_sql: { Args: never; Returns: string }
+      recent_backup_logs: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          status: string
+          tables_count: number
+          total_bytes: number
+          pruned_count: number
+          duration_ms: number
+          error: string
+        }[]
+      }
       create_app_user: {
         Args: {
           p_department_id?: string

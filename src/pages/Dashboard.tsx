@@ -67,6 +67,13 @@ export default function Dashboard() {
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupPassword, setBackupPassword] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
+  // Most recent automatic Google Drive backup (from the backup_log table).
+  const [lastAutoBackup, setLastAutoBackup] = useState<{
+    created_at: string;
+    status: string;
+    total_bytes: number | null;
+    error: string | null;
+  } | null>(null);
   const [period, setPeriod] = useState<Period>("yesterday");
   const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>(() => {
@@ -1310,6 +1317,17 @@ export default function Dashboard() {
     return result;
   };
 
+  // Latest automatic Google Drive backup status, shown in the backup dialog.
+  const fetchLastAutoBackup = async () => {
+    try {
+      const { data } = await supabase.rpc("recent_backup_logs", { p_limit: 1 });
+      const row = Array.isArray(data) && data.length ? data[0] : null;
+      setLastAutoBackup(row);
+    } catch {
+      setLastAutoBackup(null);
+    }
+  };
+
   // Full schema + data backup via the service-role `db-backup` Edge Function.
   // Super-admin only and re-confirmed with the user's password (the app keeps no
   // session token). Downloads a restorable .sql and a .json of the whole DB.
@@ -1441,7 +1459,7 @@ export default function Dashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72 bg-popover">
-                  <DropdownMenuItem onClick={() => setBackupOpen(true)} className="flex items-center gap-2 cursor-pointer">
+                  <DropdownMenuItem onClick={() => { setBackupOpen(true); fetchLastAutoBackup(); }} className="flex items-center gap-2 cursor-pointer">
                     <Database className="h-4 w-4" />
                     Full Database Backup (SQL + JSON)
                   </DropdownMenuItem>
@@ -1475,6 +1493,36 @@ export default function Dashboard() {
                       placeholder="Re-enter your password"
                       disabled={backupBusy}
                     />
+                  </div>
+                  <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                    <div className="font-medium mb-1">Automatic daily backup (Google Drive)</div>
+                    {lastAutoBackup ? (
+                      <div className="text-muted-foreground space-y-0.5">
+                        <div>
+                          Last run:{" "}
+                          <span className="text-foreground">
+                            {new Date(lastAutoBackup.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          Status:{" "}
+                          <span className={lastAutoBackup.status === "success" ? "text-green-600" : "text-red-600"}>
+                            {lastAutoBackup.status}
+                          </span>
+                          {lastAutoBackup.status === "success" && lastAutoBackup.total_bytes != null && (
+                            <span> · {(lastAutoBackup.total_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                          )}
+                        </div>
+                        {lastAutoBackup.status !== "success" && lastAutoBackup.error && (
+                          <div className="text-red-600 break-words">{lastAutoBackup.error}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">
+                        No automatic backups recorded yet. Runs daily once Google Drive is configured
+                        (see docs/BACKUP_GOOGLE_DRIVE.md).
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setBackupOpen(false)} disabled={backupBusy}>Cancel</Button>
