@@ -138,6 +138,40 @@ export default function DomesticDispatchPage() {
     enabled: !!editDispatch?.id,
   });
 
+  // A dispatch that has already been invoiced or posted to the ledger has its
+  // quantities frozen into an invoice and its Sales/COGS vouchers. Editing the
+  // dispatch qty/packing afterwards would silently desync those documents (the
+  // dispatch would say one thing while the invoice + GL say another). So once a
+  // dispatch is invoiced/posted we lock its line quantities — logistics fields
+  // (vehicle, driver, dates) stay editable. To change a quantity the user must
+  // reverse the invoice first.
+  const { data: editDispatchLock } = useQuery({
+    queryKey: ['edit-dispatch-lock', editDispatch?.id],
+    queryFn: async () => {
+      if (!editDispatch?.id) return { invoiced: false, posted: false, invoiceNumber: null as string | null };
+      const [inv, vch] = await Promise.all([
+        supabase
+          .from('domestic_invoices')
+          .select('invoice_number')
+          .eq('dispatch_id', editDispatch.id)
+          .limit(1),
+        supabase
+          .from('accounting_vouchers')
+          .select('id')
+          .eq('source_reference_id', editDispatch.id)
+          .eq('source_module', 'domestic_sales')
+          .limit(1),
+      ]);
+      return {
+        invoiced: (inv.data?.length || 0) > 0,
+        posted: (vch.data?.length || 0) > 0,
+        invoiceNumber: inv.data?.[0]?.invoice_number ?? null,
+      };
+    },
+    enabled: !!editDispatch?.id,
+  });
+  const isEditQtyLocked = !!(editDispatchLock?.invoiced || editDispatchLock?.posted);
+
   // Fetch orders for dispatch (for domestic segment)
   const { data: pendingOrders } = useQuery({
     queryKey: ['orders-for-dispatch', 'domestic'],
@@ -311,7 +345,7 @@ export default function DomesticDispatchPage() {
 
   // Edit mutation
   const editMutation = useMutation({
-    mutationFn: async (data: { id: string; updates: Partial<typeof formData>; items: typeof editItems }) => {
+    mutationFn: async (data: { id: string; updates: Partial<typeof formData>; items: typeof editItems; qtyLocked: boolean }) => {
       // Update dispatch header
       const { error } = await supabase
         .from('sales_dispatches')
@@ -327,6 +361,11 @@ export default function DomesticDispatchPage() {
         })
         .eq('id', data.id);
       if (error) throw error;
+
+      // Once invoiced/posted the line quantities are locked (they live in the
+      // invoice + Sales/COGS vouchers now). Only the header logistics fields
+      // above are saved; skip the item writes so the documents stay in sync.
+      if (data.qtyLocked) return;
 
       // Update dispatch items
       for (const item of data.items) {
@@ -445,7 +484,7 @@ export default function DomesticDispatchPage() {
       notes: (formElements.elements.namedItem('edit_notes') as HTMLTextAreaElement)?.value || '',
     };
     
-    editMutation.mutate({ id: editDispatch.id, updates, items: editItems });
+    editMutation.mutate({ id: editDispatch.id, updates, items: editItems, qtyLocked: isEditQtyLocked });
   };
 
   const toggleOrderSelection = (orderId: string) => {
@@ -1218,6 +1257,18 @@ export default function DomesticDispatchPage() {
                 {editItems.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-base font-medium">Dispatch Items</Label>
+                    {isEditQtyLocked && (
+                      <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
+                        <FileText className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
+                        <div>
+                          Quantities are locked because this dispatch has already been
+                          {editDispatchLock?.invoiceNumber ? <> invoiced (<span className="font-mono">{editDispatchLock.invoiceNumber}</span>)</> : ' invoiced'}
+                          {editDispatchLock?.posted ? ' and posted to the ledger' : ''}. Changing them here
+                          would desync the invoice and the Sales/COGS vouchers. To adjust a quantity,
+                          reverse the invoice first. Logistics fields (vehicle, driver, dates) can still be edited.
+                        </div>
+                      </div>
+                    )}
                     <div className="border rounded-lg overflow-hidden">
                       <div className="max-h-64 overflow-y-auto">
                         <Table>
@@ -1244,6 +1295,7 @@ export default function DomesticDispatchPage() {
                                   <Select
                                     value={item.packing_type}
                                     onValueChange={(value) => updateEditItem(index, 'packing_type', value)}
+                                    disabled={isEditQtyLocked}
                                   >
                                     <SelectTrigger className="h-8">
                                       <SelectValue />
@@ -1261,6 +1313,7 @@ export default function DomesticDispatchPage() {
                                     min="1"
                                     value={item.num_bags_ctn}
                                     onChange={(e) => updateEditItem(index, 'num_bags_ctn', parseFloat(e.target.value) || 1)}
+                                    disabled={isEditQtyLocked}
                                     className="w-full h-8 text-right"
                                   />
                                 </TableCell>
