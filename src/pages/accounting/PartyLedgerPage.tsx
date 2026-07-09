@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { FileText, Printer, Pencil, MessageCircle } from "lucide-react";
+import { FileText, Printer, Pencil, MessageCircle, Download } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { buildLedgerPdf } from "@/lib/ledgerPdf";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { InvoiceViewDialog } from "@/components/sales/InvoiceViewDialog";
@@ -204,6 +205,47 @@ export default function PartyLedgerPage() {
   const handlePrint = () => {
     if (!selectedParty) return;
     window.print();
+  };
+
+  const handleExportExcel = () => {
+    if (!selectedParty) return;
+    const openingRow = {
+      Date: "",
+      Voucher: "",
+      "Against A/c": "",
+      Narration: "Opening Balance",
+      Debit: "",
+      Credit: "",
+      Balance: Number(opening || 0),
+    };
+    const txnRows = rows.map((r: any) => ({
+      Date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
+      Voucher: [r.voucher?.voucher_type, r.voucher?.voucher_number].filter(Boolean).join(" "),
+      "Against A/c": r.account?.name || "",
+      Narration: [r.line_narration || r.voucher?.narration || "", invoiceNoteFor(r.voucher) ? `Note: ${invoiceNoteFor(r.voucher)}` : ""]
+        .filter(Boolean)
+        .join(" — "),
+      Debit: Number(r.debit_amount) > 0 ? Number(r.debit_amount) : "",
+      Credit: Number(r.credit_amount) > 0 ? Number(r.credit_amount) : "",
+      Balance: r.runningBalance,
+    }));
+    const closingRow = {
+      Date: "",
+      Voucher: "",
+      "Against A/c": "",
+      Narration: "Period Total / Closing",
+      Debit: totalDr,
+      Credit: totalCr,
+      Balance: `${Math.abs(closing).toLocaleString()} ${closing >= 0 ? "Dr" : "Cr"}`,
+    };
+
+    const ws = XLSX.utils.json_to_sheet([openingRow, ...txnRows, closingRow]);
+    ws["!cols"] = [{ wch: 14 }, { wch: 16 }, { wch: 24 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    const sheetName = (selectedParty.code || selectedParty.name || "Ledger").slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const safeName = (selectedParty.name || "party").replace(/[^\w-]+/g, "_");
+    XLSX.writeFile(wb, `${ledgerTitle.replace(/\s+/g, "_")}_${safeName}_${fromDate}_to_${toDate}.xlsx`);
   };
 
   const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
@@ -419,6 +461,9 @@ export default function PartyLedgerPage() {
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selectedParty} className="w-full sm:w-auto">
               <Printer className="h-4 w-4 mr-1" />Print
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExportExcel} disabled={!selectedParty} className="w-full sm:w-auto">
+              <Download className="h-4 w-4 mr-1" />Excel
             </Button>
             <Button
               size="sm"
