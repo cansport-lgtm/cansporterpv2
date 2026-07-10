@@ -382,13 +382,15 @@ export default function PurchaseAnalysisPage() {
 
   // Item rankings
   const itemRows = useMemo(() => {
-    const map: Record<string, { id: string; name: string; code: string; spend: number; qty: number; suppliers: Set<string>; received: number }> = {};
+    const map: Record<string, { id: string; name: string; code: string; spend: number; receivedSpend: number; qty: number; suppliers: Set<string>; received: number }> = {};
     (lines || []).forEach((r) => {
       const id = r.item_id || "unknown";
-      if (!map[id]) map[id] = { id, name: r.item_name, code: r.item_code, spend: 0, qty: 0, suppliers: new Set(), received: 0 };
+      if (!map[id]) map[id] = { id, name: r.item_name, code: r.item_code, spend: 0, receivedSpend: 0, qty: 0, suppliers: new Set(), received: 0 };
+      const recvQty = Math.min(r.qty_received, r.qty);
       map[id].spend += r.amount;
+      map[id].receivedSpend += recvQty * r.unit_price;
       map[id].qty += r.qty;
-      map[id].received += Math.min(r.qty_received, r.qty);
+      map[id].received += recvQty;
       if (r.supplier_id) map[id].suppliers.add(r.supplier_id);
     });
     return Object.values(map).map((p) => ({
@@ -396,6 +398,7 @@ export default function PurchaseAnalysisPage() {
       name: p.name,
       code: p.code,
       spend: p.spend,
+      receivedSpend: p.receivedSpend,
       qty: p.qty,
       received: p.received,
       suppliers: p.suppliers.size,
@@ -798,7 +801,8 @@ export default function PurchaseAnalysisPage() {
                     <TableHead>Code</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead className="text-right">Received Qty</TableHead>
-                    <TableHead className="text-right">Spend</TableHead>
+                    <TableHead className="text-right">Received Spend</TableHead>
+                    <TableHead className="text-right">Total Spend</TableHead>
                     <TableHead className="text-right">Avg Price</TableHead>
                     <TableHead className="text-right">Suppliers</TableHead>
                     <TableHead className="text-right">Fulfilment</TableHead>
@@ -807,7 +811,7 @@ export default function PurchaseAnalysisPage() {
                 </TableHeader>
                 <TableBody>
                   {!itemRows.length && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground">No data</TableCell></TableRow>
                   )}
                   {itemRows.slice(0, 50).map((p, i) => {
                     const breakup = itemPurchaseMap[p.id] || [];
@@ -829,7 +833,8 @@ export default function PurchaseAnalysisPage() {
                           <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
                           <TableCell className="text-sm">{p.name}</TableCell>
                           <TableCell className="text-right">{p.received.toLocaleString()}</TableCell>
-                          <TableCell className="text-right font-medium">Rs. {p.spend.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">Rs. {Math.round(p.receivedSpend).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">Rs. {p.spend.toLocaleString()}</TableCell>
                           <TableCell className="text-right text-xs">Rs. {p.avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-right">{p.suppliers}</TableCell>
                           <TableCell className="text-right text-xs">{p.fulfilment.toFixed(0)}%</TableCell>
@@ -837,7 +842,7 @@ export default function PurchaseAnalysisPage() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={10} className="p-0">
+                            <TableCell colSpan={11} className="p-0">
                               <div className="px-6 py-3">
                                 <div className="text-xs font-semibold mb-2 text-muted-foreground">
                                   Purchase Breakup — {breakup.length} order line{breakup.length !== 1 ? "s" : ""}, sequence-wise
