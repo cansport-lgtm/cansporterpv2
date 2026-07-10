@@ -397,6 +397,7 @@ export default function PurchaseAnalysisPage() {
       code: p.code,
       spend: p.spend,
       qty: p.qty,
+      received: p.received,
       suppliers: p.suppliers.size,
       avgPrice: p.qty > 0 ? p.spend / p.qty : 0,
       fulfilment: p.qty > 0 ? (p.received / p.qty) * 100 : 0,
@@ -796,7 +797,7 @@ export default function PurchaseAnalysisPage() {
                     <TableHead className="w-[40px]">#</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Item</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Received Qty</TableHead>
                     <TableHead className="text-right">Spend</TableHead>
                     <TableHead className="text-right">Avg Price</TableHead>
                     <TableHead className="text-right">Suppliers</TableHead>
@@ -827,7 +828,7 @@ export default function PurchaseAnalysisPage() {
                           <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                           <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
                           <TableCell className="text-sm">{p.name}</TableCell>
-                          <TableCell className="text-right">{p.qty.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{p.received.toLocaleString()}</TableCell>
                           <TableCell className="text-right font-medium">Rs. {p.spend.toLocaleString()}</TableCell>
                           <TableCell className="text-right text-xs">Rs. {p.avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-right">{p.suppliers}</TableCell>
