@@ -345,12 +345,15 @@ export default function PurchaseAnalysisPage() {
 
   // Supplier ranking with Pareto cumulative %
   const supplierRows = useMemo(() => {
-    const map: Record<string, { id: string; name: string; code: string; spend: number; qty: number; pos: Set<string>; items: Set<string> }> = {};
+    const map: Record<string, { id: string; name: string; code: string; spend: number; receivedSpend: number; qty: number; received: number; pos: Set<string>; items: Set<string> }> = {};
     (lines || []).forEach((r) => {
       const id = r.supplier_id || "unknown";
-      if (!map[id]) map[id] = { id, name: r.supplier_name, code: r.supplier_code, spend: 0, qty: 0, pos: new Set(), items: new Set() };
+      if (!map[id]) map[id] = { id, name: r.supplier_name, code: r.supplier_code, spend: 0, receivedSpend: 0, qty: 0, received: 0, pos: new Set(), items: new Set() };
+      const recvQty = Math.min(r.qty_received, r.qty);
       map[id].spend += r.amount;
+      map[id].receivedSpend += recvQty * r.unit_price;
       map[id].qty += r.qty;
+      map[id].received += recvQty;
       if (r.po_id) map[id].pos.add(r.po_id);
       if (r.item_id) map[id].items.add(r.item_id);
     });
@@ -359,7 +362,9 @@ export default function PurchaseAnalysisPage() {
       name: s.name,
       code: s.code,
       spend: s.spend,
+      receivedSpend: s.receivedSpend,
       qty: s.qty,
+      received: s.received,
       pos: s.pos.size,
       items: s.items.size,
     })).sort((a, b) => b.spend - a.spend);
@@ -753,15 +758,16 @@ export default function PurchaseAnalysisPage() {
                     <TableHead>Supplier</TableHead>
                     <TableHead className="text-right">POs</TableHead>
                     <TableHead className="text-right">Items</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Spend</TableHead>
+                    <TableHead className="text-right">Received Qty</TableHead>
+                    <TableHead className="text-right">Received Spend</TableHead>
+                    <TableHead className="text-right">Total Spend</TableHead>
                     <TableHead className="text-right">Share %</TableHead>
                     <TableHead className="text-right">Cumulative %</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!supplierRows.length && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No data</TableCell></TableRow>
                   )}
                   {supplierRows.slice(0, 50).map((s, i) => (
                     <TableRow key={s.id}>
@@ -773,8 +779,9 @@ export default function PurchaseAnalysisPage() {
                       </TableCell>
                       <TableCell className="text-right">{s.pos}</TableCell>
                       <TableCell className="text-right">{s.items}</TableCell>
-                      <TableCell className="text-right">{s.qty.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium">Rs. {s.spend.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{s.received.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-medium">Rs. {Math.round(s.receivedSpend).toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">Rs. {s.spend.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-xs">{s.share.toFixed(1)}%</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">{s.cumulativePct.toFixed(1)}%</TableCell>
                     </TableRow>
