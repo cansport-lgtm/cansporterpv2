@@ -18,6 +18,7 @@ import { OrderTrackingDialog } from "@/components/online-sales/OrderTrackingDial
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import * as XLSX from "xlsx";
 
 const STATUSES = ["pending", "confirmed", "sent_to_courier", "dispatched", "delivered", "return_awaited", "returned", "cancelled"];
@@ -62,6 +63,7 @@ interface LiveItem {
 export default function OnlineOrdersPage() {
   const { user, roles, canViewPrices } = useAuth();
   const showPrices = canViewPrices();
+  const isMobile = useIsMobile();
   const isPackingRole = roles.some(r => (r.role as string) === 'online_sales_packing');
   const isSuperAdmin = roles.some(r => (r.role as string) === 'super_admin');
   const [orders, setOrders] = useState<any[]>([]);
@@ -806,6 +808,112 @@ export default function OnlineOrdersPage() {
 
   const getStatusLabel = (status: string) => status.replace(/_/g, " ");
 
+  const renderMobileCard = (o: any) => {
+    const transitions = STATUS_TRANSITIONS[o.status] || [];
+    const risk = phoneRisk(o.customer_phone);
+    return (
+      <Card key={o.id} className={selectedIds.has(o.id) ? "border-primary ring-1 ring-primary/40" : ""}>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 min-w-0">
+              {!isPackingRole && (
+                <Checkbox className="mt-1 shrink-0" checked={selectedIds.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+              )}
+              <div className="min-w-0">
+                <div className="font-medium truncate">{o.order_number || o.platform_order_id || "-"}</div>
+                <div className="text-xs text-muted-foreground">{o.platform} · {format(new Date(o.order_date), "dd MMM yyyy")}</div>
+              </div>
+            </div>
+            <Badge
+              variant={getStatusBadgeVariant(o.status)}
+              className={
+                (o.status === "sent_to_courier" ? "border-amber-500 text-amber-700 bg-amber-50" :
+                o.status === "return_awaited" ? "border-orange-500 text-orange-700 bg-orange-50" : "") + " shrink-0 capitalize"
+              }
+            >
+              {getStatusLabel(o.status)}
+            </Badge>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-medium">{o.customer_name}</span>
+              {risk?.blacklisted ? <Badge className="bg-black text-white text-[9px] px-1 py-0">Blacklisted</Badge>
+                : risk?.level === "high" ? <Badge className="bg-red-100 text-red-800 border-red-300 text-[9px] px-1 py-0">High risk</Badge> : null}
+            </div>
+            {o.city && <div className="text-xs text-muted-foreground">{o.city}</div>}
+          </div>
+
+          <div className="text-sm">{o._itemDisplay}</div>
+
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">Weight:</span>{" "}
+              {o.actual_weight > 0
+                ? <span className="font-semibold text-primary">{o.actual_weight} g</span>
+                : <span className="text-destructive font-semibold">0</span>}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Qty:</span>{" "}
+              {o.quantity > 0
+                ? <span className="font-semibold">{o.quantity}</span>
+                : <span className="text-destructive font-semibold">0</span>}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Payment:</span>
+              <Badge variant={o.payment_mode === "cod" ? "destructive" : "default"} className="text-[10px] px-1.5 py-0">{o.payment_mode?.toUpperCase()}</Badge>
+            </div>
+            {showPrices && (
+              <div>
+                <span className="text-muted-foreground">Value:</span>{" "}
+                <span className="font-medium">Rs. {(o.order_value || 0).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
+          {o._tracking && (
+            <div className="text-xs">
+              <span className="text-muted-foreground">Tracking:</span>{" "}
+              <span className="font-mono">{o._tracking}</span>
+            </div>
+          )}
+
+          {!isPackingRole && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+              {!o._tracking && (o.status === "pending" || o.status === "confirmed") && (
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => bookOnPostex(o.id)} disabled={postexBusy}>
+                  <Truck className="h-3.5 w-3.5" /> Book
+                </Button>
+              )}
+              {o._tracking && (
+                <>
+                  <Button size="sm" variant="ghost" className="h-8 px-2 gap-1" onClick={() => setTrackOrder({ id: o.id, order_number: o.order_number, customer_name: o.customer_name, tracking_number: o._tracking || o.tracking_number })}>
+                    <MapPin className="h-3.5 w-3.5" /> Track
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => refreshOrder(o.id)} disabled={refreshingId === o.id} title="Refresh status from PostEx">
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshingId === o.id ? "animate-spin" : ""}`} />
+                  </Button>
+                </>
+              )}
+              {transitions.length > 0 && (
+                <Select onValueChange={(v) => updateStatus(o.id, v)}>
+                  <SelectTrigger className="h-8 flex-1 min-w-[130px] text-xs">
+                    <SelectValue placeholder="Change status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transitions.map(t => (
+                      <SelectItem key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -876,8 +984,26 @@ export default function OnlineOrdersPage() {
           </Card>
         )}
 
+        {isMobile ? (
+          <div className="space-y-3">
+            {!isPackingRole && filtered.length > 0 && (
+              <label className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+                <Checkbox checked={filtered.length > 0 && selectedIds.size === filtered.length} onCheckedChange={toggleSelectAll} />
+                Select all ({filtered.length})
+              </label>
+            )}
+            {loading ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">Loading...</CardContent></Card>
+            ) : filtered.length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">No orders found</CardContent></Card>
+            ) : (
+              filtered.map(renderMobileCard)
+            )}
+          </div>
+        ) : (
         <Card>
           <CardContent className="p-0">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -999,8 +1125,10 @@ export default function OnlineOrdersPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
+        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1009,7 +1137,7 @@ export default function OnlineOrdersPage() {
             <DialogTitle>New Online Order</DialogTitle>
             <DialogDescription>Fill in the order details below.</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Platform</Label>
               <Select value={form.platform} onValueChange={v => setForm(p => ({ ...p, platform: v }))}>
@@ -1052,7 +1180,7 @@ export default function OnlineOrdersPage() {
               <Label>Email</Label>
               <Input value={form.customer_email} onChange={e => setForm(p => ({ ...p, customer_email: e.target.value }))} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Label>Shipping Address</Label>
               <Textarea value={form.shipping_address} onChange={e => setForm(p => ({ ...p, shipping_address: e.target.value }))} rows={2} />
             </div>
@@ -1084,7 +1212,7 @@ export default function OnlineOrdersPage() {
                 <Input type="number" value={form.order_value} onChange={e => setForm(p => ({ ...p, order_value: e.target.value }))} />
               </div>
             )}
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Label>Remarks</Label>
               <Textarea value={form.remarks} onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))} rows={2} />
             </div>
