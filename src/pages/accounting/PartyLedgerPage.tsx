@@ -134,19 +134,35 @@ export default function PartyLedgerPage() {
   }, [lines]);
 
   const { data: dispatchInvoiceMap } = useQuery({
-    queryKey: ["acc-pl-dispatch-invoice-map", dispatchIdsToResolve],
+    queryKey: ["acc-pl-dispatch-invoice-map", dispatchIdsToResolve, partyId],
     queryFn: async () => {
       if (!dispatchIdsToResolve.length) return {} as Record<string, { id: string; notes: string | null }>;
+      // A single dispatch can be split into several invoices for DIFFERENT billing
+      // parties (one delivery challan, multiple customers). The ledger row we're
+      // resolving belongs to `partyId`, so we must pick the invoice for THIS party
+      // — keying purely on dispatch_id would surface another customer's invoice.
       const { data, error } = await sb
         .from("domestic_invoices")
-        .select("id, dispatch_id, notes")
+        .select("id, dispatch_id, notes, customer:customers(accounting_party_id)")
         .in("dispatch_id", dispatchIdsToResolve);
       if (error) throw error;
+      // Group by dispatch so we can prefer the party-matching invoice and fall
+      // back to the sole invoice when a legacy customer has no billing party set.
+      const byDispatch: Record<string, any[]> = {};
+      (data || []).forEach((r: any) => {
+        if (!r.dispatch_id) return;
+        (byDispatch[r.dispatch_id] ||= []).push(r);
+      });
       const map: Record<string, { id: string; notes: string | null }> = {};
-      (data || []).forEach((r: any) => { if (r.dispatch_id) map[r.dispatch_id] = { id: r.id, notes: r.notes }; });
+      Object.entries(byDispatch).forEach(([dispatchId, invoices]) => {
+        const match =
+          invoices.find((r) => r.customer?.accounting_party_id === partyId) ||
+          (invoices.length === 1 ? invoices[0] : null);
+        if (match) map[dispatchId] = { id: match.id, notes: match.notes };
+      });
       return map;
     },
-    enabled: dispatchIdsToResolve.length > 0,
+    enabled: dispatchIdsToResolve.length > 0 && !!partyId,
   });
 
   // Resolve a voucher's underlying source document so we can open it as a modal
