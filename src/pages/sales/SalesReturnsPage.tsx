@@ -118,13 +118,30 @@ export default function SalesReturnsPage() {
           order_item:sales_order_items(price_per_dozen, product:products(id, code, name, standard_cost))
         `)
         .eq("dispatch_id", dispatchId);
+
+      // The return rate must follow the INVOICE for this dispatch, not the
+      // original order price. Invoice line prices are editable (see
+      // InvoiceEditDialog), so an invoice can bill a different rate than the
+      // order — e.g. DC 00059 was ordered at 2800 but invoiced at 2500. Build
+      // a dispatch_item_id → invoiced price map and prefer it below.
+      const { data: invItems } = await sb
+        .from("domestic_invoice_items")
+        .select("price_per_dozen, dispatch_item_id, invoice:domestic_invoices!inner(dispatch_id)")
+        .eq("invoice.dispatch_id", dispatchId);
+      const invoicedPrice = new Map<string, number>();
+      for (const ii of invItems || []) {
+        if (ii.dispatch_item_id != null) invoicedPrice.set(ii.dispatch_item_id, Number(ii.price_per_dozen || 0));
+      }
+
       const next: LineForm[] = (data || []).map((it: any) => ({
         dispatch_item_id: it.id,
         product_id: it.order_item?.product?.id || "",
         product_label: `${it.order_item?.product?.code || ""} — ${it.order_item?.product?.name || ""}`,
         original_qty: Number(it.quantity_dozens || 0),
         qty: 0,
-        unit_price: Number(it.order_item?.price_per_dozen || 0),
+        unit_price: invoicedPrice.has(it.id)
+          ? invoicedPrice.get(it.id)!
+          : Number(it.order_item?.price_per_dozen || 0),
         standard_cost: Number(it.order_item?.product?.standard_cost || 0),
         reason: "",
       }));
