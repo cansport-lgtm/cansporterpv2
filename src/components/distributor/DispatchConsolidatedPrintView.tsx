@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import cansportLogo from "@/assets/cansport-logo.png";
-import { printDocument, esc } from "@/lib/printDocument";
+import { printDocument, esc, HIDE_PRINT_URL_CSS } from "@/lib/printDocument";
 import { buildBulkDispatchSheetPdf } from "@/lib/dispatchSheetPdf";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 
@@ -252,7 +252,7 @@ export function DispatchConsolidatedPrintView({
         }
       </div>`;
 
-    printDocument(`Dispatch Sheet — ${scopeLabel}`, body);
+    printDocument(`Dispatch Sheet — ${scopeLabel}`, body, HIDE_PRINT_URL_CSS);
     onAfterPrint();
     // onAfterPrint intentionally omitted; fire once per request load.
     // eslint-disable-next-line react-hooks/exhaustive-deps

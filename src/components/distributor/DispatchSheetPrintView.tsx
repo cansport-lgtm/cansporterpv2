@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import cansportLogo from "@/assets/cansport-logo.png";
-import { printDocument, esc } from "@/lib/printDocument";
+import { printDocument, esc, HIDE_PRINT_URL_CSS } from "@/lib/printDocument";
 import { buildDispatchSheetPdf } from "@/lib/dispatchSheetPdf";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 
@@ -237,7 +237,7 @@ export function DispatchSheetPrintView({ orderId, mode = "print", onAfterPrint }
         </div>
       </div>`;
 
-    printDocument(`Dispatch Sheet ${order.order_number ?? ""}`.trim(), body);
+    printDocument(`Dispatch Sheet ${order.order_number ?? ""}`.trim(), body, HIDE_PRINT_URL_CSS);
     onAfterPrint();
     // onAfterPrint intentionally omitted from deps; fire once per order load.
     // eslint-disable-next-line react-hooks/exhaustive-deps

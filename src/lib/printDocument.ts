@@ -54,10 +54,24 @@ export const DISPATCH_PRINT_CSS = `
 `;
 
 /**
+ * Extra CSS that suppresses the browser's automatic print header/footer — the line
+ * that prints the page URL and date at the edges of the paper. Chromium only draws
+ * that text inside the `@page` margin box, so collapsing the margin to 0 removes it;
+ * we restore a sensible printable margin with body padding instead.
+ *
+ * Pass as the `extraCss` argument to `printDocument` for documents that must not show
+ * the app URL on the printout (e.g. dispatch sheets handed to drivers / customers).
+ */
+export const HIDE_PRINT_URL_CSS = `
+  @page { margin: 0; }
+  @media print { body { padding: 14mm; } }
+`;
+
+/**
  * Write `bodyHtml` into a hidden iframe and print it. Waits for any images to finish
  * loading (with a timeout fallback) so logos don't print blank, then cleans up.
  */
-export function printDocument(title: string, bodyHtml: string): void {
+export function printDocument(title: string, bodyHtml: string, extraCss = ""): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
@@ -78,7 +92,7 @@ export function printDocument(title: string, bodyHtml: string): void {
   doc.open();
   doc.write(
     `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>` +
-      `<style>${DISPATCH_PRINT_CSS}</style></head><body>${bodyHtml}</body></html>`
+      `<style>${DISPATCH_PRINT_CSS}${extraCss}</style></head><body>${bodyHtml}</body></html>`
   );
   doc.close();
 
