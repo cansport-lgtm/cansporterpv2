@@ -35,6 +35,9 @@ interface PartyForm {
   email: string;
   address: string;
   ntn: string;
+  // Kept as strings for the inputs; empty string = "not set" (NULL in DB).
+  credit_days: string;
+  credit_limit: string;
   is_active: boolean;
 }
 
@@ -47,6 +50,8 @@ const defaultForm: PartyForm = {
   email: "",
   address: "",
   ntn: "",
+  credit_days: "",
+  credit_limit: "",
   is_active: true,
 };
 
@@ -73,7 +78,13 @@ export default function AccountingPartiesPage() {
     mutationFn: async (formData: PartyForm) => {
       // Trim the name so stray trailing spaces don't create lookup mismatches
       // (e.g. a party that silently fails to match in voucher dropdowns).
-      const payload = { ...formData, name: formData.name.trim(), code: formData.code.trim() || null };
+      const payload = {
+        ...formData,
+        name: formData.name.trim(),
+        code: formData.code.trim() || null,
+        credit_days: formData.credit_days.trim() === "" ? null : Math.max(0, Math.round(Number(formData.credit_days)) || 0),
+        credit_limit: formData.credit_limit.trim() === "" ? null : Math.max(0, Number(formData.credit_limit) || 0),
+      };
       if (editId) {
         const { error } = await sb.from("accounting_parties").update(payload).eq("id", editId);
         if (error) throw error;
@@ -103,6 +114,8 @@ export default function AccountingPartiesPage() {
       email: p.email || "",
       address: p.address || "",
       ntn: p.ntn || "",
+      credit_days: p.credit_days == null ? "" : String(p.credit_days),
+      credit_limit: p.credit_limit == null ? "" : String(p.credit_limit),
       is_active: p.is_active ?? true,
     });
     setDialogOpen(true);
@@ -153,6 +166,18 @@ export default function AccountingPartiesPage() {
                   <div><Label>NTN</Label><Input value={form.ntn} onChange={(e) => setForm({ ...form, ntn: e.target.value })} placeholder="National Tax Number" /></div>
                 </div>
                 <div><Label>Address</Label><Textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Credit Days</Label>
+                    <Input type="number" min={0} value={form.credit_days} onChange={(e) => setForm({ ...form, credit_days: e.target.value })} placeholder="Forecast default" />
+                    <p className="text-xs text-muted-foreground mt-1">Expected settlement terms; blank = use the Cash Flow Forecast default.</p>
+                  </div>
+                  <div>
+                    <Label>Credit Limit (Rs.)</Label>
+                    <Input type="number" min={0} value={form.credit_limit} onChange={(e) => setForm({ ...form, credit_limit: e.target.value })} placeholder="No limit" />
+                    <p className="text-xs text-muted-foreground mt-1">Outstanding above this is flagged in the AR/AP report.</p>
+                  </div>
+                </div>
                 <div className="flex items-center justify-between rounded-md border p-3">
                   <div>
                     <Label>Active</Label>
@@ -179,13 +204,14 @@ export default function AccountingPartiesPage() {
               <TableHead>Contact</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>NTN</TableHead>
+              <TableHead>Credit</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && !filtered?.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No parties. Add a customer to use in vouchers.</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!isLoading && !filtered?.length && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No parties. Add a customer to use in vouchers.</TableCell></TableRow>}
             {filtered?.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
@@ -194,6 +220,14 @@ export default function AccountingPartiesPage() {
                 <TableCell className="text-xs">{p.contact_person || "—"}</TableCell>
                 <TableCell className="text-xs">{p.phone || "—"}</TableCell>
                 <TableCell className="text-xs">{p.ntn || "—"}</TableCell>
+                <TableCell className="text-xs whitespace-nowrap">
+                  {p.credit_days == null && p.credit_limit == null
+                    ? "—"
+                    : [
+                        p.credit_days != null ? `${p.credit_days}d` : null,
+                        p.credit_limit != null ? `Rs. ${Number(p.credit_limit).toLocaleString()}` : null,
+                      ].filter(Boolean).join(" / ")}
+                </TableCell>
                 <TableCell>
                   {p.is_active
                     ? <Badge variant="outline" className="bg-green-100 text-green-800">Active</Badge>
