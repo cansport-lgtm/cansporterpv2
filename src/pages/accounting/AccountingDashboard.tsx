@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Landmark, FileText, Plus, BookOpen, Package, AlertTriangle, CheckCircle, ArrowRight } from "lucide-react";
+import { Wallet, Landmark, FileText, Plus, BookOpen, Package, AlertTriangle, CheckCircle, ArrowRight, HeartPulse } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const sb = supabase as any;
@@ -92,6 +92,7 @@ export default function AccountingDashboard() {
         <div className="flex gap-2">
           <Link to="/accounting/vouchers/new"><Button size="sm"><Plus className="h-4 w-4 mr-1" />New Voucher</Button></Link>
           <Link to="/accounting/day-book"><Button size="sm" variant="outline"><BookOpen className="h-4 w-4 mr-1" />Day Book</Button></Link>
+          <Link to="/accounting/business-health"><Button size="sm" variant="outline"><HeartPulse className="h-4 w-4 mr-1" />Business Health</Button></Link>
         </div>
       </PageHeader>
 

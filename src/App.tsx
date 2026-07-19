@@ -266,6 +266,7 @@ import MachineQRScanPage from "./pages/machine-monitor/MachineQRScanPage";
 
 // Accounting (Standalone) pages
 import AccountingDashboard from "./pages/accounting/AccountingDashboard";
+import BusinessHealthDashboard from "./pages/accounting/BusinessHealthDashboard";
 import AccountingCoAPage from "./pages/accounting/AccountingCoAPage";
 import AccountingPartiesPage from "./pages/accounting/AccountingPartiesPage";
 import AccountingVouchersPage from "./pages/accounting/AccountingVouchersPage";
@@ -780,6 +781,7 @@ const App = () => (
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />
+            <Route path="/accounting/business-health" element={<ProtectedRoute><BusinessHealthDashboard /></ProtectedRoute>} />
             <Route path="/accounting/chart-of-accounts" element={<ProtectedRoute><AccountingCoAPage /></ProtectedRoute>} />
             <Route path="/accounting/parties" element={<ProtectedRoute><AccountingPartiesPage /></ProtectedRoute>} />
             <Route path="/accounting/vouchers" element={<ProtectedRoute><AccountingVouchersPage /></ProtectedRoute>} />
