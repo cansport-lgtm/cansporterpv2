@@ -143,6 +143,7 @@ const navigationItems: NavItem[] = [
       { title: "Profit & Loss", href: "/accounting/profit-loss" },
       { title: "Balance Sheet", href: "/accounting/balance-sheet" },
       { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
+      { title: "Cash Flow Forecast", href: "/accounting/cash-flow-forecast" },
       { title: "Sales Report", href: "/accounting/sales-report" },
       { title: "Sales Analysis", href: "/accounting/sales-analysis" },
       { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
