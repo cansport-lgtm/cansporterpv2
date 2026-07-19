@@ -115,6 +115,7 @@ const navigationItems: NavItem[] = [
     quickHref: "/accounting/dashboard",
     children: [
       { title: "Dashboard", href: "/accounting/dashboard" },
+      { title: "Business Health", href: "/accounting/business-health" },
 
       { title: "Masters", href: "", isHeader: true },
       { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
