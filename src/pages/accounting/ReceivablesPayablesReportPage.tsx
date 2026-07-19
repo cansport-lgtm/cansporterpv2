@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Download, ArrowUpRight, ArrowDownRight, Scale } from "lucide-react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import * as XLSX from "xlsx";
@@ -125,6 +126,22 @@ export default function ReceivablesPayablesReportPage() {
         if (r.key === "accounts_payable") out.ap = r.account_id;
       });
       return out;
+    },
+  });
+
+  // Per-party credit limits (Accounting → Parties). Resilient to the column
+  // not existing yet — the over-limit flag simply doesn't show.
+  const { data: creditLimits } = useQuery({
+    queryKey: ["ar-ap-credit-limits"],
+    queryFn: async () => {
+      const map: Record<string, number> = {};
+      const { data, error } = await sb
+        .from("accounting_parties")
+        .select("id, credit_limit")
+        .gt("credit_limit", 0);
+      if (error) return map;
+      (data || []).forEach((r: any) => { map[r.id] = Number(r.credit_limit); });
+      return map;
     },
   });
 
@@ -296,6 +313,11 @@ export default function ReceivablesPayablesReportPage() {
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
                     <Link to={`/accounting/party-ledger?type=customer&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
+                    {creditLimits?.[r.party_id] != null && r.total > creditLimits[r.party_id] && (
+                      <Badge variant="outline" className="ml-2 bg-red-100 text-red-800" title={`Credit limit Rs. ${creditLimits[r.party_id].toLocaleString()}`}>
+                        Over limit
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-xs">{r.b0_30 ? `Rs. ${r.b0_30.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>

@@ -21,7 +21,7 @@ import * as XLSX from "xlsx";
 
 const sb = supabase as any;
 
-type OpenItem = { date: string; amount: number };
+type OpenItem = { date: string; amount: number; partyId: string };
 
 /**
  * FIFO open-item extraction for one party — same walk as the AR/AP aging
@@ -29,7 +29,7 @@ type OpenItem = { date: string; amount: number };
  * items (invoice date + remaining amount), capped at the net GL balance so
  * the total always reconciles to the trial balance.
  */
-function openItemsForParty(lines: any[], isAR: boolean, fallbackDate: string): OpenItem[] {
+function openItemsForParty(lines: any[], isAR: boolean, fallbackDate: string, partyId: string): OpenItem[] {
   const sorted = [...lines].sort((a, b) => {
     const ad = a.voucher?.voucher_date || "";
     const bd = b.voucher?.voucher_date || "";
@@ -65,10 +65,10 @@ function openItemsForParty(lines: any[], isAR: boolean, fallbackDate: string): O
   for (const o of opens) {
     if (remaining <= 0) break;
     const amt = Math.min(o.remaining, remaining);
-    out.push({ date: o.date, amount: amt });
+    out.push({ date: o.date, amount: amt, partyId });
     remaining -= amt;
   }
-  if (remaining > 0.005) out.push({ date: fallbackDate, amount: remaining });
+  if (remaining > 0.005) out.push({ date: fallbackDate, amount: remaining, partyId });
   return out;
 }
 
@@ -155,6 +155,23 @@ export default function CashFlowForecastPage() {
       (s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0),
     [cashLines]
   );
+
+  // Per-party credit terms. Resilient to the credit_days column not existing
+  // yet (frontend deploy and DB migration are not atomic) — falls back to the
+  // page-level defaults for everyone.
+  const { data: partyTerms } = useQuery({
+    queryKey: ["cff-party-terms"],
+    queryFn: async () => {
+      const map: Record<string, number> = {};
+      const { data, error } = await sb
+        .from("accounting_parties")
+        .select("id, credit_days")
+        .not("credit_days", "is", null);
+      if (error) return map;
+      (data || []).forEach((r: any) => { map[r.id] = Number(r.credit_days); });
+      return map;
+    },
+  });
 
   // Outstanding AR / AP lines (same shape as the Receivables & Payables report)
   const partyLinesQuery = (account: string | null | undefined) => async () => {
@@ -247,7 +264,7 @@ export default function CashFlowForecastPage() {
       (byParty[l.party_id] ||= []).push(l);
     });
     const items: OpenItem[] = [];
-    Object.values(byParty).forEach((ls) => items.push(...openItemsForParty(ls, isAR, today)));
+    Object.entries(byParty).forEach(([pid, ls]) => items.push(...openItemsForParty(ls, isAR, today, pid)));
     return items;
   };
 
@@ -276,10 +293,13 @@ export default function CashFlowForecastPage() {
     }));
 
     // Place an expected cash event (item date + credit terms) into a period.
-    // Anything already due (or overdue) lands in period 1; anything past the
-    // horizon is reported separately instead of silently dropped.
+    // A party with its own credit_days (set in Accounting → Parties) uses
+    // those; others use the page-level default. Anything already due (or
+    // overdue) lands in period 1; anything past the horizon is reported
+    // separately instead of silently dropped.
     let arBeyond = 0, apBeyond = 0, overdueAR = 0, overdueAP = 0;
-    const place = (item: OpenItem, termDays: number, isIn: boolean) => {
+    const place = (item: OpenItem, defaultTermDays: number, isIn: boolean) => {
+      const termDays = partyTerms?.[item.partyId] ?? defaultTermDays;
       const due = addDays(parseISO(item.date), termDays);
       if (due > horizonEnd) {
         if (isIn) arBeyond += item.amount; else apBeyond += item.amount;
@@ -321,7 +341,7 @@ export default function CashFlowForecastPage() {
     const firstNegative = rows.find((r) => r.closing < 0) || null;
 
     return { rows, arBeyond, apBeyond, overdueAR, overdueAP, totalIn, totalOut, minRow, firstNegative };
-  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, today]);
+  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, partyTerms, today]);
 
   const closing = forecast.rows.length ? forecast.rows[forecast.rows.length - 1].closing : openingCash;
 
@@ -416,7 +436,7 @@ export default function CashFlowForecastPage() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Customer credit days</Label>
+            <Label className="text-xs text-muted-foreground">Customer credit days (default)</Label>
             <Input
               type="number" min={0} max={365} className="w-[130px]"
               value={collectionDays}
@@ -424,7 +444,7 @@ export default function CashFlowForecastPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Supplier credit days</Label>
+            <Label className="text-xs text-muted-foreground">Supplier credit days (default)</Label>
             <Input
               type="number" min={0} max={365} className="w-[130px]"
               value={paymentDays}
@@ -564,8 +584,10 @@ export default function CashFlowForecastPage() {
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <p>
           Expected date = invoice date + credit days; anything already due (including overdue balances) is assumed to settle
-          in the first period. Open items use the same FIFO settlement logic as the Receivables &amp; Payables report, so
-          totals reconcile with the trial balance.
+          in the first period. Parties with their own Credit Days (set in Accounting → Parties) use those; the inputs above
+          are the default for everyone else{partyTerms && Object.keys(partyTerms).length > 0 ? ` — ${Object.keys(partyTerms).length} part${Object.keys(partyTerms).length === 1 ? "y has" : "ies have"} specific terms` : ""}.
+          Open items use the same FIFO settlement logic as the Receivables &amp; Payables report, so totals reconcile with
+          the trial balance.
         </p>
         {(forecast.arBeyond > 0.5 || forecast.apBeyond > 0.5) && (
           <p>
