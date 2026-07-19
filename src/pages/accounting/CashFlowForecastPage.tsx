@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle } from "lucide-react";
 import { format, parseISO, addDays, addMonths, subDays, differenceInCalendarDays } from "date-fns";
@@ -155,6 +157,24 @@ export default function CashFlowForecastPage() {
       (s: number, l: any) => s + Number(l.debit_amount || 0) - Number(l.credit_amount || 0), 0),
     [cashLines]
   );
+
+  // Per-account breakup of the same lines — where the money sits right now.
+  const accountBalances = useMemo(() => {
+    const byAccount: Record<string, number> = {};
+    (cashLines || []).forEach((l: any) => {
+      byAccount[l.account_id] =
+        (byAccount[l.account_id] || 0) + Number(l.debit_amount || 0) - Number(l.credit_amount || 0);
+    });
+    return (cashBankAccounts || [])
+      .map((a: any) => ({
+        id: a.id as string,
+        code: (a.code as string) || "",
+        name: a.name as string,
+        isCash: !!a.is_cash_account,
+        balance: byAccount[a.id] || 0,
+      }))
+      .sort((x, y) => y.balance - x.balance);
+  }, [cashLines, cashBankAccounts]);
 
   // Per-party credit terms. Resilient to the credit_days column not existing
   // yet (frontend deploy and DB migration are not atomic) — falls back to the
@@ -372,6 +392,17 @@ export default function CashFlowForecastPage() {
     );
     XLSX.utils.book_append_sheet(
       wb,
+      XLSX.utils.json_to_sheet(
+        accountBalances.map((a) => ({
+          Account: a.code ? `${a.code} — ${a.name}` : a.name,
+          Type: a.isCash ? "Cash" : "Bank",
+          Balance: Math.round(a.balance),
+        }))
+      ),
+      "Cash & Bank"
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
       XLSX.utils.json_to_sheet([
         { Label: "Cash & Bank Today", Amount: Math.round(openingCash) },
         { Label: "Expected Inflows (horizon)", Amount: Math.round(forecast.totalIn) },
@@ -513,6 +544,62 @@ export default function CashFlowForecastPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cash & bank breakup */}
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Cash &amp; bank breakup (today)</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!accountBalances.length && (
+            <p className="text-sm text-muted-foreground">
+              No cash or bank accounts found. Mark accounts as cash/bank in the Chart of Accounts.
+            </p>
+          )}
+          {accountBalances.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="text-right">Share</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountBalances.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="text-sm">
+                      <Link
+                        to={a.isCash ? "/accounting/cash-book" : "/accounting/bank-book"}
+                        className="text-primary hover:underline"
+                      >
+                        {a.code ? `${a.code} — ${a.name}` : a.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      {a.isCash
+                        ? <Badge variant="outline" className="bg-amber-100 text-amber-800">Cash</Badge>
+                        : <Badge variant="outline" className="bg-blue-100 text-blue-800">Bank</Badge>}
+                    </TableCell>
+                    <TableCell className={`text-right text-sm font-medium ${a.balance < 0 ? "text-red-600" : ""}`}>
+                      {fmt(a.balance)}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {openingCash > 0 && a.balance > 0 ? `${((a.balance / openingCash) * 100).toFixed(1)}%` : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/40 font-semibold">
+                  <TableCell colSpan={2}>Total</TableCell>
+                  <TableCell className={`text-right ${openingCash < 0 ? "text-red-600" : ""}`}>{fmt(openingCash)}</TableCell>
+                  <TableCell className="text-right text-xs">100%</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Chart */}
       <Card className="mb-4">
