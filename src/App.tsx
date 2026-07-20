@@ -781,7 +781,7 @@ const App = () => (
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />
-            <Route path="/accounting/business-health" element={<ProtectedRoute><BusinessHealthDashboard /></ProtectedRoute>} />
+            <Route path="/accounting/business-health" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><BusinessHealthDashboard /></ProtectedRoute>} />
             <Route path="/accounting/chart-of-accounts" element={<ProtectedRoute><AccountingCoAPage /></ProtectedRoute>} />
             <Route path="/accounting/parties" element={<ProtectedRoute><AccountingPartiesPage /></ProtectedRoute>} />
             <Route path="/accounting/vouchers" element={<ProtectedRoute><AccountingVouchersPage /></ProtectedRoute>} />

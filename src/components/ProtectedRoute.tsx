@@ -7,13 +7,18 @@ interface ProtectedRouteProps {
   requiredModule?: string;
   requiredPermission?: 'view' | 'create' | 'edit' | 'delete' | 'approve';
   requiredRole?: string;
+  // Any-of role list: the user needs at least ONE of these roles. Unlike
+  // requiredRole (exact single role), this suits pages shared by a manager
+  // role and super_admin, e.g. requiredRoles={["accounting_manager", "super_admin"]}.
+  requiredRoles?: string[];
 }
 
-export function ProtectedRoute({ 
-  children, 
+export function ProtectedRoute({
+  children,
   requiredModule,
   requiredPermission = 'view',
-  requiredRole
+  requiredRole,
+  requiredRoles
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, hasModulePermission, roles, canAccessModule, canAccessRoute } = useAuth();
   const location = useLocation();
@@ -227,6 +232,20 @@ export function ProtectedRoute({
           <h1 className="text-2xl font-bold text-foreground">Access Denied</h1>
           <p className="text-muted-foreground">
             You don't have permission to access this module.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check required role list (any-of) if specified
+  if (requiredRoles?.length && !roles.some(r => requiredRoles.includes(r.role as string))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-foreground">Access Denied</h1>
+          <p className="text-muted-foreground">
+            You don't have permission to access this page.
           </p>
         </div>
       </div>

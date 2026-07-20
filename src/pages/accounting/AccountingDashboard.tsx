@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -15,6 +16,9 @@ import { format, parseISO } from "date-fns";
 const sb = supabase as any;
 
 export default function AccountingDashboard() {
+  const { hasRole } = useAuth();
+  const canSeeBusinessHealth = hasRole("accounting_manager") || hasRole("super_admin");
+
   const { data: cashAccounts } = useQuery({
     queryKey: ["acc-dash-cash-accounts"],
     queryFn: async () => {
@@ -92,7 +96,9 @@ export default function AccountingDashboard() {
         <div className="flex gap-2">
           <Link to="/accounting/vouchers/new"><Button size="sm"><Plus className="h-4 w-4 mr-1" />New Voucher</Button></Link>
           <Link to="/accounting/day-book"><Button size="sm" variant="outline"><BookOpen className="h-4 w-4 mr-1" />Day Book</Button></Link>
-          <Link to="/accounting/business-health"><Button size="sm" variant="outline"><HeartPulse className="h-4 w-4 mr-1" />Business Health</Button></Link>
+          {canSeeBusinessHealth && (
+            <Link to="/accounting/business-health"><Button size="sm" variant="outline"><HeartPulse className="h-4 w-4 mr-1" />Business Health</Button></Link>
+          )}
         </div>
       </PageHeader>
 
