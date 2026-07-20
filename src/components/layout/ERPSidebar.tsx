@@ -53,6 +53,7 @@ interface NavChild {
   superAdminOnly?: boolean;
   requiresApprove?: string; // module name; only show if user has approve permission for this module
   excludeRoles?: AppRole[];
+  allowedRoles?: AppRole[]; // any-of allow-list; only show if the user has one of these roles
   state?: Record<string, any>;
   // When true, this entry renders as a non-clickable section header inside the
   // module's children. Used to group long modules (e.g. Accounting) into
@@ -115,7 +116,7 @@ const navigationItems: NavItem[] = [
     quickHref: "/accounting/dashboard",
     children: [
       { title: "Dashboard", href: "/accounting/dashboard" },
-      { title: "Business Health", href: "/accounting/business-health" },
+      { title: "Business Health", href: "/accounting/business-health", allowedRoles: ["accounting_manager", "super_admin"] },
 
       { title: "Masters", href: "", isHeader: true },
       { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
@@ -710,6 +711,13 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         if (child.isHeader) return true;
 
         if (child.requiresApprove && !hasModulePermission(child.requiresApprove, "approve")) {
+          return false;
+        }
+
+        if (
+          child.allowedRoles &&
+          !child.allowedRoles.some((allowedRole) => userRoleNames.includes(allowedRole))
+        ) {
           return false;
         }
 
