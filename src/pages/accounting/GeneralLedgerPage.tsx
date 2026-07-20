@@ -18,13 +18,19 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { buildLedgerPdf } from "@/lib/ledgerPdf";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
-import { format, subDays, parseISO } from "date-fns";
+import { format, subDays, parseISO, isValid, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 
 const sb = supabase as any;
+
+const fmtDate = (d: string) => {
+  const parsed = parseISO(d);
+  return isValid(parsed) ? format(parsed, "dd MMM yyyy") : d;
+};
 
 export default function GeneralLedgerPage() {
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [rangePreset, setRangePreset] = useState("30d");
   const [accountId, setAccountId] = useState<string>("");
   const [filterType, setFilterType] = useState<string>("all");
   const [searchParams] = useSearchParams();
@@ -66,6 +72,48 @@ export default function GeneralLedgerPage() {
       return data || [];
     },
   });
+
+  // Earliest voucher on file — lets the "All time" preset start the ledger at the
+  // very first entry instead of an arbitrary date.
+  const { data: earliestDate } = useQuery({
+    queryKey: ["acc-gl-earliest-voucher-date"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_vouchers")
+        .select("voucher_date")
+        .order("voucher_date", { ascending: true })
+        .limit(1);
+      if (error) throw error;
+      return data?.[0]?.voucher_date || null;
+    },
+  });
+
+  const applyRangePreset = (p: string) => {
+    setRangePreset(p);
+    if (p === "custom") return;
+    const today = new Date();
+    const to = format(today, "yyyy-MM-dd");
+    if (p === "30d") {
+      setFromDate(format(subDays(today, 30), "yyyy-MM-dd"));
+      setToDate(to);
+    } else if (p === "this-month") {
+      setFromDate(format(startOfMonth(today), "yyyy-MM-dd"));
+      setToDate(to);
+    } else if (p === "last-month") {
+      const lm = subMonths(today, 1);
+      setFromDate(format(startOfMonth(lm), "yyyy-MM-dd"));
+      setToDate(format(endOfMonth(lm), "yyyy-MM-dd"));
+    } else if (p === "3m") {
+      setFromDate(format(subMonths(today, 3), "yyyy-MM-dd"));
+      setToDate(to);
+    } else if (p === "year") {
+      setFromDate(format(startOfYear(today), "yyyy-MM-dd"));
+      setToDate(to);
+    } else if (p === "all") {
+      setFromDate(earliestDate || "2020-01-01");
+      setToDate(to);
+    }
+  };
 
   const filteredAccountsList = useMemo(() => {
     const list = accounts || [];
@@ -167,7 +215,11 @@ export default function GeneralLedgerPage() {
   // For display, negative balance flipped for Cr-normal accounts:
   const displayBalance = isDrNormal ? closing : -closing;
 
-  const periodLabel = `${format(parseISO(fromDate), "dd MMM yyyy")} to ${format(parseISO(toDate), "dd MMM yyyy")}`;
+  const periodLabel = `${fmtDate(fromDate)} to ${fmtDate(toDate)}`;
+  // Entries dated before fromDate are not listed as rows — they are summed into
+  // the opening balance. Say so explicitly, so a shrinking date window doesn't
+  // read as "my entry disappeared".
+  const openingLabel = `Opening Balance (entries before ${fmtDate(fromDate)} are summed here)`;
 
   const handlePrint = () => {
     if (!selected) return;
@@ -181,7 +233,7 @@ export default function GeneralLedgerPage() {
       Voucher: "",
       "Contra A/c": "",
       Party: "",
-      Narration: "Opening Balance",
+      Narration: openingLabel,
       Debit: "",
       Credit: "",
       Balance: Number(opening || 0),
@@ -313,7 +365,7 @@ export default function GeneralLedgerPage() {
               </thead>
               <tbody>
                 <tr className="border-b border-gray-300 bg-gray-50">
-                  <td colSpan={7} className="py-1.5 italic">Opening Balance</td>
+                  <td colSpan={7} className="py-1.5 italic">{openingLabel}</td>
                   <td className="text-right py-1.5 font-semibold">Rs. {Number(opening || 0).toLocaleString()}</td>
                 </tr>
                 {!rows.length && (
@@ -383,9 +435,21 @@ export default function GeneralLedgerPage() {
             placeholder="Account"
             triggerClassName="w-full sm:w-[320px]"
           />
+          <Select value={rangePreset} onValueChange={applyRangePreset}>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="this-month">This month</SelectItem>
+              <SelectItem value="last-month">Last month</SelectItem>
+              <SelectItem value="3m">Last 3 months</SelectItem>
+              <SelectItem value="year">This year</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="custom" disabled>Custom range</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="grid grid-cols-2 gap-2 sm:flex">
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full sm:w-[150px]" />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full sm:w-[150px]" />
+            <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setRangePreset("custom"); }} className="w-full sm:w-[150px]" />
+            <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setRangePreset("custom"); }} className="w-full sm:w-[150px]" />
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button size="sm" variant="outline" onClick={handlePrint} disabled={!selected} className="w-full sm:w-auto">
@@ -434,7 +498,7 @@ export default function GeneralLedgerPage() {
           </TableHeader>
           <TableBody>
             <TableRow className="bg-muted/40">
-              <TableCell colSpan={7} className="text-xs italic">Opening Balance</TableCell>
+              <TableCell colSpan={7} className="text-xs italic">{openingLabel}</TableCell>
               <TableCell className="text-right font-semibold">Rs. {Number(opening || 0).toLocaleString()}</TableCell>
             </TableRow>
             {!rows.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No transactions in this range</TableCell></TableRow>}
@@ -473,7 +537,7 @@ export default function GeneralLedgerPage() {
       {/* Mobile card list */}
       <div className="md:hidden space-y-2">
         <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/40">
-          <span className="text-xs italic text-muted-foreground">Opening Balance</span>
+          <span className="text-xs italic text-muted-foreground">{openingLabel}</span>
           <span className="text-sm font-semibold">Rs. {Number(opening || 0).toLocaleString()}</span>
         </div>
         {!rows.length && (
