@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Edit } from "lucide-react";
+import { Plus, Edit, Search } from "lucide-react";
 
 const sb = supabase as any;
 
@@ -61,6 +61,7 @@ export default function AccountingPartiesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<PartyForm>(defaultForm);
   const [filterType, setFilterType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: parties, isLoading } = useQuery({
     queryKey: ["accounting-parties"],
@@ -121,7 +122,13 @@ export default function AccountingPartiesPage() {
     setDialogOpen(true);
   };
 
-  const filtered = filterType === "all" ? parties : parties?.filter((p: any) => p.party_type === filterType);
+  const search = searchTerm.trim().toLowerCase();
+  const filtered = parties?.filter((p: any) => {
+    if (filterType !== "all" && p.party_type !== filterType) return false;
+    if (!search) return true;
+    return [p.name, p.code, p.contact_person, p.phone, p.email, p.ntn]
+      .some((field) => field && String(field).toLowerCase().includes(search));
+  });
 
   const getTypeBadge = (type: string) => {
     const t = PARTY_TYPES.find((pt) => pt.value === type);
@@ -132,6 +139,15 @@ export default function AccountingPartiesPage() {
     <ERPLayout>
       <PageHeader title="Parties" description="Customers, suppliers, employees & other ledgers">
         <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search name, code, phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-[220px]"
+            />
+          </div>
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -211,7 +227,13 @@ export default function AccountingPartiesPage() {
           </TableHeader>
           <TableBody>
             {isLoading && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && !filtered?.length && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No parties. Add a customer to use in vouchers.</TableCell></TableRow>}
+            {!isLoading && !filtered?.length && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  {search || filterType !== "all" ? "No parties match your search." : "No parties. Add a customer to use in vouchers."}
+                </TableCell>
+              </TableRow>
+            )}
             {filtered?.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs">{p.code || "—"}</TableCell>
