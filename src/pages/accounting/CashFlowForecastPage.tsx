@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle } from "lucide-react";
+import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
 import { format, parseISO, addDays, addMonths, subDays, differenceInCalendarDays } from "date-fns";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -76,6 +76,8 @@ function openItemsForParty(lines: any[], isAR: boolean, fallbackDate: string, pa
 
 const fmt = (n: number) => `Rs. ${Math.round(n).toLocaleString()}`;
 
+type PartyAmount = { partyId: string; amount: number };
+
 type PeriodRow = {
   label: string;
   start: string;
@@ -87,6 +89,8 @@ type PeriodRow = {
   opening: number;
   net: number;
   closing: number;
+  arParties: PartyAmount[];
+  apParties: PartyAmount[];
 };
 
 export default function CashFlowForecastPage() {
@@ -98,6 +102,14 @@ export default function CashFlowForecastPage() {
   const [collectionDays, setCollectionDays] = useState(30);
   const [paymentDays, setPaymentDays] = useState(30);
   const [includeOther, setIncludeOther] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
 
   // Cash + bank accounts from the chart of accounts
   const { data: cashBankAccounts } = useQuery({
@@ -199,7 +211,7 @@ export default function CashFlowForecastPage() {
     return fetchAllRows((from, to) =>
       sb
         .from("accounting_voucher_lines")
-        .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date, voucher_number)")
+        .select("party_id, debit_amount, credit_amount, voucher:accounting_vouchers!inner(voucher_date, voucher_number), party:accounting_parties(name)")
         .eq("account_id", account)
         .not("party_id", "is", null)
         .lte("voucher.voucher_date", today)
@@ -291,6 +303,14 @@ export default function CashFlowForecastPage() {
   const arItems = useMemo(() => collectOpenItems(arLines || [], true), [arLines, today]);
   const apItems = useMemo(() => collectOpenItems(apLines || [], false), [apLines, today]);
 
+  const partyNames = useMemo(() => {
+    const m: Record<string, string> = {};
+    [...(arLines || []), ...(apLines || [])].forEach((l: any) => {
+      if (l.party_id && l.party?.name) m[l.party_id] = l.party.name;
+    });
+    return m;
+  }, [arLines, apLines]);
+
   // ----- Build the forecast -----
   const forecast = useMemo(() => {
     const start = parseISO(today);
@@ -310,7 +330,12 @@ export default function CashFlowForecastPage() {
       start: format(b.start, "yyyy-MM-dd"),
       end: format(b.end, "yyyy-MM-dd"),
       arIn: 0, otherIn: 0, apOut: 0, otherOut: 0, opening: 0, net: 0, closing: 0,
+      arParties: [], apParties: [],
     }));
+
+    // Per-period, per-party accumulators behind the expandable breakup rows.
+    const arByParty: Record<string, number>[] = rows.map(() => ({}));
+    const apByParty: Record<string, number>[] = rows.map(() => ({}));
 
     // Place an expected cash event (item date + credit terms) into a period.
     // A party with its own credit_days (set in Accounting → Parties) uses
@@ -330,14 +355,25 @@ export default function CashFlowForecastPage() {
       if (idx < 0) idx = rows.length - 1;
       if (isIn) {
         rows[idx].arIn += item.amount;
+        arByParty[idx][item.partyId] = (arByParty[idx][item.partyId] || 0) + item.amount;
         if (due <= start) overdueAR += item.amount;
       } else {
         rows[idx].apOut += item.amount;
+        apByParty[idx][item.partyId] = (apByParty[idx][item.partyId] || 0) + item.amount;
         if (due <= start) overdueAP += item.amount;
       }
     };
     arItems.forEach((i) => place(i, collectionDays, true));
     apItems.forEach((i) => place(i, paymentDays, false));
+
+    rows.forEach((r, idx) => {
+      const toSorted = (m: Record<string, number>): PartyAmount[] =>
+        Object.entries(m)
+          .map(([partyId, amount]) => ({ partyId, amount }))
+          .sort((a, b) => b.amount - a.amount);
+      r.arParties = toSorted(arByParty[idx]);
+      r.apParties = toSorted(apByParty[idx]);
+    });
 
     if (includeOther) {
       rows.forEach((r) => {
@@ -389,6 +425,26 @@ export default function CashFlowForecastPage() {
         }))
       ),
       "Forecast"
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        forecast.rows.flatMap((r) => [
+          ...r.arParties.map((p) => ({
+            Period: r.label,
+            Type: "AR Collection",
+            Party: partyNames[p.partyId] || "—",
+            Amount: Math.round(p.amount),
+          })),
+          ...r.apParties.map((p) => ({
+            Period: r.label,
+            Type: "AP Payment",
+            Party: partyNames[p.partyId] || "—",
+            Amount: Math.round(p.amount),
+          })),
+        ])
+      ),
+      "By Party"
     );
     XLSX.utils.book_append_sheet(
       wb,
@@ -625,8 +681,9 @@ export default function CashFlowForecastPage() {
 
       {/* Detail table */}
       <div className="border rounded-lg">
-        <div className="px-4 py-3 border-b bg-muted/40 font-semibold text-sm">
-          FORECAST DETAIL ({interval === "weekly" ? "weekly" : "monthly"})
+        <div className="px-4 py-3 border-b bg-muted/40 font-semibold text-sm flex items-center justify-between">
+          <span>FORECAST DETAIL ({interval === "weekly" ? "weekly" : "monthly"})</span>
+          <span className="text-xs font-normal text-muted-foreground">click a row → AR/AP breakup by party</span>
         </div>
         <Table>
           <TableHeader>
@@ -642,18 +699,78 @@ export default function CashFlowForecastPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {forecast.rows.map((r) => (
-              <TableRow key={r.start}>
-                <TableCell className="text-sm whitespace-nowrap">{r.label}</TableCell>
-                <TableCell className="text-right text-xs">{fmt(r.opening)}</TableCell>
-                <TableCell className="text-right text-xs text-green-600">{r.arIn ? fmt(r.arIn) : "—"}</TableCell>
-                <TableCell className="text-right text-xs text-green-600">{r.otherIn ? fmt(r.otherIn) : "—"}</TableCell>
-                <TableCell className="text-right text-xs text-red-600">{r.apOut ? fmt(r.apOut) : "—"}</TableCell>
-                <TableCell className="text-right text-xs text-red-600">{r.otherOut ? fmt(r.otherOut) : "—"}</TableCell>
-                <TableCell className={`text-right text-xs font-medium ${r.net >= 0 ? "text-green-600" : "text-red-600"}`}>{fmt(r.net)}</TableCell>
-                <TableCell className={`text-right text-sm font-semibold ${r.closing >= 0 ? "" : "text-red-600"}`}>{fmt(r.closing)}</TableCell>
-              </TableRow>
-            ))}
+            {forecast.rows.map((r) => {
+              const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0;
+              const isOpen = expanded.has(r.start);
+              return (
+                <Fragment key={r.start}>
+                  <TableRow
+                    className={hasBreakup ? "cursor-pointer" : undefined}
+                    onClick={hasBreakup ? () => toggleExpanded(r.start) : undefined}
+                  >
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">
+                        {hasBreakup
+                          ? (isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />)
+                          : <span className="w-3" />}
+                        {r.label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-xs">{fmt(r.opening)}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600">{r.arIn ? fmt(r.arIn) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600">{r.otherIn ? fmt(r.otherIn) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs text-red-600">{r.apOut ? fmt(r.apOut) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs text-red-600">{r.otherOut ? fmt(r.otherOut) : "—"}</TableCell>
+                    <TableCell className={`text-right text-xs font-medium ${r.net >= 0 ? "text-green-600" : "text-red-600"}`}>{fmt(r.net)}</TableCell>
+                    <TableCell className={`text-right text-sm font-semibold ${r.closing >= 0 ? "" : "text-red-600"}`}>{fmt(r.closing)}</TableCell>
+                  </TableRow>
+                  {isOpen && (
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableCell colSpan={8} className="py-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-2">
+                          <div>
+                            <div className="text-xs font-semibold text-green-700 dark:text-green-500 mb-1">
+                              AR Collections — {r.arParties.length} customer{r.arParties.length === 1 ? "" : "s"}
+                            </div>
+                            {!r.arParties.length && <div className="text-xs text-muted-foreground">None expected this period.</div>}
+                            {r.arParties.map((p) => (
+                              <div key={p.partyId} className="flex justify-between text-xs py-0.5">
+                                <Link
+                                  to={`/accounting/party-ledger?type=customer&party=${p.partyId}`}
+                                  className="text-primary hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {partyNames[p.partyId] || "—"}
+                                </Link>
+                                <span className="font-medium">{fmt(p.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-red-700 dark:text-red-500 mb-1">
+                              AP Payments — {r.apParties.length} vendor{r.apParties.length === 1 ? "" : "s"}
+                            </div>
+                            {!r.apParties.length && <div className="text-xs text-muted-foreground">None expected this period.</div>}
+                            {r.apParties.map((p) => (
+                              <div key={p.partyId} className="flex justify-between text-xs py-0.5">
+                                <Link
+                                  to={`/accounting/party-ledger?type=supplier&party=${p.partyId}`}
+                                  className="text-primary hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {partyNames[p.partyId] || "—"}
+                                </Link>
+                                <span className="font-medium">{fmt(p.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
             <TableRow className="bg-muted/40 font-semibold">
               <TableCell>Total</TableCell>
               <TableCell className="text-right">{fmt(openingCash)}</TableCell>
