@@ -188,20 +188,24 @@ export default function CashFlowForecastPage() {
       .sort((x, y) => y.balance - x.balance);
   }, [cashLines, cashBankAccounts]);
 
-  // Per-party credit terms. Resilient to the credit_days column not existing
+  // Per-party credit terms and limits. Resilient to the columns not existing
   // yet (frontend deploy and DB migration are not atomic) — falls back to the
   // page-level defaults for everyone.
   const { data: partyTerms } = useQuery({
     queryKey: ["cff-party-terms"],
     queryFn: async () => {
-      const map: Record<string, number> = {};
+      const days: Record<string, number> = {};
+      const limits: Record<string, number> = {};
       const { data, error } = await sb
         .from("accounting_parties")
-        .select("id, credit_days")
-        .not("credit_days", "is", null);
-      if (error) return map;
-      (data || []).forEach((r: any) => { map[r.id] = Number(r.credit_days); });
-      return map;
+        .select("id, credit_days, credit_limit")
+        .or("credit_days.not.is.null,credit_limit.not.is.null");
+      if (error) return { days, limits };
+      (data || []).forEach((r: any) => {
+        if (r.credit_days != null) days[r.id] = Number(r.credit_days);
+        if (r.credit_limit != null && Number(r.credit_limit) > 0) limits[r.id] = Number(r.credit_limit);
+      });
+      return { days, limits };
     },
   });
 
@@ -343,9 +347,9 @@ export default function CashFlowForecastPage() {
     // overdue) lands in period 1; anything past the horizon is reported
     // separately instead of silently dropped.
     let arBeyond = 0, apBeyond = 0, overdueAR = 0, overdueAP = 0;
-    const place = (item: OpenItem, defaultTermDays: number, isIn: boolean) => {
-      const termDays = partyTerms?.[item.partyId] ?? defaultTermDays;
-      const due = addDays(parseISO(item.date), termDays);
+    const place = (item: OpenItem, defaultTermDays: number, isIn: boolean, dueOverride?: Date) => {
+      const termDays = partyTerms?.days?.[item.partyId] ?? defaultTermDays;
+      const due = dueOverride ?? addDays(parseISO(item.date), termDays);
       if (due > horizonEnd) {
         if (isIn) arBeyond += item.amount; else apBeyond += item.amount;
         return;
@@ -364,7 +368,30 @@ export default function CashFlowForecastPage() {
       }
     };
     arItems.forEach((i) => place(i, collectionDays, true));
-    apItems.forEach((i) => place(i, paymentDays, false));
+
+    // Vendors with a credit limit are treated as revolving accounts: only the
+    // outstanding ABOVE the limit is considered due — payable immediately —
+    // and the balance within the limit is carried, not scheduled. The excess
+    // consumes the oldest invoices first (items arrive in FIFO order).
+    let apWithinLimit = 0;
+    const apByPartyItems: Record<string, OpenItem[]> = {};
+    apItems.forEach((i) => { (apByPartyItems[i.partyId] ||= []).push(i); });
+    Object.entries(apByPartyItems).forEach(([pid, items]) => {
+      const limit = partyTerms?.limits?.[pid];
+      if (!limit) {
+        items.forEach((i) => place(i, paymentDays, false));
+        return;
+      }
+      const total = items.reduce((s, i) => s + i.amount, 0);
+      let excess = Math.max(0, total - limit);
+      apWithinLimit += total - excess;
+      for (const it of items) {
+        if (excess <= 0) break;
+        const amt = Math.min(it.amount, excess);
+        place({ ...it, amount: amt }, paymentDays, false, start);
+        excess -= amt;
+      }
+    });
 
     rows.forEach((r, idx) => {
       const toSorted = (m: Record<string, number>): PartyAmount[] =>
@@ -396,7 +423,7 @@ export default function CashFlowForecastPage() {
     const minRow = rows.reduce((m, r) => (r.closing < m.closing ? r : m), rows[0]);
     const firstNegative = rows.find((r) => r.closing < 0) || null;
 
-    return { rows, arBeyond, apBeyond, overdueAR, overdueAP, totalIn, totalOut, minRow, firstNegative };
+    return { rows, arBeyond, apBeyond, overdueAR, overdueAP, apWithinLimit, totalIn, totalOut, minRow, firstNegative };
   }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, partyTerms, today]);
 
   const closing = forecast.rows.length ? forecast.rows[forecast.rows.length - 1].closing : openingCash;
@@ -468,6 +495,7 @@ export default function CashFlowForecastPage() {
         { Label: "Overdue Payables (assumed period 1)", Amount: Math.round(forecast.overdueAP) },
         { Label: "Receivables beyond horizon", Amount: Math.round(forecast.arBeyond) },
         { Label: "Payables beyond horizon", Amount: Math.round(forecast.apBeyond) },
+        { Label: "Payables within vendor credit limits (not scheduled)", Amount: Math.round(forecast.apWithinLimit) },
         { Label: "Assumption: customer credit days", Amount: collectionDays },
         { Label: "Assumption: supplier credit days", Amount: paymentDays },
         { Label: "Assumption: include other operating flows", Amount: includeOther ? 1 : 0 },
@@ -760,7 +788,14 @@ export default function CashFlowForecastPage() {
                                 >
                                   {partyNames[p.partyId] || "—"}
                                 </Link>
-                                <span className="font-medium">{fmt(p.amount)}</span>
+                                <span className="inline-flex items-center gap-2">
+                                  {partyTerms?.limits?.[p.partyId] != null && (
+                                    <span className="text-muted-foreground">
+                                      above limit of {fmt(partyTerms.limits[p.partyId])}
+                                    </span>
+                                  )}
+                                  <span className="font-medium">{fmt(p.amount)}</span>
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -789,7 +824,7 @@ export default function CashFlowForecastPage() {
         <p>
           Expected date = invoice date + credit days; anything already due (including overdue balances) is assumed to settle
           in the first period. Parties with their own Credit Days (set in Accounting → Parties) use those; the inputs above
-          are the default for everyone else{partyTerms && Object.keys(partyTerms).length > 0 ? ` — ${Object.keys(partyTerms).length} part${Object.keys(partyTerms).length === 1 ? "y has" : "ies have"} specific terms` : ""}.
+          are the default for everyone else{partyTerms && Object.keys(partyTerms.days).length > 0 ? ` — ${Object.keys(partyTerms.days).length} part${Object.keys(partyTerms.days).length === 1 ? "y has" : "ies have"} specific terms` : ""}.
           Open items use the same FIFO settlement logic as the Receivables &amp; Payables report, so totals reconcile with
           the trial balance.
         </p>
@@ -797,6 +832,13 @@ export default function CashFlowForecastPage() {
           <p>
             Beyond this horizon: {fmt(forecast.arBeyond)} receivables and {fmt(forecast.apBeyond)} payables are excluded
             from the projection above.
+          </p>
+        )}
+        {forecast.apWithinLimit > 0.5 && (
+          <p>
+            Vendors with a credit limit are treated as revolving accounts: only the outstanding above the limit is due
+            (scheduled in the first period); {fmt(forecast.apWithinLimit)} currently sits within vendor limits and is
+            not scheduled for payment.
           </p>
         )}
         <p>

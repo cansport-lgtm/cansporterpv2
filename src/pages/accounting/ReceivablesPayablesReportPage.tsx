@@ -365,6 +365,11 @@ export default function ReceivablesPayablesReportPage() {
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
                     <Link to={`/accounting/party-ledger?type=supplier&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
+                    {creditLimits?.[r.party_id] != null && r.total > creditLimits[r.party_id] && (
+                      <Badge variant="outline" className="ml-2 bg-red-100 text-red-800" title={`Credit limit Rs. ${creditLimits[r.party_id].toLocaleString()}`}>
+                        Over limit
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-xs">{r.b0_30 ? `Rs. ${r.b0_30.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>
