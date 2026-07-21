@@ -368,10 +368,42 @@ export default function CashFlowForecastPage() {
     enabled: !!defaults?.ap,
   });
 
-  // Last 90 days of cash/bank movement, to derive a run-rate for "other"
-  // operating flows (payroll, utilities, cash expenses, cash sales…) that
-  // never pass through the AR/AP control accounts.
-  const histFrom = format(subDays(parseISO(today), 90), "yyyy-MM-dd");
+  // Run-rate history window: rolling 90 days, clipped to the accounting
+  // go-live date (persisted app setting) — dividing by 90 when the books only
+  // start mid-window would understate every average.
+  const { data: runrateStartSetting } = useQuery({
+    queryKey: ["cff-runrate-start"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("app_settings")
+        .select("value")
+        .eq("key", "cff_runrate_start")
+        .maybeSingle();
+      if (error || !data) return null;
+      return typeof data.value === "string" ? data.value : null;
+    },
+  });
+
+  const saveRunrateStart = useMutation({
+    mutationFn: async (dateStr: string) => {
+      const { error } = await sb
+        .from("app_settings")
+        .upsert(
+          { key: "cff_runrate_start", value: dateStr, description: "Cash Flow Forecast: run-rate history start (accounting go-live date)" },
+          { onConflict: "key" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cff-runrate-start"] });
+      toast({ title: "Run-rate start date saved" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const rolling90 = format(subDays(parseISO(today), 90), "yyyy-MM-dd");
+  const histFrom = runrateStartSetting && runrateStartSetting > rolling90 ? runrateStartSetting : rolling90;
+  const windowDays = Math.max(1, differenceInCalendarDays(parseISO(today), parseISO(histFrom)));
   const { data: histCashLines } = useQuery({
     queryKey: ["cff-hist-cash", cashBankIds.join(","), histFrom, today],
     queryFn: async () => {
@@ -428,7 +460,7 @@ export default function CashFlowForecastPage() {
     },
   });
 
-  // Contra (non-cash) lines of the same 90-day window, used to attribute the
+  // Contra (non-cash) lines of the same history window, used to attribute the
   // run-rate to specific account heads (salaries, gas, electricity…) in the
   // period drill-down. Cash/bank lines are filtered server-side.
   const { data: histContraLines } = useQuery({
@@ -471,13 +503,13 @@ export default function CashFlowForecastPage() {
     const outs: { name: string; daily: number }[] = [];
     const ins: { name: string; daily: number }[] = [];
     Object.values(byAccount).forEach((a) => {
-      if (a.net > 0.5) outs.push({ name: a.name, daily: a.net / 90 });
-      else if (a.net < -0.5) ins.push({ name: a.name, daily: -a.net / 90 });
+      if (a.net > 0.5) outs.push({ name: a.name, daily: a.net / windowDays });
+      else if (a.net < -0.5) ins.push({ name: a.name, daily: -a.net / windowDays });
     });
     outs.sort((a, b) => b.daily - a.daily);
     ins.sort((a, b) => b.daily - a.daily);
     return { outs, ins };
-  }, [histContraLines, histCashLines, histSettlementIds, histLinkedIds]);
+  }, [histContraLines, histCashLines, histSettlementIds, histLinkedIds, windowDays]);
 
   // Run-rate totals are the filtered composition summed, so the drill-down
   // always reconciles with the projected figures by construction.
@@ -733,13 +765,13 @@ export default function CashFlowForecastPage() {
         ...runRateAccounts.outs.map((a) => ({
           Account: a.name,
           Direction: "Outflow",
-          "90-day Total": Math.round(a.daily * 90),
+          "Window Total": Math.round(a.daily * windowDays),
           "Per Month": Math.round(a.daily * 30),
         })),
         ...runRateAccounts.ins.map((a) => ({
           Account: a.name,
           Direction: "Inflow",
-          "90-day Total": Math.round(a.daily * 90),
+          "Window Total": Math.round(a.daily * windowDays),
           "Per Month": Math.round(a.daily * 30),
         })),
       ]),
@@ -830,6 +862,16 @@ export default function CashFlowForecastPage() {
               type="number" min={0} max={365} className="w-[130px]"
               value={collectionDays}
               onChange={(e) => setCollectionDays(Math.max(0, Number(e.target.value) || 0))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Run-rate history from</Label>
+            <Input
+              type="date"
+              className="w-[160px]"
+              value={histFrom}
+              max={today}
+              onChange={(e) => { if (e.target.value) saveRunrateStart.mutate(e.target.value); }}
             />
           </div>
           <div className="space-y-1">
@@ -1283,7 +1325,7 @@ export default function CashFlowForecastPage() {
                             <div className="md:col-span-2 border-t pt-2">
                               <div className="text-xs font-semibold mb-1">
                                 Run-rate composition
-                                <span className="font-normal text-muted-foreground"> — 90-day average scaled to this period</span>
+                                <span className="font-normal text-muted-foreground"> — average since {histFrom} scaled to this period</span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
@@ -1393,7 +1435,7 @@ export default function CashFlowForecastPage() {
           </p>
         )}
         <p>
-          "Other" flows are the daily run-rate of cash-book movements over the last 90 days against expense and revenue
+          "Other" flows are the daily run-rate of cash-book movements since {histFrom} ({windowDays} days, capped at 90) against expense and revenue
           heads only, excluding AR/AP settlements. Movements against asset/equity accounts (machinery, capital,
           drawings, post cheques) are treated as one-off capital events — add them as scheduled items when planned.
           {activeSchedItems.length > 0 &&
