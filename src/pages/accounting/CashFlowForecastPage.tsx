@@ -1288,25 +1288,30 @@ export default function CashFlowForecastPage() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   {r.runOut > 0.5 && (() => {
-                                    const listed = runRateAccounts.outs.slice(0, 8);
+                                    // Every contributing account is listed (amounts below
+                                    // Rs. 0.5 for the period are noise and dropped); the
+                                    // residual only absorbs rounding.
+                                    const listed = runRateAccounts.outs.filter((a) => a.daily * periodDays >= 0.5);
                                     const listedTotal = listed.reduce((s, a) => s + a.daily * periodDays, 0);
                                     const residual = r.runOut - listedTotal;
                                     return (
                                       <>
-                                        {listed.map((a) => (
-                                          <div key={a.name} className="flex justify-between text-xs py-0.5">
-                                            <span className="text-muted-foreground">{a.name}</span>
-                                            <span className="font-medium text-red-600">−{fmt(a.daily * periodDays)}</span>
-                                          </div>
-                                        ))}
+                                        <div className="max-h-64 overflow-y-auto pr-1">
+                                          {listed.map((a) => (
+                                            <div key={a.name} className="flex justify-between text-xs py-0.5">
+                                              <span className="text-muted-foreground">{a.name}</span>
+                                              <span className="font-medium text-red-600">−{fmt(a.daily * periodDays)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
                                         {Math.abs(residual) > 1 && (
                                           <div className="flex justify-between text-xs py-0.5">
-                                            <span className="text-muted-foreground">Other accounts</span>
+                                            <span className="text-muted-foreground">Rounding / below Rs. 1</span>
                                             <span className="font-medium text-red-600">−{fmt(residual)}</span>
                                           </div>
                                         )}
                                         <div className="flex justify-between text-xs py-0.5 border-t mt-1 font-semibold">
-                                          <span>Run-rate outflows</span>
+                                          <span>Run-rate outflows ({listed.length} accounts)</span>
                                           <span className="text-red-600">−{fmt(r.runOut)}</span>
                                         </div>
                                       </>
@@ -1315,25 +1320,27 @@ export default function CashFlowForecastPage() {
                                 </div>
                                 <div>
                                   {r.runIn > 0.5 && (() => {
-                                    const listed = runRateAccounts.ins.slice(0, 8);
+                                    const listed = runRateAccounts.ins.filter((a) => a.daily * periodDays >= 0.5);
                                     const listedTotal = listed.reduce((s, a) => s + a.daily * periodDays, 0);
                                     const residual = r.runIn - listedTotal;
                                     return (
                                       <>
-                                        {listed.map((a) => (
-                                          <div key={a.name} className="flex justify-between text-xs py-0.5">
-                                            <span className="text-muted-foreground">{a.name}</span>
-                                            <span className="font-medium text-green-600">+{fmt(a.daily * periodDays)}</span>
-                                          </div>
-                                        ))}
+                                        <div className="max-h-64 overflow-y-auto pr-1">
+                                          {listed.map((a) => (
+                                            <div key={a.name} className="flex justify-between text-xs py-0.5">
+                                              <span className="text-muted-foreground">{a.name}</span>
+                                              <span className="font-medium text-green-600">+{fmt(a.daily * periodDays)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
                                         {Math.abs(residual) > 1 && (
                                           <div className="flex justify-between text-xs py-0.5">
-                                            <span className="text-muted-foreground">Other accounts</span>
+                                            <span className="text-muted-foreground">Rounding / below Rs. 1</span>
                                             <span className="font-medium text-green-600">+{fmt(residual)}</span>
                                           </div>
                                         )}
                                         <div className="flex justify-between text-xs py-0.5 border-t mt-1 font-semibold">
-                                          <span>Run-rate inflows</span>
+                                          <span>Run-rate inflows ({listed.length} accounts)</span>
                                           <span className="text-green-600">+{fmt(r.runIn)}</span>
                                         </div>
                                       </>
