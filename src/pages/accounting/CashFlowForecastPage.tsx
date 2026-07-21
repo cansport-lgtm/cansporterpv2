@@ -437,7 +437,7 @@ export default function CashFlowForecastPage() {
       return fetchAllRows((from, to) =>
         sb
           .from("accounting_voucher_lines")
-          .select("voucher_id, account_id, debit_amount, credit_amount, account:accounting_chart_of_accounts!inner(name, is_cash_account, is_bank_account), voucher:accounting_vouchers!inner(voucher_date)")
+          .select("voucher_id, account_id, debit_amount, credit_amount, account:accounting_chart_of_accounts!inner(name, account_type, is_cash_account, is_bank_account), voucher:accounting_vouchers!inner(voucher_date)")
           .eq("account.is_cash_account", false)
           .eq("account.is_bank_account", false)
           .gte("voucher.voucher_date", histFrom)
@@ -447,29 +447,15 @@ export default function CashFlowForecastPage() {
     },
   });
 
-  // Daily run-rate of non-AR/AP cash flows. Cash/bank lines are netted per
-  // voucher first so cash↔bank contra transfers cancel out instead of
-  // inflating both sides.
-  const otherDaily = useMemo(() => {
-    const byVoucher: Record<string, number> = {};
-    (histCashLines || []).forEach((l: any) => {
-      byVoucher[l.voucher_id] =
-        (byVoucher[l.voucher_id] || 0) + Number(l.debit_amount || 0) - Number(l.credit_amount || 0);
-    });
-    let inflow = 0, outflow = 0;
-    Object.entries(byVoucher).forEach(([vid, net]) => {
-      if (histSettlementIds?.has(vid)) return;
-      if (histLinkedIds?.has(vid)) return;
-      if (net > 0) inflow += net;
-      else outflow += -net;
-    });
-    return { inflow: inflow / 90, outflow: outflow / 90 };
-  }, [histCashLines, histSettlementIds, histLinkedIds]);
-
   // Attribute the run-rate to account heads: for every run-rate voucher (has a
   // cash line, not AR/AP settlement, not linked to a scheduled item), net its
   // contra lines per account. Debit-heavy accounts absorbed cash (outflow
   // destinations like Salary Expense); credit-heavy accounts supplied cash.
+  //
+  // Only EXPENSE and REVENUE type heads count as run-rate: movements against
+  // asset/equity/liability accounts (machinery purchases, capital injections,
+  // drawings, post cheques) are one-off capital events, not recurring flows —
+  // model those as scheduled items instead.
   const runRateAccounts = useMemo(() => {
     const cashVouchers = new Set((histCashLines || []).map((l: any) => l.voucher_id));
     const byAccount: Record<string, { name: string; net: number }> = {};
@@ -477,6 +463,8 @@ export default function CashFlowForecastPage() {
       if (!cashVouchers.has(l.voucher_id)) return;
       if (histSettlementIds?.has(l.voucher_id)) return;
       if (histLinkedIds?.has(l.voucher_id)) return;
+      const type = l.account?.account_type;
+      if (type !== "expense" && type !== "revenue") return;
       const e = (byAccount[l.account_id] ||= { name: l.account?.name || "—", net: 0 });
       e.net += Number(l.debit_amount || 0) - Number(l.credit_amount || 0);
     });
@@ -490,6 +478,16 @@ export default function CashFlowForecastPage() {
     ins.sort((a, b) => b.daily - a.daily);
     return { outs, ins };
   }, [histContraLines, histCashLines, histSettlementIds, histLinkedIds]);
+
+  // Run-rate totals are the filtered composition summed, so the drill-down
+  // always reconciles with the projected figures by construction.
+  const otherDaily = useMemo(
+    () => ({
+      inflow: runRateAccounts.ins.reduce((s, a) => s + a.daily, 0),
+      outflow: runRateAccounts.outs.reduce((s, a) => s + a.daily, 0),
+    }),
+    [runRateAccounts]
+  );
 
   // FIFO open items across all parties
   const collectOpenItems = (lines: any[], isAR: boolean): OpenItem[] => {
@@ -1388,8 +1386,9 @@ export default function CashFlowForecastPage() {
           </p>
         )}
         <p>
-          "Other" flows are the daily run-rate of cash-book movements over the last 90 days that did not touch the AR/AP
-          control accounts (cash sales, payroll, utilities, cash expenses); cash↔bank transfers are netted out.
+          "Other" flows are the daily run-rate of cash-book movements over the last 90 days against expense and revenue
+          heads only, excluding AR/AP settlements. Movements against asset/equity accounts (machinery, capital,
+          drawings, post cheques) are treated as one-off capital events — add them as scheduled items when planned.
           {activeSchedItems.length > 0 &&
             ` ${activeSchedItems.length} scheduled item${activeSchedItems.length === 1 ? " is" : "s are"} forecast on due dates instead, and accounts linked to them are excluded from the run-rate.`}
         </p>
