@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
+import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronRight, ChevronDown, CalendarClock, Plus, Pencil, Trash2 } from "lucide-react";
 import { format, parseISO, addDays, addMonths, subDays, differenceInCalendarDays } from "date-fns";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -78,6 +80,14 @@ const fmt = (n: number) => `Rs. ${Math.round(n).toLocaleString()}`;
 
 type PartyAmount = { partyId: string; amount: number };
 
+type SchedOccurrence = {
+  name: string;
+  category: string;
+  direction: "inflow" | "outflow";
+  amount: number;
+  due: string;
+};
+
 type PeriodRow = {
   label: string;
   start: string;
@@ -91,6 +101,41 @@ type PeriodRow = {
   closing: number;
   arParties: PartyAmount[];
   apParties: PartyAmount[];
+  // Composition of the "other" columns: smoothed run-rate + dated items.
+  runIn: number;
+  runOut: number;
+  schedItems: SchedOccurrence[];
+};
+
+const SCHED_CATEGORIES = [
+  { value: "bill", label: "Bill" },
+  { value: "rent", label: "Rent" },
+  { value: "drawings", label: "Drawings" },
+  { value: "other", label: "Other" },
+];
+
+interface SchedForm {
+  name: string;
+  direction: "inflow" | "outflow";
+  category: string;
+  amount: string;
+  frequency: "monthly" | "one_time";
+  due_day: string;
+  due_date: string;
+  account_id: string;
+  is_active: boolean;
+}
+
+const defaultSchedForm: SchedForm = {
+  name: "",
+  direction: "outflow",
+  category: "bill",
+  amount: "",
+  frequency: "monthly",
+  due_day: "1",
+  due_date: "",
+  account_id: "",
+  is_active: true,
 };
 
 export default function CashFlowForecastPage() {
@@ -103,6 +148,10 @@ export default function CashFlowForecastPage() {
   const [paymentDays, setPaymentDays] = useState(30);
   const [includeOther, setIncludeOther] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [schedDialogOpen, setSchedDialogOpen] = useState(false);
+  const [schedEditId, setSchedEditId] = useState<string | null>(null);
+  const [schedForm, setSchedForm] = useState<SchedForm>(defaultSchedForm);
+  const queryClient = useQueryClient();
 
   const toggleExpanded = (key: string) =>
     setExpanded((prev) => {
@@ -209,6 +258,86 @@ export default function CashFlowForecastPage() {
     },
   });
 
+  // Scheduled cash items (bills, rent, drawings). Resilient to the table not
+  // existing yet — the feature simply stays empty until the migration lands.
+  const { data: schedItemsAll } = useQuery({
+    queryKey: ["cff-scheduled-items"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_scheduled_cash_items")
+        .select("*")
+        .order("name");
+      if (error) return [];
+      return data || [];
+    },
+  });
+  const activeSchedItems = useMemo(
+    () => (schedItemsAll || []).filter((i: any) => i.is_active),
+    [schedItemsAll]
+  );
+  const linkedAccountIds = useMemo(
+    () => Array.from(new Set(activeSchedItems.map((i: any) => i.account_id).filter(Boolean))) as string[],
+    [activeSchedItems]
+  );
+
+  // Accounts the scheduled-item dialog can link to (postable heads).
+  const { data: postableAccounts } = useQuery({
+    queryKey: ["cff-postable-accounts"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_chart_of_accounts")
+        .select("id, code, name")
+        .eq("is_active", true)
+        .not("sub_category", "is", null)
+        .order("code");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const saveSchedMutation = useMutation({
+    mutationFn: async (f: SchedForm) => {
+      const payload = {
+        name: f.name.trim(),
+        direction: f.direction,
+        category: f.category,
+        amount: Math.max(0, Number(f.amount) || 0),
+        frequency: f.frequency,
+        due_day: f.frequency === "monthly" ? Math.min(31, Math.max(1, Math.round(Number(f.due_day)) || 1)) : null,
+        due_date: f.frequency === "one_time" ? f.due_date : null,
+        account_id: f.account_id || null,
+        is_active: f.is_active,
+      };
+      if (f.frequency === "one_time" && !payload.due_date) throw new Error("Pick a due date for a one-time item");
+      if (schedEditId) {
+        const { error } = await sb.from("accounting_scheduled_cash_items").update(payload).eq("id", schedEditId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("accounting_scheduled_cash_items").insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cff-scheduled-items"] });
+      toast({ title: schedEditId ? "Scheduled item updated" : "Scheduled item added" });
+      setSchedEditId(null);
+      setSchedForm(defaultSchedForm);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteSchedMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb.from("accounting_scheduled_cash_items").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cff-scheduled-items"] });
+      toast({ title: "Scheduled item deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   // Outstanding AR / AP lines (same shape as the Receivables & Payables report)
   const partyLinesQuery = (account: string | null | undefined) => async () => {
     if (!account) return [];
@@ -274,6 +403,26 @@ export default function CashFlowForecastPage() {
     enabled: !!defaults && (!!defaults.ar || !!defaults.ap),
   });
 
+  // Vouchers that touched an account linked to a scheduled item — excluded
+  // from the run-rate so a bill isn't counted both as run-rate and as its
+  // dated scheduled item.
+  const { data: histLinkedIds } = useQuery({
+    queryKey: ["cff-hist-linked", linkedAccountIds.join(","), histFrom, today],
+    queryFn: async () => {
+      if (!linkedAccountIds.length) return new Set<string>();
+      const rows = await fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("voucher_id, voucher:accounting_vouchers!inner(voucher_date)")
+          .in("account_id", linkedAccountIds)
+          .gte("voucher.voucher_date", histFrom)
+          .lte("voucher.voucher_date", today)
+          .order("id", { ascending: true })
+          .range(from, to));
+      return new Set<string>(rows.map((r: any) => r.voucher_id));
+    },
+  });
+
   // Daily run-rate of non-AR/AP cash flows. Cash/bank lines are netted per
   // voucher first so cash↔bank contra transfers cancel out instead of
   // inflating both sides.
@@ -286,11 +435,12 @@ export default function CashFlowForecastPage() {
     let inflow = 0, outflow = 0;
     Object.entries(byVoucher).forEach(([vid, net]) => {
       if (histSettlementIds?.has(vid)) return;
+      if (histLinkedIds?.has(vid)) return;
       if (net > 0) inflow += net;
       else outflow += -net;
     });
     return { inflow: inflow / 90, outflow: outflow / 90 };
-  }, [histCashLines, histSettlementIds]);
+  }, [histCashLines, histSettlementIds, histLinkedIds]);
 
   // FIFO open items across all parties
   const collectOpenItems = (lines: any[], isAR: boolean): OpenItem[] => {
@@ -335,6 +485,7 @@ export default function CashFlowForecastPage() {
       end: format(b.end, "yyyy-MM-dd"),
       arIn: 0, otherIn: 0, apOut: 0, otherOut: 0, opening: 0, net: 0, closing: 0,
       arParties: [], apParties: [],
+      runIn: 0, runOut: 0, schedItems: [],
     }));
 
     // Per-period, per-party accumulators behind the expandable breakup rows.
@@ -402,13 +553,53 @@ export default function CashFlowForecastPage() {
       r.apParties = toSorted(apByParty[idx]);
     });
 
-    if (includeOther) {
-      rows.forEach((r) => {
-        const days = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
-        r.otherIn = otherDaily.inflow * days;
-        r.otherOut = otherDaily.outflow * days;
+    // Scheduled cash items: monthly items fall due on their due day each month
+    // (clamped to month length); one-time items on their date. Only occurrences
+    // after today are forecast — an already-passed due day is assumed settled
+    // and reflected in the opening balance.
+    let drawingsTotal = 0;
+    activeSchedItems.forEach((item: any) => {
+      const occs: Date[] = [];
+      if (item.frequency === "one_time") {
+        if (item.due_date) {
+          const d = parseISO(item.due_date);
+          if (d > start && d <= horizonEnd) occs.push(d);
+        }
+      } else {
+        let m = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (m <= horizonEnd) {
+          const lastDay = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+          const d = new Date(m.getFullYear(), m.getMonth(), Math.min(Number(item.due_day) || 1, lastDay));
+          if (d > start && d <= horizonEnd) occs.push(d);
+          m = addMonths(m, 1);
+        }
+      }
+      occs.forEach((due) => {
+        const idx = bounds.findIndex((b) => due >= b.start && due <= b.end);
+        if (idx < 0) return;
+        const amt = Number(item.amount) || 0;
+        rows[idx].schedItems.push({
+          name: item.name,
+          category: item.category,
+          direction: item.direction,
+          amount: amt,
+          due: format(due, "yyyy-MM-dd"),
+        });
+        if (item.category === "drawings" && item.direction === "outflow") drawingsTotal += amt;
       });
-    }
+    });
+
+    // "Other" columns = smoothed run-rate (toggleable) + dated scheduled items.
+    rows.forEach((r) => {
+      const days = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
+      r.runIn = includeOther ? otherDaily.inflow * days : 0;
+      r.runOut = includeOther ? otherDaily.outflow * days : 0;
+      r.schedItems.sort((a, b) => a.due.localeCompare(b.due));
+      const schedIn = r.schedItems.filter((s) => s.direction === "inflow").reduce((sum, s) => sum + s.amount, 0);
+      const schedOut = r.schedItems.filter((s) => s.direction === "outflow").reduce((sum, s) => sum + s.amount, 0);
+      r.otherIn = r.runIn + schedIn;
+      r.otherOut = r.runOut + schedOut;
+    });
 
     let running = openingCash;
     rows.forEach((r) => {
@@ -423,8 +614,8 @@ export default function CashFlowForecastPage() {
     const minRow = rows.reduce((m, r) => (r.closing < m.closing ? r : m), rows[0]);
     const firstNegative = rows.find((r) => r.closing < 0) || null;
 
-    return { rows, arBeyond, apBeyond, overdueAR, overdueAP, apWithinLimit, totalIn, totalOut, minRow, firstNegative };
-  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, partyTerms, today]);
+    return { rows, arBeyond, apBeyond, overdueAR, overdueAP, apWithinLimit, drawingsTotal, totalIn, totalOut, minRow, firstNegative };
+  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, partyTerms, activeSchedItems, today]);
 
   const closing = forecast.rows.length ? forecast.rows[forecast.rows.length - 1].closing : openingCash;
 
@@ -476,6 +667,22 @@ export default function CashFlowForecastPage() {
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(
+        forecast.rows.flatMap((r) =>
+          r.schedItems.map((s) => ({
+            Period: r.label,
+            Name: s.name,
+            Category: SCHED_CATEGORIES.find((c) => c.value === s.category)?.label || s.category,
+            Direction: s.direction === "inflow" ? "Inflow" : "Outflow",
+            "Due Date": s.due,
+            Amount: Math.round(s.amount),
+          }))
+        )
+      ),
+      "Scheduled"
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
         accountBalances.map((a) => ({
           Account: a.code ? `${a.code} — ${a.name}` : a.name,
           Type: a.isCash ? "Cash" : "Bank",
@@ -496,6 +703,7 @@ export default function CashFlowForecastPage() {
         { Label: "Receivables beyond horizon", Amount: Math.round(forecast.arBeyond) },
         { Label: "Payables beyond horizon", Amount: Math.round(forecast.apBeyond) },
         { Label: "Payables within vendor credit limits (not scheduled)", Amount: Math.round(forecast.apWithinLimit) },
+        { Label: "Owner drawings scheduled in horizon", Amount: Math.round(forecast.drawingsTotal) },
         { Label: "Assumption: customer credit days", Amount: collectionDays },
         { Label: "Assumption: supplier credit days", Amount: paymentDays },
         { Label: "Assumption: include other operating flows", Amount: includeOther ? 1 : 0 },
@@ -571,6 +779,183 @@ export default function CashFlowForecastPage() {
             <Label htmlFor="cff-other" className="text-xs">
               Include other operating flows (90-day run-rate: {fmt(otherDaily.inflow * 30)} in / {fmt(otherDaily.outflow * 30)} out per month)
             </Label>
+          </div>
+          <div className="pb-1">
+            <Dialog
+              open={schedDialogOpen}
+              onOpenChange={(o) => { setSchedDialogOpen(o); if (!o) { setSchedEditId(null); setSchedForm(defaultSchedForm); } }}
+            >
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <CalendarClock className="h-4 w-4 mr-1" />
+                  Scheduled Items ({(schedItemsAll || []).length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Scheduled Cash Items</DialogTitle>
+                </DialogHeader>
+                <p className="text-xs text-muted-foreground">
+                  Bills, rent receipts and drawings forecast on their due date instead of the run-rate. Linking an
+                  account excludes its vouchers from the run-rate so nothing is counted twice.
+                </p>
+                <div className="border rounded-md p-3 space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs">Name *</Label>
+                      <Input value={schedForm.name} onChange={(e) => setSchedForm({ ...schedForm, name: e.target.value })} placeholder="LESCO electricity bill" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Direction</Label>
+                      <Select value={schedForm.direction} onValueChange={(v: "inflow" | "outflow") => setSchedForm({ ...schedForm, direction: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="outflow">Outflow (payment)</SelectItem>
+                          <SelectItem value="inflow">Inflow (receipt)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Category</Label>
+                      <Select value={schedForm.category} onValueChange={(v) => setSchedForm({ ...schedForm, category: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {SCHED_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Amount (Rs.) *</Label>
+                      <Input type="number" min={0} value={schedForm.amount} onChange={(e) => setSchedForm({ ...schedForm, amount: e.target.value })} placeholder="Estimate" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Frequency</Label>
+                      <Select value={schedForm.frequency} onValueChange={(v: "monthly" | "one_time") => setSchedForm({ ...schedForm, frequency: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="one_time">One-time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {schedForm.frequency === "monthly" ? (
+                      <div>
+                        <Label className="text-xs">Due day of month</Label>
+                        <Input type="number" min={1} max={31} value={schedForm.due_day} onChange={(e) => setSchedForm({ ...schedForm, due_day: e.target.value })} />
+                      </div>
+                    ) : (
+                      <div>
+                        <Label className="text-xs">Due date</Label>
+                        <Input type="date" value={schedForm.due_date} onChange={(e) => setSchedForm({ ...schedForm, due_date: e.target.value })} />
+                      </div>
+                    )}
+                    <div className="col-span-2 md:col-span-3">
+                      <Label className="text-xs">Linked account (optional — excludes it from run-rate)</Label>
+                      <Select
+                        value={schedForm.account_id || "none"}
+                        onValueChange={(v) => setSchedForm({ ...schedForm, account_id: v === "none" ? "" : v })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not linked</SelectItem>
+                          {(postableAccounts || []).map((a: any) => (
+                            <SelectItem key={a.id} value={a.id}>{a.code ? `${a.code} — ${a.name}` : a.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <div className="flex items-center gap-2 pb-2">
+                        <Switch checked={schedForm.is_active} onCheckedChange={(v) => setSchedForm({ ...schedForm, is_active: v })} />
+                        <Label className="text-xs">Active</Label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => saveSchedMutation.mutate(schedForm)}
+                      disabled={!schedForm.name.trim() || !(Number(schedForm.amount) > 0) || saveSchedMutation.isPending}
+                    >
+                      {schedEditId ? "Update item" : <><Plus className="h-4 w-4 mr-1" />Add item</>}
+                    </Button>
+                    {schedEditId && (
+                      <Button size="sm" variant="ghost" onClick={() => { setSchedEditId(null); setSchedForm(defaultSchedForm); }}>
+                        Cancel edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Schedule</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-20" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {!(schedItemsAll || []).length && (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm">No scheduled items yet.</TableCell></TableRow>
+                    )}
+                    {(schedItemsAll || []).map((i: any) => (
+                      <TableRow key={i.id}>
+                        <TableCell className="text-sm">{i.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={i.direction === "inflow" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                            {i.direction === "inflow" ? "In" : "Out"}
+                          </Badge>
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {SCHED_CATEGORIES.find((c) => c.value === i.category)?.label || i.category}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{fmt(Number(i.amount))}</TableCell>
+                        <TableCell className="text-xs">
+                          {i.frequency === "monthly" ? `Monthly, day ${i.due_day}` : `Once, ${i.due_date}`}
+                        </TableCell>
+                        <TableCell>
+                          {i.is_active
+                            ? <Badge variant="outline" className="bg-green-100 text-green-800">Active</Badge>
+                            : <Badge variant="outline" className="bg-gray-100 text-gray-600">Off</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              size="icon" variant="ghost" className="h-7 w-7"
+                              onClick={() => {
+                                setSchedEditId(i.id);
+                                setSchedForm({
+                                  name: i.name,
+                                  direction: i.direction,
+                                  category: i.category,
+                                  amount: String(i.amount),
+                                  frequency: i.frequency,
+                                  due_day: i.due_day == null ? "1" : String(i.due_day),
+                                  due_date: i.due_date || "",
+                                  account_id: i.account_id || "",
+                                  is_active: i.is_active ?? true,
+                                });
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon" variant="ghost" className="h-7 w-7 text-red-600"
+                              onClick={() => deleteSchedMutation.mutate(i.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardContent>
       </Card>
@@ -728,7 +1113,7 @@ export default function CashFlowForecastPage() {
           </TableHeader>
           <TableBody>
             {forecast.rows.map((r) => {
-              const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0;
+              const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0 || r.schedItems.length > 0;
               const isOpen = expanded.has(r.start);
               return (
                 <Fragment key={r.start}>
@@ -799,6 +1184,31 @@ export default function CashFlowForecastPage() {
                               </div>
                             ))}
                           </div>
+                          {r.schedItems.length > 0 && (
+                            <div className="md:col-span-2 border-t pt-2">
+                              <div className="text-xs font-semibold mb-1">
+                                Scheduled items — {r.schedItems.length}
+                                {(r.runIn > 0.5 || r.runOut > 0.5) && (
+                                  <span className="font-normal text-muted-foreground">
+                                    {" "}(plus run-rate: +{fmt(r.runIn)} / −{fmt(r.runOut)})
+                                  </span>
+                                )}
+                              </div>
+                              {r.schedItems.map((s, i) => (
+                                <div key={i} className="flex justify-between text-xs py-0.5">
+                                  <span>
+                                    {s.name}
+                                    <span className="text-muted-foreground">
+                                      {" "}({SCHED_CATEGORIES.find((c) => c.value === s.category)?.label || s.category}, due {format(parseISO(s.due), "d MMM")})
+                                    </span>
+                                  </span>
+                                  <span className={`font-medium ${s.direction === "inflow" ? "text-green-600" : "text-red-600"}`}>
+                                    {s.direction === "inflow" ? "+" : "−"}{fmt(s.amount)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -844,7 +1254,14 @@ export default function CashFlowForecastPage() {
         <p>
           "Other" flows are the daily run-rate of cash-book movements over the last 90 days that did not touch the AR/AP
           control accounts (cash sales, payroll, utilities, cash expenses); cash↔bank transfers are netted out.
+          {activeSchedItems.length > 0 &&
+            ` ${activeSchedItems.length} scheduled item${activeSchedItems.length === 1 ? " is" : "s are"} forecast on due dates instead, and accounts linked to them are excluded from the run-rate.`}
         </p>
+        {forecast.drawingsTotal > 0.5 && (
+          <p>
+            Scheduled outflows include {fmt(forecast.drawingsTotal)} of owner drawings within this horizon.
+          </p>
+        )}
       </div>
     </ERPLayout>
   );
