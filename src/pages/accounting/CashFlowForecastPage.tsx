@@ -146,7 +146,12 @@ export default function CashFlowForecastPage() {
   const [periods, setPeriods] = useState(8);
   const [collectionDays, setCollectionDays] = useState(30);
   const [paymentDays, setPaymentDays] = useState(30);
-  const [includeOther, setIncludeOther] = useState(true);
+  // Run-rate is split by direction: outflows (salaries, utilities…) genuinely
+  // recur, so they default ON. Inflows default OFF — this business's real
+  // inflows are AR collections and scheduled rent; historical cash-ins are
+  // mostly one-off capital injections that shouldn't be projected forward.
+  const [includeRunOut, setIncludeRunOut] = useState(true);
+  const [includeRunIn, setIncludeRunIn] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [schedDialogOpen, setSchedDialogOpen] = useState(false);
   const [schedEditId, setSchedEditId] = useState<string | null>(null);
@@ -592,8 +597,8 @@ export default function CashFlowForecastPage() {
     // "Other" columns = smoothed run-rate (toggleable) + dated scheduled items.
     rows.forEach((r) => {
       const days = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
-      r.runIn = includeOther ? otherDaily.inflow * days : 0;
-      r.runOut = includeOther ? otherDaily.outflow * days : 0;
+      r.runIn = includeRunIn ? otherDaily.inflow * days : 0;
+      r.runOut = includeRunOut ? otherDaily.outflow * days : 0;
       r.schedItems.sort((a, b) => a.due.localeCompare(b.due));
       const schedIn = r.schedItems.filter((s) => s.direction === "inflow").reduce((sum, s) => sum + s.amount, 0);
       const schedOut = r.schedItems.filter((s) => s.direction === "outflow").reduce((sum, s) => sum + s.amount, 0);
@@ -615,7 +620,7 @@ export default function CashFlowForecastPage() {
     const firstNegative = rows.find((r) => r.closing < 0) || null;
 
     return { rows, arBeyond, apBeyond, overdueAR, overdueAP, apWithinLimit, drawingsTotal, totalIn, totalOut, minRow, firstNegative };
-  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeOther, partyTerms, activeSchedItems, today]);
+  }, [arItems, apItems, otherDaily, openingCash, periods, interval, collectionDays, paymentDays, includeRunIn, includeRunOut, partyTerms, activeSchedItems, today]);
 
   const closing = forecast.rows.length ? forecast.rows[forecast.rows.length - 1].closing : openingCash;
 
@@ -706,7 +711,8 @@ export default function CashFlowForecastPage() {
         { Label: "Owner drawings scheduled in horizon", Amount: Math.round(forecast.drawingsTotal) },
         { Label: "Assumption: customer credit days", Amount: collectionDays },
         { Label: "Assumption: supplier credit days", Amount: paymentDays },
-        { Label: "Assumption: include other operating flows", Amount: includeOther ? 1 : 0 },
+        { Label: "Assumption: include run-rate outflows", Amount: includeRunOut ? 1 : 0 },
+        { Label: "Assumption: include run-rate inflows", Amount: includeRunIn ? 1 : 0 },
       ]),
       "Summary"
     );
@@ -774,11 +780,19 @@ export default function CashFlowForecastPage() {
               onChange={(e) => setPaymentDays(Math.max(0, Number(e.target.value) || 0))}
             />
           </div>
-          <div className="flex items-center gap-2 pb-2">
-            <Switch id="cff-other" checked={includeOther} onCheckedChange={setIncludeOther} />
-            <Label htmlFor="cff-other" className="text-xs">
-              Include other operating flows (90-day run-rate: {fmt(otherDaily.inflow * 30)} in / {fmt(otherDaily.outflow * 30)} out per month)
-            </Label>
+          <div className="flex flex-col gap-1 pb-2">
+            <div className="flex items-center gap-2">
+              <Switch id="cff-run-out" checked={includeRunOut} onCheckedChange={setIncludeRunOut} />
+              <Label htmlFor="cff-run-out" className="text-xs">
+                Run-rate outflows — salaries, utilities etc. ({fmt(otherDaily.outflow * 30)}/month)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="cff-run-in" checked={includeRunIn} onCheckedChange={setIncludeRunIn} />
+              <Label htmlFor="cff-run-in" className="text-xs">
+                Run-rate inflows ({fmt(otherDaily.inflow * 30)}/month) — off by default: past cash-ins are mostly one-off capital, real inflows are AR + scheduled rent
+              </Label>
+            </div>
           </div>
           <div className="pb-1">
             <Dialog
