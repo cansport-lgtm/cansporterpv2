@@ -428,6 +428,25 @@ export default function CashFlowForecastPage() {
     },
   });
 
+  // Contra (non-cash) lines of the same 90-day window, used to attribute the
+  // run-rate to specific account heads (salaries, gas, electricity…) in the
+  // period drill-down. Cash/bank lines are filtered server-side.
+  const { data: histContraLines } = useQuery({
+    queryKey: ["cff-hist-contra", histFrom, today],
+    queryFn: async () => {
+      return fetchAllRows((from, to) =>
+        sb
+          .from("accounting_voucher_lines")
+          .select("voucher_id, account_id, debit_amount, credit_amount, account:accounting_chart_of_accounts!inner(name, is_cash_account, is_bank_account), voucher:accounting_vouchers!inner(voucher_date)")
+          .eq("account.is_cash_account", false)
+          .eq("account.is_bank_account", false)
+          .gte("voucher.voucher_date", histFrom)
+          .lte("voucher.voucher_date", today)
+          .order("id", { ascending: true })
+          .range(from, to));
+    },
+  });
+
   // Daily run-rate of non-AR/AP cash flows. Cash/bank lines are netted per
   // voucher first so cash↔bank contra transfers cancel out instead of
   // inflating both sides.
@@ -446,6 +465,31 @@ export default function CashFlowForecastPage() {
     });
     return { inflow: inflow / 90, outflow: outflow / 90 };
   }, [histCashLines, histSettlementIds, histLinkedIds]);
+
+  // Attribute the run-rate to account heads: for every run-rate voucher (has a
+  // cash line, not AR/AP settlement, not linked to a scheduled item), net its
+  // contra lines per account. Debit-heavy accounts absorbed cash (outflow
+  // destinations like Salary Expense); credit-heavy accounts supplied cash.
+  const runRateAccounts = useMemo(() => {
+    const cashVouchers = new Set((histCashLines || []).map((l: any) => l.voucher_id));
+    const byAccount: Record<string, { name: string; net: number }> = {};
+    (histContraLines || []).forEach((l: any) => {
+      if (!cashVouchers.has(l.voucher_id)) return;
+      if (histSettlementIds?.has(l.voucher_id)) return;
+      if (histLinkedIds?.has(l.voucher_id)) return;
+      const e = (byAccount[l.account_id] ||= { name: l.account?.name || "—", net: 0 });
+      e.net += Number(l.debit_amount || 0) - Number(l.credit_amount || 0);
+    });
+    const outs: { name: string; daily: number }[] = [];
+    const ins: { name: string; daily: number }[] = [];
+    Object.values(byAccount).forEach((a) => {
+      if (a.net > 0.5) outs.push({ name: a.name, daily: a.net / 90 });
+      else if (a.net < -0.5) ins.push({ name: a.name, daily: -a.net / 90 });
+    });
+    outs.sort((a, b) => b.daily - a.daily);
+    ins.sort((a, b) => b.daily - a.daily);
+    return { outs, ins };
+  }, [histContraLines, histCashLines, histSettlementIds, histLinkedIds]);
 
   // FIFO open items across all parties
   const collectOpenItems = (lines: any[], isAR: boolean): OpenItem[] => {
@@ -684,6 +728,24 @@ export default function CashFlowForecastPage() {
         )
       ),
       "Scheduled"
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet([
+        ...runRateAccounts.outs.map((a) => ({
+          Account: a.name,
+          Direction: "Outflow",
+          "90-day Total": Math.round(a.daily * 90),
+          "Per Month": Math.round(a.daily * 30),
+        })),
+        ...runRateAccounts.ins.map((a) => ({
+          Account: a.name,
+          Direction: "Inflow",
+          "90-day Total": Math.round(a.daily * 90),
+          "Per Month": Math.round(a.daily * 30),
+        })),
+      ]),
+      "Run-rate"
     );
     XLSX.utils.book_append_sheet(
       wb,
@@ -1127,8 +1189,9 @@ export default function CashFlowForecastPage() {
           </TableHeader>
           <TableBody>
             {forecast.rows.map((r) => {
-              const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0 || r.schedItems.length > 0;
+              const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0 || r.schedItems.length > 0 || r.runIn > 0.5 || r.runOut > 0.5;
               const isOpen = expanded.has(r.start);
+              const periodDays = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
               return (
                 <Fragment key={r.start}>
                   <TableRow
@@ -1202,11 +1265,6 @@ export default function CashFlowForecastPage() {
                             <div className="md:col-span-2 border-t pt-2">
                               <div className="text-xs font-semibold mb-1">
                                 Scheduled items — {r.schedItems.length}
-                                {(r.runIn > 0.5 || r.runOut > 0.5) && (
-                                  <span className="font-normal text-muted-foreground">
-                                    {" "}(plus run-rate: +{fmt(r.runIn)} / −{fmt(r.runOut)})
-                                  </span>
-                                )}
                               </div>
                               {r.schedItems.map((s, i) => (
                                 <div key={i} className="flex justify-between text-xs py-0.5">
@@ -1221,6 +1279,70 @@ export default function CashFlowForecastPage() {
                                   </span>
                                 </div>
                               ))}
+                            </div>
+                          )}
+                          {(r.runIn > 0.5 || r.runOut > 0.5) && (
+                            <div className="md:col-span-2 border-t pt-2">
+                              <div className="text-xs font-semibold mb-1">
+                                Run-rate composition
+                                <span className="font-normal text-muted-foreground"> — 90-day average scaled to this period</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  {r.runOut > 0.5 && (() => {
+                                    const listed = runRateAccounts.outs.slice(0, 8);
+                                    const listedTotal = listed.reduce((s, a) => s + a.daily * periodDays, 0);
+                                    const residual = r.runOut - listedTotal;
+                                    return (
+                                      <>
+                                        {listed.map((a) => (
+                                          <div key={a.name} className="flex justify-between text-xs py-0.5">
+                                            <span className="text-muted-foreground">{a.name}</span>
+                                            <span className="font-medium text-red-600">−{fmt(a.daily * periodDays)}</span>
+                                          </div>
+                                        ))}
+                                        {Math.abs(residual) > 1 && (
+                                          <div className="flex justify-between text-xs py-0.5">
+                                            <span className="text-muted-foreground">Other accounts</span>
+                                            <span className="font-medium text-red-600">−{fmt(residual)}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between text-xs py-0.5 border-t mt-1 font-semibold">
+                                          <span>Run-rate outflows</span>
+                                          <span className="text-red-600">−{fmt(r.runOut)}</span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                                <div>
+                                  {r.runIn > 0.5 && (() => {
+                                    const listed = runRateAccounts.ins.slice(0, 8);
+                                    const listedTotal = listed.reduce((s, a) => s + a.daily * periodDays, 0);
+                                    const residual = r.runIn - listedTotal;
+                                    return (
+                                      <>
+                                        {listed.map((a) => (
+                                          <div key={a.name} className="flex justify-between text-xs py-0.5">
+                                            <span className="text-muted-foreground">{a.name}</span>
+                                            <span className="font-medium text-green-600">+{fmt(a.daily * periodDays)}</span>
+                                          </div>
+                                        ))}
+                                        {Math.abs(residual) > 1 && (
+                                          <div className="flex justify-between text-xs py-0.5">
+                                            <span className="text-muted-foreground">Other accounts</span>
+                                            <span className="font-medium text-green-600">+{fmt(residual)}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between text-xs py-0.5 border-t mt-1 font-semibold">
+                                          <span>Run-rate inflows</span>
+                                          <span className="text-green-600">+{fmt(r.runIn)}</span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
