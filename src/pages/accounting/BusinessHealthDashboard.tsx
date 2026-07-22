@@ -12,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity, Wallet, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight,
   Scale, AlertTriangle, CheckCircle, HeartPulse, Hourglass, Truck, ShoppingCart,
-  ClipboardList, Receipt, FileWarning,
+  ClipboardList, Receipt, FileWarning, PackageCheck,
 } from "lucide-react";
-import { format, subMonths, startOfMonth, parseISO, differenceInCalendarDays } from "date-fns";
+import { format, subMonths, subDays, startOfMonth, parseISO, differenceInCalendarDays } from "date-fns";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, AreaChart, Area, BarChart, PieChart, Pie, Cell, LineChart, ReferenceLine,
@@ -149,6 +149,53 @@ export default function BusinessHealthDashboard() {
       if (error) return map;
       (data || []).forEach((r: any) => { map[r.id] = Number(r.credit_limit); });
       return map;
+    },
+  });
+
+  // ---- Physical inventory (live) ----
+  // The generic inventory_stock / stock_movements / floor_inventory tables are
+  // unused in production. Real stock lives in the daily closing tables:
+  //   raw materials  -> consumption_stock_closing (consumption module)
+  //   finished/floor -> daily_stock_closing per department (planning module)
+  // Both are point-in-time snapshots, so we take the latest closing per item
+  // within a recent window and poll for new postings.
+  const stockWindowStart = format(subDays(new Date(), 30), "yyyy-MM-dd");
+
+  const { data: rmStock, dataUpdatedAt: rmUpdatedAt } = useQuery({
+    queryKey: ["bh-rm-stock", stockWindowStart],
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("consumption_stock_closing")
+        .select("closing_date, closing_quantity, raw_material_id, consumption_raw_materials(name, unit, cost_value, threshold, is_active)")
+        .gte("closing_date", stockWindowStart);
+      if (error) throw error;
+      const latest: Record<string, any> = {};
+      (data || []).forEach((r: any) => {
+        if (r.consumption_raw_materials?.is_active === false) return;
+        const cur = latest[r.raw_material_id];
+        if (!cur || r.closing_date > cur.closing_date) latest[r.raw_material_id] = r;
+      });
+      return Object.values(latest);
+    },
+  });
+
+  const { data: fgStock, dataUpdatedAt: fgUpdatedAt } = useQuery({
+    queryKey: ["bh-fg-stock", stockWindowStart],
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("daily_stock_closing")
+        .select("closing_date, closing_quantity, department_id, planning_item_id, planning_items(name, unit, costing_value, threshold_inventory), production_departments(name)")
+        .gte("closing_date", stockWindowStart);
+      if (error) throw error;
+      const latest: Record<string, any> = {};
+      (data || []).forEach((r: any) => {
+        const key = `${r.department_id}:${r.planning_item_id}`;
+        const cur = latest[key];
+        if (!cur || r.closing_date > cur.closing_date) latest[key] = r;
+      });
+      return Object.values(latest);
     },
   });
 
@@ -395,7 +442,72 @@ export default function BusinessHealthDashboard() {
     };
   }, [accounts, allLines, defaults, creditLimits, ops, today]);
 
+  const phys = useMemo(() => {
+    if (!rmStock && !fgStock) return null;
+
+    type StockItem = { name: string; dept?: string; qty: number; unit: string; cost: number; value: number; low: boolean; date: string };
+
+    const rmItems: StockItem[] = (rmStock || []).map((r: any) => {
+      const m = r.consumption_raw_materials || {};
+      const qty = Number(r.closing_quantity) || 0;
+      const cost = Number(m.cost_value) || 0;
+      const threshold = Number(m.threshold) || 0;
+      return {
+        name: m.name || "—", qty, unit: m.unit || "", cost, value: qty * cost,
+        low: threshold > 0 && qty <= threshold, date: r.closing_date,
+      };
+    });
+
+    const fgItems: StockItem[] = (fgStock || []).map((r: any) => {
+      const p = r.planning_items || {};
+      const qty = Number(r.closing_quantity) || 0;
+      const cost = Number(p.costing_value) || 0;
+      const threshold = Number(p.threshold_inventory) || 0;
+      return {
+        name: p.name || "—", dept: r.production_departments?.name || "Unassigned",
+        qty, unit: p.unit || "", cost, value: qty * cost,
+        low: threshold > 0 && qty <= threshold, date: r.closing_date,
+      };
+    });
+
+    const summarize = (items: StockItem[]) => {
+      const asOf = items.reduce((m, i) => (i.date > m ? i.date : m), "");
+      return {
+        items,
+        totalValue: items.reduce((s, i) => s + i.value, 0),
+        itemCount: items.length,
+        lowItems: items.filter((i) => i.low).sort((a, b) => a.qty - b.qty),
+        top: [...items].sort((a, b) => b.value - a.value).slice(0, 5),
+        asOf: asOf || null,
+        staleDays: asOf ? differenceInCalendarDays(parseISO(today), parseISO(asOf)) : null,
+      };
+    };
+
+    const rm = summarize(rmItems);
+    const fg = summarize(fgItems);
+
+    const deptMap: Record<string, { name: string; value: number; items: number; low: number }> = {};
+    fgItems.forEach((i) => {
+      const d = (deptMap[i.dept!] ||= { name: i.dept!, value: 0, items: 0, low: 0 });
+      d.value += i.value; d.items += 1; if (i.low) d.low += 1;
+    });
+    const fgDepts = Object.values(deptMap).sort((a, b) => b.value - a.value);
+
+    const alerts: { severity: "critical" | "warning"; text: string; href: string }[] = [];
+    if (rm.lowItems.length > 0)
+      alerts.push({ severity: "warning", text: `${rm.lowItems.length} raw material(s) at or below reorder threshold (${rm.lowItems.slice(0, 3).map((i) => i.name).join(", ")}${rm.lowItems.length > 3 ? "…" : ""})`, href: "/consumption/stock-closing-dashboard" });
+    if (fg.lowItems.length > 0)
+      alerts.push({ severity: "warning", text: `${fg.lowItems.length} finished/floor stock item(s) below threshold`, href: "/planning/closing-dashboard" });
+    if (rm.staleDays !== null && rm.staleDays > 3)
+      alerts.push({ severity: "warning", text: `Raw material stock closing is ${rm.staleDays} days old — ask the store to post today's closing`, href: "/consumption/stock-closing" });
+    if (fg.staleDays !== null && fg.staleDays > 3)
+      alerts.push({ severity: "warning", text: `Department stock closing is ${fg.staleDays} days old — ask planning to post today's closing`, href: "/planning/stock-closing" });
+
+    return { rm, fg, fgDepts, alerts };
+  }, [rmStock, fgStock, today]);
+
   const c = computed;
+  const allAlerts = [...(c?.alerts || []), ...(phys?.alerts || [])];
   const scoreColor = !c ? "" : c.healthScore >= 80 ? "text-green-600" : c.healthScore >= 55 ? "text-blue-600" : c.healthScore >= 35 ? "text-amber-600" : "text-red-600";
   const scoreBg = !c ? "" : c.healthScore >= 80 ? "bg-green-600" : c.healthScore >= 55 ? "bg-blue-600" : c.healthScore >= 35 ? "bg-amber-500" : "bg-red-600";
 
@@ -449,17 +561,17 @@ export default function BusinessHealthDashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Alerts</span>
-                  {c.alerts.length === 0
+                  {allAlerts.length === 0
                     ? <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />All clear</Badge>
-                    : <Badge variant="destructive">{c.alerts.length} issue(s)</Badge>}
+                    : <Badge variant="destructive">{allAlerts.length} issue(s)</Badge>}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {c.alerts.length === 0 && (
+                {allAlerts.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">No health issues detected — cash, inventory, receivables and approvals all look fine.</p>
                 )}
                 <div className="space-y-2">
-                  {c.alerts.map((a, i) => (
+                  {allAlerts.map((a, i) => (
                     <Link key={i} to={a.href} className="flex items-start gap-2 rounded-md border p-2 text-sm hover:bg-muted/50">
                       {a.severity === "critical"
                         ? <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
@@ -516,6 +628,109 @@ export default function BusinessHealthDashboard() {
               description={c.runwayMonths === Infinity ? "Cash flow positive (3-mo avg)" : "At current 3-mo avg burn"}
             />
           </div>
+
+          {/* Physical inventory — live from daily stock closings */}
+          {phys && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+              {[
+                {
+                  key: "rm", title: "Raw Material Stock", icon: <Package className="h-4 w-4" />,
+                  s: phys.rm, updatedAt: rmUpdatedAt, showDept: false,
+                  emptyText: "No raw material closing posted in the last 30 days",
+                  detailHref: "/consumption/stock-closing-dashboard", detailLabel: "Raw material stock dashboard →",
+                },
+                {
+                  key: "fg", title: "Finished Goods & Floor Stock", icon: <PackageCheck className="h-4 w-4" />,
+                  s: phys.fg, updatedAt: fgUpdatedAt, showDept: true,
+                  emptyText: "No department closing posted in the last 30 days",
+                  detailHref: "/planning/closing-dashboard", detailLabel: "Daily closing dashboard →",
+                },
+              ].map((card) => (
+                <Card key={card.key}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span className="flex items-center gap-2">{card.icon}{card.title}</span>
+                      <span className="flex items-center gap-2 font-normal">
+                        {card.s.asOf && (
+                          <Badge variant="outline" className={card.s.staleDays !== null && card.s.staleDays > 3 ? "bg-amber-100 text-amber-800" : ""}>
+                            Closing: {format(parseISO(card.s.asOf), "dd MMM")}
+                          </Badge>
+                        )}
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                          </span>
+                          Live · {card.updatedAt ? format(new Date(card.updatedAt), "HH:mm") : "—"}
+                        </span>
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {card.s.itemCount === 0 ? (
+                      <p className="text-sm text-muted-foreground py-8 text-center">{card.emptyText}</p>
+                    ) : (
+                      <>
+                        <div className="flex items-end justify-between mb-3">
+                          <div>
+                            <div className="text-2xl font-semibold">{fmtRs(card.s.totalValue)}</div>
+                            <div className="text-xs text-muted-foreground">Estimated value · {card.s.itemCount} item(s) tracked</div>
+                          </div>
+                          {card.s.lowItems.length > 0
+                            ? <Badge variant="outline" className="bg-red-100 text-red-800">{card.s.lowItems.length} below threshold</Badge>
+                            : <Badge variant="outline" className="bg-green-100 text-green-800">Stock levels OK</Badge>}
+                        </div>
+                        {card.showDept && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {phys.fgDepts.map((d) => (
+                              <div key={d.name} className="rounded-md border px-2 py-1 text-xs">
+                                <span className="font-medium">{d.name}</span>
+                                <span className="text-muted-foreground"> · {d.items} items · {fmtRsShort(d.value)}</span>
+                                {d.low > 0 && <span className="text-red-600"> · {d.low} low</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Top items by value</TableHead>
+                              <TableHead className="text-right">Qty</TableHead>
+                              <TableHead className="text-right">Value</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {card.s.top.map((i: any, idx: number) => (
+                              <TableRow key={idx}>
+                                <TableCell className="text-sm">
+                                  {i.name}
+                                  {card.showDept && <span className="text-xs text-muted-foreground"> · {i.dept}</span>}
+                                  {i.low && <Badge variant="outline" className="ml-2 bg-red-100 text-red-800">Low</Badge>}
+                                </TableCell>
+                                <TableCell className={`text-right text-sm ${i.low ? "text-red-600 font-medium" : ""}`}>
+                                  {i.qty.toLocaleString()} {i.unit}
+                                </TableCell>
+                                <TableCell className="text-right text-sm font-medium">{i.cost > 0 ? fmtRs(i.value) : "—"}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {card.s.lowItems.length > 0 && (
+                          <div className="mt-2 text-xs text-red-600">
+                            Low: {card.s.lowItems.slice(0, 4).map((i: any) => `${i.name} (${i.qty.toLocaleString()} ${i.unit})`).join(", ")}
+                            {card.s.lowItems.length > 4 ? ` +${card.s.lowItems.length - 4} more` : ""}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="mt-2 text-right">
+                      <Link to={card.detailHref} className="text-xs text-primary hover:underline">{card.detailLabel}</Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {/* Revenue vs Expenses vs Net — 12 months */}
           <Card className="mb-4">
