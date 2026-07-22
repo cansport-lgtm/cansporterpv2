@@ -522,6 +522,59 @@ export default function CashFlowForecastPage() {
     [runRateAccounts]
   );
 
+  // "Payments due soon": scheduled outflows due in the next 7 days, plus
+  // possibly-unpaid ones whose due day already passed. For items linked to an
+  // account, "paid" is detected as any posting on that account this month —
+  // no posting after the due day means the bill was likely overlooked.
+  const dueSoon = useMemo(() => {
+    const todayD = parseISO(today);
+    const monthStart = format(new Date(todayD.getFullYear(), todayD.getMonth(), 1), "yyyy-MM-dd");
+    const postedAccounts = new Set<string>();
+    (histContraLines || []).forEach((l: any) => {
+      const d = l.voucher?.voucher_date;
+      if (d && d >= monthStart && d <= today) postedAccounts.add(l.account_id);
+    });
+
+    type DueRow = { id: string; name: string; amount: number; due: string; daysLeft: number; status: "urgent" | "upcoming" | "maybe_unpaid" | "verify" };
+    const rows: DueRow[] = [];
+    const push = (item: any, due: Date) => {
+      const daysLeft = differenceInCalendarDays(due, todayD);
+      if (daysLeft > 7) return;
+      if (daysLeft >= 0) {
+        rows.push({ id: item.id, name: item.name, amount: Number(item.amount) || 0, due: format(due, "yyyy-MM-dd"), daysLeft, status: daysLeft <= 2 ? "urgent" : "upcoming" });
+      } else {
+        // Due day passed. One-time items older than 14 days are stale — skip.
+        if (item.frequency === "one_time" && daysLeft < -14) return;
+        if (item.account_id) {
+          if (!postedAccounts.has(item.account_id)) {
+            rows.push({ id: item.id, name: item.name, amount: Number(item.amount) || 0, due: format(due, "yyyy-MM-dd"), daysLeft, status: "maybe_unpaid" });
+          }
+          // Posting found after/around the due day — treated as paid, not shown.
+        } else {
+          rows.push({ id: item.id, name: item.name, amount: Number(item.amount) || 0, due: format(due, "yyyy-MM-dd"), daysLeft, status: "verify" });
+        }
+      }
+    };
+
+    activeSchedItems.forEach((item: any) => {
+      if (item.direction !== "outflow") return;
+      if (item.frequency === "one_time") {
+        if (item.due_date) push(item, parseISO(item.due_date));
+        return;
+      }
+      const day = Number(item.due_day) || 1;
+      const y = todayD.getFullYear(), m = todayD.getMonth();
+      const thisLast = new Date(y, m + 1, 0).getDate();
+      push(item, new Date(y, m, Math.min(day, thisLast)));
+      // Month boundary: next month's occurrence can also fall within 7 days.
+      const nextLast = new Date(y, m + 2, 0).getDate();
+      const nextDue = new Date(y, m + 1, Math.min(day, nextLast));
+      if (differenceInCalendarDays(nextDue, todayD) <= 7) push(item, nextDue);
+    });
+
+    return rows.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [activeSchedItems, histContraLines, today]);
+
   // FIFO open items across all parties
   const collectOpenItems = (lines: any[], isAR: boolean): OpenItem[] => {
     const byParty: Record<string, any[]> = {};
@@ -1144,6 +1197,60 @@ export default function CashFlowForecastPage() {
         </Card>
       )}
 
+      {/* Payments due soon */}
+      {dueSoon.length > 0 && (
+        <Card className="mb-4 border-amber-300">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-amber-600" />
+              Payments due soon
+              <span className="font-normal text-xs text-muted-foreground">
+                — {fmt(dueSoon.reduce((s, d) => s + d.amount, 0))} across {dueSoon.length} item{dueSoon.length === 1 ? "" : "s"}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-1">
+              {dueSoon.map((d) => (
+                <div
+                  key={`${d.id}-${d.due}`}
+                  className={`flex items-center justify-between text-sm rounded px-2 py-1 ${
+                    d.status === "urgent" || d.status === "maybe_unpaid"
+                      ? "bg-red-50 dark:bg-red-950/20"
+                      : "bg-amber-50 dark:bg-amber-950/20"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    {d.name}
+                    {d.status === "maybe_unpaid" && (
+                      <Badge variant="outline" className="bg-red-100 text-red-800">
+                        due {format(parseISO(d.due), "d MMM")} — no posting found, possibly unpaid
+                      </Badge>
+                    )}
+                    {d.status === "verify" && (
+                      <Badge variant="outline" className="bg-amber-100 text-amber-800">
+                        due {format(parseISO(d.due), "d MMM")} — verify paid (not linked to an account)
+                      </Badge>
+                    )}
+                    {d.status === "urgent" && (
+                      <Badge variant="outline" className="bg-red-100 text-red-800">
+                        {d.daysLeft === 0 ? "due today" : d.daysLeft === 1 ? "due tomorrow" : `due in ${d.daysLeft} days`}
+                      </Badge>
+                    )}
+                    {d.status === "upcoming" && (
+                      <Badge variant="outline" className="bg-amber-100 text-amber-800">
+                        due {format(parseISO(d.due), "d MMM")} · in {d.daysLeft} days
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="font-semibold">{fmt(d.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
         <Card>
@@ -1280,6 +1387,7 @@ export default function CashFlowForecastPage() {
               const hasBreakup = r.arParties.length > 0 || r.apParties.length > 0 || r.schedItems.length > 0 || r.runIn > 0.5 || r.runOut > 0.5;
               const isOpen = expanded.has(r.start);
               const periodDays = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
+              const billCount = r.schedItems.filter((s) => s.direction === "outflow").length;
               return (
                 <Fragment key={r.start}>
                   <TableRow
@@ -1292,6 +1400,11 @@ export default function CashFlowForecastPage() {
                           ? (isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />)
                           : <span className="w-3" />}
                         {r.label}
+                        {billCount > 0 && (
+                          <Badge variant="outline" className="ml-1 bg-amber-100 text-amber-800" title="Scheduled payments falling due in this period">
+                            {billCount} bill{billCount === 1 ? "" : "s"}
+                          </Badge>
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -1363,19 +1476,38 @@ export default function CashFlowForecastPage() {
                               <div className="text-xs font-semibold mb-1">
                                 Scheduled items — {r.schedItems.length}
                               </div>
-                              {r.schedItems.map((s, i) => (
-                                <div key={i} className="flex justify-between text-xs py-0.5">
-                                  <span>
-                                    {s.name}
-                                    <span className="text-muted-foreground">
-                                      {" "}({SCHED_CATEGORIES.find((c) => c.value === s.category)?.label || s.category}, due {format(parseISO(s.due), "d MMM")})
+                              {r.schedItems.map((s, i) => {
+                                const daysLeft = differenceInCalendarDays(parseISO(s.due), parseISO(today));
+                                const isPayment = s.direction === "outflow";
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`flex items-center justify-between text-xs py-0.5 ${
+                                      isPayment ? "bg-amber-50 dark:bg-amber-950/20 rounded px-1.5" : ""
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      {s.name}
+                                      <span className="text-muted-foreground">
+                                        ({SCHED_CATEGORIES.find((c) => c.value === s.category)?.label || s.category})
+                                      </span>
+                                      {isPayment ? (
+                                        <Badge
+                                          variant="outline"
+                                          className={daysLeft <= 2 ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}
+                                        >
+                                          due {format(parseISO(s.due), "d MMM")} · in {daysLeft}d
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground">due {format(parseISO(s.due), "d MMM")}</span>
+                                      )}
                                     </span>
-                                  </span>
-                                  <span className={`font-medium ${s.direction === "inflow" ? "text-green-600" : "text-red-600"}`}>
-                                    {s.direction === "inflow" ? "+" : "−"}{fmt(s.amount)}
-                                  </span>
-                                </div>
-                              ))}
+                                    <span className={`font-medium ${s.direction === "inflow" ? "text-green-600" : "text-red-600"}`}>
+                                      {s.direction === "inflow" ? "+" : "−"}{fmt(s.amount)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                           {(r.runIn > 0.5 || r.runOut > 0.5) && (
