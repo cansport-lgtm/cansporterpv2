@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronRight, ChevronDown, CalendarClock, Plus, Pencil, Trash2 } from "lucide-react";
+import { Download, Wallet, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronRight, ChevronDown, CalendarClock, Plus, Pencil, Trash2, Printer } from "lucide-react";
+import { buildCashFlowPeriodPdf } from "@/lib/cashFlowPeriodPdf";
 import { format, parseISO, addDays, addMonths, subDays, differenceInCalendarDays } from "date-fns";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -813,6 +814,53 @@ export default function CashFlowForecastPage() {
 
   const periodOptions = interval === "weekly" ? [4, 8, 13] : [3, 6, 12];
 
+  // Build a printable PDF of one period's full drill-down and open it in a new
+  // tab (print / save from the browser's PDF viewer).
+  const printPeriod = (r: PeriodRow) => {
+    const periodDays = differenceInCalendarDays(parseISO(r.end), parseISO(r.start)) + 1;
+    const blob = buildCashFlowPeriodPdf({
+      periodLabel: r.label,
+      intervalLabel: interval === "weekly" ? "Weekly" : "Monthly",
+      generatedOn: format(new Date(), "d MMM yyyy"),
+      summary: [
+        { label: "Opening balance", amount: r.opening },
+        { label: "AR collections", amount: r.arIn },
+        { label: "Other inflows (run-rate + scheduled)", amount: r.otherIn },
+        { label: "AP payments", amount: -r.apOut },
+        { label: "Other outflows (run-rate + scheduled)", amount: -r.otherOut },
+        { label: "Net movement", amount: r.net },
+      ],
+      closingLabel: "Projected closing balance",
+      closingAmount: r.closing,
+      arParties: r.arParties.map((p) => ({ label: partyNames[p.partyId] || "-", amount: p.amount })),
+      apParties: r.apParties.map((p) => ({
+        label:
+          (partyNames[p.partyId] || "-") +
+          (partyTerms?.limits?.[p.partyId] != null ? ` (above limit of ${Math.round(partyTerms.limits[p.partyId]).toLocaleString()})` : ""),
+        amount: p.amount,
+      })),
+      schedItems: r.schedItems.map((s) => ({
+        label: `${s.name} (${SCHED_CATEGORIES.find((c) => c.value === s.category)?.label || s.category}, due ${format(parseISO(s.due), "d MMM")})`,
+        amount: s.direction === "inflow" ? s.amount : -s.amount,
+      })),
+      runOuts: r.runOut > 0.5
+        ? runRateAccounts.outs.filter((a) => a.daily * periodDays >= 0.5).map((a) => ({ label: a.name, amount: a.daily * periodDays }))
+        : [],
+      runIns: r.runIn > 0.5
+        ? runRateAccounts.ins.filter((a) => a.daily * periodDays >= 0.5).map((a) => ({ label: a.name, amount: a.daily * periodDays }))
+        : [],
+      footnotes: [
+        `Assumptions: customer credit days ${collectionDays} (default), supplier credit days ${paymentDays} (default);`,
+        `run-rate window ${histFrom} to ${today} (${windowDays} days), expense/revenue heads only.`,
+        !includeRunOut ? "Run-rate outflows were toggled OFF for this forecast." : "",
+        r.runIn <= 0.5 ? "Run-rate inflows are off: inflows come from AR collections and scheduled items only." : "",
+      ].filter(Boolean),
+    });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
   return (
     <ERPLayout>
       <PageHeader
@@ -1244,6 +1292,15 @@ export default function CashFlowForecastPage() {
                           ? (isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />)
                           : <span className="w-3" />}
                         {r.label}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 ml-1"
+                          title="Print this period's breakup as PDF"
+                          onClick={(e) => { e.stopPropagation(); printPeriod(r); }}
+                        >
+                          <Printer className="h-3 w-3" />
+                        </Button>
                       </span>
                     </TableCell>
                     <TableCell className="text-right text-xs">{fmt(r.opening)}</TableCell>
