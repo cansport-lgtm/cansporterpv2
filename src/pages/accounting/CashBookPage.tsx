@@ -618,6 +618,9 @@ export default function CashBookPage() {
                   {(contraData?.partyMap?.[r.voucher_id] || r.party?.name) && (
                     <div className="text-xs text-muted-foreground mt-0.5">{contraData?.partyMap?.[r.voucher_id] || r.party?.name}</div>
                   )}
+                  {contraData?.accountMap?.[r.voucher_id] && r.voucher?.narration && (
+                    <div className="text-xs text-muted-foreground italic mt-0.5 break-words">{r.voucher.narration}</div>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   <div className={`text-sm font-semibold whitespace-nowrap ${isReceipt ? "text-green-600" : "text-red-600"}`}>
@@ -748,7 +751,12 @@ export default function CashBookPage() {
                     <MessageCircle className="h-3 w-3" />
                   </Button>
                 </TableCell>
-                <TableCell className="text-xs">{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
+                <TableCell className="text-xs">
+                  <div>{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</div>
+                  {contraData?.accountMap?.[r.voucher_id] && r.voucher?.narration && (
+                    <div className="text-[11px] text-muted-foreground italic">{r.voucher.narration}</div>
+                  )}
+                </TableCell>
                 <TableCell className="text-xs">{contraData?.partyMap?.[r.voucher_id] || r.party?.name || "—"}</TableCell>
                 <TableCell className="text-right text-xs">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</TableCell>
                 <TableCell className="text-right text-xs">{Number(r.credit_amount) > 0 ? `Rs. ${Number(r.credit_amount).toLocaleString()}` : "—"}</TableCell>
