@@ -14,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { ArrowDownCircle, ArrowUpCircle, Zap, Pencil } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Zap, Pencil, Printer, MessageCircle } from "lucide-react";
 import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
+import { printVoucher, shareVoucherWhatsApp } from "@/lib/accounting/voucherShare";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays, parseISO } from "date-fns";
 
@@ -31,6 +32,29 @@ export default function CashBookPage() {
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountId, setAccountId] = useState<string>("");
   const [viewVoucherId, setViewVoucherId] = useState<string | null>(null);
+  const [shareBusyId, setShareBusyId] = useState<string | null>(null);
+
+  const handlePrintVoucher = async (voucherId: string) => {
+    try {
+      await printVoucher(voucherId);
+    } catch (err: any) {
+      toast({ title: "Print failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleShareVoucher = async (voucherId: string) => {
+    try {
+      setShareBusyId(voucherId);
+      const result = await shareVoucherWhatsApp(voucherId);
+      if (result === "downloaded") {
+        toast({ title: "Voucher PDF downloaded", description: "Attach the downloaded PDF to your WhatsApp chat." });
+      }
+    } catch (err: any) {
+      toast({ title: "Share failed", description: err.message, variant: "destructive" });
+    } finally {
+      setShareBusyId(null);
+    }
+  };
 
   // ----- Edit-voucher state (super admin only; manual cash vouchers) -----
   const [editVoucherId, setEditVoucherId] = useState<string | null>(null);
@@ -602,19 +626,42 @@ export default function CashBookPage() {
                   <div className="text-[11px] text-muted-foreground whitespace-nowrap mt-0.5">
                     Bal: Rs. {r.runningBalance.toLocaleString()}
                   </div>
-                  {isRowEditable(r) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 mt-1"
-                      onClick={() => openEdit(r)}
-                      title="Edit voucher (super admin)"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handlePrintVoucher(r.voucher_id)}
+                  title="Print voucher"
+                >
+                  <Printer className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => handleShareVoucher(r.voucher_id)}
+                  disabled={shareBusyId === r.voucher_id}
+                  title="Share voucher on WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </Button>
+                {isRowEditable(r) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => openEdit(r)}
+                    title="Edit voucher (super admin)"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
           );
@@ -679,6 +726,27 @@ export default function CashBookPage() {
                       <Pencil className="h-3 w-3" />
                     </Button>
                   )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 ml-1 align-middle"
+                    onClick={() => handlePrintVoucher(r.voucher_id)}
+                    title="Print voucher"
+                  >
+                    <Printer className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 ml-0.5 align-middle text-green-600 hover:text-green-700 hover:bg-green-50"
+                    onClick={() => handleShareVoucher(r.voucher_id)}
+                    disabled={shareBusyId === r.voucher_id}
+                    title="Share voucher on WhatsApp"
+                  >
+                    <MessageCircle className="h-3 w-3" />
+                  </Button>
                 </TableCell>
                 <TableCell className="text-xs">{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</TableCell>
                 <TableCell className="text-xs">{contraData?.partyMap?.[r.voucher_id] || r.party?.name || "—"}</TableCell>

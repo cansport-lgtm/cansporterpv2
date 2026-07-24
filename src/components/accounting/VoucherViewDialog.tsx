@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Package } from "lucide-react";
+import { Package, Printer, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { printVoucher, shareVoucherWhatsApp } from "@/lib/accounting/voucherShare";
 
 const sb = supabase as any;
 
@@ -34,6 +38,34 @@ interface VoucherViewDialogProps {
  * caller only needs to track a selected voucher id.
  */
 export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialogProps) {
+  const [sharing, setSharing] = useState(false);
+
+  const handlePrint = async () => {
+    if (!voucherId) return;
+    try {
+      await printVoucher(voucherId);
+    } catch (e: any) {
+      toast.error("Print failed", { description: e.message });
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    if (!voucherId) return;
+    try {
+      setSharing(true);
+      const result = await shareVoucherWhatsApp(voucherId);
+      if (result === "downloaded") {
+        toast.message("Voucher PDF downloaded", {
+          description: "Attach the downloaded PDF to your WhatsApp chat.",
+        });
+      }
+    } catch (e: any) {
+      toast.error("Share failed", { description: e.message });
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const { data: voucher } = useQuery({
     queryKey: ["voucher-view-dialog", voucherId],
     queryFn: async () => {
@@ -110,8 +142,34 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
     <Dialog open={!!voucherId} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
             {voucher?.voucher_number || "Voucher"} {typeBadge(voucher?.voucher_type)}
+            <span className="ml-auto flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={handlePrint}
+                disabled={!voucher}
+                title="Print voucher"
+              >
+                <Printer className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Print</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                onClick={handleShareWhatsApp}
+                disabled={!voucher || sharing}
+                title="Share voucher on WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">{sharing ? "Preparing…" : "WhatsApp"}</span>
+              </Button>
+            </span>
           </DialogTitle>
         </DialogHeader>
         {voucher && (
