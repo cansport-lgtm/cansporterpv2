@@ -420,29 +420,31 @@ export default function CashBookPage() {
   return (
     <ERPLayout>
       <PageHeader title="Cash Book" description="Running ledger for any cash account">
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Select value={accountId} onValueChange={setAccountId}>
-            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Cash account" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Cash account" /></SelectTrigger>
             <SelectContent>
               {cashAccounts?.map((a: any) => <SelectItem key={a.id} value={a.id}><span className="font-mono text-xs mr-2">{a.code}</span>{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[160px]" />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[160px]" />
+          <div className="flex gap-2">
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="flex-1 sm:w-[160px]" />
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="flex-1 sm:w-[160px]" />
+          </div>
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Opening Balance</div><div className="text-xl font-semibold">Rs. {Number(opening || 0).toLocaleString()}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Receipts (Dr)</div><div className="text-xl font-semibold text-green-600">Rs. {totalDr.toLocaleString()}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Payments (Cr)</div><div className="text-xl font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Closing Balance</div><div className="text-xl font-semibold">Rs. {closing.toLocaleString()}</div></CardContent></Card>
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4 mb-4">
+        <Card><CardContent className="p-3 sm:p-4"><div className="text-xs text-muted-foreground">Opening Balance</div><div className="text-base sm:text-xl font-semibold">Rs. {Number(opening || 0).toLocaleString()}</div></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><div className="text-xs text-muted-foreground">Total Receipts (Dr)</div><div className="text-base sm:text-xl font-semibold text-green-600">Rs. {totalDr.toLocaleString()}</div></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><div className="text-xs text-muted-foreground">Total Payments (Cr)</div><div className="text-base sm:text-xl font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</div></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><div className="text-xs text-muted-foreground">Closing Balance</div><div className="text-base sm:text-xl font-semibold">Rs. {closing.toLocaleString()}</div></CardContent></Card>
       </div>
 
       {/* Quick Entry — post a CRV or CPV against the selected cash account without leaving the page */}
       <Card className="mb-4 border-dashed">
         <CardContent className="p-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
             <Zap className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-semibold">Quick Entry</span>
             <span className="text-xs text-muted-foreground">
@@ -450,37 +452,50 @@ export default function CashBookPage() {
               <span className="font-medium">{selectedAccount?.name || "—"}</span>
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-2 items-end" onKeyDown={submitOnEnter}>
-            <div className="col-span-2">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-12 lg:items-end" onKeyDown={submitOnEnter}>
+            <div className="order-1 col-span-2 lg:col-span-2">
               <Label className="text-xs">Type</Label>
-              <div className="flex rounded-md border overflow-hidden h-9">
+              <div className="flex rounded-md border overflow-hidden h-11 lg:h-9">
                 <button
                   type="button"
                   onClick={() => setQeMode("receipt")}
-                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${qeMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
+                  className={`flex-1 text-sm lg:text-xs flex items-center justify-center gap-1 transition ${qeMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
                 >
-                  <ArrowDownCircle className="h-3 w-3" />Receipt
+                  <ArrowDownCircle className="h-3.5 w-3.5 lg:h-3 lg:w-3" />Receipt
                 </button>
                 <button
                   type="button"
                   onClick={() => setQeMode("payment")}
-                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${qeMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
+                  className={`flex-1 text-sm lg:text-xs flex items-center justify-center gap-1 transition ${qeMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
                 >
-                  <ArrowUpCircle className="h-3 w-3" />Payment
+                  <ArrowUpCircle className="h-3.5 w-3.5 lg:h-3 lg:w-3" />Payment
                 </button>
               </div>
             </div>
-            <div className="col-span-1">
+            <div className="order-2 col-span-1 lg:col-span-1">
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-9" />
+              <Input type="date" value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-11 lg:h-9" />
             </div>
-            <div className="col-span-3">
+            <div className="order-3 col-span-1 lg:order-6 lg:col-span-1">
+              <Label className="text-xs">Amount</Label>
+              <Input
+                ref={amountRef}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={qeAmount}
+                onChange={(e) => setQeAmount(e.target.value)}
+                className="h-11 lg:h-9 text-right"
+                placeholder="0"
+              />
+            </div>
+            <div className="order-4 col-span-2 lg:order-3 lg:col-span-3">
               <Label className="text-xs">{qeMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
               <SearchableSelect
                 value={qeContraId}
                 onValueChange={setQeContraId}
                 placeholder="Select account"
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-11 lg:h-9 w-full"
                 options={otherSideAccounts.map((a: any) => ({
                   value: a.id,
                   label: a.name,
@@ -489,7 +504,7 @@ export default function CashBookPage() {
                 }))}
               />
             </div>
-            <div className="col-span-2">
+            <div className="order-5 col-span-2 lg:order-4 lg:col-span-2">
               <Label className="text-xs flex items-center gap-1">
                 Party (optional)
                 {partyTypeFilter && (
@@ -502,7 +517,7 @@ export default function CashBookPage() {
                 value={qePartyId}
                 onValueChange={setQePartyId}
                 placeholder="— None —"
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-11 lg:h-9 w-full"
                 options={[
                   { value: "none", label: "— None —" },
                   ...filteredParties.map((p: any) => ({
@@ -513,40 +528,114 @@ export default function CashBookPage() {
                 ]}
               />
             </div>
-            <div className="col-span-1">
-              <Label className="text-xs">Amount</Label>
-              <Input
-                ref={amountRef}
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={qeAmount}
-                onChange={(e) => setQeAmount(e.target.value)}
-                className="h-9 text-right"
-                placeholder="0"
-              />
-            </div>
-            <div className="col-span-2">
+            <div className="order-6 col-span-2 lg:order-7 lg:col-span-2">
               <Label className="text-xs">Note (optional)</Label>
-              <Input value={qeNote} onChange={(e) => setQeNote(e.target.value)} className="h-9" placeholder="Narration" />
+              <Input value={qeNote} onChange={(e) => setQeNote(e.target.value)} className="h-11 lg:h-9" placeholder="Narration" />
             </div>
-            <div className="col-span-1">
+            <div className="order-7 col-span-2 lg:order-8 lg:col-span-1">
               <Button
-                className="w-full h-9"
+                className="w-full h-11 lg:h-9"
                 onClick={() => quickPostMutation.mutate()}
                 disabled={quickPostMutation.isPending || !accountId || !qeContraId || !(parseFloat(qeAmount) > 0)}
               >
-                {quickPostMutation.isPending ? "..." : "Post"}
+                {quickPostMutation.isPending ? (
+                  "..."
+                ) : (
+                  <>
+                    <span className="lg:hidden">{qeMode === "receipt" ? "Post Receipt" : "Post Payment"}</span>
+                    <span className="hidden lg:inline">Post</span>
+                  </>
+                )}
               </Button>
             </div>
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="hidden lg:block text-[11px] text-muted-foreground mt-1">
             Press <kbd className="px-1 border rounded">Enter</kbd> in any field to post. Form clears after each entry (date & type retained).
+          </div>
+          <div className="lg:hidden text-[11px] text-muted-foreground mt-1.5">
+            Form clears after each entry (date & type retained).
           </div>
         </CardContent>
       </Card>
 
-      <div className="border rounded-lg">
+      {/* Mobile ledger — card list (table is hidden below md) */}
+      <div className="md:hidden space-y-2">
+        <div className="rounded-lg border bg-muted/40 px-3 py-2 flex items-center justify-between text-xs">
+          <span className="italic text-muted-foreground">Opening Balance — {selectedAccount?.name}</span>
+          <span className="font-semibold whitespace-nowrap">Rs. {Number(opening || 0).toLocaleString()}</span>
+        </div>
+        {!rows.length && (
+          <div className="rounded-lg border px-3 py-6 text-center text-sm text-muted-foreground">
+            No transactions in this range
+          </div>
+        )}
+        {rows.map((r: any) => {
+          const isReceipt = Number(r.debit_amount) > 0;
+          const amount = isReceipt ? Number(r.debit_amount) : Number(r.credit_amount);
+          return (
+            <div key={r.id} className="rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px]">{r.voucher?.voucher_type}</Badge>
+                    <button
+                      type="button"
+                      onClick={() => setViewVoucherId(r.voucher_id)}
+                      className="text-xs text-primary hover:underline"
+                      title="Open voucher"
+                    >
+                      {r.voucher?.voucher_number}
+                    </button>
+                    <span className="text-[11px] text-muted-foreground">
+                      {r.voucher?.voucher_date && format(parseISO(r.voucher.voucher_date), "dd MMM")}
+                    </span>
+                  </div>
+                  <div className="text-sm mt-1 break-words">{contraData?.accountMap?.[r.voucher_id] || r.voucher?.narration || "—"}</div>
+                  {(contraData?.partyMap?.[r.voucher_id] || r.party?.name) && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{contraData?.partyMap?.[r.voucher_id] || r.party?.name}</div>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className={`text-sm font-semibold whitespace-nowrap ${isReceipt ? "text-green-600" : "text-red-600"}`}>
+                    {isReceipt ? "+" : "−"} Rs. {amount.toLocaleString()}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground whitespace-nowrap mt-0.5">
+                    Bal: Rs. {r.runningBalance.toLocaleString()}
+                  </div>
+                  {isRowEditable(r) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 mt-1"
+                      onClick={() => openEdit(r)}
+                      title="Edit voucher (super admin)"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div className="rounded-lg border bg-muted/40 px-3 py-2 space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span>Total Receipts (Dr)</span>
+            <span className="font-semibold text-green-600">Rs. {totalDr.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Total Payments (Cr)</span>
+            <span className="font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between border-t pt-1">
+            <span className="font-semibold">Closing Balance</span>
+            <span className="font-semibold">Rs. {closing.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden md:block border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
@@ -612,23 +701,23 @@ export default function CashBookPage() {
 
       {/* Edit voucher (super admin only — manual cash vouchers) */}
       <Dialog open={!!editVoucherId} onOpenChange={(o) => { if (!o) setEditVoucherId(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Cash Voucher</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Type</Label>
-              <div className="flex rounded-md border overflow-hidden h-9">
+              <div className="flex rounded-md border overflow-hidden h-11 sm:h-9">
                 <button
                   type="button"
                   onClick={() => setEdMode("receipt")}
-                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${edMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
+                  className={`flex-1 text-sm sm:text-xs flex items-center justify-center gap-1 transition ${edMode === "receipt" ? "bg-green-600 text-white" : "bg-background hover:bg-muted"}`}
                 >
                   <ArrowDownCircle className="h-3 w-3" />Receipt
                 </button>
                 <button
                   type="button"
                   onClick={() => setEdMode("payment")}
-                  className={`flex-1 text-xs flex items-center justify-center gap-1 transition ${edMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
+                  className={`flex-1 text-sm sm:text-xs flex items-center justify-center gap-1 transition ${edMode === "payment" ? "bg-red-600 text-white" : "bg-background hover:bg-muted"}`}
                 >
                   <ArrowUpCircle className="h-3 w-3" />Payment
                 </button>
@@ -636,7 +725,7 @@ export default function CashBookPage() {
             </div>
             <div>
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={edDate} onChange={(e) => setEdDate(e.target.value)} className="h-9" />
+              <Input type="date" value={edDate} onChange={(e) => setEdDate(e.target.value)} className="h-11 sm:h-9" />
             </div>
             <div>
               <Label className="text-xs">{edMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
@@ -644,7 +733,7 @@ export default function CashBookPage() {
                 value={edContraId}
                 onValueChange={setEdContraId}
                 placeholder="Select account"
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-11 sm:h-9 w-full"
                 options={otherSideAccounts.map((a: any) => ({
                   value: a.id,
                   label: a.name,
@@ -659,7 +748,7 @@ export default function CashBookPage() {
                 value={edPartyId}
                 onValueChange={setEdPartyId}
                 placeholder="— None —"
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-11 sm:h-9 w-full"
                 options={[
                   { value: "none", label: "— None —" },
                   ...(parties || []).map((p: any) => ({ value: p.id, label: p.name, secondary: `(${p.party_type})` })),
@@ -674,18 +763,18 @@ export default function CashBookPage() {
                 step="0.01"
                 value={edAmount}
                 onChange={(e) => setEdAmount(e.target.value)}
-                className="h-9 text-right"
+                className="h-11 sm:h-9 text-right"
                 placeholder="0"
               />
             </div>
             <div>
               <Label className="text-xs">Note (optional)</Label>
-              <Input value={edNote} onChange={(e) => setEdNote(e.target.value)} className="h-9" placeholder="Narration" />
+              <Input value={edNote} onChange={(e) => setEdNote(e.target.value)} className="h-11 sm:h-9" placeholder="Narration" />
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" size="sm" onClick={() => setEditVoucherId(null)}>Cancel</Button>
+              <Button variant="outline" className="h-11 sm:h-9" onClick={() => setEditVoucherId(null)}>Cancel</Button>
               <Button
-                size="sm"
+                className="h-11 sm:h-9"
                 disabled={editMutation.isPending || !edContraId || !(parseFloat(edAmount) > 0)}
                 onClick={() => editMutation.mutate()}
               >
