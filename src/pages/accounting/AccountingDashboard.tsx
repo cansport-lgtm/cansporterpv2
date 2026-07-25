@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
+import { BudgetWatchCard } from "@/components/accounting/BudgetWatchCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -168,6 +169,7 @@ export default function AccountingDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {canSeeBusinessHealth && <BudgetWatchCard />}
         <Card>
           <CardHeader><CardTitle className="text-sm">Cash & Bank Accounts</CardTitle></CardHeader>
           <CardContent>

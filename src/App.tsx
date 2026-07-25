@@ -298,6 +298,8 @@ import PurchaseReturnPage from "./pages/accounting/PurchaseReturnPage";
 import SalesReturnsPage from "./pages/sales/SalesReturnsPage";
 import CustomerPricingPage from "./pages/sales/CustomerPricingPage";
 import PurchaseReturnsPage from "./pages/purchase/PurchaseReturnsPage";
+import AccountingBudgetsPage from "./pages/accounting/AccountingBudgetsPage";
+import BudgetVsActualPage from "./pages/accounting/BudgetVsActualPage";
 import PeriodClosePage from "./pages/accounting/PeriodClosePage";
 import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
 import AccountingAuditLogPage from "./pages/accounting/AuditLogPage";
@@ -810,6 +812,8 @@ const App = () => (
             <Route path="/accounting/supplier-payments" element={<ProtectedRoute><SupplierPaymentsPage /></ProtectedRoute>} />
             <Route path="/accounting/sales-return" element={<ProtectedRoute><SalesReturnPage /></ProtectedRoute>} />
             <Route path="/accounting/purchase-return" element={<ProtectedRoute><PurchaseReturnPage /></ProtectedRoute>} />
+            <Route path="/accounting/budgets" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><AccountingBudgetsPage /></ProtectedRoute>} />
+            <Route path="/accounting/budget-vs-actual" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><BudgetVsActualPage /></ProtectedRoute>} />
             <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
             <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
             <Route path="/accounting/audit-log" element={<ProtectedRoute><AccountingAuditLogPage /></ProtectedRoute>} />
