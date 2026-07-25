@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity, Wallet, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight,
   Scale, AlertTriangle, CheckCircle, HeartPulse, Hourglass, Truck, ShoppingCart,
-  ClipboardList, Receipt, FileWarning,
+  ClipboardList, Receipt, FileWarning, Calculator, ChevronDown,
 } from "lucide-react";
 import { format, subMonths, startOfMonth, parseISO, differenceInCalendarDays } from "date-fns";
 import {
@@ -32,6 +32,25 @@ const fmtRsShort = (n: number) => {
 
 type Bucket = { b0_30: number; b31_60: number; b61_90: number; b90p: number };
 type AgedParty = { party_id: string; total: number } & Bucket;
+
+type BreakupRow = { op?: string; label: string; amount: number; suffix?: string; href?: string; strong?: boolean };
+type RatioBreakup = {
+  key: string;
+  label: string;
+  value: string;
+  hint: string;
+  status: "good" | "watch" | "bad" | "na";
+  formula: string;
+  rows: BreakupRow[];
+  working: string[];
+  reading: string;
+};
+const STATUS_META: Record<RatioBreakup["status"], { label: string; badge: string; text: string }> = {
+  good: { label: "Healthy", badge: "bg-green-600", text: "" },
+  watch: { label: "Watch", badge: "bg-amber-500", text: "text-amber-600" },
+  bad: { label: "Attention", badge: "bg-red-600", text: "text-red-600" },
+  na: { label: "N/A", badge: "bg-slate-400", text: "" },
+};
 
 /**
  * FIFO open-item aging reconciled to the net GL balance — same algorithm as
@@ -388,6 +407,7 @@ export default function BusinessHealthDashboard() {
       expTrendPct: pct(mtd.cogs + mtd.opex, prev.cogs + prev.opex),
       grossMarginMtd: mtd.revenue > 0 ? ((mtd.revenue - mtd.cogs) / mtd.revenue) * 100 : null,
       currentRatio, quickRatio, debtToEquity, dso, dpo, runwayMonths,
+      currentAssets, currentLiabilities, rev90, cogs90, paidEquity, retained, avgNetCash,
       workingCapital: currentAssets - currentLiabilities,
       healthScore, healthLabel,
       scoreParts: { liquidityScore, profitScore, collectionScore, cashScore },
@@ -396,6 +416,175 @@ export default function BusinessHealthDashboard() {
   }, [accounts, allLines, defaults, creditLimits, ops, today]);
 
   const c = computed;
+  const [activeRatio, setActiveRatio] = useState<string | null>(null);
+
+  const ratioBreakups: RatioBreakup[] = useMemo(() => {
+    if (!c) return [];
+    const {
+      cashPool, totalInventory, totalLiabilities, totalEquity, paidEquity, retained,
+      arAging, apAging, currentAssets, currentLiabilities, rev90, cogs90,
+      currentRatio, quickRatio, debtToEquity, dso, dpo, runwayMonths, workingCapital, avgNetCash,
+    } = c;
+    const quickAssets = cashPool + arAging.total;
+    const dailyRev = rev90 / 90;
+    const dailyCogs = cogs90 / 90;
+
+    return [
+      {
+        key: "current",
+        label: "Current Ratio",
+        value: currentRatio !== null ? currentRatio.toFixed(2) : "—",
+        hint: "Healthy ≥ 1.5",
+        status: currentRatio === null ? "na" : currentRatio >= 1.5 ? "good" : currentRatio >= 1 ? "watch" : "bad",
+        formula: "Current Assets ÷ Current Liabilities — for every rupee owed short-term, how many rupees of short-term assets are on hand to pay it?",
+        rows: [
+          { label: "Cash + Bank (all cash & bank accounts)", amount: cashPool, href: "/accounting/cash-book" },
+          { op: "+", label: "Accounts Receivable (open customer balances)", amount: arAging.total, href: "/accounting/ar-ap-report" },
+          { op: "+", label: "Inventory at GL value (RM + WIP + FG)", amount: totalInventory },
+          { op: "=", label: "Current Assets", amount: currentAssets, strong: true },
+          { op: "÷", label: "Accounts Payable (open vendor balances)", amount: currentLiabilities, href: "/accounting/ar-ap-report" },
+        ],
+        working: currentRatio === null
+          ? ["No open payables — the ratio is undefined (division by zero). There is simply no short-term debt to cover."]
+          : [`Current Ratio = ${fmtRs(currentAssets)} ÷ ${fmtRs(currentLiabilities)}`, `= ${currentRatio.toFixed(2)}`],
+        reading: currentRatio === null
+          ? "With nothing owed to vendors there is no short-term repayment pressure."
+          : currentRatio >= 1.5
+            ? `Every Rs. 1 of payables is backed by Rs. ${currentRatio.toFixed(2)} of current assets — a comfortable cushion.`
+            : currentRatio >= 1
+              ? `Current assets just cover payables (Rs. ${currentRatio.toFixed(2)} per Rs. 1 owed) — a dip in collections or stock value would cause strain.`
+              : `Current assets cover only Rs. ${currentRatio.toFixed(2)} of every Rs. 1 owed to vendors — short-term obligations cannot be met from short-term assets alone.`,
+      },
+      {
+        key: "quick",
+        label: "Quick Ratio",
+        value: quickRatio !== null ? quickRatio.toFixed(2) : "—",
+        hint: "Healthy ≥ 1.0",
+        status: quickRatio === null ? "na" : quickRatio >= 1 ? "good" : quickRatio >= 0.7 ? "watch" : "bad",
+        formula: "(Cash + Receivables) ÷ Current Liabilities — same as the current ratio but excluding inventory, since stock can take time to turn into cash.",
+        rows: [
+          { label: "Cash + Bank", amount: cashPool, href: "/accounting/cash-book" },
+          { op: "+", label: "Accounts Receivable", amount: arAging.total, href: "/accounting/ar-ap-report" },
+          { op: "=", label: "Quick Assets (inventory excluded)", amount: quickAssets, strong: true },
+          { op: "÷", label: "Accounts Payable", amount: currentLiabilities, href: "/accounting/ar-ap-report" },
+        ],
+        working: quickRatio === null
+          ? ["No open payables — the ratio is undefined (division by zero)."]
+          : [`Quick Ratio = ${fmtRs(quickAssets)} ÷ ${fmtRs(currentLiabilities)}`, `= ${quickRatio.toFixed(2)}`],
+        reading: quickRatio === null
+          ? "With nothing owed to vendors there is no short-term repayment pressure."
+          : quickRatio >= 1
+            ? "Payables could be settled from cash and receivables alone, without selling any stock."
+            : "Paying all vendors today would require selling inventory first — cash plus receivables are not enough on their own.",
+      },
+      {
+        key: "de",
+        label: "Debt / Equity",
+        value: debtToEquity !== null ? debtToEquity.toFixed(2) : "—",
+        hint: "Comfortable ≤ 1.0",
+        status: debtToEquity === null ? "na" : debtToEquity <= 1 ? "good" : debtToEquity <= 2 ? "watch" : "bad",
+        formula: "Total Liabilities ÷ Total Equity — how much of the business is financed by borrowed money versus the owners' own money (capital plus profits kept in the business).",
+        rows: [
+          { label: "Total Liabilities (all liability accounts)", amount: totalLiabilities },
+          { label: "Paid-in / Capital Equity", amount: paidEquity },
+          { op: "+", label: "Retained Earnings (all-time net profit)", amount: retained },
+          { op: "=", label: "Total Equity", amount: totalEquity, strong: true },
+        ],
+        working: debtToEquity === null
+          ? [`Total equity is ${fmtRs(totalEquity)} (zero or negative) — the ratio is not meaningful. Accumulated losses have consumed the owners' capital.`]
+          : [`Debt / Equity = ${fmtRs(totalLiabilities)} ÷ ${fmtRs(totalEquity)}`, `= ${debtToEquity.toFixed(2)}`],
+        reading: debtToEquity === null
+          ? "Negative or zero equity is itself a warning sign — liabilities exceed what the owners have put in and earned."
+          : debtToEquity <= 1
+            ? "The business is funded more by its owners than by creditors — a conservative position."
+            : `Creditors have Rs. ${debtToEquity.toFixed(2)} at stake for every Rs. 1 of owners' money — the business leans on borrowed funds.`,
+      },
+      {
+        key: "dso",
+        label: "DSO",
+        value: dso !== null ? `${Math.round(dso)} days` : "—",
+        hint: "Days to collect",
+        status: dso === null ? "na" : dso <= 30 ? "good" : dso <= 60 ? "watch" : "bad",
+        formula: "Receivables ÷ average daily revenue (last 90 days) — roughly how many days of sales are sitting uncollected with customers.",
+        rows: [
+          { label: "Accounts Receivable outstanding today", amount: arAging.total, href: "/accounting/ar-ap-report" },
+          { label: "Revenue — last 90 days", amount: rev90 },
+          { op: "=", label: "Average daily revenue (÷ 90)", amount: dailyRev, suffix: " / day", strong: true },
+        ],
+        working: dso === null
+          ? ["No revenue in the last 90 days — days sales outstanding cannot be computed."]
+          : [`DSO = ${fmtRs(arAging.total)} ÷ ${fmtRs(dailyRev)} per day`, `= ${Math.round(dso)} days`],
+        reading: dso === null
+          ? "Record sales for this ratio to become meaningful."
+          : dso <= 30
+            ? "Customers pay within about a month of billing — collections are in good shape."
+            : dso <= 60
+              ? "On average money stays with customers for one to two months after a sale — worth tightening follow-ups."
+              : `Cash from a sale takes about ${Math.round(dso)} days to arrive — that is working capital financed by you instead of your customers.`,
+      },
+      {
+        key: "dpo",
+        label: "DPO",
+        value: dpo !== null ? `${Math.round(dpo)} days` : "—",
+        hint: "Days to pay",
+        status: dpo === null ? "na" : dso !== null && dpo < dso ? "watch" : "good",
+        formula: "Payables ÷ average daily COGS (last 90 days) — roughly how many days of purchases are still unpaid to vendors.",
+        rows: [
+          { label: "Accounts Payable outstanding today", amount: apAging.total, href: "/accounting/ar-ap-report" },
+          { label: "COGS — last 90 days", amount: cogs90 },
+          { op: "=", label: "Average daily COGS (÷ 90)", amount: dailyCogs, suffix: " / day", strong: true },
+        ],
+        working: dpo === null
+          ? ["No COGS in the last 90 days — days payable outstanding cannot be computed."]
+          : [`DPO = ${fmtRs(apAging.total)} ÷ ${fmtRs(dailyCogs)} per day`, `= ${Math.round(dpo)} days`],
+        reading: dpo === null
+          ? "Record COGS for this ratio to become meaningful."
+          : dso !== null && dpo < dso
+            ? `You pay vendors in ~${Math.round(dpo)} days but collect from customers in ~${Math.round(dso!)} days — cash leaves before it comes in, which squeezes working capital.`
+            : `Vendors are paid in ~${Math.round(dpo)} days. Paying no faster than you collect keeps the cash cycle balanced.`,
+      },
+      {
+        key: "wc",
+        label: "Working Capital",
+        value: `Rs. ${fmtRsShort(workingCapital)}`,
+        hint: "Assets − payables",
+        status: workingCapital > 0 ? "good" : "bad",
+        formula: "Current Assets − Current Liabilities — the rupee buffer left after settling all short-term obligations from short-term assets.",
+        rows: [
+          { label: "Current Assets (Cash + AR + Inventory)", amount: currentAssets },
+          { op: "−", label: "Current Liabilities (Payables)", amount: currentLiabilities, href: "/accounting/ar-ap-report" },
+          { op: "=", label: "Working Capital", amount: workingCapital, strong: true },
+        ],
+        working: [`Working Capital = ${fmtRs(currentAssets)} − ${fmtRs(currentLiabilities)}`, `= ${fmtRs(workingCapital)}`],
+        reading: workingCapital > 0
+          ? `After paying every vendor from short-term assets, ${fmtRs(workingCapital)} would remain to run day-to-day operations.`
+          : `Short-term obligations exceed short-term assets by ${fmtRs(Math.abs(workingCapital))} — day-to-day operations are being financed by unpaid vendors.`,
+      },
+      {
+        key: "runway",
+        label: "Cash Runway",
+        value: runwayMonths === Infinity ? "Positive" : `~${runwayMonths.toFixed(1)} mo`,
+        hint: "At 3-mo avg burn",
+        status: runwayMonths === Infinity || runwayMonths >= 6 ? "good" : runwayMonths >= 3 ? "watch" : "bad",
+        formula: "Cash + Bank today ÷ average monthly cash burn (net outflow averaged over the last 3 months) — how long the cash lasts if nothing changes.",
+        rows: [
+          { label: "Cash + Bank today", amount: cashPool, href: "/accounting/cash-book" },
+          { label: "Avg monthly net cash flow (last 3 months)", amount: avgNetCash },
+        ],
+        working: avgNetCash >= 0
+          ? [`Average net cash flow is +${fmtRs(avgNetCash)} per month — the business is adding cash, not burning it, so runway is not limited.`]
+          : [`Runway = ${fmtRs(cashPool)} ÷ ${fmtRs(-avgNetCash)} burn per month`, `= ${runwayMonths.toFixed(1)} months`],
+        reading: avgNetCash >= 0
+          ? "Cash flow has been positive on average over the last quarter."
+          : runwayMonths >= 6
+            ? "More than six months of cash at the current burn rate — time to fix the burn, but no immediate crunch."
+            : runwayMonths >= 3
+              ? "Three to six months of cash left at the current burn rate — plan collections or funding now."
+              : "Under three months of cash at the current burn rate — this needs immediate attention.",
+      },
+    ];
+  }, [c]);
+
   const scoreColor = !c ? "" : c.healthScore >= 80 ? "text-green-600" : c.healthScore >= 55 ? "text-blue-600" : c.healthScore >= 35 ? "text-amber-600" : "text-red-600";
   const scoreBg = !c ? "" : c.healthScore >= 80 ? "bg-green-600" : c.healthScore >= 55 ? "bg-blue-600" : c.healthScore >= 35 ? "bg-amber-500" : "bg-red-600";
 
@@ -676,25 +865,84 @@ export default function BusinessHealthDashboard() {
             ))}
           </div>
 
-          {/* Financial ratios */}
+          {/* Financial ratios with full working */}
           <Card className="mb-4">
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Financial Ratios</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Calculator className="h-4 w-4" />Financial Ratios — Breakup & Working
+                <span className="font-normal text-muted-foreground text-xs ml-auto">Tap a ratio to see how it is calculated from your data</span>
+              </CardTitle>
+            </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {[
-                  { label: "Current Ratio", value: c.currentRatio !== null ? c.currentRatio.toFixed(2) : "—", hint: "(Cash + AR + Inventory) / Payables. Healthy ≥ 1.5", bad: c.currentRatio !== null && c.currentRatio < 1 },
-                  { label: "Quick Ratio", value: c.quickRatio !== null ? c.quickRatio.toFixed(2) : "—", hint: "(Cash + AR) / Payables. Healthy ≥ 1.0", bad: c.quickRatio !== null && c.quickRatio < 1 },
-                  { label: "Debt / Equity", value: c.debtToEquity !== null ? c.debtToEquity.toFixed(2) : "—", hint: "Total liabilities / equity incl. retained earnings", bad: c.debtToEquity !== null && c.debtToEquity > 2 },
-                  { label: "DSO", value: c.dso !== null ? `${Math.round(c.dso)} days` : "—", hint: "Avg days to collect (AR vs 90-day revenue)", bad: c.dso !== null && c.dso > 60 },
-                  { label: "DPO", value: c.dpo !== null ? `${Math.round(c.dpo)} days` : "—", hint: "Avg days to pay (AP vs 90-day COGS)", bad: false },
-                ].map((r) => (
-                  <div key={r.label} className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">{r.label}</div>
-                    <div className={`text-2xl font-semibold ${r.bad ? "text-red-600" : ""}`}>{r.value}</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">{r.hint}</div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+                {ratioBreakups.map((r) => {
+                  const meta = STATUS_META[r.status];
+                  const active = activeRatio === r.key;
+                  return (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => setActiveRatio(active ? null : r.key)}
+                      className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${active ? "ring-2 ring-primary bg-muted/40" : ""}`}
+                    >
+                      <div className="text-xs text-muted-foreground flex items-center justify-between">
+                        {r.label}
+                        <ChevronDown className={`h-3 w-3 transition-transform ${active ? "rotate-180" : ""}`} />
+                      </div>
+                      <div className={`text-2xl font-semibold ${meta.text}`}>{r.value}</div>
+                      <div className="text-[11px] text-muted-foreground mt-1">{r.hint}</div>
+                    </button>
+                  );
+                })}
               </div>
+
+              {activeRatio && (() => {
+                const r = ratioBreakups.find((x) => x.key === activeRatio);
+                if (!r) return null;
+                const meta = STATUS_META[r.status];
+                return (
+                  <div className="mt-4 rounded-lg border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Calculator className="h-4 w-4" />{r.label} — how this number is built
+                      </span>
+                      <Badge className={meta.badge}>{meta.label}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">{r.formula}</p>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Components (from your ledger, as of today)</div>
+                        <Table>
+                          <TableBody>
+                            {r.rows.map((row, i) => (
+                              <TableRow key={i} className={row.strong ? "border-t-2" : ""}>
+                                <TableCell className={`py-1.5 text-sm ${row.strong ? "font-semibold" : ""}`}>
+                                  {row.op && <span className="inline-block w-4 text-muted-foreground">{row.op}</span>}
+                                  {row.href
+                                    ? <Link to={row.href} className="text-primary hover:underline">{row.label}</Link>
+                                    : row.label}
+                                </TableCell>
+                                <TableCell className={`py-1.5 text-right text-sm whitespace-nowrap ${row.strong ? "font-semibold" : ""} ${row.amount < 0 ? "text-red-600" : ""}`}>
+                                  {fmtRs(row.amount)}{row.suffix || ""}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Working</div>
+                        <div className="rounded-md border bg-background p-3 font-mono text-[13px] space-y-1">
+                          {r.working.map((line, i) => <div key={i}>{line}</div>)}
+                        </div>
+                        <div className="text-xs font-medium text-muted-foreground mt-3 mb-1">What it means for you</div>
+                        <p className={`text-sm ${meta.text}`}>{r.reading}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
