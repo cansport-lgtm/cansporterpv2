@@ -476,8 +476,11 @@ export default function CashBookPage() {
               <span className="font-medium">{selectedAccount?.name || "—"}</span>
             </span>
           </div>
+          {/* DOM order drives Tab order — keep it as the desktop entry sequence
+              (Type → Date → Account → Party → Amount → Note → Post); mobile
+              reflows Amount up next to Date visually via order-* classes. */}
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-12 lg:items-end" onKeyDown={submitOnEnter}>
-            <div className="order-1 col-span-2 lg:col-span-2">
+            <div className="order-1 lg:order-none col-span-2 lg:col-span-2">
               <Label className="text-xs">Type</Label>
               <div className="flex rounded-md border overflow-hidden h-11 lg:h-9">
                 <button
@@ -496,24 +499,11 @@ export default function CashBookPage() {
                 </button>
               </div>
             </div>
-            <div className="order-2 col-span-1 lg:col-span-1">
+            <div className="order-2 lg:order-none col-span-1 lg:col-span-1">
               <Label className="text-xs">Date</Label>
               <Input type="date" value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-11 lg:h-9" />
             </div>
-            <div className="order-3 col-span-1 lg:order-6 lg:col-span-1">
-              <Label className="text-xs">Amount</Label>
-              <Input
-                ref={amountRef}
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={qeAmount}
-                onChange={(e) => setQeAmount(e.target.value)}
-                className="h-11 lg:h-9 text-right"
-                placeholder="0"
-              />
-            </div>
-            <div className="order-4 col-span-2 lg:order-3 lg:col-span-3">
+            <div className="order-4 lg:order-none col-span-2 lg:col-span-3">
               <Label className="text-xs">{qeMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
               <SearchableSelect
                 value={qeContraId}
@@ -528,7 +518,7 @@ export default function CashBookPage() {
                 }))}
               />
             </div>
-            <div className="order-5 col-span-2 lg:order-4 lg:col-span-2">
+            <div className="order-5 lg:order-none col-span-2 lg:col-span-2">
               <Label className="text-xs flex items-center gap-1">
                 Party (optional)
                 {partyTypeFilter && (
@@ -552,11 +542,24 @@ export default function CashBookPage() {
                 ]}
               />
             </div>
-            <div className="order-6 col-span-2 lg:order-7 lg:col-span-2">
+            <div className="order-3 lg:order-none col-span-1 lg:col-span-1">
+              <Label className="text-xs">Amount</Label>
+              <Input
+                ref={amountRef}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={qeAmount}
+                onChange={(e) => setQeAmount(e.target.value)}
+                className="h-11 lg:h-9 text-right"
+                placeholder="0"
+              />
+            </div>
+            <div className="order-6 lg:order-none col-span-2 lg:col-span-2">
               <Label className="text-xs">Note (optional)</Label>
               <Input value={qeNote} onChange={(e) => setQeNote(e.target.value)} className="h-11 lg:h-9" placeholder="Narration" />
             </div>
-            <div className="order-7 col-span-2 lg:order-8 lg:col-span-1">
+            <div className="order-7 lg:order-none col-span-2 lg:col-span-1">
               <Button
                 className="w-full h-11 lg:h-9"
                 onClick={() => quickPostMutation.mutate()}
