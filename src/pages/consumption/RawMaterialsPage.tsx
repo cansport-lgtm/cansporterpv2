@@ -84,7 +84,7 @@ export default function RawMaterialsPage() {
           <span>
             Raw materials are maintained centrally in <strong>Master Data → Items</strong> (category “Raw Material”).
             This list mirrors those items and updates automatically, so the BOM, stock closing and reports always use
-            the same raw materials. Add or edit materials in the Items master.
+            the same raw materials. Add or edit materials — including their raw-material category — in the Items master.
           </span>
         </div>
 
