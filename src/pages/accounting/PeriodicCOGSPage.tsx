@@ -332,8 +332,13 @@ export default function PeriodicCOGSPage() {
                   <span>Already posted COGS in this period</span>
                   <span>Rs. {p.alreadyPostedCOGS.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground italic pl-3">
-                  <span>(per-dispatch COGS + prior periodic adjustments)</span>
+                <div className="flex justify-between text-xs text-muted-foreground pl-3">
+                  <span>— Per-dispatch COGS ({p.dispatchVoucherCount} vouchers)</span>
+                  <span>Rs. {p.alreadyPostedDispatch.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground pl-3">
+                  <span>— Prior periodic adjustments ({p.periodicVoucherCount} vouchers)</span>
+                  <span>Rs. {p.alreadyPostedPeriodic.toLocaleString()}</span>
                 </div>
                 <div className={`flex justify-between border-t pt-2 font-bold ${Math.abs(variance) < 0.01 ? "text-muted-foreground" : variance > 0 ? "text-amber-600" : "text-blue-600"}`}>
                   <span>Variance to post</span>
