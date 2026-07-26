@@ -9,11 +9,90 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "@/hooks/use-toast";
-import { Calculator, AlertTriangle, CheckCircle } from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle, Database } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { previewPeriodicCOGS, postPeriodicCOGS } from "@/lib/accounting/postPeriodicCOGS";
+import {
+  previewPeriodicCOGS, postPeriodicCOGS, fetchPeriodicCOGSDetails,
+  type PeriodicCOGSStockRow, type PeriodicCOGSVoucherRow,
+} from "@/lib/accounting/postPeriodicCOGS";
 import { useAppSetting } from "@/hooks/useAppSetting";
+
+function StockDetailTable({ rows }: { rows: PeriodicCOGSStockRow[] }) {
+  if (!rows.length) return <div className="text-xs text-muted-foreground py-3 text-center">No stock rows in this closing.</div>;
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  return (
+    <div className="max-h-80 overflow-y-auto border rounded-md">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Code</TableHead>
+            <TableHead className="text-xs">Item</TableHead>
+            <TableHead className="text-xs">Closing Date</TableHead>
+            <TableHead className="text-xs text-right">Qty</TableHead>
+            <TableHead className="text-xs text-right">Rate (Rs.)</TableHead>
+            <TableHead className="text-xs text-right">Value (Rs.)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r, i) => (
+            <TableRow key={i} className={r.rate === 0 ? "bg-amber-50 dark:bg-amber-950/20" : undefined}>
+              <TableCell className="text-xs py-1.5">{r.code}</TableCell>
+              <TableCell className="text-xs py-1.5">
+                {r.name}
+                {r.rate === 0 && <Badge variant="outline" className="ml-2 text-[9px] text-amber-600 border-amber-300">no cost set</Badge>}
+              </TableCell>
+              <TableCell className="text-xs py-1.5">{r.closing_date}</TableCell>
+              <TableCell className="text-xs py-1.5 text-right">{r.qty.toLocaleString()}{r.unit ? ` ${r.unit}` : ""}</TableCell>
+              <TableCell className="text-xs py-1.5 text-right">{r.rate.toLocaleString()}</TableCell>
+              <TableCell className="text-xs py-1.5 text-right font-medium">{r.value.toLocaleString()}</TableCell>
+            </TableRow>
+          ))}
+          <TableRow className="bg-muted/40 border-t-2">
+            <TableCell colSpan={5} className="text-xs py-1.5 font-semibold">Total ({rows.length} items)</TableCell>
+            <TableCell className="text-xs py-1.5 text-right font-bold">{total.toLocaleString()}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function VoucherDetailTable({ rows, amountLabel = "Amount (Rs.)" }: { rows: PeriodicCOGSVoucherRow[]; amountLabel?: string }) {
+  if (!rows.length) return <div className="text-xs text-muted-foreground py-3 text-center">No vouchers in this period.</div>;
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return (
+    <div className="max-h-80 overflow-y-auto border rounded-md">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Voucher #</TableHead>
+            <TableHead className="text-xs">Date</TableHead>
+            <TableHead className="text-xs">Source</TableHead>
+            <TableHead className="text-xs">Narration</TableHead>
+            <TableHead className="text-xs text-right">{amountLabel}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r, i) => (
+            <TableRow key={i}>
+              <TableCell className="text-xs py-1.5 whitespace-nowrap">{r.voucher_number}</TableCell>
+              <TableCell className="text-xs py-1.5 whitespace-nowrap">{r.voucher_date}</TableCell>
+              <TableCell className="text-xs py-1.5"><Badge variant="outline" className="text-[9px]">{r.source_module || "manual"}</Badge></TableCell>
+              <TableCell className="text-xs py-1.5 max-w-md truncate" title={r.narration || undefined}>{r.narration}</TableCell>
+              <TableCell className="text-xs py-1.5 text-right font-medium">{r.amount.toLocaleString()}</TableCell>
+            </TableRow>
+          ))}
+          <TableRow className="bg-muted/40 border-t-2">
+            <TableCell colSpan={4} className="text-xs py-1.5 font-semibold">Total ({rows.length} vouchers)</TableCell>
+            <TableCell className="text-xs py-1.5 text-right font-bold">{total.toLocaleString()}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 export default function PeriodicCOGSPage() {
   const queryClient = useQueryClient();
@@ -24,6 +103,11 @@ export default function PeriodicCOGSPage() {
   const { data: preview, isFetching } = useQuery({
     queryKey: ["periodic-cogs-preview-v2", fromDate, toDate],
     queryFn: () => previewPeriodicCOGS(fromDate, toDate),
+  });
+
+  const { data: details, isFetching: detailsFetching } = useQuery({
+    queryKey: ["periodic-cogs-details", fromDate, toDate],
+    queryFn: () => fetchPeriodicCOGSDetails(fromDate, toDate),
   });
 
   const postMutation = useMutation({
@@ -137,6 +221,98 @@ export default function PeriodicCOGSPage() {
                   </TableRow>
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Calculation Data (all rows used above)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {detailsFetching && <div className="text-center text-muted-foreground py-4 text-sm">Loading detail rows…</div>}
+              {details && !detailsFetching && (
+                <Accordion type="multiple" className="w-full">
+                  <AccordionItem value="prev-rm">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Previous Closing — Raw Materials</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.prevRM.length} items · Rs. {p.previousRMValue.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Latest <code>consumption_stock_closing</code> per material before {fromDate}, valued at <code>consumption_raw_materials.cost_value</code>.</p>
+                      <StockDetailTable rows={details.prevRM} />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="prev-fg">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Previous Closing — FG + WIP</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.prevFG.length} items · Rs. {p.previousFGWIPValue.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Latest <code>daily_stock_closing</code> per item before {fromDate}, valued at <code>planning_items.costing_value</code>.</p>
+                      <StockDetailTable rows={details.prevFG} />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="purchases">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Net RM Purchases (this period)</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.rmPurchases.length} vouchers · Rs. {p.rmPurchasesValue.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Posted vouchers hitting the RM Inventory account in {fromDate} … {toDate} (net Dr − Cr per voucher), excluding consumption / production output / periodic COGS entries. Negative amounts are purchase returns or adjustments.</p>
+                      <VoucherDetailTable rows={details.rmPurchases} amountLabel="Net Dr − Cr (Rs.)" />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="curr-rm">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Current Closing — Raw Materials</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.currRM.length} items · Rs. {p.currentRMValue.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Latest <code>consumption_stock_closing</code> per material in {fromDate} … {toDate}, valued at <code>consumption_raw_materials.cost_value</code>.</p>
+                      <StockDetailTable rows={details.currRM} />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="curr-fg">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Current Closing — FG + WIP</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.currFG.length} items · Rs. {p.currentFGWIPValue.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Latest <code>daily_stock_closing</code> per item in {fromDate} … {toDate}, valued at <code>planning_items.costing_value</code>.</p>
+                      <StockDetailTable rows={details.currFG} />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="posted-cogs">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Already Posted COGS (this period)</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.alreadyPosted.length} vouchers · Rs. {p.alreadyPostedCOGS.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Per-dispatch COGS vouchers plus prior periodic adjustments in the period — this is what the variance reconciles against.</p>
+                      <VoucherDetailTable rows={details.alreadyPosted} />
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="production">
+                    <AccordionTrigger className="text-sm">
+                      <span className="flex-1 text-left">Production Output JVs (informational)</span>
+                      <span className="text-xs text-muted-foreground mr-2">{details.production.length} vouchers · Rs. {p.productionAdditions.toLocaleString()}</span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-muted-foreground mb-2">Not part of the COGS formula — shown only as a sanity check against the production flow.</p>
+                      <VoucherDetailTable rows={details.production} />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              )}
             </CardContent>
           </Card>
 
