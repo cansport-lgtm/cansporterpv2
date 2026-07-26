@@ -100,6 +100,56 @@ export async function previewPeriodicCOGS(fromDate: string, toDate: string): Pro
   };
 }
 
+export interface PeriodicCOGSStockRow {
+  code: string;
+  name: string;
+  unit: string | null;
+  closing_date: string;
+  qty: number;
+  rate: number;
+  value: number;
+}
+
+export interface PeriodicCOGSVoucherRow {
+  voucher_number: string;
+  voucher_date: string;
+  source_module: string | null;
+  narration: string | null;
+  amount: number;
+}
+
+export interface PeriodicCOGSDetails {
+  prevFG: PeriodicCOGSStockRow[];
+  currFG: PeriodicCOGSStockRow[];
+  prevRM: PeriodicCOGSStockRow[];
+  currRM: PeriodicCOGSStockRow[];
+  rmPurchases: PeriodicCOGSVoucherRow[];
+  alreadyPosted: PeriodicCOGSVoucherRow[];
+  production: PeriodicCOGSVoucherRow[];
+}
+
+const mapStockRows = (rows: any[]): PeriodicCOGSStockRow[] =>
+  (rows || []).map((r: any) => ({ ...r, qty: Number(r.qty || 0), rate: Number(r.rate || 0), value: Number(r.value || 0) }));
+
+const mapVoucherRows = (rows: any[]): PeriodicCOGSVoucherRow[] =>
+  (rows || []).map((r: any) => ({ ...r, amount: Number(r.amount || 0) }));
+
+/** Fetch the item-level closings and voucher lists behind each aggregate figure. */
+export async function fetchPeriodicCOGSDetails(fromDate: string, toDate: string): Promise<PeriodicCOGSDetails> {
+  const { data, error } = await sb.rpc("accounting_periodic_cogs_details", { p_from: fromDate, p_to: toDate });
+  if (error) throw error;
+  const d = data || {};
+  return {
+    prevFG: mapStockRows(d.prev_fg),
+    currFG: mapStockRows(d.curr_fg),
+    prevRM: mapStockRows(d.prev_rm),
+    currRM: mapStockRows(d.curr_rm),
+    rmPurchases: mapVoucherRows(d.rm_purchases),
+    alreadyPosted: mapVoucherRows(d.already_posted),
+    production: mapVoucherRows(d.production),
+  };
+}
+
 export interface PostPeriodicCOGSResult {
   ok: boolean;
   skipped?: "flag_off" | "already_posted" | "zero_variance";
