@@ -11,13 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "@/hooks/use-toast";
-import { Calculator, AlertTriangle, CheckCircle, Database } from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle, Database, Printer } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import {
   previewPeriodicCOGS, postPeriodicCOGS, fetchPeriodicCOGSDetails,
   type PeriodicCOGSStockRow, type PeriodicCOGSVoucherRow,
 } from "@/lib/accounting/postPeriodicCOGS";
 import { useAppSetting } from "@/hooks/useAppSetting";
+import { printPeriodicCOGS } from "@/lib/accounting/periodicCOGSPrint";
 
 function StockDetailTable({ rows }: { rows: PeriodicCOGSStockRow[] }) {
   if (!rows.length) return <div className="text-xs text-muted-foreground py-3 text-center">No stock rows in this closing.</div>;
@@ -140,7 +141,13 @@ export default function PeriodicCOGSPage() {
   return (
     <ERPLayout>
       <PageHeader title="Periodic COGS (Stock-Based)" description="COGS = (Previous Closing + RM Purchases) − Current Closing">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" disabled={!p || isFetching} onClick={() => p && printPeriodicCOGS(p)}>
+            <Printer className="h-4 w-4 mr-1" />Print Summary
+          </Button>
+          <Button variant="outline" size="sm" disabled={!p || !details || isFetching || detailsFetching} onClick={() => p && details && printPeriodicCOGS(p, details)}>
+            <Printer className="h-4 w-4 mr-1" />Print Full Detail
+          </Button>
           <span className="text-xs text-muted-foreground">Auto-post flag:</span>
           {flagEnabled
             ? <Badge variant="default" className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />ENABLED</Badge>
