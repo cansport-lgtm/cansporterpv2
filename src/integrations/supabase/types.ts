@@ -6140,6 +6140,7 @@ export type Database = {
           max_stock: number | null
           min_stock: number | null
           name: string
+          raw_material_category_id: string | null
           reorder_level: number | null
           unit_price: number | null
           uom_id: string | null
@@ -6157,6 +6158,7 @@ export type Database = {
           max_stock?: number | null
           min_stock?: number | null
           name: string
+          raw_material_category_id?: string | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
@@ -6174,12 +6176,20 @@ export type Database = {
           max_stock?: number | null
           min_stock?: number | null
           name?: string
+          raw_material_category_id?: string | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "items_raw_material_category_id_fkey"
+            columns: ["raw_material_category_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "items_consumption_raw_material_id_fkey"
             columns: ["consumption_raw_material_id"]

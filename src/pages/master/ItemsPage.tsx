@@ -44,6 +44,7 @@ interface Item {
   name: string;
   description: string | null;
   category: PurchaseCategory | null;
+  raw_material_category_id: string | null;
   uom_id: string | null;
   unit_price: number | null;
   min_stock: number | null;
@@ -71,6 +72,7 @@ export default function ItemsPage() {
     name: "",
     description: "",
     category: "" as PurchaseCategory | "",
+    raw_material_category_id: "",
     uom_id: "",
     unit_price: 0,
     min_stock: 0,
@@ -105,6 +107,20 @@ export default function ItemsPage() {
     },
   });
 
+  // Raw-material categories (consumption module's Category Master).
+  const { data: rmCategories = [] } = useQuery({
+    queryKey: ["consumption-categories-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_categories")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
       const payload = {
@@ -112,6 +128,10 @@ export default function ItemsPage() {
         name: data.name,
         description: data.description || null,
         category: data.category || null,
+        raw_material_category_id:
+          data.category === "raw_material" && data.raw_material_category_id
+            ? data.raw_material_category_id
+            : null,
         uom_id: data.uom_id || null,
         unit_price: data.unit_price,
         min_stock: data.min_stock,
@@ -164,6 +184,7 @@ export default function ItemsPage() {
       name: "",
       description: "",
       category: "",
+      raw_material_category_id: "",
       uom_id: "",
       unit_price: 0,
       min_stock: 0,
@@ -183,6 +204,7 @@ export default function ItemsPage() {
       name: item.name,
       description: item.description || "",
       category: item.category || "",
+      raw_material_category_id: item.raw_material_category_id || "",
       uom_id: item.uom_id || "",
       unit_price: item.unit_price || 0,
       min_stock: item.min_stock || 0,
@@ -210,8 +232,11 @@ export default function ItemsPage() {
     {
       key: "category",
       header: "Category",
-      render: (item: Item) =>
-        CATEGORIES.find((c) => c.value === item.category)?.label || "-",
+      render: (item: Item) => {
+        const label = CATEGORIES.find((c) => c.value === item.category)?.label || "-";
+        const rmCategory = rmCategories.find((c) => c.id === item.raw_material_category_id)?.name;
+        return rmCategory ? `${label} · ${rmCategory}` : label;
+      },
     },
     {
       key: "units_of_measure.name",
@@ -357,6 +382,32 @@ export default function ItemsPage() {
                   </Select>
                 </div>
               </div>
+              {formData.category === "raw_material" && (
+                <div className="space-y-2">
+                  <Label htmlFor="raw_material_category_id">Raw Material Category</Label>
+                  <Select
+                    value={formData.raw_material_category_id}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, raw_material_category_id: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select raw material category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rmCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Used by the consumption module to group this material. Manage
+                    categories in Material Consumption → Category Master.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="unit_price">Unit Price (Rs.)</Label>
