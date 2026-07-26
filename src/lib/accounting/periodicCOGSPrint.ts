@@ -165,8 +165,16 @@ function summaryHtml(p: PeriodicCOGSPreview): string {
           <td class="num bold">${esc(rs(p.calculatedCOGS))}</td>
         </tr>
         <tr>
-          <td>Already posted COGS in this period <span class="muted xs">(per-dispatch COGS + prior periodic adjustments)</span></td>
+          <td>Already posted COGS in this period</td>
           <td class="num">${esc(rs(p.alreadyPostedCOGS))}</td>
+        </tr>
+        <tr>
+          <td class="muted" style="padding-left: 18px;">— Per-dispatch COGS (${p.dispatchVoucherCount} vouchers)</td>
+          <td class="num muted">${esc(rs(p.alreadyPostedDispatch))}</td>
+        </tr>
+        <tr>
+          <td class="muted" style="padding-left: 18px;">— Prior periodic adjustments (${p.periodicVoucherCount} vouchers)</td>
+          <td class="num muted">${esc(rs(p.alreadyPostedPeriodic))}</td>
         </tr>
         <tr>
           <td class="bold">Variance to post</td>

@@ -20,6 +20,10 @@ export interface PeriodicCOGSPreview {
   // Reference info
   productionAdditions: number;     // Phase 3b production_output JVs — informational only
   alreadyPostedCOGS: number;       // Per-dispatch + prior periodic vouchers in period
+  alreadyPostedDispatch: number;   // ... of which per-dispatch COGS (domestic_sales_cogs)
+  alreadyPostedPeriodic: number;   // ... of which prior periodic adjustments (periodic_cogs)
+  dispatchVoucherCount: number;
+  periodicVoucherCount: number;
   variance: number;                // calculatedCOGS − alreadyPostedCOGS
   // Counts
   itemCounts: {
@@ -71,6 +75,8 @@ export async function previewPeriodicCOGS(fromDate: string, toDate: string): Pro
   const calculatedCOGS = previousTotalInventory + rmPurchasesValue - currentTotalInventory;
   const productionAdditions = Number(row.production_additions || 0);
   const alreadyPostedCOGS = Number(row.already_posted_cogs || 0);
+  const alreadyPostedDispatch = Number(row.already_posted_dispatch || 0);
+  const alreadyPostedPeriodic = Number(row.already_posted_periodic || 0);
   const variance = calculatedCOGS - alreadyPostedCOGS;
 
   const periodKey = `${fromDate}_${toDate}`;
@@ -87,7 +93,10 @@ export async function previewPeriodicCOGS(fromDate: string, toDate: string): Pro
     rmPurchasesValue,
     previousTotalInventory, currentTotalInventory,
     calculatedCOGS,
-    productionAdditions, alreadyPostedCOGS, variance,
+    productionAdditions, alreadyPostedCOGS, alreadyPostedDispatch, alreadyPostedPeriodic,
+    dispatchVoucherCount: Number(row.dispatch_voucher_count || 0),
+    periodicVoucherCount: Number(row.periodic_voucher_count || 0),
+    variance,
     itemCounts: {
       previousFGWIP: Number(row.previous_fg_wip_items || 0),
       currentFGWIP: Number(row.current_fg_wip_items || 0),
