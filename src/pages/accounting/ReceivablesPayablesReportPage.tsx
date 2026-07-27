@@ -24,6 +24,10 @@ type PartyRow = {
   total: number;
 } & Bucket;
 
+function fmtAmt(n: number): string {
+  return `${n < 0 ? "-" : ""}Rs. ${Math.abs(n).toLocaleString()}`;
+}
+
 function daysBetween(a: string, b: string): number {
   return differenceInCalendarDays(parseISO(b), parseISO(a));
 }
@@ -40,8 +44,9 @@ function daysBetween(a: string, b: string): number {
  *  1. We also track the **net GL balance** (sum of debits minus credits for AR,
  *     credits minus debits for AP) and use it as the SOURCE OF TRUTH for the
  *     party's outstanding amount. The FIFO queue tells us how to bucket the
- *     balance by age; the net balance tells us the total. A party with net ≤ 0
- *     is fully paid (or overpaid) and is hidden from the report.
+ *     balance by age; the net balance tells us the total. A party with net = 0
+ *     is fully settled and hidden; a party with net < 0 (overpaid / advance)
+ *     stays visible with a negative total and no aging buckets.
  *
  *     Without this, the previous implementation lost over-settlement amounts
  *     and could subsequently mis-classify a brand-new credit as fully
@@ -82,8 +87,14 @@ function ageParty(lines: any[], asOfDate: string, isAR: boolean): Bucket & { tot
   }
 
   const out: Bucket & { total: number } = { b0_30: 0, b31_60: 0, b61_90: 0, b90p: 0, total: 0 };
-  // Party is fully paid (or overpaid) — nothing outstanding to report.
-  if (net <= 0.005) return out;
+  // Fully settled — nothing to report.
+  if (Math.abs(net) <= 0.005) return out;
+  // Overpaid / advance: keep the party visible with a negative balance.
+  // Aging buckets don't apply to a credit balance, so they stay zero.
+  if (net < 0) {
+    out.total = net;
+    return out;
+  }
 
   // Bucket the FIFO opens but cap the cumulative amount at the net GL balance.
   // This guarantees the row total reconciles to the trial-balance figure.
@@ -221,6 +232,7 @@ export default function ReceivablesPayablesReportPage() {
         "61-90": r.b61_90,
         "90+": r.b90p,
         Total: r.total,
+        Status: r.total < 0 ? "Advance" : "Outstanding",
       })),
     });
     sheets.push({
@@ -232,6 +244,7 @@ export default function ReceivablesPayablesReportPage() {
         "61-90": r.b61_90,
         "90+": r.b90p,
         Total: r.total,
+        Status: r.total < 0 ? "Advance" : "Outstanding",
       })),
     });
     sheets.push({
@@ -251,7 +264,7 @@ export default function ReceivablesPayablesReportPage() {
     <ERPLayout>
       <PageHeader
         title="Receivables & Payables"
-        description="Outstanding balances by party with FIFO aging buckets"
+        description="All party balances — outstanding (aged FIFO) and advances/credit balances"
       >
         <div className="flex gap-2 items-center">
           <span className="text-xs text-muted-foreground">As of</span>
@@ -266,14 +279,14 @@ export default function ReceivablesPayablesReportPage() {
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1"><ArrowUpRight className="h-3 w-3" />Total Receivables</div>
-            <div className="text-2xl font-semibold text-green-600">Rs. {arTotal.toLocaleString()}</div>
+            <div className="text-2xl font-semibold text-green-600">{fmtAmt(arTotal)}</div>
             <div className="text-xs text-muted-foreground">{arRows.length} customer{arRows.length === 1 ? "" : "s"}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1"><ArrowDownRight className="h-3 w-3" />Total Payables</div>
-            <div className="text-2xl font-semibold text-red-600">Rs. {apTotal.toLocaleString()}</div>
+            <div className="text-2xl font-semibold text-red-600">{fmtAmt(apTotal)}</div>
             <div className="text-xs text-muted-foreground">{apRows.length} vendor{apRows.length === 1 ? "" : "s"}</div>
           </CardContent>
         </Card>
@@ -307,12 +320,17 @@ export default function ReceivablesPayablesReportPage() {
             </TableHeader>
             <TableBody>
               {!arRows.length && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No outstanding receivables as of {asOf}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No customer balances as of {asOf}</TableCell></TableRow>
               )}
               {arRows.map((r) => (
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
                     <Link to={`/accounting/party-ledger?type=customer&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
+                    {r.total < 0 && (
+                      <Badge variant="outline" className="ml-2 bg-blue-100 text-blue-800" title="Customer has paid more than invoiced — credit balance">
+                        Advance
+                      </Badge>
+                    )}
                     {creditLimits?.[r.party_id] != null && r.total > creditLimits[r.party_id] && (
                       <Badge variant="outline" className="ml-2 bg-red-100 text-red-800" title={`Credit limit Rs. ${creditLimits[r.party_id].toLocaleString()}`}>
                         Over limit
@@ -323,7 +341,7 @@ export default function ReceivablesPayablesReportPage() {
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b61_90 ? `Rs. ${r.b61_90.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs text-red-600">{r.b90p ? `Rs. ${r.b90p.toLocaleString()}` : "—"}</TableCell>
-                  <TableCell className="text-right text-sm font-medium">Rs. {r.total.toLocaleString()}</TableCell>
+                  <TableCell className={`text-right text-sm font-medium ${r.total < 0 ? "text-blue-600" : ""}`}>{fmtAmt(r.total)}</TableCell>
                 </TableRow>
               ))}
               {arRows.length > 0 && (
@@ -333,7 +351,7 @@ export default function ReceivablesPayablesReportPage() {
                   <TableCell className="text-right">Rs. {arRows.reduce((s, r) => s + r.b31_60, 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">Rs. {arRows.reduce((s, r) => s + r.b61_90, 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">Rs. {arRows.reduce((s, r) => s + r.b90p, 0).toLocaleString()}</TableCell>
-                  <TableCell className="text-right">Rs. {arTotal.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{fmtAmt(arTotal)}</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -359,12 +377,17 @@ export default function ReceivablesPayablesReportPage() {
             </TableHeader>
             <TableBody>
               {!apRows.length && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No outstanding payables as of {asOf}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No vendor balances as of {asOf}</TableCell></TableRow>
               )}
               {apRows.map((r) => (
                 <TableRow key={r.party_id}>
                   <TableCell className="text-sm">
                     <Link to={`/accounting/party-ledger?type=supplier&party=${r.party_id}`} className="text-primary hover:underline">{r.name}</Link>
+                    {r.total < 0 && (
+                      <Badge variant="outline" className="ml-2 bg-blue-100 text-blue-800" title="We have paid more than billed — advance with vendor">
+                        Advance
+                      </Badge>
+                    )}
                     {creditLimits?.[r.party_id] != null && r.total > creditLimits[r.party_id] && (
                       <Badge variant="outline" className="ml-2 bg-red-100 text-red-800" title={`Credit limit Rs. ${creditLimits[r.party_id].toLocaleString()}`}>
                         Over limit
@@ -375,7 +398,7 @@ export default function ReceivablesPayablesReportPage() {
                   <TableCell className="text-right text-xs">{r.b31_60 ? `Rs. ${r.b31_60.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs">{r.b61_90 ? `Rs. ${r.b61_90.toLocaleString()}` : "—"}</TableCell>
                   <TableCell className="text-right text-xs text-red-600">{r.b90p ? `Rs. ${r.b90p.toLocaleString()}` : "—"}</TableCell>
-                  <TableCell className="text-right text-sm font-medium">Rs. {r.total.toLocaleString()}</TableCell>
+                  <TableCell className={`text-right text-sm font-medium ${r.total < 0 ? "text-blue-600" : ""}`}>{fmtAmt(r.total)}</TableCell>
                 </TableRow>
               ))}
               {apRows.length > 0 && (
@@ -385,7 +408,7 @@ export default function ReceivablesPayablesReportPage() {
                   <TableCell className="text-right">Rs. {apRows.reduce((s, r) => s + r.b31_60, 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">Rs. {apRows.reduce((s, r) => s + r.b61_90, 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">Rs. {apRows.reduce((s, r) => s + r.b90p, 0).toLocaleString()}</TableCell>
-                  <TableCell className="text-right">Rs. {apTotal.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{fmtAmt(apTotal)}</TableCell>
                 </TableRow>
               )}
             </TableBody>
