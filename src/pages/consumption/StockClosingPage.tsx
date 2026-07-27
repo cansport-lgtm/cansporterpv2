@@ -26,6 +26,10 @@ interface StockEntry {
   existingId?: string;
 }
 
+// From this date receipts are sourced from approved GRNs (Purchase module)
+// and are read-only here. Must match consumption_grn_cutover() in the DB.
+const GRN_RECEIPT_CUTOVER = "2026-07-27";
+
 export default function StockClosingPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -36,6 +40,7 @@ export default function StockClosingPage() {
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const prevDateStr = format(subDays(selectedDate, 1), "yyyy-MM-dd");
+  const receiptsFromGRN = dateStr >= GRN_RECEIPT_CUTOVER;
 
   const { data: rawMaterials } = useQuery({
     queryKey: ["consumption-raw-materials-active"],
@@ -67,6 +72,22 @@ export default function StockClosingPage() {
     enabled: !!rawMaterials,
   });
 
+  const { data: grnReceipts } = useQuery({
+    queryKey: ["consumption-grn-receipts", dateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_consumption_grn_receipts")
+        .select("raw_material_id, receipt_quantity")
+        .eq("receipt_date", dateStr);
+      if (error) throw error;
+      return (data || []).reduce((acc: Record<string, number>, r) => {
+        if (r.raw_material_id) acc[r.raw_material_id] = Number(r.receipt_quantity) || 0;
+        return acc;
+      }, {});
+    },
+    enabled: receiptsFromGRN,
+  });
+
   const { data: existingEntries, isLoading } = useQuery({
     queryKey: ["consumption-stock-closing", dateStr],
     queryFn: async () => {
@@ -82,7 +103,12 @@ export default function StockClosingPage() {
 
   // Build entries when data loads
   useEffect(() => {
-    if (rawMaterials && existingEntries !== undefined && previousClosing !== undefined) {
+    if (
+      rawMaterials &&
+      existingEntries !== undefined &&
+      previousClosing !== undefined &&
+      (!receiptsFromGRN || grnReceipts !== undefined)
+    ) {
       const newEntries: StockEntry[] = rawMaterials.map((mat) => {
         const existing = existingEntries?.find((e) => e.raw_material_id === mat.id);
         const prevClose = previousClosing?.[mat.id] || 0;
@@ -93,14 +119,18 @@ export default function StockClosingPage() {
           unit: mat.unit,
           category: mat.category || "Uncategorized",
           opening_quantity: existing ? String(existing.opening_quantity) : String(prevClose),
-          receipt_quantity: existing ? String(existing.receipt_quantity) : "0",
+          receipt_quantity: receiptsFromGRN
+            ? String(grnReceipts?.[mat.id] ?? 0)
+            : existing
+              ? String(existing.receipt_quantity)
+              : "0",
           closing_quantity: existing ? String(existing.closing_quantity) : "",
           existingId: existing?.id,
         };
       });
       setEntries(newEntries);
     }
-  }, [rawMaterials, existingEntries, previousClosing]);
+  }, [rawMaterials, existingEntries, previousClosing, grnReceipts, receiptsFromGRN]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -198,7 +228,10 @@ export default function StockClosingPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Daily Stock Closing</h1>
-            <p className="page-description">Record daily closing stock for raw materials</p>
+            <p className="page-description">
+              Record daily closing stock for raw materials
+              {receiptsFromGRN && " — receipts are auto-filled from approved GRNs (Purchase module)"}
+            </p>
           </div>
           <div className="flex gap-2 items-center">
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -243,7 +276,9 @@ export default function StockClosingPage() {
                   <TableHead>Material</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead className="text-right">Opening</TableHead>
-                  <TableHead className="text-right">Receipts</TableHead>
+                  <TableHead className="text-right">
+                    Receipts{receiptsFromGRN && <span className="block text-[10px] font-normal text-muted-foreground">from GRN</span>}
+                  </TableHead>
                   <TableHead className="text-right">Closing</TableHead>
                   <TableHead className="text-right">Consumption</TableHead>
                 </TableRow>
@@ -273,6 +308,7 @@ export default function StockClosingPage() {
                         onToggle={() => toggleCategory(category)}
                         onUpdateEntry={updateEntry}
                         calculateConsumption={calculateConsumption}
+                        receiptsReadOnly={receiptsFromGRN}
                       />
                     );
                   })
@@ -294,6 +330,7 @@ function CategoryGroup({
   onToggle,
   onUpdateEntry,
   calculateConsumption,
+  receiptsReadOnly,
 }: {
   category: string;
   entries: StockEntry[];
@@ -302,6 +339,7 @@ function CategoryGroup({
   onToggle: () => void;
   onUpdateEntry: (idx: number, field: keyof StockEntry, value: string) => void;
   calculateConsumption: (entry: StockEntry) => string;
+  receiptsReadOnly: boolean;
 }) {
   return (
     <>
@@ -339,13 +377,19 @@ function CategoryGroup({
               />
             </TableCell>
             <TableCell className="text-right">
-              <Input
-                type="number"
-                step="0.01"
-                className="w-24 text-right ml-auto"
-                value={entry.receipt_quantity}
-                onChange={(e) => onUpdateEntry(indices[i], "receipt_quantity", e.target.value)}
-              />
+              {receiptsReadOnly ? (
+                <span className="inline-block w-24 text-right font-medium tabular-nums">
+                  {(parseFloat(entry.receipt_quantity) || 0).toFixed(2)}
+                </span>
+              ) : (
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="w-24 text-right ml-auto"
+                  value={entry.receipt_quantity}
+                  onChange={(e) => onUpdateEntry(indices[i], "receipt_quantity", e.target.value)}
+                />
+              )}
             </TableCell>
             <TableCell className="text-right">
               <Input
