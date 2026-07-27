@@ -15444,7 +15444,28 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_consumption_grn_receipts: {
+        Row: {
+          grn_count: number | null
+          raw_material_id: string | null
+          receipt_amount: number | null
+          receipt_date: string | null
+          receipt_quantity: number | null
+        }
+        Relationships: []
+      }
+      v_consumption_grn_unmapped: {
+        Row: {
+          amount: number | null
+          description: string | null
+          grn_id: string | null
+          grn_item_id: string | null
+          grn_number: string | null
+          quantity_received: number | null
+          receipt_date: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accounting_periodic_cogs_inputs: {
