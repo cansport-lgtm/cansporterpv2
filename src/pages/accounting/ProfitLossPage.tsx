@@ -229,6 +229,7 @@ export default function ProfitLossPage() {
           </div>
         </CardContent></Card>
       </div>
+      </HiddenFigures>
 
       <div className="space-y-4">
         {/* Revenue */}
@@ -353,7 +354,6 @@ export default function ProfitLossPage() {
           </div>
         </CardContent>
       </Card>
-      </HiddenFigures>
     </ERPLayout>
   );
 }
