@@ -144,6 +144,7 @@ const navigationItems: NavItem[] = [
       { title: "Trial Balance", href: "/accounting/trial-balance" },
       { title: "Profit & Loss", href: "/accounting/profit-loss" },
       { title: "Balance Sheet", href: "/accounting/balance-sheet" },
+      { title: "Changes in Equity", href: "/accounting/equity-changes" },
       { title: "Receivables & Payables", href: "/accounting/ar-ap-report" },
       { title: "Cash Flow Forecast", href: "/accounting/cash-flow-forecast" },
       { title: "Sales Report", href: "/accounting/sales-report" },

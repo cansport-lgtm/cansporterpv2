@@ -204,6 +204,7 @@ const ROLE_ROUTE_DENY: Record<string, string[]> = {
   accounting_officer: [
     '/accounting/profit-loss',
     '/accounting/balance-sheet',
+    '/accounting/equity-changes',
     '/production/mph-master',
     '/production/wip-sequence',
   ],
