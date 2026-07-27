@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { HiddenFigures } from "@/components/shared/HiddenFigures";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,6 +171,7 @@ export default function ProfitLossPage() {
         </div>
       </PageHeader>
 
+      <HiddenFigures>
       {showCogsWarning && (
         <Alert variant="destructive" className="mb-4">
           <AlertTriangle className="h-4 w-4" />
@@ -351,6 +353,7 @@ export default function ProfitLossPage() {
           </div>
         </CardContent>
       </Card>
+      </HiddenFigures>
     </ERPLayout>
   );
 }
