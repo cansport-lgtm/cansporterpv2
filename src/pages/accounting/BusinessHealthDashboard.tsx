@@ -78,6 +78,239 @@ function ageParty(lines: any[], asOfDate: string, isAR: boolean): Bucket & { tot
 
 const PIE_COLORS = ["#3b82f6", "#f59e0b", "#22c55e", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#64748b"];
 
+type RatioStatus = "good" | "watch" | "bad" | null;
+
+const RATIO_BADGE: Record<Exclude<RatioStatus, null>, { cls: string; text: string }> = {
+  good: { cls: "bg-green-600", text: "Good" },
+  watch: { cls: "bg-amber-500", text: "Watch" },
+  bad: { cls: "bg-red-600", text: "Poor" },
+};
+
+function RatioTile({ label, value, status, formula, note, trend, trendFmt }: {
+  label: string;
+  value: string;
+  status: RatioStatus;
+  formula: string;
+  note: string;
+  trend?: { month: string; v: number | null }[];
+  trendFmt?: (v: number) => string;
+}) {
+  const hasTrend = trend && trend.some((t) => t.v !== null);
+  const stroke = status === "bad" ? "#ef4444" : status === "watch" ? "#f59e0b" : "#22c55e";
+  return (
+    <div className="rounded-lg border p-3 flex flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {status && <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${RATIO_BADGE[status].cls}`}>{RATIO_BADGE[status].text}</Badge>}
+      </div>
+      <div className={`text-2xl font-semibold ${status === "bad" ? "text-red-600" : status === "watch" ? "text-amber-600" : ""}`}>{value}</div>
+      <div className="text-[11px] text-muted-foreground mt-1">{formula}</div>
+      <div className="text-[11px] mt-0.5">{note}</div>
+      {hasTrend && (
+        <div className="h-10 mt-auto pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trend} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+              <Tooltip
+                formatter={(v: any) => [trendFmt ? trendFmt(Number(v)) : v, label]}
+                labelFormatter={(_: any, p: any) => p?.[0]?.payload?.month ?? ""}
+                contentStyle={{ fontSize: 11, padding: "2px 8px" }}
+              />
+              <Line type="monotone" dataKey="v" stroke={stroke} strokeWidth={1.5} dot={false} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Ratio definitions: formula strings carry the actual GL numbers so the user
+ * can see exactly what went into each figure. Thresholds are the conventional
+ * healthy bands for a trading/manufacturing business.
+ */
+function buildRatioGroups(c: any): { title: string; cols: string; items: any[] }[] {
+  const tr = (key: string) => (c.ratioTrend as any[]).map((t) => ({ month: t.month, v: t[key] }));
+  const hi = (v: number | null, good: number, bad: number): RatioStatus => (v === null ? null : v >= good ? "good" : v < bad ? "bad" : "watch");
+  const lo = (v: number | null, good: number, bad: number): RatioStatus => (v === null ? null : v <= good ? "good" : v > bad ? "bad" : "watch");
+  const money = (n: number) => `Rs ${fmtRsShort(n)}`;
+  const days = (v: number) => `${Math.round(v)} days`;
+  const pct = (v: number) => `${v.toFixed(1)}%`;
+
+  return [
+    {
+      title: "Liquidity",
+      cols: "xl:grid-cols-3",
+      items: [
+        {
+          label: "Current Ratio",
+          value: c.currentRatio !== null ? c.currentRatio.toFixed(2) : "—",
+          status: hi(c.currentRatio, 1.5, 1),
+          formula: `Current assets ${money(c.glCurrentAssets)} ÷ current liabilities ${money(c.glCurrentLiabilities)}`,
+          note: c.currentRatio === null
+            ? "No current liabilities on the books yet."
+            : `Rs ${c.currentRatio.toFixed(2)} of current assets per Rs 1 due within a year — healthy is 1.5 or more.`,
+          trend: tr("currentRatio"),
+        },
+        {
+          label: "Quick Ratio",
+          value: c.quickRatio !== null ? c.quickRatio.toFixed(2) : "—",
+          status: hi(c.quickRatio, 1, 0.7),
+          formula: `(Cash + bank + receivables) ${money(c.glQuickAssets)} ÷ current liabilities ${money(c.glCurrentLiabilities)}`,
+          note: c.quickRatio === null
+            ? "No current liabilities on the books yet."
+            : `Short-term dues covered ${c.quickRatio.toFixed(2)}× without having to sell inventory — healthy is 1.0 or more.`,
+          trend: tr("quickRatio"),
+        },
+        {
+          label: "Working Capital",
+          value: fmtRs(c.workingCapital),
+          status: (c.workingCapital >= 0 ? "good" : "bad") as RatioStatus,
+          formula: `Current assets ${money(c.glCurrentAssets)} − current liabilities ${money(c.glCurrentLiabilities)}`,
+          note: c.workingCapital >= 0
+            ? "Positive buffer available to fund day-to-day operations."
+            : "Short-term dues exceed short-term assets — cash squeeze risk.",
+          trend: tr("workingCapital"),
+          trendFmt: money,
+        },
+      ],
+    },
+    {
+      title: "Profitability",
+      cols: "xl:grid-cols-4",
+      items: [
+        {
+          label: "Gross Margin (3 mo)",
+          value: c.grossMargin3m !== null ? pct(c.grossMargin3m) : "—",
+          status: hi(c.grossMargin3m, 25, 10),
+          formula: `(Revenue ${money(c.rev90)} − COGS ${money(c.cogs90)}) ÷ revenue, last 3 months`,
+          note: c.grossMargin3m === null
+            ? "No revenue posted in the last 3 months."
+            : `Rs ${c.grossMargin3m.toFixed(0)} of every Rs 100 sold remains after direct production cost.`,
+          trend: tr("grossMargin"),
+          trendFmt: pct,
+        },
+        {
+          label: "Net Margin (3 mo)",
+          value: c.netMargin3m !== null ? pct(c.netMargin3m) : "—",
+          status: hi(c.netMargin3m, 10, 0),
+          formula: `Net profit ${money(c.net3m)} ÷ revenue ${money(c.rev90)}, last 3 months`,
+          note: c.netMargin3m === null
+            ? "No revenue posted in the last 3 months."
+            : c.netMargin3m >= 0
+              ? `Rs ${c.netMargin3m.toFixed(0)} of every Rs 100 of sales is kept as profit after all expenses.`
+              : "Operating at a loss over the last 3 months.",
+          trend: tr("netMargin"),
+          trendFmt: pct,
+        },
+        {
+          label: "Return on Assets (ROA)",
+          value: c.roa !== null ? pct(c.roa) : "—",
+          status: hi(c.roa, 10, 0),
+          formula: `Net profit 12-mo ${money(c.net12)} ÷ total assets ${money(c.glTotalAssets)}`,
+          note: "Yearly profit generated per rupee tied up in assets — 10%+ is solid.",
+          trend: tr("roa"),
+          trendFmt: pct,
+        },
+        {
+          label: "Return on Equity (ROE)",
+          value: c.roe !== null ? pct(c.roe) : "—",
+          status: hi(c.roe, 15, 0),
+          formula: `Net profit 12-mo ${money(c.net12)} ÷ equity ${money(c.totalEquity)}`,
+          note: "Return the owners earn on their invested capital — 15%+ is solid.",
+          trend: tr("roe"),
+          trendFmt: pct,
+        },
+      ],
+    },
+    {
+      title: "Efficiency",
+      cols: "xl:grid-cols-5",
+      items: [
+        {
+          label: "DSO — Days Sales Outstanding",
+          value: c.dso !== null ? days(c.dso) : "—",
+          status: lo(c.dso, 45, 60),
+          formula: `Receivables ${money(c.arAging.total)} ÷ avg daily sales ${money(c.rev90 / 90)}`,
+          note: "Average days customers take to pay — under 45 keeps cash moving.",
+          trend: tr("dso"),
+          trendFmt: days,
+        },
+        {
+          label: "DPO — Days Payables Outstanding",
+          value: c.dpo !== null ? days(c.dpo) : "—",
+          status: lo(c.dpo, 60, 90),
+          formula: `Payables ${money(c.apAging.total)} ÷ avg daily COGS ${money(c.cogs90 / 90)}`,
+          note: "Average days we take to pay suppliers — very high values strain vendor trust.",
+          trend: tr("dpo"),
+          trendFmt: days,
+        },
+        {
+          label: "DIO — Days Inventory Outstanding",
+          value: c.dio !== null ? days(c.dio) : "—",
+          status: lo(c.dio, 60, 90),
+          formula: `Inventory ${money(c.totalInventory)} ÷ avg daily COGS ${money(c.cogs90 / 90)}`,
+          note: "Days of production cost sitting in stock — lower means faster turnover.",
+          trend: tr("dio"),
+          trendFmt: days,
+        },
+        {
+          label: "Cash Conversion Cycle",
+          value: c.ccc !== null ? days(c.ccc) : "—",
+          status: lo(c.ccc, 60, 90),
+          formula: c.dso !== null && c.dio !== null && c.dpo !== null
+            ? `DSO ${Math.round(c.dso)}d + DIO ${Math.round(c.dio)}d − DPO ${Math.round(c.dpo)}d`
+            : "Needs sales, inventory and purchase activity",
+          note: "Days each rupee stays locked in operations before returning as cash.",
+          trend: tr("ccc"),
+          trendFmt: days,
+        },
+        {
+          label: "Asset Turnover",
+          value: c.assetTurnover !== null ? `${c.assetTurnover.toFixed(2)}×` : "—",
+          status: (c.assetTurnover === null ? null : c.assetTurnover >= 1 ? "good" : "watch") as RatioStatus,
+          formula: `Revenue 12-mo ${money(c.rev12)} ÷ total assets ${money(c.glTotalAssets)}`,
+          note: "Sales generated per rupee of assets in a year — higher means assets work harder.",
+          trend: tr("assetTurnover"),
+        },
+      ],
+    },
+    {
+      title: "Solvency",
+      cols: "xl:grid-cols-3",
+      items: [
+        {
+          label: "Debt / Equity",
+          value: c.debtToEquity !== null ? c.debtToEquity.toFixed(2) : "—",
+          status: lo(c.debtToEquity, 1, 2),
+          formula: `Total liabilities ${money(c.totalLiabilities)} ÷ equity ${money(c.totalEquity)} (incl. retained earnings)`,
+          note: c.debtToEquity === null
+            ? "Equity is zero or negative — ratio not meaningful."
+            : `Rs ${c.debtToEquity.toFixed(2)} of debt per Rs 1 of owner funds — above 2 is highly leveraged.`,
+          trend: tr("debtToEquity"),
+        },
+        {
+          label: "Debt Ratio",
+          value: c.debtRatio !== null ? c.debtRatio.toFixed(2) : "—",
+          status: lo(c.debtRatio, 0.5, 0.7),
+          formula: `Total liabilities ${money(c.totalLiabilities)} ÷ total assets ${money(c.glTotalAssets)}`,
+          note: "Share of assets financed by debt — above 0.70 leaves little cushion.",
+          trend: tr("debtRatio"),
+        },
+        {
+          label: "Gearing (Long-term)",
+          value: c.gearing !== null ? pct(c.gearing) : "—",
+          status: lo(c.gearing, 30, 50),
+          formula: `Long-term debt ${money(c.glLongTermLiabilities)} ÷ (long-term debt + equity ${money(c.totalEquity)})`,
+          note: "Reliance on long-term borrowing in the capital structure.",
+          trend: tr("gearing"),
+          trendFmt: pct,
+        },
+      ],
+    },
+  ];
+}
+
 export default function BusinessHealthDashboard() {
   const today = format(new Date(), "yyyy-MM-dd");
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
@@ -205,6 +438,19 @@ export default function BusinessHealthDashboard() {
     const arLinesByParty: Record<string, any[]> = {};
     const apLinesByParty: Record<string, any[]> = {};
 
+    // Balance-sheet classification via CoA sub-categories: liabilities count as
+    // current unless explicitly long-term, assets as current unless fixed.
+    const isFixedAsset = (a: any) => /fixed|non.?current|intangible/i.test(a.sub_category || "");
+    const isLongTerm = (a: any) => /long.?term|non.?current/i.test(a.sub_category || "");
+    const isReceivable = (a: any, id: string) => id === defaults?.ar || /receivable/i.test(a.sub_category || "");
+    const isInventory = (a: any) => /inventor/i.test(a.sub_category || "") || ["1130", "1131", "1132"].includes(a.code);
+
+    type BSClass = { totAssets: number; curAssets: number; quick: number; ar: number; ap: number; inv: number; curLiab: number; totLiab: number; equity: number; pl: number };
+    const zeroBS = (): BSClass => ({ totAssets: 0, curAssets: 0, quick: 0, ar: 0, ap: 0, inv: 0, curLiab: 0, totLiab: 0, equity: 0, pl: 0 });
+    const openingBS = zeroBS();
+    const bsDeltas: Record<string, BSClass> = {};
+    months.forEach((m) => { bsDeltas[m] = zeroBS(); });
+
     for (const l of allLines as any[]) {
       const acc = accMap[l.account_id];
       const dr = Number(l.debit_amount || 0);
@@ -229,6 +475,28 @@ export default function BusinessHealthDashboard() {
       }
       if (defaults?.ar && l.account_id === defaults.ar && l.party_id) (arLinesByParty[l.party_id] ||= []).push(l);
       if (defaults?.ap && l.account_id === defaults.ap && l.party_id) (apLinesByParty[l.party_id] ||= []).push(l);
+
+      // Bucket balance-sheet movement by month (pre-window → opening) so every
+      // ratio can show a 12-month trend and the final month equals the all-time totals.
+      if (acc) {
+        const bucket = monthSet.has(m) ? bsDeltas[m] : m && m > thisMonth ? bsDeltas[thisMonth] : openingBS;
+        const net = dr - cr;
+        if (acc.account_type === "asset") {
+          bucket.totAssets += net;
+          if (!isFixedAsset(acc)) bucket.curAssets += net;
+          if (acc.is_cash_account || acc.is_bank_account) bucket.quick += net;
+          if (isReceivable(acc, l.account_id)) { bucket.quick += net; bucket.ar += net; }
+          if (isInventory(acc)) bucket.inv += net;
+        } else if (acc.account_type === "liability") {
+          bucket.totLiab -= net;
+          if (!isLongTerm(acc)) bucket.curLiab -= net;
+          if (defaults?.ap && l.account_id === defaults.ap) bucket.ap -= net;
+        } else if (acc.account_type === "equity") {
+          bucket.equity -= net;
+        } else if (acc.account_type === "revenue" || acc.account_type === "expense") {
+          bucket.pl -= net;
+        }
+      }
     }
 
     const balanceFor = (id: string) => (perAccount[id]?.dr || 0) - (perAccount[id]?.cr || 0);
@@ -341,15 +609,75 @@ export default function BusinessHealthDashboard() {
       .map(([name, value]) => ({ name, value: Math.round(value) }));
 
     // ---- Ratios ----
+    // Month-end cumulative balance-sheet positions (opening + each month's delta)
+    const bsCum: BSClass[] = [];
+    {
+      const run = { ...openingBS };
+      months.forEach((m) => {
+        (Object.keys(run) as (keyof BSClass)[]).forEach((k) => { run[k] += bsDeltas[m][k]; });
+        bsCum.push({ ...run });
+      });
+    }
+    const bs = bsCum[bsCum.length - 1];
+    const glCurrentAssets = bs.curAssets;
+    const glCurrentLiabilities = bs.curLiab;
+    const glQuickAssets = bs.quick;
+    const glTotalAssets = bs.totAssets;
+    const glLongTermLiabilities = bs.totLiab - bs.curLiab;
+
     const rev90 = last3.reduce((s, m) => s + monthly[m].revenue, 0);
     const cogs90 = last3.reduce((s, m) => s + monthly[m].cogs, 0);
-    const currentAssets = cashPool + arAging.total + totalInventory;
-    const currentLiabilities = apAging.total;
-    const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : null;
-    const quickRatio = currentLiabilities > 0 ? (cashPool + arAging.total) / currentLiabilities : null;
+    const rev12 = months.reduce((s, m) => s + monthly[m].revenue, 0);
+    const net12 = months.reduce((s, m) => s + monthly[m].revenue - monthly[m].cogs - monthly[m].opex, 0);
+
+    const currentRatio = glCurrentLiabilities > 0 ? glCurrentAssets / glCurrentLiabilities : null;
+    const quickRatio = glCurrentLiabilities > 0 ? glQuickAssets / glCurrentLiabilities : null;
     const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : null;
+    const debtRatio = glTotalAssets > 0 ? totalLiabilities / glTotalAssets : null;
+    const gearing = glLongTermLiabilities + totalEquity > 0 ? (glLongTermLiabilities / (glLongTermLiabilities + totalEquity)) * 100 : null;
     const dso = rev90 > 0 ? arAging.total / (rev90 / 90) : null;
     const dpo = cogs90 > 0 ? apAging.total / (cogs90 / 90) : null;
+    const dio = cogs90 > 0 ? totalInventory / (cogs90 / 90) : null;
+    const ccc = dso !== null && dio !== null && dpo !== null ? dso + dio - dpo : null;
+    const roa = glTotalAssets > 0 ? (net12 / glTotalAssets) * 100 : null;
+    const roe = totalEquity > 0 ? (net12 / totalEquity) * 100 : null;
+    const assetTurnover = glTotalAssets > 0 && rev12 > 0 ? rev12 / glTotalAssets : null;
+    const grossMargin3m = rev90 > 0 ? ((rev90 - cogs90) / rev90) * 100 : null;
+
+    // 12-point trend per ratio: balances cumulative to month end, flows from the
+    // trailing ≤3 months (annualized for ROA/ROE/turnover).
+    const ratioTrend = months.map((m, i) => {
+      const b = bsCum[i];
+      const win = months.slice(Math.max(0, i - 2), i + 1);
+      const winDays = win.length * 30;
+      const rev = win.reduce((s, mm) => s + monthly[mm].revenue, 0);
+      const cog = win.reduce((s, mm) => s + monthly[mm].cogs, 0);
+      const net = win.reduce((s, mm) => s + monthly[mm].revenue - monthly[mm].cogs - monthly[mm].opex, 0);
+      const eq = b.equity + b.pl;
+      const lt = b.totLiab - b.curLiab;
+      const ann = 365 / winDays;
+      const dsoM = rev > 0 ? b.ar / (rev / winDays) : null;
+      const dpoM = cog > 0 ? b.ap / (cog / winDays) : null;
+      const dioM = cog > 0 ? b.inv / (cog / winDays) : null;
+      return {
+        month: format(parseISO(`${m}-01`), "MMM yy"),
+        currentRatio: b.curLiab > 0 ? +(b.curAssets / b.curLiab).toFixed(2) : null,
+        quickRatio: b.curLiab > 0 ? +(b.quick / b.curLiab).toFixed(2) : null,
+        workingCapital: Math.round(b.curAssets - b.curLiab),
+        debtToEquity: eq > 0 ? +(b.totLiab / eq).toFixed(2) : null,
+        debtRatio: b.totAssets > 0 ? +(b.totLiab / b.totAssets).toFixed(2) : null,
+        gearing: lt + eq > 0 ? +((lt / (lt + eq)) * 100).toFixed(1) : null,
+        dso: dsoM !== null ? Math.round(dsoM) : null,
+        dpo: dpoM !== null ? Math.round(dpoM) : null,
+        dio: dioM !== null ? Math.round(dioM) : null,
+        ccc: dsoM !== null && dioM !== null && dpoM !== null ? Math.round(dsoM + dioM - dpoM) : null,
+        grossMargin: rev > 0 ? +(((rev - cog) / rev) * 100).toFixed(1) : null,
+        netMargin: rev > 0 ? +((net / rev) * 100).toFixed(1) : null,
+        roa: b.totAssets > 0 && rev > 0 ? +(((net * ann) / b.totAssets) * 100).toFixed(1) : null,
+        roe: eq > 0 && rev > 0 ? +(((net * ann) / eq) * 100).toFixed(1) : null,
+        assetTurnover: b.totAssets > 0 && rev > 0 ? +((rev * ann) / b.totAssets).toFixed(2) : null,
+      };
+    });
 
     // Runway from average net cash flow of the last 3 months
     const avgNetCash = last3.reduce((s, m) => s + cashFlowByMonth[m].cashIn - cashFlowByMonth[m].cashOut, 0) / 3;
@@ -387,8 +715,11 @@ export default function BusinessHealthDashboard() {
       netTrendPct: pct(mtdNet, prevNet),
       expTrendPct: pct(mtd.cogs + mtd.opex, prev.cogs + prev.opex),
       grossMarginMtd: mtd.revenue > 0 ? ((mtd.revenue - mtd.cogs) / mtd.revenue) * 100 : null,
-      currentRatio, quickRatio, debtToEquity, dso, dpo, runwayMonths,
-      workingCapital: currentAssets - currentLiabilities,
+      currentRatio, quickRatio, debtToEquity, debtRatio, gearing, dso, dpo, dio, ccc,
+      roa, roe, assetTurnover, grossMargin3m, netMargin3m, net3m, runwayMonths,
+      glCurrentAssets, glCurrentLiabilities, glQuickAssets, glTotalAssets, glLongTermLiabilities,
+      rev90, cogs90, rev12, net12, ratioTrend,
+      workingCapital: glCurrentAssets - glCurrentLiabilities,
       healthScore, healthLabel,
       scoreParts: { liquidityScore, profitScore, collectionScore, cashScore },
       alerts,
@@ -508,7 +839,7 @@ export default function BusinessHealthDashboard() {
             <MetricCard title="Receivables" value={fmtRs(c.arAging.total)} icon={ArrowUpRight} description={`${c.arRows.length} customer(s) owe us`} />
             <MetricCard title="Payables" value={fmtRs(c.apAging.total)} icon={ArrowDownRight} description={`${c.apRows.length} vendor(s) we owe`} />
             <MetricCard title="Inventory (GL)" value={fmtRs(c.totalInventory)} icon={Package} description="RM + WIP + FG accounts" />
-            <MetricCard title="Working Capital" value={fmtRs(c.workingCapital)} icon={Scale} description="Current assets − payables" />
+            <MetricCard title="Working Capital" value={fmtRs(c.workingCapital)} icon={Scale} description="Current assets − current liabilities" />
             <MetricCard
               title="Cash Runway"
               value={c.runwayMonths === Infinity ? "Positive" : `~${c.runwayMonths.toFixed(1)} mo`}
@@ -676,25 +1007,23 @@ export default function BusinessHealthDashboard() {
             ))}
           </div>
 
-          {/* Financial ratios */}
+          {/* Financial ratios — grouped, with formula numbers, health bands and trends */}
           <Card className="mb-4">
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Financial Ratios</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {[
-                  { label: "Current Ratio", value: c.currentRatio !== null ? c.currentRatio.toFixed(2) : "—", hint: "(Cash + AR + Inventory) / Payables. Healthy ≥ 1.5", bad: c.currentRatio !== null && c.currentRatio < 1 },
-                  { label: "Quick Ratio", value: c.quickRatio !== null ? c.quickRatio.toFixed(2) : "—", hint: "(Cash + AR) / Payables. Healthy ≥ 1.0", bad: c.quickRatio !== null && c.quickRatio < 1 },
-                  { label: "Debt / Equity", value: c.debtToEquity !== null ? c.debtToEquity.toFixed(2) : "—", hint: "Total liabilities / equity incl. retained earnings", bad: c.debtToEquity !== null && c.debtToEquity > 2 },
-                  { label: "DSO", value: c.dso !== null ? `${Math.round(c.dso)} days` : "—", hint: "Avg days to collect (AR vs 90-day revenue)", bad: c.dso !== null && c.dso > 60 },
-                  { label: "DPO", value: c.dpo !== null ? `${Math.round(c.dpo)} days` : "—", hint: "Avg days to pay (AP vs 90-day COGS)", bad: false },
-                ].map((r) => (
-                  <div key={r.label} className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">{r.label}</div>
-                    <div className={`text-2xl font-semibold ${r.bad ? "text-red-600" : ""}`}>{r.value}</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">{r.hint}</div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Financial Ratios</CardTitle>
+              <p className="text-xs text-muted-foreground font-normal">
+                Each ratio shows its formula with live ledger numbers, a health band, and the 12-month trend.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {buildRatioGroups(c).map((g) => (
+                <div key={g.title}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{g.title}</div>
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${g.cols} gap-3`}>
+                    {g.items.map((it) => <RatioTile key={it.label} {...it} />)}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
