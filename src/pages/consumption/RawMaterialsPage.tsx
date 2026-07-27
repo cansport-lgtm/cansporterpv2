@@ -19,6 +19,7 @@ interface RawMaterial {
   is_active: boolean;
   cost_value: number | null;
   threshold: number | null;
+  closing_frequency: string | null;
 }
 
 /**
@@ -101,6 +102,7 @@ export default function RawMaterialsPage() {
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Cost Value</TableHead>
                     <TableHead>Linked Item</TableHead>
+                    <TableHead>Closing</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -108,11 +110,11 @@ export default function RawMaterialsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={9} className="text-center">Loading...</TableCell>
                     </TableRow>
                   ) : materials?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         No raw materials found. Add raw-material items in the Items master.
                       </TableCell>
                     </TableRow>
@@ -128,6 +130,11 @@ export default function RawMaterialsPage() {
                           {linkedItemByRmId[material.id]
                             ? `${linkedItemByRmId[material.id].code} · ${linkedItemByRmId[material.id].name}`
                             : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={material.closing_frequency === "weekly" ? "outline" : "secondary"}>
+                            {material.closing_frequency === "weekly" ? "Weekly" : "Daily"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={material.priority === "high" ? "destructive" : material.priority === "low" ? "outline" : "secondary"}>
@@ -170,9 +177,14 @@ export default function RawMaterialsPage() {
                         <span>↔ {linkedItemByRmId[material.id].code}</span>
                       )}
                     </div>
-                    <Badge variant={material.priority === "high" ? "destructive" : material.priority === "low" ? "outline" : "secondary"} className="text-xs">
-                      {(material.priority || "medium").charAt(0).toUpperCase() + (material.priority || "medium").slice(1)}
-                    </Badge>
+                    <div className="flex gap-1.5">
+                      <Badge variant={material.priority === "high" ? "destructive" : material.priority === "low" ? "outline" : "secondary"} className="text-xs">
+                        {(material.priority || "medium").charAt(0).toUpperCase() + (material.priority || "medium").slice(1)}
+                      </Badge>
+                      <Badge variant={material.closing_frequency === "weekly" ? "outline" : "secondary"} className="text-xs">
+                        {material.closing_frequency === "weekly" ? "Weekly closing" : "Daily closing"}
+                      </Badge>
+                    </div>
                   </div>
                 ))
               )}

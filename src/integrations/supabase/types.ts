@@ -1264,6 +1264,7 @@ export type Database = {
       consumption_raw_materials: {
         Row: {
           category: string | null
+          closing_frequency: string
           code: string
           cost_value: number | null
           created_at: string | null
@@ -1278,6 +1279,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          closing_frequency?: string
           code: string
           cost_value?: number | null
           created_at?: string | null
@@ -1292,6 +1294,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          closing_frequency?: string
           code?: string
           cost_value?: number | null
           created_at?: string | null

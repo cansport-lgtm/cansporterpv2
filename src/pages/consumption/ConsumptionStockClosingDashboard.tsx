@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, subDays } from "date-fns";
+import { format, startOfWeek, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -89,6 +89,29 @@ export default function ConsumptionStockClosingDashboard() {
         .order("created_at");
       if (error) throw error;
       return (data || []) as unknown as ClosingRow[];
+    },
+  });
+
+  // Weekly-frequency materials with no entry for this week's Monday yet.
+  const thisMondayStr = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const { data: missedWeekly = [] } = useQuery({
+    queryKey: ["consumption-missed-weekly", thisMondayStr],
+    queryFn: async () => {
+      const [materialsRes, closingsRes] = await Promise.all([
+        supabase
+          .from("consumption_raw_materials")
+          .select("id, code, name")
+          .eq("is_active", true)
+          .eq("closing_frequency", "weekly"),
+        supabase
+          .from("consumption_stock_closing")
+          .select("raw_material_id")
+          .eq("closing_date", thisMondayStr),
+      ]);
+      if (materialsRes.error) throw materialsRes.error;
+      if (closingsRes.error) throw closingsRes.error;
+      const posted = new Set((closingsRes.data || []).map((c) => c.raw_material_id));
+      return (materialsRes.data || []).filter((m) => !posted.has(m.id));
     },
   });
 
@@ -353,6 +376,20 @@ export default function ConsumptionStockClosingDashboard() {
             </PopoverContent>
           </Popover>
         </PageHeader>
+
+        {missedWeekly.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="flex items-start gap-2 p-3 text-sm">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+              <span>
+                Weekly stock closing for Monday {format(new Date(thisMondayStr + "T00:00:00"), "dd MMM")} not
+                posted yet for {missedWeekly.length} material{missedWeekly.length > 1 ? "s" : ""}:{" "}
+                {missedWeekly.slice(0, 6).map((m) => m.name).join(", ")}
+                {missedWeekly.length > 6 ? ` and ${missedWeekly.length - 6} more` : ""}.
+              </span>
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">

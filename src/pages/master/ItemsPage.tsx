@@ -52,6 +52,7 @@ interface Item {
   reorder_level: number | null;
   is_inventory_item: boolean | null;
   is_active: boolean | null;
+  consumption_raw_material_id: string | null;
   units_of_measure?: { name: string } | null;
 }
 
@@ -80,6 +81,7 @@ export default function ItemsPage() {
     reorder_level: 0,
     is_inventory_item: true,
     is_active: true,
+    closing_frequency: "daily",
   });
 
   const { data: items = [], isLoading } = useQuery({
@@ -121,6 +123,22 @@ export default function ItemsPage() {
     },
   });
 
+  // Stock-closing frequency lives on the consumption mirror of each
+  // raw-material item (consumption_raw_materials.closing_frequency).
+  const { data: rmFrequencies = {} } = useQuery({
+    queryKey: ["consumption-rm-frequencies"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_raw_materials")
+        .select("id, closing_frequency");
+      if (error) throw error;
+      return (data || []).reduce((acc: Record<string, string>, rm) => {
+        acc[rm.id] = rm.closing_frequency || "daily";
+        return acc;
+      }, {});
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
       const payload = {
@@ -141,19 +159,40 @@ export default function ItemsPage() {
         is_active: data.is_active,
       };
 
+      let crmId: string | null = null;
       if (data.id) {
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from("items")
           .update(payload)
-          .eq("id", data.id);
+          .eq("id", data.id)
+          .select("consumption_raw_material_id")
+          .single();
         if (error) throw error;
+        crmId = updated?.consumption_raw_material_id || null;
       } else {
-        const { error } = await supabase.from("items").insert(payload);
+        const { data: inserted, error } = await supabase
+          .from("items")
+          .insert(payload)
+          .select("consumption_raw_material_id")
+          .single();
+        if (error) throw error;
+        crmId = inserted?.consumption_raw_material_id || null;
+      }
+
+      // Closing frequency is a consumption attribute of the mirrored raw
+      // material, not of the item row itself.
+      if (data.category === "raw_material" && crmId) {
+        const { error } = await supabase
+          .from("consumption_raw_materials")
+          .update({ closing_frequency: data.closing_frequency })
+          .eq("id", crmId);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-rm-frequencies"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
       toast.success(selectedItem ? "Item updated" : "Item created");
       resetForm();
     },
@@ -192,6 +231,7 @@ export default function ItemsPage() {
       reorder_level: 0,
       is_inventory_item: true,
       is_active: true,
+      closing_frequency: "daily",
     });
     setSelectedItem(null);
     setDialogOpen(false);
@@ -212,6 +252,10 @@ export default function ItemsPage() {
       reorder_level: item.reorder_level || 0,
       is_inventory_item: item.is_inventory_item ?? true,
       is_active: item.is_active ?? true,
+      closing_frequency:
+        (item.consumption_raw_material_id &&
+          rmFrequencies[item.consumption_raw_material_id]) ||
+        "daily",
     });
     setDialogOpen(true);
   };
@@ -406,6 +450,27 @@ export default function ItemsPage() {
                     Used by the consumption module to group this material. Manage
                     categories in Material Consumption → Category Master.
                   </p>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="closing_frequency">Stock Closing Frequency</Label>
+                    <Select
+                      value={formData.closing_frequency}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, closing_frequency: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly (Mondays &amp; month-end)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Weekly materials appear on the Daily Stock Closing sheet only on
+                      Mondays and on the last day of the month.
+                    </p>
+                  </div>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

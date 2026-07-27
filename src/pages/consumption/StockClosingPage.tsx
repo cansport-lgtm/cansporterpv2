@@ -9,7 +9,7 @@ import { Save, CalendarIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, subDays } from "date-fns";
+import { format, isLastDayOfMonth, isMonday, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,9 @@ interface StockEntry {
 // and are read-only here. Must match consumption_grn_cutover() in the DB.
 const GRN_RECEIPT_CUTOVER = "2026-07-27";
 
+// Group label for weekly-frequency materials on the closing sheet.
+const WEEKLY_GROUP = "Weekly Materials";
+
 export default function StockClosingPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -39,7 +42,12 @@ export default function StockClosingPage() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const prevDateStr = format(subDays(selectedDate, 1), "yyyy-MM-dd");
+  // Weekly materials are posted on Mondays (week ending that Monday) and on
+  // the last day of the month, so month-end COGS values stock exactly.
+  const showWeekly = isMonday(selectedDate) || isLastDayOfMonth(selectedDate);
+  // Lookback window for "the most recent previous closing" — covers weekly
+  // gaps, month boundaries and missed days.
+  const lookbackStr = format(subDays(selectedDate, 60), "yyyy-MM-dd");
   const receiptsFromGRN = dateStr >= GRN_RECEIPT_CUTOVER;
 
   const { data: rawMaterials } = useQuery({
@@ -47,7 +55,7 @@ export default function StockClosingPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_raw_materials")
-        .select("id, code, name, unit, category")
+        .select("id, code, name, unit, category, closing_frequency")
         .eq("is_active", true)
         .order("category")
         .order("code");
@@ -56,37 +64,67 @@ export default function StockClosingPage() {
     },
   });
 
+  // Most recent closing before the selected date, per material. For daily
+  // materials this is yesterday; for weekly ones the previous Monday.
   const { data: previousClosing } = useQuery({
-    queryKey: ["consumption-previous-closing", prevDateStr],
+    queryKey: ["consumption-latest-closing-before", dateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_stock_closing")
-        .select("raw_material_id, closing_quantity")
-        .eq("closing_date", prevDateStr);
+        .select("raw_material_id, closing_date, closing_quantity")
+        .lt("closing_date", dateStr)
+        .gte("closing_date", lookbackStr)
+        .order("closing_date", { ascending: false });
       if (error) throw error;
-      return data?.reduce((acc: Record<string, number>, item) => {
-        acc[item.raw_material_id] = Number(item.closing_quantity);
-        return acc;
-      }, {});
+      return (data || []).reduce(
+        (acc: Record<string, { date: string; quantity: number }>, item) => {
+          if (!acc[item.raw_material_id]) {
+            acc[item.raw_material_id] = {
+              date: item.closing_date,
+              quantity: Number(item.closing_quantity),
+            };
+          }
+          return acc;
+        },
+        {}
+      );
     },
     enabled: !!rawMaterials,
   });
 
+  // GRN receipts per material for the period since its previous closing
+  // (the whole week for weekly materials). Mirrors the DB-side calculation.
   const { data: grnReceipts } = useQuery({
     queryKey: ["consumption-grn-receipts", dateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_consumption_grn_receipts")
-        .select("raw_material_id, receipt_quantity")
-        .eq("receipt_date", dateStr);
+        .select("raw_material_id, receipt_date, receipt_quantity")
+        .lte("receipt_date", dateStr)
+        .gt("receipt_date", lookbackStr);
       if (error) throw error;
-      return (data || []).reduce((acc: Record<string, number>, r) => {
-        if (r.raw_material_id) acc[r.raw_material_id] = Number(r.receipt_quantity) || 0;
-        return acc;
-      }, {});
+      return (data || []).reduce(
+        (acc: Record<string, { date: string; quantity: number }[]>, r) => {
+          if (!r.raw_material_id || !r.receipt_date) return acc;
+          (acc[r.raw_material_id] ||= []).push({
+            date: r.receipt_date,
+            quantity: Number(r.receipt_quantity) || 0,
+          });
+          return acc;
+        },
+        {}
+      );
     },
     enabled: receiptsFromGRN,
   });
+
+  const grnPeriodReceipt = (materialId: string) => {
+    const prevDate = previousClosing?.[materialId]?.date;
+    return (grnReceipts?.[materialId] || []).reduce((sum, r) => {
+      const inPeriod = prevDate ? r.date > prevDate : r.date === dateStr;
+      return inPeriod ? sum + r.quantity : sum;
+    }, 0);
+  };
 
   const { data: existingEntries, isLoading } = useQuery({
     queryKey: ["consumption-stock-closing", dateStr],
@@ -109,28 +147,33 @@ export default function StockClosingPage() {
       previousClosing !== undefined &&
       (!receiptsFromGRN || grnReceipts !== undefined)
     ) {
-      const newEntries: StockEntry[] = rawMaterials.map((mat) => {
-        const existing = existingEntries?.find((e) => e.raw_material_id === mat.id);
-        const prevClose = previousClosing?.[mat.id] || 0;
-        return {
-          raw_material_id: mat.id,
-          code: mat.code,
-          name: mat.name,
-          unit: mat.unit,
-          category: mat.category || "Uncategorized",
-          opening_quantity: existing ? String(existing.opening_quantity) : String(prevClose),
-          receipt_quantity: receiptsFromGRN
-            ? String(grnReceipts?.[mat.id] ?? 0)
-            : existing
-              ? String(existing.receipt_quantity)
-              : "0",
-          closing_quantity: existing ? String(existing.closing_quantity) : "",
-          existingId: existing?.id,
-        };
-      });
+      const newEntries: StockEntry[] = rawMaterials
+        .filter((mat) => mat.closing_frequency !== "weekly" || showWeekly)
+        .map((mat) => {
+          const existing = existingEntries?.find((e) => e.raw_material_id === mat.id);
+          const prevClose = previousClosing?.[mat.id]?.quantity || 0;
+          return {
+            raw_material_id: mat.id,
+            code: mat.code,
+            name: mat.name,
+            unit: mat.unit,
+            category:
+              mat.closing_frequency === "weekly"
+                ? WEEKLY_GROUP
+                : mat.category || "Uncategorized",
+            opening_quantity: existing ? String(existing.opening_quantity) : String(prevClose),
+            receipt_quantity: receiptsFromGRN
+              ? String(grnPeriodReceipt(mat.id))
+              : existing
+                ? String(existing.receipt_quantity)
+                : "0",
+            closing_quantity: existing ? String(existing.closing_quantity) : "",
+            existingId: existing?.id,
+          };
+        });
       setEntries(newEntries);
     }
-  }, [rawMaterials, existingEntries, previousClosing, grnReceipts, receiptsFromGRN]);
+  }, [rawMaterials, existingEntries, previousClosing, grnReceipts, receiptsFromGRN, showWeekly]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -217,6 +260,8 @@ export default function StockClosingPage() {
   }, {});
 
   const categoryNames = Object.keys(groupedEntries).sort((a, b) => {
+    if (a === WEEKLY_GROUP) return 1;
+    if (b === WEEKLY_GROUP) return -1;
     if (a === "Uncategorized") return 1;
     if (b === "Uncategorized") return -1;
     return a.localeCompare(b);
@@ -231,6 +276,9 @@ export default function StockClosingPage() {
             <p className="page-description">
               Record daily closing stock for raw materials
               {receiptsFromGRN && " — receipts are auto-filled from approved GRNs (Purchase module)"}
+              {showWeekly
+                ? ". Weekly materials are included today."
+                : ". Weekly materials appear on Mondays and month-end only."}
             </p>
           </div>
           <div className="flex gap-2 items-center">
