@@ -151,6 +151,7 @@ export default function BalanceSheetPage() {
           </div>
         </CardContent></Card>
       </div>
+      </HiddenFigures>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ASSETS */}
@@ -263,7 +264,6 @@ export default function BalanceSheetPage() {
           </Card>
         </div>
       </div>
-      </HiddenFigures>
     </ERPLayout>
   );
 }
