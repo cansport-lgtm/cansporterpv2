@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { HiddenFigures } from "@/components/shared/HiddenFigures";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,6 +128,7 @@ export default function BalanceSheetPage() {
         </div>
       </PageHeader>
 
+      <HiddenFigures>
       <div className="grid grid-cols-4 gap-4 mb-4">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="h-3 w-3" />Total Assets</div>
@@ -261,6 +263,7 @@ export default function BalanceSheetPage() {
           </Card>
         </div>
       </div>
+      </HiddenFigures>
     </ERPLayout>
   );
 }
