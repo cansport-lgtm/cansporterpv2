@@ -281,6 +281,7 @@ import CashFlowForecastPage from "./pages/accounting/CashFlowForecastPage";
 import AccountingTrialBalancePage from "./pages/accounting/TrialBalancePage";
 import AccountingProfitLossPage from "./pages/accounting/ProfitLossPage";
 import AccountingBalanceSheetPage from "./pages/accounting/BalanceSheetPage";
+import AccountingEquityChangesPage from "./pages/accounting/EquityChangesPage";
 import DefaultAccountsPage from "./pages/accounting/DefaultAccountsPage";
 import SalesReconciliationPage from "./pages/accounting/SalesReconciliationPage";
 import AccountingSalesReportPage from "./pages/accounting/SalesReportPage";
@@ -802,6 +803,7 @@ const App = () => (
             <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
             <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
             <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />
+            <Route path="/accounting/equity-changes" element={<ProtectedRoute><AccountingEquityChangesPage /></ProtectedRoute>} />
             <Route path="/accounting/default-accounts" element={<ProtectedRoute><DefaultAccountsPage /></ProtectedRoute>} />
             <Route path="/accounting/sales-reconciliation" element={<ProtectedRoute><SalesReconciliationPage /></ProtectedRoute>} />
             <Route path="/accounting/production-cost-recognition" element={<ProtectedRoute><ProductionCostRecognitionPage /></ProtectedRoute>} />
