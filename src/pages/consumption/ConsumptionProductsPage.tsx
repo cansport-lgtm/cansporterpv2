@@ -25,7 +25,18 @@ interface ConsumptionProduct {
   is_active: boolean | null;
 }
 
+interface LinkedMaterial {
+  id: string;
+  source_product_id: string | null;
+  cost_value: number | null;
+  is_active: boolean | null;
+}
+
 const UNITS = ["kg", "g", "ltr", "ml", "pcs", "mtr", "rolls", "sheets", "dozen", "box"];
+
+// Category assigned to the raw-material row of an intermediate product, so
+// compounds group together on the stock-closing sheet.
+const INTERMEDIATE_CATEGORY = "Intermediate";
 
 export default function ConsumptionProductsPage() {
   const queryClient = useQueryClient();
@@ -39,6 +50,8 @@ export default function ConsumptionProductsPage() {
     unit: "pcs",
     description: "",
     is_active: true,
+    is_intermediate: false,
+    cost_value: "",
   });
 
   const { data: products, isLoading } = useQuery({
@@ -53,23 +66,88 @@ export default function ConsumptionProductsPage() {
     },
   });
 
+  // Raw-material rows linked to a product = intermediates (e.g. compounds).
+  const { data: linkedMaterials } = useQuery({
+    queryKey: ["consumption-intermediate-materials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_raw_materials")
+        .select("id, source_product_id, cost_value, is_active")
+        .not("source_product_id", "is", null);
+      if (error) throw error;
+      return data as LinkedMaterial[];
+    },
+  });
+
+  const linkedMaterialFor = (productId: string) =>
+    linkedMaterials?.find((rm) => rm.source_product_id === productId);
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
-      if (data.id) {
+      const productPayload = {
+        code: data.code,
+        name: data.name,
+        unit: data.unit,
+        description: data.description,
+        is_active: data.is_active,
+      };
+
+      let productId = data.id;
+      if (productId) {
         const { error } = await supabase
           .from("consumption_products")
-          .update(data)
-          .eq("id", data.id);
+          .update(productPayload)
+          .eq("id", productId);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from("consumption_products")
-          .insert(data);
+          .insert(productPayload)
+          .select("id")
+          .single();
+        if (error) throw error;
+        productId = inserted.id;
+      }
+
+      // Intermediate products also live in the raw-materials master so they
+      // appear on the stock-closing sheet and can be used in other BOMs.
+      // Receipts for that row auto-fill from this product's production entries.
+      const linked = linkedMaterialFor(productId);
+      if (data.is_intermediate) {
+        const rmPayload = {
+          code: data.code,
+          name: data.name,
+          unit: data.unit,
+          category: INTERMEDIATE_CATEGORY,
+          cost_value: parseFloat(data.cost_value) || 0,
+          is_active: data.is_active,
+          source_product_id: productId,
+        };
+        if (linked) {
+          const { error } = await supabase
+            .from("consumption_raw_materials")
+            .update(rmPayload)
+            .eq("id", linked.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("consumption_raw_materials")
+            .insert(rmPayload);
+          if (error) throw error;
+        }
+      } else if (linked && linked.is_active) {
+        // Deactivate (not delete) so closing history stays intact.
+        const { error } = await supabase
+          .from("consumption_raw_materials")
+          .update({ is_active: false })
+          .eq("id", linked.id);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["consumption-products"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-intermediate-materials"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
       toast.success(editingProduct ? "Product updated" : "Product added");
       handleCloseDialog();
     },
@@ -98,6 +176,7 @@ export default function ConsumptionProductsPage() {
 
   const handleOpenDialog = (product?: ConsumptionProduct) => {
     if (product) {
+      const linked = linkedMaterialFor(product.id);
       setEditingProduct(product);
       setFormData({
         code: product.code,
@@ -105,6 +184,8 @@ export default function ConsumptionProductsPage() {
         unit: product.unit || "pcs",
         description: product.description || "",
         is_active: product.is_active ?? true,
+        is_intermediate: !!linked?.is_active,
+        cost_value: linked?.cost_value ? String(linked.cost_value) : "",
       });
     } else {
       setEditingProduct(null);
@@ -114,6 +195,8 @@ export default function ConsumptionProductsPage() {
         unit: "pcs",
         description: "",
         is_active: true,
+        is_intermediate: false,
+        cost_value: "",
       });
     }
     setIsDialogOpen(true);
@@ -155,7 +238,7 @@ export default function ConsumptionProductsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -178,6 +261,13 @@ export default function ConsumptionProductsPage() {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.unit || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{product.description || "-"}</TableCell>
+                      <TableCell>
+                        {linkedMaterialFor(product.id)?.is_active ? (
+                          <Badge variant="outline">Intermediate</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Product</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={product.is_active ? "default" : "secondary"}>
                           {product.is_active ? "Active" : "Inactive"}
@@ -245,6 +335,33 @@ export default function ConsumptionProductsPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Optional description"
                 />
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.is_intermediate}
+                    onCheckedChange={(v) => setFormData({ ...formData, is_intermediate: v })}
+                  />
+                  <Label>Intermediate (compound)</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  An intermediate is produced here (e.g. H72 Compound from Smoke Rubber) and then
+                  consumed to make other products. It gets its own row on the Stock Closing sheet,
+                  its receipts auto-fill from its Production Entries, and it can be added as a
+                  material in other products' BOMs.
+                </p>
+                {formData.is_intermediate && (
+                  <div className="space-y-2">
+                    <Label>Cost per {formData.unit} (for loss valuation)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.cost_value}
+                      onChange={(e) => setFormData({ ...formData, cost_value: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Switch

@@ -118,9 +118,39 @@ export default function StockClosingPage() {
     enabled: receiptsFromGRN,
   });
 
-  const grnPeriodReceipt = (materialId: string) => {
+  // Production-entry receipts for intermediate materials (compounds): their
+  // receipts come from their own Production Entries, not from GRNs.
+  const { data: prodReceipts } = useQuery({
+    queryKey: ["consumption-production-receipts", dateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_consumption_production_receipts")
+        .select("raw_material_id, receipt_date, receipt_quantity")
+        .lte("receipt_date", dateStr)
+        .gt("receipt_date", lookbackStr);
+      if (error) throw error;
+      return (data || []).reduce(
+        (acc: Record<string, { date: string; quantity: number }[]>, r) => {
+          if (!r.raw_material_id || !r.receipt_date) return acc;
+          (acc[r.raw_material_id] ||= []).push({
+            date: r.receipt_date,
+            quantity: Number(r.receipt_quantity) || 0,
+          });
+          return acc;
+        },
+        {}
+      );
+    },
+    enabled: receiptsFromGRN,
+  });
+
+  const periodReceipt = (materialId: string) => {
     const prevDate = previousClosing?.[materialId]?.date;
-    return (grnReceipts?.[materialId] || []).reduce((sum, r) => {
+    const rows = [
+      ...(grnReceipts?.[materialId] || []),
+      ...(prodReceipts?.[materialId] || []),
+    ];
+    return rows.reduce((sum, r) => {
       const inPeriod = prevDate ? r.date > prevDate : r.date === dateStr;
       return inPeriod ? sum + r.quantity : sum;
     }, 0);
@@ -145,7 +175,7 @@ export default function StockClosingPage() {
       rawMaterials &&
       existingEntries !== undefined &&
       previousClosing !== undefined &&
-      (!receiptsFromGRN || grnReceipts !== undefined)
+      (!receiptsFromGRN || (grnReceipts !== undefined && prodReceipts !== undefined))
     ) {
       const newEntries: StockEntry[] = rawMaterials
         .filter((mat) => mat.closing_frequency !== "weekly" || showWeekly)
@@ -163,7 +193,7 @@ export default function StockClosingPage() {
                 : mat.category || "Uncategorized",
             opening_quantity: existing ? String(existing.opening_quantity) : String(prevClose),
             receipt_quantity: receiptsFromGRN
-              ? String(grnPeriodReceipt(mat.id))
+              ? String(periodReceipt(mat.id))
               : existing
                 ? String(existing.receipt_quantity)
                 : "0",
@@ -173,7 +203,7 @@ export default function StockClosingPage() {
         });
       setEntries(newEntries);
     }
-  }, [rawMaterials, existingEntries, previousClosing, grnReceipts, receiptsFromGRN, showWeekly]);
+  }, [rawMaterials, existingEntries, previousClosing, grnReceipts, prodReceipts, receiptsFromGRN, showWeekly]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -275,7 +305,7 @@ export default function StockClosingPage() {
             <h1 className="page-title">Daily Stock Closing</h1>
             <p className="page-description">
               Record daily closing stock for raw materials
-              {receiptsFromGRN && " — receipts are auto-filled from approved GRNs (Purchase module)"}
+              {receiptsFromGRN && " — receipts are auto-filled from approved GRNs (Purchase module); for intermediates (compounds) from their Production Entries"}
               {showWeekly
                 ? ". Weekly materials are included today."
                 : ". Weekly materials appear on Mondays and month-end only."}
@@ -325,7 +355,7 @@ export default function StockClosingPage() {
                   <TableHead>Unit</TableHead>
                   <TableHead className="text-right">Opening</TableHead>
                   <TableHead className="text-right">
-                    Receipts{receiptsFromGRN && <span className="block text-[10px] font-normal text-muted-foreground">from GRN</span>}
+                    Receipts{receiptsFromGRN && <span className="block text-[10px] font-normal text-muted-foreground">from GRN / Production</span>}
                   </TableHead>
                   <TableHead className="text-right">Closing</TableHead>
                   <TableHead className="text-right">Consumption</TableHead>
