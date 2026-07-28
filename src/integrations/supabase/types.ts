@@ -1273,6 +1273,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           priority: string | null
+          source_product_id: string | null
           threshold: number | null
           unit: string | null
           updated_at: string | null
@@ -1288,6 +1289,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           priority?: string | null
+          source_product_id?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -1303,11 +1305,20 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           priority?: string | null
+          source_product_id?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "consumption_raw_materials_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: true
+            referencedRelation: "consumption_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       consumption_stock_closing: {
         Row: {
@@ -15466,6 +15477,14 @@ export type Database = {
           grn_number: string | null
           quantity_received: number | null
           receipt_date: string | null
+        }
+        Relationships: []
+      }
+      v_consumption_production_receipts: {
+        Row: {
+          raw_material_id: string | null
+          receipt_date: string | null
+          receipt_quantity: number | null
         }
         Relationships: []
       }

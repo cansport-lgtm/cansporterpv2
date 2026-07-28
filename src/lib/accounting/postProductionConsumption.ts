@@ -45,7 +45,7 @@ const findExistingVoucher = async (date: string) => {
 export async function previewProductionConsumption(date: string): Promise<ConsumptionPreview> {
   const { data: closings, error } = await sb
     .from("consumption_stock_closing")
-    .select("raw_material_id, actual_consumption, raw_material:consumption_raw_materials(id, code, name, unit, cost_value)")
+    .select("raw_material_id, actual_consumption, raw_material:consumption_raw_materials(id, code, name, unit, cost_value, source_product_id)")
     .eq("closing_date", date);
 
   if (error) throw error;
@@ -56,6 +56,10 @@ export async function previewProductionConsumption(date: string): Promise<Consum
     if (qty <= 0) continue;
     const rm = c.raw_material;
     if (!rm) continue;
+    // Intermediates (compounds) are produced in-house: their inputs were
+    // already debited to WIP when consumed, so consuming the compound is a
+    // WIP-to-WIP move — posting Dr WIP / Cr RM again would double-count.
+    if (rm.source_product_id) continue;
     const cost = Number(rm.cost_value || 0);
     rows.push({
       raw_material_id: rm.id,
