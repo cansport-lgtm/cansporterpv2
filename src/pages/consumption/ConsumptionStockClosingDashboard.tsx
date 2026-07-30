@@ -1,6 +1,16 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfWeek, subDays } from "date-fns";
+import {
+  endOfMonth,
+  endOfWeek,
+  format,
+  min,
+  startOfMonth,
+  startOfWeek,
+  subDays,
+  subMonths,
+  subWeeks,
+} from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -55,10 +65,46 @@ interface ClosingRow {
   } | null;
 }
 
+type PeriodMode = "daily" | "weekly" | "monthly";
+
+// A material's figures aggregated over the selected period: opening from the
+// first closing entry in the range, receipts/consumption summed across it,
+// closing from the last entry.
+interface MaterialAgg {
+  raw_material_id: string;
+  opening: number;
+  receipt: number;
+  consumed: number;
+  closing: number;
+  material: ClosingRow["consumption_raw_materials"];
+}
+
+// Supabase caps a select at 1000 rows; a month of daily closings across all
+// materials can exceed that, so page through the range.
+async function fetchClosingRows(select: string, from: string, to: string) {
+  const pageSize = 1000;
+  const all: any[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("consumption_stock_closing")
+      .select(select)
+      .gte("closing_date", from)
+      .lte("closing_date", to)
+      .order("closing_date")
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    all.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return all;
+}
+
 export default function ConsumptionStockClosingDashboard() {
   const { hasRole } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [period, setPeriod] = useState<PeriodMode>("daily");
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [trendMode, setTrendMode] = useState<"total" | "category">("total");
@@ -72,25 +118,74 @@ export default function ConsumptionStockClosingDashboard() {
     });
   };
 
-  const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const trendStartStr = format(subDays(selectedDate, 13), "yyyy-MM-dd");
+  // Period window derived from the selected date (weeks run Mon–Sun; open
+  // periods are clipped at today).
+  const { rangeStartStr, rangeEndStr, trendStartStr, periodLabel } = useMemo(() => {
+    const today = new Date();
+    let start: Date;
+    let end: Date;
+    let trendStart: Date;
+    let label: string;
+    if (period === "weekly") {
+      start = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      end = min([endOfWeek(selectedDate, { weekStartsOn: 1 }), today]);
+      trendStart = startOfWeek(subWeeks(start, 11), { weekStartsOn: 1 });
+      label = `${format(start, "dd MMM")} – ${format(end, "dd MMM yyyy")}`;
+    } else if (period === "monthly") {
+      start = startOfMonth(selectedDate);
+      end = min([endOfMonth(selectedDate), today]);
+      trendStart = startOfMonth(subMonths(start, 11));
+      label = format(start, "MMMM yyyy");
+    } else {
+      start = selectedDate;
+      end = selectedDate;
+      trendStart = subDays(selectedDate, 13);
+      label = format(selectedDate, "dd MMM yyyy");
+    }
+    return {
+      rangeStartStr: format(start, "yyyy-MM-dd"),
+      rangeEndStr: format(end, "yyyy-MM-dd"),
+      trendStartStr: format(trendStart, "yyyy-MM-dd"),
+      periodLabel: label,
+    };
+  }, [period, selectedDate]);
 
-  // Closing data for the selected date
-  const { data: closingData, isLoading } = useQuery({
-    queryKey: ["consumption-closing-dashboard", dateStr],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("consumption_stock_closing")
-        .select(
-          `id, closing_date, opening_quantity, receipt_quantity, closing_quantity, actual_consumption, raw_material_id,
-           consumption_raw_materials(id, code, name, unit, category, cost_value, threshold)`,
-        )
-        .eq("closing_date", dateStr)
-        .order("created_at");
-      if (error) throw error;
-      return (data || []) as unknown as ClosingRow[];
-    },
+  // Closing rows for the selected period
+  const { data: closingRows, isLoading } = useQuery({
+    queryKey: ["consumption-closing-dashboard", rangeStartStr, rangeEndStr],
+    queryFn: async () =>
+      (await fetchClosingRows(
+        `id, closing_date, opening_quantity, receipt_quantity, closing_quantity, actual_consumption, raw_material_id,
+         consumption_raw_materials(id, code, name, unit, category, cost_value, threshold)`,
+        rangeStartStr,
+        rangeEndStr,
+      )) as unknown as ClosingRow[],
   });
+
+  // Collapse the period's rows to one aggregate per material (rows arrive
+  // date-ascending, so the last write per material is the period's closing).
+  const closingData = useMemo(() => {
+    if (!closingRows) return undefined;
+    const map = new Map<string, MaterialAgg>();
+    closingRows.forEach((row) => {
+      const existing = map.get(row.raw_material_id);
+      if (!existing) {
+        map.set(row.raw_material_id, {
+          raw_material_id: row.raw_material_id,
+          opening: Number(row.opening_quantity) || 0,
+          receipt: Number(row.receipt_quantity) || 0,
+          consumed: Number(row.actual_consumption) || 0,
+          closing: Number(row.closing_quantity) || 0,
+          material: row.consumption_raw_materials,
+        });
+      } else {
+        existing.receipt += Number(row.receipt_quantity) || 0;
+        existing.consumed += Number(row.actual_consumption) || 0;
+        existing.closing = Number(row.closing_quantity) || 0;
+      }
+    });
+    return Array.from(map.values());
+  }, [closingRows]);
 
   // Weekly-frequency materials with no entry for this week's Monday yet.
   const thisMondayStr = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -115,21 +210,16 @@ export default function ConsumptionStockClosingDashboard() {
     },
   });
 
-  // 14-day trend data
+  // Trend data: 14 days in daily view, 12 weeks in weekly, 12 months in monthly
   const { data: trendData } = useQuery({
-    queryKey: ["consumption-closing-trend", trendStartStr, dateStr],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("consumption_stock_closing")
-        .select(
-          `closing_date, closing_quantity, actual_consumption,
-           consumption_raw_materials(category, cost_value)`,
-        )
-        .gte("closing_date", trendStartStr)
-        .lte("closing_date", dateStr);
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ["consumption-closing-trend", period, trendStartStr, rangeEndStr],
+    queryFn: async () =>
+      fetchClosingRows(
+        `closing_date, closing_quantity, actual_consumption, raw_material_id,
+         consumption_raw_materials(category)`,
+        trendStartStr,
+        rangeEndStr,
+      ),
   });
 
   // KPIs
@@ -142,18 +232,16 @@ export default function ConsumptionStockClosingDashboard() {
     let consumed = 0;
     let zeroStock = 0;
     let lowStock = 0;
-    closingData.forEach((row) => {
-      const qty = Number(row.closing_quantity) || 0;
-      const cv = Number(row.consumption_raw_materials?.cost_value) || 0;
-      const threshold = Number(row.consumption_raw_materials?.threshold) || 0;
-      const cons = Number(row.actual_consumption) || 0;
+    closingData.forEach((agg) => {
+      const qty = agg.closing;
+      const cv = Number(agg.material?.cost_value) || 0;
+      const threshold = Number(agg.material?.threshold) || 0;
       units += qty;
       value += qty * cv;
-      consumed += cons;
+      consumed += agg.consumed;
       if (qty === 0) zeroStock += 1;
       else if (threshold > 0 && qty <= threshold) lowStock += 1;
-      const cat = row.consumption_raw_materials?.category || "Uncategorized";
-      catSet.add(cat);
+      catSet.add(agg.material?.category || "Uncategorized");
     });
     return {
       items: closingData.length,
@@ -210,25 +298,24 @@ export default function ConsumptionStockClosingDashboard() {
         }>;
       }
     > = {};
-    closingData.forEach((row) => {
-      const catName = row.consumption_raw_materials?.category || "Uncategorized";
-      const qty = Number(row.closing_quantity) || 0;
-      const cv = Number(row.consumption_raw_materials?.cost_value) || 0;
-      const threshold = Number(row.consumption_raw_materials?.threshold) || 0;
-      const cons = Number(row.actual_consumption) || 0;
+    closingData.forEach((agg) => {
+      const catName = agg.material?.category || "Uncategorized";
+      const qty = agg.closing;
+      const cv = Number(agg.material?.cost_value) || 0;
+      const threshold = Number(agg.material?.threshold) || 0;
       if (!map[catName])
         map[catName] = { name: catName, qty: 0, value: 0, items: 0, consumed: 0, rows: [] };
       map[catName].qty += qty;
       map[catName].value += qty * cv;
-      map[catName].consumed += cons;
+      map[catName].consumed += agg.consumed;
       map[catName].items += 1;
       map[catName].rows.push({
-        code: row.consumption_raw_materials?.code || "—",
-        name: row.consumption_raw_materials?.name || "—",
-        unit: row.consumption_raw_materials?.unit || "",
-        opening: Number(row.opening_quantity) || 0,
-        receipt: Number(row.receipt_quantity) || 0,
-        consumed: cons,
+        code: agg.material?.code || "—",
+        name: agg.material?.name || "—",
+        unit: agg.material?.unit || "",
+        opening: agg.opening,
+        receipt: agg.receipt,
+        consumed: agg.consumed,
         qty,
         value: qty * cv,
         isLow: threshold > 0 && qty > 0 && qty <= threshold,
@@ -242,14 +329,14 @@ export default function ConsumptionStockClosingDashboard() {
   const topItems = useMemo(() => {
     if (!closingData) return [];
     return [...closingData]
-      .map((row) => {
-        const qty = Number(row.closing_quantity) || 0;
-        const cv = Number(row.consumption_raw_materials?.cost_value) || 0;
+      .map((agg) => {
+        const qty = agg.closing;
+        const cv = Number(agg.material?.cost_value) || 0;
         return {
-          code: row.consumption_raw_materials?.code || "—",
-          name: row.consumption_raw_materials?.name || "—",
-          unit: row.consumption_raw_materials?.unit || "",
-          category: row.consumption_raw_materials?.category || "Uncategorized",
+          code: agg.material?.code || "—",
+          name: agg.material?.name || "—",
+          unit: agg.material?.unit || "",
+          category: agg.material?.category || "Uncategorized",
           qty,
           value: qty * cv,
         };
@@ -262,14 +349,14 @@ export default function ConsumptionStockClosingDashboard() {
   const lowStockItems = useMemo(() => {
     if (!closingData) return [];
     return closingData
-      .map((row) => {
-        const qty = Number(row.closing_quantity) || 0;
-        const threshold = Number(row.consumption_raw_materials?.threshold) || 0;
+      .map((agg) => {
+        const qty = agg.closing;
+        const threshold = Number(agg.material?.threshold) || 0;
         return {
-          code: row.consumption_raw_materials?.code || "—",
-          name: row.consumption_raw_materials?.name || "—",
-          unit: row.consumption_raw_materials?.unit || "",
-          category: row.consumption_raw_materials?.category || "Uncategorized",
+          code: agg.material?.code || "—",
+          name: agg.material?.name || "—",
+          unit: agg.material?.unit || "",
+          category: agg.material?.category || "Uncategorized",
           qty,
           threshold,
           isZero: qty === 0,
@@ -280,50 +367,67 @@ export default function ConsumptionStockClosingDashboard() {
       .slice(0, 10);
   }, [closingData]);
 
-  // 14-day trend (total)
-  const trendChart = useMemo(() => {
-    if (!trendData) return [];
-    const map: Record<string, { date: string; qty: number; value: number; consumed: number }> = {};
+  // Trend, bucketed by day/week/month. Consumption sums across a bucket;
+  // closing stock takes each material's last entry in the bucket, then sums.
+  const { trendChart, trendByCat, catNames } = useMemo(() => {
+    if (!trendData)
+      return {
+        trendChart: [] as Array<{ label: string; qty: number; consumed: number }>,
+        trendByCat: [] as Array<Record<string, any>>,
+        catNames: [] as string[],
+      };
+    const keyOf = (dateStr: string) => {
+      if (period === "daily") return dateStr;
+      const d = new Date(dateStr + "T00:00:00");
+      const start = period === "weekly" ? startOfWeek(d, { weekStartsOn: 1 }) : startOfMonth(d);
+      return format(start, "yyyy-MM-dd");
+    };
+    const buckets = new Map<
+      string,
+      { consumed: number; latest: Map<string, { date: string; qty: number; cat: string }> }
+    >();
     trendData.forEach((row: any) => {
-      const d = row.closing_date as string;
-      const qty = Number(row.closing_quantity) || 0;
-      const cv = Number(row.consumption_raw_materials?.cost_value) || 0;
-      const cons = Number(row.actual_consumption) || 0;
-      if (!map[d]) map[d] = { date: d, qty: 0, value: 0, consumed: 0 };
-      map[d].qty += qty;
-      map[d].value += qty * cv;
-      map[d].consumed += cons;
-    });
-    return Object.values(map)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((r) => ({ ...r, label: format(new Date(r.date), "dd MMM") }));
-  }, [trendData]);
-
-  // 14-day trend (per category)
-  const { trendByCat, catNames } = useMemo(() => {
-    if (!trendData) return { trendByCat: [] as Array<Record<string, any>>, catNames: [] as string[] };
-    const dateCatQty: Record<string, Record<string, number>> = {};
-    const catSet = new Set<string>();
-    trendData.forEach((row: any) => {
-      const d = row.closing_date as string;
-      const cat = row.consumption_raw_materials?.category || "Uncategorized";
-      const qty = Number(row.closing_quantity) || 0;
-      catSet.add(cat);
-      if (!dateCatQty[d]) dateCatQty[d] = {};
-      dateCatQty[d][cat] = (dateCatQty[d][cat] || 0) + qty;
-    });
-    const names = Array.from(catSet).sort();
-    const rows = Object.keys(dateCatQty)
-      .sort()
-      .map((d) => {
-        const entry: Record<string, any> = { date: d, label: format(new Date(d), "dd MMM") };
-        names.forEach((n) => {
-          entry[n] = dateCatQty[d][n] || 0;
+      const key = keyOf(row.closing_date);
+      let b = buckets.get(key);
+      if (!b) {
+        b = { consumed: 0, latest: new Map() };
+        buckets.set(key, b);
+      }
+      b.consumed += Number(row.actual_consumption) || 0;
+      const prev = b.latest.get(row.raw_material_id);
+      if (!prev || row.closing_date >= prev.date) {
+        b.latest.set(row.raw_material_id, {
+          date: row.closing_date,
+          qty: Number(row.closing_quantity) || 0,
+          cat: row.consumption_raw_materials?.category || "Uncategorized",
         });
-        return entry;
+      }
+    });
+    const labelOf = (key: string) => {
+      const d = new Date(key + "T00:00:00");
+      return period === "monthly" ? format(d, "MMM yy") : format(d, "dd MMM");
+    };
+    const sortedKeys = Array.from(buckets.keys()).sort();
+    const catSet = new Set<string>();
+    buckets.forEach((b) => b.latest.forEach((v) => catSet.add(v.cat)));
+    const names = Array.from(catSet).sort();
+    const total = sortedKeys.map((key) => {
+      const b = buckets.get(key)!;
+      let qty = 0;
+      b.latest.forEach((v) => (qty += v.qty));
+      return { label: labelOf(key), qty, consumed: b.consumed };
+    });
+    const byCat = sortedKeys.map((key) => {
+      const b = buckets.get(key)!;
+      const entry: Record<string, any> = { label: labelOf(key) };
+      names.forEach((n) => (entry[n] = 0));
+      b.latest.forEach((v) => {
+        entry[v.cat] = (entry[v.cat] || 0) + v.qty;
       });
-    return { trendByCat: rows, catNames: names };
-  }, [trendData]);
+      return entry;
+    });
+    return { trendChart: total, trendByCat: byCat, catNames: names };
+  }, [trendData, period]);
 
   const palette = [
     "hsl(var(--primary))",
@@ -348,33 +452,58 @@ export default function ConsumptionStockClosingDashboard() {
       <div className="space-y-6">
         <PageHeader
           title="Stock Closing Dashboard"
-          description="End-of-day raw material stock snapshot across categories"
+          description={
+            period === "daily"
+              ? "End-of-day raw material stock snapshot across categories"
+              : period === "weekly"
+                ? "Weekly raw material stock summary across categories"
+                : "Monthly raw material stock summary across categories"
+          }
           icon={Beaker}
           iconColor="bg-red-500/15 text-red-500"
         >
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(selectedDate, "dd MMM yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d) => {
-                  if (d) {
-                    setSelectedDate(d);
-                    setIsCalendarOpen(false);
-                  }
-                }}
-                disabled={(d) => d > new Date()}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-md border bg-muted/40 p-0.5 text-xs">
+              {(["daily", "weekly", "monthly"] as PeriodMode[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-sm capitalize transition-colors",
+                    period === p
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="min-w-[200px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {periodLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => {
+                    if (d) {
+                      setSelectedDate(d);
+                      setIsCalendarOpen(false);
+                    }
+                  }}
+                  disabled={(d) => d > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </PageHeader>
 
         {missedWeekly.length > 0 && (
@@ -396,7 +525,12 @@ export default function ConsumptionStockClosingDashboard() {
           <KpiCard icon={Boxes} label="Items Closed" value={fmtNum(kpis.items)} tone="violet" />
           <KpiCard icon={Package} label="Total Units" value={fmtNum(kpis.units)} tone="blue" />
           <KpiCard icon={Layers} label="Categories" value={fmtNum(kpis.categories)} tone="emerald" />
-          <KpiCard icon={TrendingDown} label="Consumed Today" value={fmtNum(kpis.consumed)} tone="rose" />
+          <KpiCard
+            icon={TrendingDown}
+            label={period === "daily" ? "Consumed Today" : period === "weekly" ? "Consumed (Week)" : "Consumed (Month)"}
+            value={fmtNum(kpis.consumed)}
+            tone="rose"
+          />
           <KpiCard icon={AlertCircle} label="Low / Zero Stock" value={fmtNum(kpis.zeroStock + kpis.lowStock)} tone="amber" />
           {isSuperAdmin && (
             <KpiCard icon={TrendingUp} label="Stock Value" value={fmtCurrency(kpis.value)} tone="primary" />
@@ -442,7 +576,13 @@ export default function ConsumptionStockClosingDashboard() {
 
           <Card>
             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">14-Day Closing Trend</CardTitle>
+              <CardTitle className="text-base">
+                {period === "daily"
+                  ? "14-Day Closing Trend"
+                  : period === "weekly"
+                    ? "12-Week Closing Trend"
+                    : "12-Month Closing Trend"}
+              </CardTitle>
               <div className="flex rounded-md border bg-muted/40 p-0.5 text-xs">
                 <button
                   type="button"
@@ -571,7 +711,7 @@ export default function ConsumptionStockClosingDashboard() {
                   ) : categoryBreakdown.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center text-muted-foreground py-6">
-                        No closing entries for this date.
+                        No closing entries for this {period === "daily" ? "date" : period === "weekly" ? "week" : "month"}.
                       </TableCell>
                     </TableRow>
                   ) : (
