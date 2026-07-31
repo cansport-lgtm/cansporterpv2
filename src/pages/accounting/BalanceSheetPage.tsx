@@ -122,29 +122,29 @@ export default function BalanceSheetPage() {
   return (
     <ERPLayout>
       <PageHeader title="Balance Sheet" description="Assets = Liabilities + Equity, as of the selected date">
-        <div className="flex gap-2">
-          <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-[180px]" />
-          <Button size="sm" variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Export</Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-full sm:w-[180px]" />
+          <Button size="sm" variant="outline" onClick={handleExport} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-1" />Export</Button>
         </div>
       </PageHeader>
 
       <HiddenFigures>
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <Card><CardContent className="p-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4 mb-4">
+        <Card><CardContent className="p-3 sm:p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="h-3 w-3" />Total Assets</div>
-          <div className="text-2xl font-semibold text-blue-600">Rs. {computed.totalAssets.toLocaleString()}</div>
+          <div className="text-base sm:text-2xl font-semibold text-blue-600">Rs. {computed.totalAssets.toLocaleString()}</div>
         </CardContent></Card>
-        <Card><CardContent className="p-4">
+        <Card><CardContent className="p-3 sm:p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />Total Liabilities</div>
-          <div className="text-2xl font-semibold text-red-600">Rs. {computed.totalLiabilities.toLocaleString()}</div>
+          <div className="text-base sm:text-2xl font-semibold text-red-600">Rs. {computed.totalLiabilities.toLocaleString()}</div>
         </CardContent></Card>
-        <Card><CardContent className="p-4">
+        <Card><CardContent className="p-3 sm:p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Briefcase className="h-3 w-3" />Total Equity</div>
-          <div className="text-2xl font-semibold text-purple-600">Rs. {computed.totalEquity.toLocaleString()}</div>
+          <div className="text-base sm:text-2xl font-semibold text-purple-600">Rs. {computed.totalEquity.toLocaleString()}</div>
         </CardContent></Card>
-        <Card><CardContent className="p-4">
+        <Card><CardContent className="p-3 sm:p-4">
           <div className="text-xs text-muted-foreground">Status</div>
-          <div className="text-xl font-semibold mt-1">
+          <div className="text-base sm:text-xl font-semibold mt-1">
             {computed.balanced
               ? <Badge variant="default" className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Balanced</Badge>
               : <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />Diff Rs. {Math.abs(computed.diff).toLocaleString()}</Badge>}
@@ -156,13 +156,13 @@ export default function BalanceSheetPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ASSETS */}
         <div className="border rounded-lg">
-          <div className="px-4 py-3 border-b bg-blue-50 dark:bg-blue-950/20 font-semibold text-sm">ASSETS</div>
-          <Table>
+          <div className="px-3 sm:px-4 py-3 border-b bg-blue-50 dark:bg-blue-950/20 font-semibold text-sm">ASSETS</div>
+          <Table className="[&_th]:px-2 [&_td]:p-2 sm:[&_th]:px-4 sm:[&_td]:p-4">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-24">Code</TableHead>
+                <TableHead className="w-16 sm:w-24">Code</TableHead>
                 <TableHead>Account</TableHead>
-                <TableHead className="text-right w-36">Amount</TableHead>
+                <TableHead className="text-right w-28 sm:w-36">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -175,12 +175,12 @@ export default function BalanceSheetPage() {
                       {r.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
+                  <TableCell className="text-right text-sm whitespace-nowrap">Rs. {r.net.toLocaleString()}</TableCell>
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40 font-semibold">
                 <TableCell colSpan={2}>Total Assets</TableCell>
-                <TableCell className="text-right">Rs. {computed.totalAssets.toLocaleString()}</TableCell>
+                <TableCell className="text-right whitespace-nowrap">Rs. {computed.totalAssets.toLocaleString()}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -189,13 +189,13 @@ export default function BalanceSheetPage() {
         {/* LIABILITIES + EQUITY */}
         <div className="space-y-4">
           <div className="border rounded-lg">
-            <div className="px-4 py-3 border-b bg-red-50 dark:bg-red-950/20 font-semibold text-sm">LIABILITIES</div>
-            <Table>
+            <div className="px-3 sm:px-4 py-3 border-b bg-red-50 dark:bg-red-950/20 font-semibold text-sm">LIABILITIES</div>
+            <Table className="[&_th]:px-2 [&_td]:p-2 sm:[&_th]:px-4 sm:[&_td]:p-4">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">Code</TableHead>
+                  <TableHead className="w-16 sm:w-24">Code</TableHead>
                   <TableHead>Account</TableHead>
-                  <TableHead className="text-right w-36">Amount</TableHead>
+                  <TableHead className="text-right w-28 sm:w-36">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -208,25 +208,25 @@ export default function BalanceSheetPage() {
                       {r.name}
                     </Link>
                   </TableCell>
-                    <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-sm whitespace-nowrap">Rs. {r.net.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow className="bg-muted/40 font-semibold">
                   <TableCell colSpan={2}>Total Liabilities</TableCell>
-                  <TableCell className="text-right">Rs. {computed.totalLiabilities.toLocaleString()}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">Rs. {computed.totalLiabilities.toLocaleString()}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
 
           <div className="border rounded-lg">
-            <div className="px-4 py-3 border-b bg-purple-50 dark:bg-purple-950/20 font-semibold text-sm">EQUITY</div>
-            <Table>
+            <div className="px-3 sm:px-4 py-3 border-b bg-purple-50 dark:bg-purple-950/20 font-semibold text-sm">EQUITY</div>
+            <Table className="[&_th]:px-2 [&_td]:p-2 sm:[&_th]:px-4 sm:[&_td]:p-4">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">Code</TableHead>
+                  <TableHead className="w-16 sm:w-24">Code</TableHead>
                   <TableHead>Account</TableHead>
-                  <TableHead className="text-right w-36">Amount</TableHead>
+                  <TableHead className="text-right w-28 sm:w-36">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -238,28 +238,28 @@ export default function BalanceSheetPage() {
                       {r.name}
                     </Link>
                   </TableCell>
-                    <TableCell className="text-right text-sm">Rs. {r.net.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-sm whitespace-nowrap">Rs. {r.net.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell className="font-mono text-xs">—</TableCell>
                   <TableCell className="text-sm italic">Current Year Earnings (P&amp;L)</TableCell>
-                  <TableCell className={`text-right text-sm ${computed.currentYearEarnings >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  <TableCell className={`text-right text-sm whitespace-nowrap ${computed.currentYearEarnings >= 0 ? "text-green-600" : "text-red-600"}`}>
                     Rs. {computed.currentYearEarnings.toLocaleString()}
                   </TableCell>
                 </TableRow>
                 <TableRow className="bg-muted/40 font-semibold">
                   <TableCell colSpan={2}>Total Equity</TableCell>
-                  <TableCell className="text-right">Rs. {computed.totalEquity.toLocaleString()}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">Rs. {computed.totalEquity.toLocaleString()}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
 
           <Card>
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2">
               <div className="text-sm font-semibold">Total Liabilities + Equity</div>
-              <div className="text-xl font-bold">Rs. {computed.totalLiabAndEquity.toLocaleString()}</div>
+              <div className="text-base sm:text-xl font-bold">Rs. {computed.totalLiabAndEquity.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
