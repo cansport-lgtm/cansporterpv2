@@ -432,7 +432,7 @@ export default function ConsumptionProductsPage() {
         )}
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
             </DialogHeader>

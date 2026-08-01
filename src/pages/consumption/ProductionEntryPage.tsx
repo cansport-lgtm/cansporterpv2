@@ -23,7 +23,13 @@
    unit: string;
    existingId?: string;
    synced?: boolean;
+   locked?: boolean;
  }
+
+// Must match consumption_production_sync_cutover() in the database
+// (20260801150000_consumption_production_sync.sql). From this date on, mapped
+// products sync from posted production and reject manual entry.
+const PRODUCTION_SYNC_CUTOVER = "2026-08-01";
 
 interface FromProductionRow {
   entry_date: string | null;
@@ -52,7 +58,7 @@ interface FromProductionRow {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_products")
-        .select("id, code, name, unit")
+        .select("id, code, name, unit, grade_id")
         .eq("is_active", true)
         .order("code");
       if (error) throw error;
@@ -98,6 +104,7 @@ interface FromProductionRow {
        if (products && existingEntries !== undefined) {
           const newEntries: ProductionEntry[] = products.map((prod) => {
             const existing = existingEntries?.find((e) => e.product_id === prod.id);
+            const synced = existing?.synced_from_production ?? false;
             return {
               product_id: prod.id,
               code: prod.code,
@@ -105,7 +112,10 @@ interface FromProductionRow {
               quantity_produced: existing ? String(existing.quantity_produced) : "",
               unit: existing?.unit || prod.unit || "pcs",
               existingId: existing?.id,
-              synced: existing?.synced_from_production ?? false,
+              synced,
+              // Mapped products sync from posted production from the cutover
+              // on — manual entry is rejected by the DB, so don't offer it.
+              locked: synced || (!!prod.grade_id && dateStr >= PRODUCTION_SYNC_CUTOVER),
             };
           });
          setEntries(newEntries);
@@ -117,8 +127,9 @@ interface FromProductionRow {
  
    const saveMutation = useMutation({
      mutationFn: async () => {
-       // Synced rows are maintained by the production sync — never write them.
-       const toSave = entries.filter((e) => !e.synced && e.quantity_produced !== "" && parseFloat(e.quantity_produced) > 0);
+       // Locked rows (synced, or mapped to production post-cutover) are
+       // maintained by the production sync — never write them.
+       const toSave = entries.filter((e) => !e.locked && e.quantity_produced !== "" && parseFloat(e.quantity_produced) > 0);
  
        for (const entry of toSave) {
          if (entry.existingId) {
@@ -281,12 +292,17 @@ interface FromProductionRow {
                        <TableCell className="font-mono">{entry.code}</TableCell>
                        <TableCell className="font-medium">
                          {entry.name}
-                         {entry.synced && (
+                         {entry.synced ? (
                            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
                              <Factory className="h-3 w-3" />
                              from production
                            </span>
-                         )}
+                         ) : entry.locked ? (
+                           <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                             <Factory className="h-3 w-3" />
+                             awaiting production post
+                           </span>
+                         ) : null}
                        </TableCell>
                        <TableCell className="text-right">
                          <Input
@@ -296,9 +312,15 @@ interface FromProductionRow {
                            className="w-28 text-right ml-auto"
                            value={entry.quantity_produced}
                            onChange={(e) => updateEntry(idx, e.target.value)}
-                           placeholder="0"
-                           disabled={entry.synced}
-                           title={entry.synced ? "Maintained automatically from posted production entries" : undefined}
+                           placeholder={entry.locked && !entry.synced ? "—" : "0"}
+                           disabled={entry.locked}
+                           title={
+                             entry.synced
+                               ? "Maintained automatically from posted production entries"
+                               : entry.locked
+                                 ? "This product is linked to production — its quantity appears when production entries are posted for this date"
+                                 : undefined
+                           }
                          />
                        </TableCell>
                        <TableCell>{entry.unit}</TableCell>
