@@ -4,6 +4,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isLastDayOfMonth,
   min,
   startOfMonth,
   startOfWeek,
@@ -187,10 +188,18 @@ export default function ConsumptionStockClosingDashboard() {
     return Array.from(map.values());
   }, [closingRows]);
 
-  // Weekly-frequency materials with no entry for this week's Monday yet.
-  const thisMondayStr = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  // Weekly materials are due on Mondays and on the last day of each month.
+  // Check the current week's Monday and the most recent month-end for
+  // materials with no entry posted yet.
+  const today = new Date();
+  const thisMondayStr = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const lastMonthEndStr = format(
+    isLastDayOfMonth(today) ? today : endOfMonth(subMonths(today, 1)),
+    "yyyy-MM-dd",
+  );
+  const weeklyDueDates = Array.from(new Set([thisMondayStr, lastMonthEndStr]));
   const { data: missedWeekly = [] } = useQuery({
-    queryKey: ["consumption-missed-weekly", thisMondayStr],
+    queryKey: ["consumption-missed-weekly", ...weeklyDueDates],
     queryFn: async () => {
       const [materialsRes, closingsRes] = await Promise.all([
         supabase
@@ -200,13 +209,25 @@ export default function ConsumptionStockClosingDashboard() {
           .eq("closing_frequency", "weekly"),
         supabase
           .from("consumption_stock_closing")
-          .select("raw_material_id")
-          .eq("closing_date", thisMondayStr),
+          .select("raw_material_id, closing_date")
+          .in("closing_date", weeklyDueDates),
       ]);
       if (materialsRes.error) throw materialsRes.error;
       if (closingsRes.error) throw closingsRes.error;
-      const posted = new Set((closingsRes.data || []).map((c) => c.raw_material_id));
-      return (materialsRes.data || []).filter((m) => !posted.has(m.id));
+      return weeklyDueDates
+        .map((due) => {
+          const posted = new Set(
+            (closingsRes.data || [])
+              .filter((c) => c.closing_date === due)
+              .map((c) => c.raw_material_id),
+          );
+          return {
+            date: due,
+            kind: due === thisMondayStr ? "Monday" : "month-end",
+            missing: (materialsRes.data || []).filter((m) => !posted.has(m.id)),
+          };
+        })
+        .filter((d) => d.missing.length > 0);
     },
   });
 
@@ -508,14 +529,18 @@ export default function ConsumptionStockClosingDashboard() {
 
         {missedWeekly.length > 0 && (
           <Card className="border-amber-500/50 bg-amber-500/5">
-            <CardContent className="flex items-start gap-2 p-3 text-sm">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
-              <span>
-                Weekly stock closing for Monday {format(new Date(thisMondayStr + "T00:00:00"), "dd MMM")} not
-                posted yet for {missedWeekly.length} material{missedWeekly.length > 1 ? "s" : ""}:{" "}
-                {missedWeekly.slice(0, 6).map((m) => m.name).join(", ")}
-                {missedWeekly.length > 6 ? ` and ${missedWeekly.length - 6} more` : ""}.
-              </span>
+            <CardContent className="space-y-1.5 p-3 text-sm">
+              {missedWeekly.map((due) => (
+                <div key={due.date} className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                  <span>
+                    Weekly stock closing for {due.kind} {format(new Date(due.date + "T00:00:00"), "dd MMM")} not
+                    posted yet for {due.missing.length} material{due.missing.length > 1 ? "s" : ""}:{" "}
+                    {due.missing.slice(0, 6).map((m) => m.name).join(", ")}
+                    {due.missing.length > 6 ? ` and ${due.missing.length - 6} more` : ""}.
+                  </span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
