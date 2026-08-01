@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, AlertTriangle, Trash2, Pencil } from "lucide-react";
+import { Plus, AlertTriangle, Trash2, Pencil, CheckCircle2, RotateCcw } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -38,6 +38,7 @@ export default function DailyEntryPage() {
   const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [postAllOpen, setPostAllOpen] = useState(false);
   
   const PRESS_SHEETS_UOM_ID = '417273f3-3f89-41af-ba32-49e5e84ae310';
   const BAGS_UOM_ID = '7b39d4ca-f31c-4a1a-b742-28239101ff91';
@@ -73,6 +74,10 @@ export default function DailyEntryPage() {
   const { user, hasRole, roles, hasModulePermission } = useAuth();
   const canCreate = hasModulePermission('production', 'create');
   const canEditProduction = hasModulePermission('production', 'edit');
+  // Posting finalizes an entry (locks it and, once the consumption sync is
+  // live, feeds it into Material Consumption). Unposting uses the same
+  // permission so a poster can correct their own mistake without an admin.
+  const canPost = hasModulePermission('production', 'approve');
   // production_operator gets a 48h edit window; other (non-super-admin) users keep 72h.
   const editWindowMs = (roles.some(r => r.role === 'production_operator') ? 48 : 72) * 60 * 60 * 1000;
   const queryClient = useQueryClient();
@@ -307,13 +312,24 @@ export default function DailyEntryPage() {
     ...(user ? [{
       key: 'actions', header: 'Actions',
       render: (item: any) => {
+        const isPosted = item.status === 'Posted';
         const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
         const withinWindow = createdAt > 0 && (Date.now() - createdAt) <= editWindowMs;
-        const canEdit = hasRole('super_admin') || (withinWindow && canEditProduction);
-        const canDelete = hasRole('super_admin');
-        if (!canEdit && !canDelete) return null;
+        const canEdit = !isPosted && (hasRole('super_admin') || (withinWindow && canEditProduction));
+        const canDelete = !isPosted && hasRole('super_admin');
+        if (!canEdit && !canDelete && !canPost) return null;
         return (
           <div className="flex gap-1">
+            {canPost && !isPosted && (
+              <Button variant="ghost" size="icon" title="Post entry" className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-600/10" onClick={(e) => { e.stopPropagation(); postMutation.mutate([item.id]); }} disabled={postMutation.isPending}>
+                <CheckCircle2 className="h-4 w-4" />
+              </Button>
+            )}
+            {canPost && isPosted && (
+              <Button variant="ghost" size="icon" title="Unpost entry" className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-600/10" onClick={(e) => { e.stopPropagation(); unpostMutation.mutate(item.id); }} disabled={unpostMutation.isPending}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
             {canEdit && (
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); loadEntryForEdit(item); }}>
                 <Pencil className="h-4 w-4" />
@@ -333,6 +349,7 @@ export default function DailyEntryPage() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingEntry) throw new Error('No entry selected for editing');
+      if (editingEntry.status === 'Posted') throw new Error('This entry is posted and locked. Unpost it before editing.');
       if (!hasRole('super_admin') && editingEntry.created_at) {
         const elapsed = Date.now() - new Date(editingEntry.created_at).getTime();
         const windowHours = Math.round(editWindowMs / 3600000);
@@ -373,6 +390,47 @@ export default function DailyEntryPage() {
     },
   });
 
+  // Posting finalizes entries: stamps approved_by/approved_at and locks them
+  // (enforced by a DB trigger). Posted entries are what the consumption sync
+  // will pick up once it goes live.
+  const postMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('production_entries')
+        .update({ status: 'Posted', approved_by: user?.id || null, approved_at: new Date().toISOString() })
+        .in('id', ids);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      toast({ title: "Posted", description: count === 1 ? "Production entry posted" : `${count} production entries posted` });
+      queryClient.invalidateQueries({ queryKey: ['production-entries'] });
+      setPostAllOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const unpostMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('production_entries')
+        .update({ status: 'Draft', approved_by: null, approved_at: null })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Unposted", description: "Entry is back in Draft and can be edited" });
+      queryClient.invalidateQueries({ queryKey: ['production-entries'] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const draftEntries = entries?.filter((e: any) => e.status !== 'Posted') || [];
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error: rejError } = await supabase.from('production_rejections').delete().eq('production_entry_id', id);
@@ -411,6 +469,11 @@ export default function DailyEntryPage() {
                 </SelectContent>
               </Select>
             </div>
+            {canPost && draftEntries.length > 0 && (
+              <Button variant="outline" onClick={() => setPostAllOpen(true)}>
+                <CheckCircle2 className="h-4 w-4 mr-2" />Post Day ({draftEntries.length})
+              </Button>
+            )}
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
               {canCreate && (
                 <DialogTrigger asChild>
@@ -561,6 +624,25 @@ export default function DailyEntryPage() {
           <DataTable columns={columns} data={entries || []} emptyMessage="No production entries found for the selected date" />
         </CardContent>
       </Card>
+
+      <AlertDialog open={postAllOpen} onOpenChange={setPostAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Post Production Entries</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will post {draftEntries.length} draft {draftEntries.length === 1 ? 'entry' : 'entries'} for {dateFilter}
+              {departmentFilter !== 'all' ? ' in the selected department' : ''}. Posted entries are locked
+              and cannot be edited or deleted unless they are unposted first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => postMutation.mutate(draftEntries.map((e: any) => e.id))} disabled={postMutation.isPending}>
+              {postMutation.isPending ? 'Posting...' : 'Post All'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
