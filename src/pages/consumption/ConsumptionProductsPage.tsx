@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,21 @@ interface ConsumptionProduct {
   unit: string | null;
   description: string | null;
   is_active: boolean | null;
+  grade_id: string | null;
+  production_department_id: string | null;
+  production_conversion_factor: number;
+}
+
+interface UnmappedProduction {
+  grade_id: string | null;
+  grade_code: string | null;
+  grade_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  entry_count: number | null;
+  total_produced: number | null;
+  total_ok: number | null;
+  last_entry_date: string | null;
 }
 
 interface LinkedMaterial {
@@ -52,6 +67,9 @@ export default function ConsumptionProductsPage() {
     is_active: true,
     is_intermediate: false,
     cost_value: "",
+    grade_id: "none",
+    production_department_id: "any",
+    production_conversion_factor: "1",
   });
 
   const { data: products, isLoading } = useQuery({
@@ -82,14 +100,71 @@ export default function ConsumptionProductsPage() {
   const linkedMaterialFor = (productId: string) =>
     linkedMaterials?.find((rm) => rm.source_product_id === productId);
 
+  const { data: grades } = useQuery({
+    queryKey: ["grades-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("grades")
+        .select("id, code, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ["production-departments-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_departments")
+        .select("id, code, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Production output whose grade/department resolves to no product yet —
+  // these entries would be skipped by the production sync until mapped.
+  const { data: unmappedProduction } = useQuery({
+    queryKey: ["consumption-unmapped-production"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_consumption_unmapped_production")
+        .select("*")
+        .order("last_entry_date", { ascending: false });
+      if (error) throw error;
+      return data as UnmappedProduction[];
+    },
+  });
+
+  const gradeLabel = (gradeId: string | null) => {
+    const g = grades?.find((g) => g.id === gradeId);
+    return g ? `${g.code} — ${g.name}` : null;
+  };
+
+  const departmentLabel = (departmentId: string | null) =>
+    departments?.find((d) => d.id === departmentId)?.name ?? null;
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
+      const linkedToProduction = data.grade_id !== "none";
       const productPayload = {
         code: data.code,
         name: data.name,
         unit: data.unit,
         description: data.description,
         is_active: data.is_active,
+        grade_id: linkedToProduction ? data.grade_id : null,
+        production_department_id:
+          linkedToProduction && data.production_department_id !== "any"
+            ? data.production_department_id
+            : null,
+        production_conversion_factor: linkedToProduction
+          ? parseFloat(data.production_conversion_factor) || 1
+          : 1,
       };
 
       let productId = data.id;
@@ -148,6 +223,7 @@ export default function ConsumptionProductsPage() {
       queryClient.invalidateQueries({ queryKey: ["consumption-products"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-intermediate-materials"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-unmapped-production"] });
       toast.success(editingProduct ? "Product updated" : "Product added");
       handleCloseDialog();
     },
@@ -186,6 +262,9 @@ export default function ConsumptionProductsPage() {
         is_active: product.is_active ?? true,
         is_intermediate: !!linked?.is_active,
         cost_value: linked?.cost_value ? String(linked.cost_value) : "",
+        grade_id: product.grade_id || "none",
+        production_department_id: product.production_department_id || "any",
+        production_conversion_factor: String(product.production_conversion_factor ?? 1),
       });
     } else {
       setEditingProduct(null);
@@ -197,6 +276,9 @@ export default function ConsumptionProductsPage() {
         is_active: true,
         is_intermediate: false,
         cost_value: "",
+        grade_id: "none",
+        production_department_id: "any",
+        production_conversion_factor: "1",
       });
     }
     setIsDialogOpen(true);
@@ -239,6 +321,7 @@ export default function ConsumptionProductsPage() {
                   <TableHead>Unit</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Production Link</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -246,11 +329,11 @@ export default function ConsumptionProductsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={8} className="text-center">Loading...</TableCell>
                   </TableRow>
                 ) : products?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       No products found. Add your first product.
                     </TableCell>
                   </TableRow>
@@ -266,6 +349,20 @@ export default function ConsumptionProductsPage() {
                           <Badge variant="outline">Intermediate</Badge>
                         ) : (
                           <span className="text-muted-foreground">Product</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {product.grade_id ? (
+                          <div className="text-sm">
+                            <div>{gradeLabel(product.grade_id) || "Linked"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {departmentLabel(product.production_department_id) || "Any department"}
+                              {" · ×"}
+                              {product.production_conversion_factor}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Not linked</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -288,6 +385,51 @@ export default function ConsumptionProductsPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {unmappedProduction && unmappedProduction.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Unmapped Production</CardTitle>
+              <CardDescription>
+                Production entries with these grade / department combinations are not linked to
+                any product. They will be skipped by the production sync until a product is
+                mapped to them.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Grade</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead className="text-right">Entries</TableHead>
+                    <TableHead className="text-right">Total Produced</TableHead>
+                    <TableHead className="text-right">Total OK</TableHead>
+                    <TableHead>Last Entry</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {unmappedProduction.map((row) => (
+                    <TableRow key={`${row.grade_id}-${row.department_id}`}>
+                      <TableCell className="font-medium">
+                        {row.grade_code} — {row.grade_name}
+                      </TableCell>
+                      <TableCell>{row.department_name}</TableCell>
+                      <TableCell className="text-right">{row.entry_count}</TableCell>
+                      <TableCell className="text-right">
+                        {Number(row.total_produced ?? 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {Number(row.total_ok ?? 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{row.last_entry_date}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>
@@ -335,6 +477,73 @@ export default function ConsumptionProductsPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Optional description"
                 />
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <Label className="font-medium">Link to Production</Label>
+                <p className="text-xs text-muted-foreground">
+                  Link this product to a production grade so posted production entries can flow
+                  into consumption automatically. Leave unlinked to keep entering production
+                  manually for this product.
+                </p>
+                <div className="space-y-2">
+                  <Label>Production Grade</Label>
+                  <Select
+                    value={formData.grade_id}
+                    onValueChange={(v) => setFormData({ ...formData, grade_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {grades?.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.code} — {g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.grade_id !== "none" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Department</Label>
+                      <Select
+                        value={formData.production_department_id}
+                        onValueChange={(v) => setFormData({ ...formData, production_department_id: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any department</SelectItem>
+                          {departments?.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Only needed when the same grade is produced in more than one department
+                        and should count as different products.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Conversion Factor (production unit → {formData.unit})</Label>
+                      <Input
+                        type="number"
+                        step="0.000001"
+                        min="0.000001"
+                        value={formData.production_conversion_factor}
+                        onChange={(e) =>
+                          setFormData({ ...formData, production_conversion_factor: e.target.value })
+                        }
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Consumption quantity = production quantity × this factor. E.g. if
+                        production counts Bags and 1 Bag = 12 {formData.unit}, enter 12.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center gap-2">

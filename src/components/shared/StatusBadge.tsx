@@ -11,6 +11,8 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   "Pending Approval": { label: "Pending Approval", className: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
   approved: { label: "Approved", className: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" },
   Approved: { label: "Approved", className: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" },
+  posted: { label: "Posted", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" },
+  Posted: { label: "Posted", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" },
   rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" },
   Rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" },
   closed: { label: "Closed", className: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300" },
