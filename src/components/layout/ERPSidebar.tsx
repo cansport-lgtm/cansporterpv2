@@ -99,6 +99,7 @@ const navigationItems: NavItem[] = [
       { title: "Store Department", href: "/planning/store-management" },
       { title: "Daily Stock Closing", href: "/planning/stock-closing" },
       { title: "Daily Closing Dashboard", href: "/planning/closing-dashboard" },
+      { title: "Monthly Production", href: "/planning/monthly-production" },
       { title: "Item Master", href: "/planning/items" },
       { title: "Capacity Master", href: "/planning/capacity" },
       { title: "Skilled Labour", href: "/planning/skilled-labour" },
