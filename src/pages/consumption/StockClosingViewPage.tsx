@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarIcon } from "lucide-react";
+import { AlertCircle, CalendarIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, isLastDayOfMonth, isMonday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,6 +21,8 @@ export default function StockClosingViewPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+  // Weekly materials are due on Mondays and on the last day of the month.
+  const weeklyDue = isMonday(selectedDate) || isLastDayOfMonth(selectedDate);
 
   const { data: closingData, isLoading } = useQuery({
     queryKey: ["consumption-stock-closing-view", dateStr],
@@ -37,6 +39,28 @@ export default function StockClosingViewPage() {
       return data || [];
     },
   });
+
+  const { data: weeklyMaterials } = useQuery({
+    queryKey: ["consumption-weekly-materials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_raw_materials")
+        .select("id, code, name, unit")
+        .eq("is_active", true)
+        .eq("closing_frequency", "weekly")
+        .order("code");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: weeklyDue,
+  });
+
+  // Weekly materials due on this date but with no saved closing entry.
+  const notPosted = useMemo(() => {
+    if (!weeklyDue || !weeklyMaterials || closingData === undefined) return [];
+    const posted = new Set((closingData || []).map((c: any) => c.raw_material_id));
+    return weeklyMaterials.filter((m) => !posted.has(m.id));
+  }, [weeklyDue, weeklyMaterials, closingData]);
 
   const totals = closingData?.reduce(
     (acc: any, item: any) => {
@@ -90,6 +114,19 @@ export default function StockClosingViewPage() {
           </Popover>
         </div>
 
+        {notPosted.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="flex items-start gap-2 p-3 text-sm">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+              <span>
+                {notPosted.length} weekly material{notPosted.length > 1 ? "s are" : " is"} due on this
+                date but ha{notPosted.length > 1 ? "ve" : "s"} no closing entry — shown below as "Not
+                posted". Enter them via Stock Closing for {format(selectedDate, "dd MMM")}.
+              </span>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Stock Closing — {format(selectedDate, "MMMM d, yyyy")}</CardTitle>
@@ -117,7 +154,7 @@ export default function StockClosingViewPage() {
                     <TableRow>
                       <TableCell colSpan={isSuperAdmin ? 10 : 8} className="text-center">Loading...</TableCell>
                     </TableRow>
-                  ) : closingData?.length === 0 ? (
+                  ) : closingData?.length === 0 && notPosted.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isSuperAdmin ? 10 : 8} className="text-center text-muted-foreground">
                         No stock closing entries for this date.
@@ -146,6 +183,26 @@ export default function StockClosingViewPage() {
                       );
                     })
                   )}
+                  {!isLoading &&
+                    notPosted.map((m) => (
+                      <TableRow key={`np-${m.id}`} className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell className="font-mono text-muted-foreground">{m.code}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {m.name}
+                          <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-400">
+                            Not posted
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{m.unit}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">—</TableCell>
+                        <TableCell className="text-right text-muted-foreground">—</TableCell>
+                        <TableCell className="text-right text-muted-foreground">—</TableCell>
+                        <TableCell className="text-right text-muted-foreground">—</TableCell>
+                        <TableCell className="text-right text-muted-foreground">—</TableCell>
+                        {isSuperAdmin && <TableCell className="text-right text-muted-foreground">—</TableCell>}
+                        {isSuperAdmin && <TableCell className="text-right text-muted-foreground">—</TableCell>}
+                      </TableRow>
+                    ))}
                 </TableBody>
                 {closingData && closingData.length > 0 && (
                   <tfoot>
@@ -168,7 +225,7 @@ export default function StockClosingViewPage() {
             <div className="md:hidden divide-y">
               {isLoading ? (
                 <div className="p-4 text-center text-muted-foreground">Loading...</div>
-              ) : closingData?.length === 0 ? (
+              ) : closingData?.length === 0 && notPosted.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">No entries for this date.</div>
               ) : (
                 <>
@@ -209,7 +266,19 @@ export default function StockClosingViewPage() {
                       </div>
                     );
                   })}
+                  {notPosted.map((m) => (
+                    <div key={`np-${m.id}`} className="p-3 flex items-center justify-between bg-muted/30">
+                      <div>
+                        <span className="text-muted-foreground font-medium">{m.name}</span>
+                        <span className="ml-2 text-xs font-mono text-muted-foreground">{m.code}</span>
+                      </div>
+                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-400">
+                        Not posted
+                      </span>
+                    </div>
+                  ))}
                   {/* Mobile Totals */}
+                  {closingData && closingData.length > 0 && (
                   <div className="p-3 bg-muted/50 space-y-1">
                     <div className="font-semibold text-sm">Totals</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
@@ -237,6 +306,7 @@ export default function StockClosingViewPage() {
                       )}
                     </div>
                   </div>
+                  )}
                 </>
               )}
             </div>
