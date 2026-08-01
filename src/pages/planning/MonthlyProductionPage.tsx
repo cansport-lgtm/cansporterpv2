@@ -131,6 +131,16 @@ export default function MonthlyProductionPage() {
     );
   }, [filteredRows]);
 
+  const unmappedTotals = useMemo(() => {
+    return unmapped.reduce(
+      (acc, u) => ({
+        dispatched: acc.dispatched + Number(u.dispatched_qty || 0),
+        returned: acc.returned + Number(u.returned_qty || 0),
+      }),
+      { dispatched: 0, returned: 0 }
+    );
+  }, [unmapped]);
+
   const missingClosing = filteredRows.filter((r) => r.closing_qty == null).length;
   const negativeRows = filteredRows.filter(
     (r) => r.derived_production != null && Number(r.derived_production) < 0
@@ -184,6 +194,15 @@ export default function MonthlyProductionPage() {
     { label: "Dispatched", value: totals.dispatched },
     { label: "Sales Returns", value: totals.returned },
     { label: "Closing Stock", value: totals.closing },
+    {
+      label: "Unlinked Sales",
+      value: unmappedTotals.dispatched - unmappedTotals.returned,
+      warning: unmapped.length > 0,
+      sub:
+        unmapped.length > 0
+          ? `${unmapped.length} product${unmapped.length > 1 ? "s" : ""} not linked`
+          : "all products linked",
+    },
   ];
 
   return (
@@ -239,17 +258,29 @@ export default function MonthlyProductionPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {kpis.map((k) => (
-            <Card key={k.label}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {kpis.map((k: any) => (
+            <Card
+              key={k.label}
+              className={cn(k.warning && "border-amber-500/50 bg-amber-500/5")}
+            >
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle
+                  className={cn(
+                    "text-sm font-medium text-muted-foreground",
+                    k.warning && "text-amber-600"
+                  )}
+                >
                   {k.label}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{fmtQty(k.value)}</div>
-                <div className="text-xs text-muted-foreground">dozens</div>
+                <div className={cn("text-2xl font-bold", k.warning && "text-amber-600")}>
+                  {fmtQty(k.value)}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {k.sub ? `dozens · ${k.sub}` : "dozens"}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -280,6 +311,15 @@ export default function MonthlyProductionPage() {
                     </span>
                   </div>
                 ))}
+                <div className="flex justify-between font-semibold border-t border-amber-500/30 pt-1 mt-2">
+                  <span>Total missing from production figures</span>
+                  <span>
+                    {fmtQty(unmappedTotals.dispatched)} dz dispatched
+                    {unmappedTotals.returned > 0
+                      ? `, ${fmtQty(unmappedTotals.returned)} dz returned`
+                      : ""}
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Link them in Masters → Products / SKUs → "Linked Planning Item".
