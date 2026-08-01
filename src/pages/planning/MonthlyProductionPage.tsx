@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { addMonths, endOfMonth, format, isSameMonth, startOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +36,7 @@ interface ReportRow {
   item_code: string;
   item_name: string;
   item_unit: string | null;
+  department_id: string | null;
   department_name: string | null;
   opening_qty: number;
   opening_date: string | null;
@@ -52,6 +60,8 @@ const fmtQty = (v: number | null | undefined) =>
 
 export default function MonthlyProductionPage() {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
+  // null = departments not loaded yet; defaults to the Store department below
+  const [deptFilter, setDeptFilter] = useState<string | null>(null);
 
   const fromStr = format(startOfMonth(month), "yyyy-MM-dd");
   const toStr = format(endOfMonth(month), "yyyy-MM-dd");
@@ -69,6 +79,28 @@ export default function MonthlyProductionPage() {
     },
   });
 
+  const { data: departments = [] } = useQuery({
+    queryKey: ["production-departments-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_departments")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (deptFilter === null && departments.length > 0) {
+      const store = departments.find((d) =>
+        d.name.toLowerCase().includes("store")
+      );
+      setDeptFilter(store ? store.id : "all");
+    }
+  }, [departments, deptFilter]);
+
   const { data: unmapped = [] } = useQuery({
     queryKey: ["monthly-production-unmapped", fromStr, toStr],
     queryFn: async () => {
@@ -81,8 +113,13 @@ export default function MonthlyProductionPage() {
     },
   });
 
+  const filteredRows = useMemo(() => {
+    if (!deptFilter || deptFilter === "all") return rows;
+    return rows.filter((r) => r.department_id === deptFilter);
+  }, [rows, deptFilter]);
+
   const totals = useMemo(() => {
-    return rows.reduce(
+    return filteredRows.reduce(
       (acc, r) => ({
         opening: acc.opening + Number(r.opening_qty || 0),
         closing: acc.closing + Number(r.closing_qty || 0),
@@ -92,10 +129,10 @@ export default function MonthlyProductionPage() {
       }),
       { opening: 0, closing: 0, dispatched: 0, returned: 0, production: 0 }
     );
-  }, [rows]);
+  }, [filteredRows]);
 
-  const missingClosing = rows.filter((r) => r.closing_qty == null).length;
-  const negativeRows = rows.filter(
+  const missingClosing = filteredRows.filter((r) => r.closing_qty == null).length;
+  const negativeRows = filteredRows.filter(
     (r) => r.derived_production != null && Number(r.derived_production) < 0
   ).length;
 
@@ -116,7 +153,7 @@ export default function MonthlyProductionPage() {
       "Closing Date",
       "Production",
     ];
-    const lines = rows.map((r) =>
+    const lines = filteredRows.map((r) =>
       [
         r.department_name || "",
         r.item_code,
@@ -179,8 +216,24 @@ export default function MonthlyProductionPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+            <Select
+              value={deptFilter ?? "all"}
+              onValueChange={(value) => setDeptFilter(value)}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Button variant="outline" onClick={exportCSV} disabled={rows.length === 0}>
+          <Button variant="outline" onClick={exportCSV} disabled={filteredRows.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -274,16 +327,19 @@ export default function MonthlyProductionPage() {
                       Loading...
                     </TableCell>
                   </TableRow>
-                ) : rows.length === 0 ? (
+                ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground">
                       No stock closings or mapped sales found for{" "}
                       {format(month, "MMMM yyyy")}
+                      {deptFilter && deptFilter !== "all"
+                        ? " in this department"
+                        : ""}
                     </TableCell>
                   </TableRow>
                 ) : (
                   <>
-                    {rows.map((r) => (
+                    {filteredRows.map((r) => (
                       <TableRow key={r.planning_item_id}>
                         <TableCell className="text-muted-foreground">
                           {r.department_name || "—"}

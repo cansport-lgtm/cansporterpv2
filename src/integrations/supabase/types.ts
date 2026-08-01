@@ -15583,6 +15583,7 @@ export type Database = {
           item_code: string
           item_name: string
           item_unit: string | null
+          department_id: string | null
           department_name: string | null
           opening_qty: number
           opening_date: string | null
