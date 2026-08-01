@@ -76,6 +76,7 @@ export default function ProductsPage() {
       const { data, error } = await supabase
         .from("products")
         .select("*, grades(name), units_of_measure(name), planning_items(code, name)")
+        .order("is_active", { ascending: false, nullsFirst: false })
         .order("code", { ascending: true });
       if (error) throw error;
       return data as Product[];
