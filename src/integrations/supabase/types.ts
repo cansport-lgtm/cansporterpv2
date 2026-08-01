@@ -1233,9 +1233,12 @@ export type Database = {
           code: string
           created_at: string | null
           description: string | null
+          grade_id: string | null
           id: string
           is_active: boolean | null
           name: string
+          production_conversion_factor: number
+          production_department_id: string | null
           unit: string | null
           updated_at: string | null
         }
@@ -1243,9 +1246,12 @@ export type Database = {
           code: string
           created_at?: string | null
           description?: string | null
+          grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          production_conversion_factor?: number
+          production_department_id?: string | null
           unit?: string | null
           updated_at?: string | null
         }
@@ -1253,13 +1259,31 @@ export type Database = {
           code?: string
           created_at?: string | null
           description?: string | null
+          grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          production_conversion_factor?: number
+          production_department_id?: string | null
           unit?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "consumption_products_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumption_products_production_department_id_fkey"
+            columns: ["production_department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       consumption_raw_materials: {
         Row: {
@@ -15488,6 +15512,22 @@ export type Database = {
         }
         Relationships: []
       }
+      v_consumption_unmapped_production: {
+        Row: {
+          department_code: string | null
+          department_id: string | null
+          department_name: string | null
+          entry_count: number | null
+          first_entry_date: string | null
+          grade_code: string | null
+          grade_id: string | null
+          grade_name: string | null
+          last_entry_date: string | null
+          total_ok: number | null
+          total_produced: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accounting_periodic_cogs_inputs: {
@@ -15530,6 +15570,10 @@ export type Database = {
           p_password: string
           p_user_id: string
         }
+        Returns: string
+      }
+      consumption_product_for_production: {
+        Args: { p_grade: string; p_department: string }
         Returns: string
       }
       floor_inventory_apply_movement: {
