@@ -6,7 +6,7 @@
  import { Input } from "@/components/ui/input";
  import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
  import { supabase } from "@/integrations/supabase/client";
- import { Save, CalendarIcon, Factory, ArrowDownToLine } from "lucide-react";
+ import { Save, CalendarIcon, Factory } from "lucide-react";
  import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
  import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
  import { Calendar } from "@/components/ui/calendar";
@@ -22,6 +22,7 @@
    quantity_produced: string;
    unit: string;
    existingId?: string;
+   synced?: boolean;
  }
 
 interface FromProductionRow {
@@ -104,6 +105,7 @@ interface FromProductionRow {
               quantity_produced: existing ? String(existing.quantity_produced) : "",
               unit: existing?.unit || prod.unit || "pcs",
               existingId: existing?.id,
+              synced: existing?.synced_from_production ?? false,
             };
           });
          setEntries(newEntries);
@@ -115,7 +117,8 @@ interface FromProductionRow {
  
    const saveMutation = useMutation({
      mutationFn: async () => {
-       const toSave = entries.filter((e) => e.quantity_produced !== "" && parseFloat(e.quantity_produced) > 0);
+       // Synced rows are maintained by the production sync — never write them.
+       const toSave = entries.filter((e) => !e.synced && e.quantity_produced !== "" && parseFloat(e.quantity_produced) > 0);
  
        for (const entry of toSave) {
          if (entry.existingId) {
@@ -158,17 +161,6 @@ interface FromProductionRow {
  
    const totalProduction = entries.reduce((sum, e) => sum + (parseFloat(e.quantity_produced) || 0), 0);
 
-  const manualQtyFor = (productId: string | null) => {
-    const e = entries.find((x) => x.product_id === productId);
-    if (!e || e.quantity_produced === "") return null;
-    return parseFloat(e.quantity_produced) || 0;
-  };
-
-  const applyExpected = (row: FromProductionRow) => {
-    if (!row.product_id || row.converted_quantity == null) return;
-    const idx = entries.findIndex((x) => x.product_id === row.product_id);
-    if (idx >= 0) updateEntry(idx, String(row.converted_quantity));
-  };
  
    return (
      <ERPLayout>
@@ -217,9 +209,9 @@ interface FromProductionRow {
                  From Production (posted entries)
                </CardTitle>
                <p className="text-sm text-muted-foreground">
-                 What the production module posted for this date, converted to consumption units.
-                 Read-only for now — compare it against your manual entries to verify the product
-                 mappings and conversion factors, or use the arrow to copy a value into the form below.
+                 Posted production for this date flows into consumption automatically. This is the
+                 breakdown behind the synced quantities below — to correct a synced value, fix and
+                 repost the entry in the production module.
                </p>
              </CardHeader>
              <CardContent>
@@ -231,58 +223,24 @@ interface FromProductionRow {
                      <TableHead className="text-right">Posted Entries</TableHead>
                      <TableHead className="text-right">Production OK Qty</TableHead>
                      <TableHead className="text-right">Factor</TableHead>
-                     <TableHead className="text-right">Expected Qty</TableHead>
-                     <TableHead className="text-right">Manual Entry</TableHead>
-                     <TableHead className="text-right">Difference</TableHead>
-                     <TableHead />
+                     <TableHead className="text-right">Synced Qty</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
-                   {fromProduction.map((row) => {
-                     const expected = row.converted_quantity ?? 0;
-                     const manual = manualQtyFor(row.product_id);
-                     const diff = manual != null ? manual - expected : null;
-                     const matches = diff != null && Math.abs(diff) < 0.005;
-                     return (
-                       <TableRow key={row.product_id}>
-                         <TableCell className="font-mono">{row.product_code}</TableCell>
-                         <TableCell className="font-medium">{row.product_name}</TableCell>
-                         <TableCell className="text-right">{row.entry_count}</TableCell>
-                         <TableCell className="text-right">
-                           {Number(row.production_quantity_ok ?? 0).toLocaleString()}
-                         </TableCell>
-                         <TableCell className="text-right">×{row.conversion_factor}</TableCell>
-                         <TableCell className="text-right font-medium">
-                           {expected.toLocaleString()} {row.product_unit}
-                         </TableCell>
-                         <TableCell className="text-right">
-                           {manual != null ? `${manual.toLocaleString()} ${row.product_unit}` : "—"}
-                         </TableCell>
-                         <TableCell className="text-right">
-                           {diff == null ? (
-                             <span className="text-muted-foreground">not entered</span>
-                           ) : matches ? (
-                             <span className="text-green-600 font-medium">match</span>
-                           ) : (
-                             <span className="text-amber-600 font-medium">
-                               {diff > 0 ? "+" : ""}{diff.toLocaleString()}
-                             </span>
-                           )}
-                         </TableCell>
-                         <TableCell>
-                           <Button
-                             variant="ghost"
-                             size="icon"
-                             className="h-8 w-8"
-                             title="Copy expected quantity into the manual entry"
-                             onClick={() => applyExpected(row)}
-                           >
-                             <ArrowDownToLine className="h-4 w-4" />
-                           </Button>
-                         </TableCell>
-                       </TableRow>
-                     );
-                   })}
+                   {fromProduction.map((row) => (
+                     <TableRow key={row.product_id}>
+                       <TableCell className="font-mono">{row.product_code}</TableCell>
+                       <TableCell className="font-medium">{row.product_name}</TableCell>
+                       <TableCell className="text-right">{row.entry_count}</TableCell>
+                       <TableCell className="text-right">
+                         {Number(row.production_quantity_ok ?? 0).toLocaleString()}
+                       </TableCell>
+                       <TableCell className="text-right">×{row.conversion_factor}</TableCell>
+                       <TableCell className="text-right font-medium">
+                         {Number(row.converted_quantity ?? 0).toLocaleString()} {row.product_unit}
+                       </TableCell>
+                     </TableRow>
+                   ))}
                  </TableBody>
                </Table>
              </CardContent>
@@ -321,7 +279,15 @@ interface FromProductionRow {
                    entries.map((entry, idx) => (
                      <TableRow key={entry.product_id}>
                        <TableCell className="font-mono">{entry.code}</TableCell>
-                       <TableCell className="font-medium">{entry.name}</TableCell>
+                       <TableCell className="font-medium">
+                         {entry.name}
+                         {entry.synced && (
+                           <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                             <Factory className="h-3 w-3" />
+                             from production
+                           </span>
+                         )}
+                       </TableCell>
                        <TableCell className="text-right">
                          <Input
                            type="number"
@@ -331,6 +297,8 @@ interface FromProductionRow {
                            value={entry.quantity_produced}
                            onChange={(e) => updateEntry(idx, e.target.value)}
                            placeholder="0"
+                           disabled={entry.synced}
+                           title={entry.synced ? "Maintained automatically from posted production entries" : undefined}
                          />
                        </TableCell>
                        <TableCell>{entry.unit}</TableCell>

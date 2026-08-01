@@ -1186,6 +1186,7 @@ export type Database = {
           product_id: string
           quantity_produced: number
           remarks: string | null
+          synced_from_production: boolean
           unit: string | null
           updated_at: string | null
         }
@@ -1197,6 +1198,7 @@ export type Database = {
           product_id: string
           quantity_produced?: number
           remarks?: string | null
+          synced_from_production?: boolean
           unit?: string | null
           updated_at?: string | null
         }
@@ -1208,6 +1210,7 @@ export type Database = {
           product_id?: string
           quantity_produced?: number
           remarks?: string | null
+          synced_from_production?: boolean
           unit?: string | null
           updated_at?: string | null
         }
