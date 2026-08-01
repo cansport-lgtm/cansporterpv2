@@ -15512,6 +15512,20 @@ export type Database = {
         }
         Relationships: []
       }
+      v_consumption_production_from_production: {
+        Row: {
+          conversion_factor: number | null
+          converted_quantity: number | null
+          entry_count: number | null
+          entry_date: string | null
+          product_code: string | null
+          product_id: string | null
+          product_name: string | null
+          product_unit: string | null
+          production_quantity_ok: number | null
+        }
+        Relationships: []
+      }
       v_consumption_unmapped_production: {
         Row: {
           department_code: string | null
