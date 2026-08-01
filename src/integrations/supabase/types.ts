@@ -10847,6 +10847,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          planning_item_id: string | null
           standard_cost: number | null
           standard_output_rate: number | null
           standard_selling_price: number | null
@@ -10861,6 +10862,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
           standard_selling_price?: number | null
@@ -10875,6 +10877,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
           standard_selling_price?: number | null
@@ -10882,6 +10885,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_planning_item_id_fkey"
+            columns: ["planning_item_id"]
+            isOneToOne: false
+            referencedRelation: "planning_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_grade_id_fkey"
             columns: ["grade_id"]
@@ -15566,6 +15576,33 @@ export type Database = {
         }[]
       }
       backup_list_tables: { Args: never; Returns: string[] }
+      production_monthly_report: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          planning_item_id: string
+          item_code: string
+          item_name: string
+          item_unit: string | null
+          department_name: string | null
+          opening_qty: number
+          opening_date: string | null
+          closing_qty: number | null
+          closing_date: string | null
+          dispatched_qty: number
+          returned_qty: number
+          derived_production: number | null
+        }[]
+      }
+      production_unmapped_sales: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          product_id: string
+          product_code: string
+          product_name: string
+          dispatched_qty: number
+          returned_qty: number
+        }[]
+      }
       backup_schema_sql: { Args: never; Returns: string }
       recent_backup_logs: {
         Args: { p_limit?: number }

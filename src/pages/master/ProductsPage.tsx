@@ -45,9 +45,11 @@ interface Product {
   standard_output_rate: number | null;
   standard_cost: number | null;
   standard_selling_price: number | null;
+  planning_item_id: string | null;
   is_active: boolean | null;
   grades?: { name: string } | null;
   units_of_measure?: { name: string } | null;
+  planning_items?: { code: string; name: string } | null;
 }
 
 export default function ProductsPage() {
@@ -64,6 +66,7 @@ export default function ProductsPage() {
     standard_output_rate: 0,
     standard_cost: 0,
     standard_selling_price: 0,
+    planning_item_id: "",
     is_active: true,
   });
 
@@ -72,10 +75,23 @@ export default function ProductsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, grades(name), units_of_measure(name)")
+        .select("*, grades(name), units_of_measure(name), planning_items(code, name)")
         .order("code", { ascending: true });
       if (error) throw error;
       return data as Product[];
+    },
+  });
+
+  const { data: planningItems = [] } = useQuery({
+    queryKey: ["planning-items-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("planning_items")
+        .select("id, code, name, production_departments(name)")
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -119,6 +135,7 @@ export default function ProductsPage() {
             standard_output_rate: data.standard_output_rate || null,
             standard_cost: data.standard_cost || null,
             standard_selling_price: data.standard_selling_price || null,
+            planning_item_id: data.planning_item_id || null,
             is_active: data.is_active,
           })
           .eq("id", data.id);
@@ -133,6 +150,7 @@ export default function ProductsPage() {
           standard_output_rate: data.standard_output_rate || null,
           standard_cost: data.standard_cost || null,
           standard_selling_price: data.standard_selling_price || null,
+          planning_item_id: data.planning_item_id || null,
           is_active: data.is_active,
         });
         if (error) throw error;
@@ -174,6 +192,7 @@ export default function ProductsPage() {
       standard_output_rate: 0,
       standard_cost: 0,
       standard_selling_price: 0,
+      planning_item_id: "",
       is_active: true,
     });
     setSelectedItem(null);
@@ -191,6 +210,7 @@ export default function ProductsPage() {
       standard_output_rate: item.standard_output_rate || 0,
       standard_cost: item.standard_cost || 0,
       standard_selling_price: item.standard_selling_price || 0,
+      planning_item_id: item.planning_item_id || "",
       is_active: item.is_active ?? true,
     });
     setDialogOpen(true);
@@ -220,6 +240,14 @@ export default function ProductsPage() {
       render: (item: Product) => item.units_of_measure?.name || "-",
     },
     { key: "standard_output_rate", header: "Std Output" },
+    {
+      key: "planning_items.name",
+      header: "Planning Item",
+      render: (item: Product) =>
+        item.planning_items
+          ? `${item.planning_items.code} — ${item.planning_items.name}`
+          : <span className="text-amber-600 text-xs">⚠ not linked</span>,
+    },
     {
       key: "standard_cost",
       header: "Std Cost / Dz",
@@ -419,6 +447,36 @@ export default function ProductsPage() {
                   />
                   <p className="text-xs text-muted-foreground">Default sale price auto-filled on sales orders &amp; quotations when no customer-specific price exists.</p>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="planning_item_id">Linked Planning Item</Label>
+                <Select
+                  value={formData.planning_item_id || "none"}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      planning_item_id: value === "none" ? "" : value,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select planning item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {planningItems.map((pi: any) => (
+                      <SelectItem key={pi.id} value={pi.id}>
+                        {pi.code} — {pi.name}
+                        {pi.production_departments?.name
+                          ? ` (${pi.production_departments.name})`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Stock item this product is dispatched from. Used by the Monthly Production report — unlinked products are flagged there.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
