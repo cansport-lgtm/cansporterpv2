@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -389,21 +390,17 @@ export default function ConsumptionBOMPage() {
                         key={line.id || `new-${idx}`}
                         className="grid grid-cols-[1fr_110px_60px_1fr_60px_32px] gap-2 items-center"
                       >
-                        <Select
+                        <SearchableSelect
                           value={line.raw_material_id}
                           onValueChange={(v) => handleLineMaterialChange(idx, v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select material" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {rawMaterials?.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.code} - {m.name} ({m.unit})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={(rawMaterials || []).map((m) => ({
+                            value: m.id,
+                            label: `${m.code} - ${m.name}`,
+                            secondary: `(${m.unit})`,
+                          }))}
+                          placeholder="Search material…"
+                          emptyText="No materials match."
+                        />
                         <Input
                           type="number"
                           step="0.0001"

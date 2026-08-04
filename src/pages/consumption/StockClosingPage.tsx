@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Save, CalendarIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, CalendarIcon, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -40,6 +40,7 @@ export default function StockClosingPage() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   // Weekly materials are posted on Mondays (week ending that Monday) and on
@@ -280,8 +281,11 @@ export default function StockClosingPage() {
     });
   };
 
-  // Group entries by category
+  // Group entries by category, filtered by the search box. Indices always
+  // point back into the full `entries` array so edits land on the right row.
+  const search = searchTerm.trim().toLowerCase();
   const groupedEntries = entries.reduce<Record<string, { entries: StockEntry[]; indices: number[] }>>((acc, entry, idx) => {
+    if (search && !`${entry.code} ${entry.name}`.toLowerCase().includes(search)) return acc;
     const cat = entry.category;
     if (!acc[cat]) acc[cat] = { entries: [], indices: [] };
     acc[cat].entries.push(entry);
@@ -343,8 +347,17 @@ export default function StockClosingPage() {
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Stock Closing for {format(selectedDate, "MMMM d, yyyy")}</CardTitle>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search material by code or name…"
+                className="pl-9"
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -372,10 +385,17 @@ export default function StockClosingPage() {
                       No raw materials found. Add materials first.
                     </TableCell>
                   </TableRow>
+                ) : categoryNames.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      No materials match “{searchTerm}”.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   categoryNames.map((category) => {
                     const group = groupedEntries[category];
-                    const isCollapsed = collapsedCategories.has(category);
+                    // While searching, always show matches even in collapsed groups.
+                    const isCollapsed = !search && collapsedCategories.has(category);
                     return (
                       <CategoryGroup
                         key={category}
