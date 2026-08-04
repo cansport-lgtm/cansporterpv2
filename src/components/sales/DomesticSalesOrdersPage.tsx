@@ -16,6 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
+import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, CalendarClock, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -322,6 +323,16 @@ export default function DomesticSalesOrdersPage() {
       // Delete dispatch items linked to these order items
       if (orderItems && orderItems.length > 0) {
         const itemIds = orderItems.map(i => i.id);
+
+        // Invoiced dispatch quantities are frozen — deleting them here would
+        // orphan the invoice (billed goods vanish from the WIP ledger/stock).
+        const lockingInvoices = await getInvoicesLockingOrderItems(itemIds);
+        if (lockingInvoices.length > 0) {
+          throw new Error(
+            `Cannot delete this order: its dispatched quantities are already invoiced (${lockingInvoices.join(', ')}). Cancel/reverse the invoice(s) first.`
+          );
+        }
+
         const { error: dispatchItemsError } = await supabase
           .from('sales_dispatch_items')
           .delete()
@@ -395,6 +406,27 @@ export default function DomesticSalesOrdersPage() {
   // Edit/update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof editFormData }) => {
+      // Get existing item IDs
+      const { data: existingDbItems } = await supabase
+        .from('sales_order_items')
+        .select('id')
+        .eq('order_id', id);
+      const existingIds = (existingDbItems || []).map(i => i.id);
+      const keepIds = data.items.filter(i => i.id).map(i => i.id!);
+      const deleteIds = existingIds.filter(eid => !keepIds.includes(eid));
+
+      // Invoiced dispatch quantities are frozen — removing their order items
+      // would orphan the invoice (billed goods vanish from the WIP ledger).
+      // Checked before any write so a blocked edit doesn't half-save.
+      if (deleteIds.length > 0) {
+        const lockingInvoices = await getInvoicesLockingOrderItems(deleteIds);
+        if (lockingInvoices.length > 0) {
+          throw new Error(
+            `Cannot remove these items: their dispatched quantities are already invoiced (${lockingInvoices.join(', ')}). Cancel/reverse the invoice(s) first.`
+          );
+        }
+      }
+
       // Update order header
       const { error } = await supabase
         .from('sales_orders')
@@ -409,19 +441,14 @@ export default function DomesticSalesOrdersPage() {
         .eq('id', id);
       if (error) throw error;
 
-      // Get existing item IDs
-      const { data: existingDbItems } = await supabase
-        .from('sales_order_items')
-        .select('id')
-        .eq('order_id', id);
-      const existingIds = (existingDbItems || []).map(i => i.id);
-      const keepIds = data.items.filter(i => i.id).map(i => i.id!);
-      const deleteIds = existingIds.filter(eid => !keepIds.includes(eid));
-
       // Delete removed items (and their dispatch items first)
       if (deleteIds.length > 0) {
-        await supabase.from('sales_dispatch_items').delete().in('order_item_id', deleteIds);
-        await supabase.from('sales_order_items').delete().in('id', deleteIds);
+        const { error: delDispatchError } = await supabase
+          .from('sales_dispatch_items').delete().in('order_item_id', deleteIds);
+        if (delDispatchError) throw delDispatchError;
+        const { error: delItemsError } = await supabase
+          .from('sales_order_items').delete().in('id', deleteIds);
+        if (delItemsError) throw delItemsError;
       }
 
       // Update existing and insert new items
