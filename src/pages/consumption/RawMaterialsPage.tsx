@@ -1,9 +1,11 @@
+import { useMemo, useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ExternalLink, Info } from "lucide-react";
+import { ExternalLink, Info, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,7 @@ interface RawMaterial {
  */
 export default function RawMaterialsPage() {
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["consumption-raw-materials"],
@@ -66,6 +69,25 @@ export default function RawMaterialsPage() {
     },
   });
 
+  // Client-side search across code, name, category and the linked item —
+  // the full list is already loaded, so filtering as you type is instant.
+  const filteredMaterials = useMemo(() => {
+    const needle = searchTerm.trim().toLowerCase();
+    if (!needle) return materials;
+    return materials?.filter((material) => {
+      const linked = linkedItemByRmId[material.id];
+      const haystack = [
+        material.code,
+        material.name,
+        material.category || "",
+        linked ? `${linked.code} ${linked.name}` : "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [materials, linkedItemByRmId, searchTerm]);
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -87,6 +109,16 @@ export default function RawMaterialsPage() {
             This list mirrors those items and updates automatically, so the BOM, stock closing and reports always use
             the same raw materials. Add or edit materials — including their raw-material category — in the Items master.
           </span>
+        </div>
+
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by code, name, category or linked item…"
+            className="pl-9"
+          />
         </div>
 
         <Card>
@@ -112,14 +144,16 @@ export default function RawMaterialsPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="text-center">Loading...</TableCell>
                     </TableRow>
-                  ) : materials?.length === 0 ? (
+                  ) : filteredMaterials?.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center text-muted-foreground">
-                        No raw materials found. Add raw-material items in the Items master.
+                        {searchTerm
+                          ? `No raw materials match “${searchTerm}”.`
+                          : "No raw materials found. Add raw-material items in the Items master."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    materials?.map((material) => (
+                    filteredMaterials?.map((material) => (
                       <TableRow key={material.id}>
                         <TableCell className="font-mono">{material.code}</TableCell>
                         <TableCell className="font-medium">{material.name}</TableCell>
@@ -157,10 +191,12 @@ export default function RawMaterialsPage() {
             <div className="md:hidden divide-y">
               {isLoading ? (
                 <div className="p-4 text-center text-muted-foreground">Loading...</div>
-              ) : materials?.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground">No raw materials found.</div>
+              ) : filteredMaterials?.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  {searchTerm ? `No raw materials match “${searchTerm}”.` : "No raw materials found."}
+                </div>
               ) : (
-                materials?.map((material) => (
+                filteredMaterials?.map((material) => (
                   <div key={material.id} className="p-3 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{material.name}</span>

@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import {
   ChartContainer,
   ChartTooltip,
@@ -329,18 +330,16 @@ export default function ConsumptionUsageReportPage() {
             <div className="flex flex-wrap gap-4 items-end">
               <div className="flex-1 min-w-[250px]">
                 <label className="text-sm font-medium mb-1.5 block">Select Material</label>
-                <Select value={selectedMaterialId} onValueChange={setSelectedMaterialId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a raw material..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {materials?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.code} — {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={selectedMaterialId}
+                  onValueChange={setSelectedMaterialId}
+                  options={(materials || []).map((m) => ({
+                    value: m.id,
+                    label: `${m.code} — ${m.name}`,
+                  }))}
+                  placeholder="Search a raw material…"
+                  emptyText="No materials match."
+                />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">View</label>
