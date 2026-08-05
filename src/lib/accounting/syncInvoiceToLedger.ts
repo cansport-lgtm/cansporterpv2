@@ -24,21 +24,31 @@ const getDefaultAccount = async (key: string): Promise<string | null> => {
 };
 
 /**
- * Invoice-is-king: keep the dispatch's AR/Sales voucher equal to the invoice total.
+ * Invoice-is-king: keep the dispatch's AR/Sales posting equal to the INVOICED
+ * total for the billing party.
  *
  * The sale is normally auto-posted at dispatch time (Dr Accounts Receivable /
- * Cr Sales) from the order price. Two cases are handled here:
+ * Cr Sales) from the order price, as ONE voucher per (dispatch, billing party).
+ * A dispatch can carry several shops of the same billing customer, each
+ * invoiced separately — so the voucher must be reconciled against the SUM of
+ * the party's invoices on the dispatch, never a single invoice's total.
+ * (Syncing to one invoice used to drop its siblings: DC-00114 posted 98,400
+ * because INV-0036 matched the voucher, while INV-0037's 69,180 never landed.)
  *
- *   1. A voucher already exists → update its header total + AR debit line +
- *      Sales credit line to match the (possibly edited) invoice total.
+ * Two cases:
+ *
+ *   1. Voucher(s) already exist for (dispatch, party) → adjust so their sum
+ *      equals the sum of the party's invoices. More than one voucher can exist
+ *      (e.g. one inherited from a merged duplicate party); the delta is applied
+ *      to the largest.
  *
  *   2. NO voucher exists → the sale was never posted at dispatch time (e.g. the
  *      order-item price was 0 and the real price was only entered on the
- *      invoice, so postDispatchVoucher skipped the zero-value line). Once the
- *      invoice is FINALIZED (status left 'draft') and carries a value, create
- *      the AR/Sales voucher from the invoice so the sale reaches the GL & P&L.
- *      Draft invoices are intentionally NOT posted — revenue is recognized at
- *      invoice issue.
+ *      invoice, so postDispatchVoucher skipped the zero-value line). Once THIS
+ *      invoice is FINALIZED (status left 'draft'), create the AR/Sales voucher
+ *      from the party's finalized invoices so the sale reaches the GL & P&L.
+ *      Draft invoices alone are intentionally NOT posted — revenue is
+ *      recognized at invoice issue.
  *
  * COGS is intentionally left untouched: it reflects the physical goods shipped
  * (quantity x standard cost), which a price/discount change does not affect.
@@ -67,7 +77,30 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
     const { partyId } = await resolveBillingCustomerParty(customer);
     if (!partyId) return { ok: true, skipped: "no_party" };
 
-    // Find the dispatch's AR/Sales voucher for this party.
+    // Gather ALL of this dispatch's invoices that bill to the same party.
+    const { data: dispatchInvoices } = await sb
+      .from("domestic_invoices")
+      .select("id, invoice_number, customer_id, total_amount, status")
+      .eq("dispatch_id", invoice.dispatch_id);
+    const allInvoices: any[] = dispatchInvoices || [];
+
+    const partyByCustomer = new Map<string, string | null>([[customer.id, partyId]]);
+    const otherCustomerIds = [...new Set(allInvoices.map((i) => i.customer_id))].filter(
+      (id) => id && !partyByCustomer.has(id),
+    );
+    if (otherCustomerIds.length) {
+      const { data: customerRows } = await sb
+        .from("customers")
+        .select("id, name, code, accounting_party_id, billing_customer")
+        .in("id", otherCustomerIds);
+      for (const c of (customerRows || []) as any[]) {
+        partyByCustomer.set(c.id, (await resolveBillingCustomerParty(c)).partyId);
+      }
+    }
+    const partyInvoices = allInvoices.filter((i) => partyByCustomer.get(i.customer_id) === partyId);
+    const sumOf = (rows: any[]) => rows.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+
+    // Find the dispatch's AR/Sales voucher(s) for this party.
     const { data: vouchers } = await sb
       .from("accounting_vouchers")
       .select("id, voucher_number, total_amount")
@@ -75,13 +108,13 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
       .eq("source_reference_id", invoice.dispatch_id)
       .eq("party_id", partyId)
       .eq("status", "posted");
-    const voucher = (vouchers || [])[0];
+    const voucherList: any[] = vouchers || [];
 
-    const newTotal = Number(invoice.total_amount || 0);
-
-    // ── Case 2: no voucher yet → create from the invoice (if finalized) ──────
-    if (!voucher) {
+    // ── Case 2: no voucher yet → create from finalized invoices ──────────────
+    if (!voucherList.length) {
       if ((invoice.status || "draft") === "draft") return { ok: true, skipped: "draft" };
+      const finalized = partyInvoices.filter((i) => (i.status || "draft") !== "draft");
+      const newTotal = sumOf(finalized);
       if (newTotal <= 0) return { ok: true, skipped: "zero_total" };
 
       const arAccountId = await getDefaultAccount("accounts_receivable");
@@ -91,6 +124,7 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
       }
 
       const displayName = (customer.billing_customer || "").trim() || customer.name;
+      const invoiceLabel = finalized.map((i) => i.invoice_number).filter(Boolean).join(", ");
       const { data: created, error: cErr } = await sb
         .from("accounting_vouchers")
         .insert({
@@ -98,7 +132,7 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
           voucher_type: "JV",
           voucher_date: invoice.invoice_date || new Date().toISOString().split("T")[0],
           party_id: partyId,
-          narration: `Invoice ${invoice.invoice_number || ""} — sales posted from invoice (${displayName})`,
+          narration: `Invoices ${invoiceLabel} — sales posted from invoice (${displayName})`,
           total_amount: newTotal,
           status: "posted",
           source_module: SOURCE_MODULE,
@@ -124,7 +158,7 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
           party_id: null,
           debit_amount: 0,
           credit_amount: newTotal,
-          line_narration: `Sales revenue (domestic) — invoice ${invoice.invoice_number || ""}`,
+          line_narration: `Sales revenue (domestic) — invoices ${invoiceLabel}`,
           line_order: 1,
         },
       ]);
@@ -133,32 +167,44 @@ export async function syncInvoiceToLedger(invoiceId: string): Promise<SyncInvoic
       return { ok: true, created: { amount: newTotal } };
     }
 
-    // ── Case 1: voucher exists → keep it in sync ─────────────────────────────
-    const oldTotal = Number(voucher.total_amount || 0);
-    if (Math.abs(newTotal - oldTotal) < 0.01) return { ok: true, skipped: "in_sync" };
+    // ── Case 1: voucher(s) exist → reconcile their sum to the invoiced sum ───
+    // Once the dispatch posting exists, its revenue is already recognized, so
+    // draft invoices count too — they refine the number, they don't create it.
+    const expected = sumOf(partyInvoices);
+    const actual = sumOf(voucherList);
+    if (Math.abs(expected - actual) < 0.01) return { ok: true, skipped: "in_sync" };
 
-    // Update header + the two lines (one debit = AR, one credit = Sales).
+    // Apply the whole delta to the largest voucher (they are 2-line AR/Sales
+    // journals; keeping siblings untouched preserves their narrations).
+    const target = voucherList.reduce((a, b) =>
+      Number(a.total_amount || 0) >= Number(b.total_amount || 0) ? a : b,
+    );
+    const targetTotal = Number(target.total_amount || 0) + (expected - actual);
+    if (targetTotal < 0) {
+      return { ok: false, error: `Invoiced total ${expected} is below the other vouchers posted for this dispatch — adjust manually.` };
+    }
+
     const { error: hErr } = await sb
       .from("accounting_vouchers")
-      .update({ total_amount: newTotal })
-      .eq("id", voucher.id);
+      .update({ total_amount: targetTotal })
+      .eq("id", target.id);
     if (hErr) return { ok: false, error: hErr.message };
 
     const { error: drErr } = await sb
       .from("accounting_voucher_lines")
-      .update({ debit_amount: newTotal })
-      .eq("voucher_id", voucher.id)
+      .update({ debit_amount: targetTotal })
+      .eq("voucher_id", target.id)
       .gt("debit_amount", 0);
     if (drErr) return { ok: false, error: drErr.message };
 
     const { error: crErr } = await sb
       .from("accounting_voucher_lines")
-      .update({ credit_amount: newTotal })
-      .eq("voucher_id", voucher.id)
+      .update({ credit_amount: targetTotal })
+      .eq("voucher_id", target.id)
       .gt("credit_amount", 0);
     if (crErr) return { ok: false, error: crErr.message };
 
-    return { ok: true, updated: { voucherNumber: voucher.voucher_number, from: oldTotal, to: newTotal } };
+    return { ok: true, updated: { voucherNumber: target.voucher_number, from: actual, to: expected } };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
