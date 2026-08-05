@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
+import { isSimilarPartyName } from "@/lib/accounting/partyNameSimilarity";
 import { Plus, Edit, Search } from "lucide-react";
 
 const sb = supabase as any;
@@ -103,6 +104,29 @@ export default function AccountingPartiesPage() {
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
+
+  // Warn before saving a party whose name is a near-duplicate of an existing
+  // party of the same type ("Osama Trader" vs "Osama Traders") — two parties
+  // for the same business split its ledger between them.
+  const handleSave = () => {
+    const name = form.name.trim();
+    const conflict = (parties || []).find(
+      (p: any) =>
+        p.id !== editId &&
+        p.party_type === form.party_type &&
+        isSimilarPartyName(p.name, name),
+    );
+    if (conflict) {
+      const status = conflict.is_active ? "" : " (currently inactive)";
+      const ok = confirm(
+        `A ${form.party_type} party named "${conflict.name}"${status} already exists. ` +
+        `Saving "${name}" as a separate party will split the ledger between the two names.\n\n` +
+        `Press Cancel to use the existing party instead, or OK to save anyway.`
+      );
+      if (!ok) return;
+    }
+    saveMutation.mutate(form);
+  };
 
   const openEdit = (p: any) => {
     setEditId(p.id);
@@ -201,7 +225,7 @@ export default function AccountingPartiesPage() {
                   </div>
                   <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
                 </div>
-                <Button className="w-full" onClick={() => saveMutation.mutate(form)} disabled={!form.name.trim() || saveMutation.isPending}>
+                <Button className="w-full" onClick={handleSave} disabled={!form.name.trim() || saveMutation.isPending}>
                   {editId ? "Update" : "Create"} Party
                 </Button>
               </div>

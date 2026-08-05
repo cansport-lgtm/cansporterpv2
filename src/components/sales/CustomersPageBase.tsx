@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search, Image, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { findSimilarPartyName } from "@/lib/accounting/partyNameSimilarity";
 import type { Database } from "@/integrations/supabase/types";
 
 type SalesSegment = Database["public"]["Enums"]["sales_segment"];
@@ -286,6 +287,27 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
     if (segment === 'domestic' && !(formData.billing_customer || '').trim()) {
       toast.error('Billing Customer is required. Pick the customer who is billed — or this customer\'s own name if it bills itself.');
       return;
+    }
+    // Guard against near-duplicate billing names ("Osama Trader" vs "Osama
+    // Traders"): each distinct billing name becomes its own accounting party,
+    // so a close-but-different spelling silently splits the party's ledger.
+    const billing = (formData.billing_customer || '').trim();
+    if (billing) {
+      const establishedBillings = [...new Set(
+        (customers || [])
+          .filter(c => c.id !== editingCustomer?.id)
+          .map(c => (c.billing_customer || '').trim())
+          .filter(Boolean)
+      )];
+      const similar = findSimilarPartyName(billing, establishedBillings);
+      if (similar) {
+        const ok = confirm(
+          `Billing customer "${billing}" looks like a different spelling of "${similar}", which other customers already use. ` +
+          `Using both names will split the ledger into two separate accounts.\n\n` +
+          `Press Cancel to go back and pick "${similar}", or OK to save "${billing}" as a separate billing customer anyway.`
+        );
+        if (!ok) return;
+      }
     }
     saveMutation.mutate(formData);
   };

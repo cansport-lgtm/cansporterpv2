@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isSamePartyName } from "@/lib/accounting/partyNameSimilarity";
 
 // Untyped surface so we can hit the new accounting_* tables before types are regenerated
 const sb = supabase as any;
@@ -41,18 +42,20 @@ export async function resolveBillingCustomerParty(customer: {
   const billing = (customer.billing_customer || "").trim();
   if (!billing) return { partyId: null, skipped: "no_billing_customer" };
 
-  // Find an existing active billing-customer party by (case-insensitive) name.
-  // `billing` is treated as a literal here (no callers pass wildcards), so an
-  // exact case-insensitive match is what we want.
-  const { data: matches } = await sb
+  // Find an existing active billing-customer party whose name matches after
+  // normalization (case, punctuation, whitespace, singular/plural "s"). The
+  // fuzzy compare is what prevents "Osama Trader" from silently creating a
+  // duplicate of "Osama Traders" and splitting the party's ledger.
+  const { data: activeParties } = await sb
     .from("accounting_parties")
-    .select("id")
+    .select("id, name")
     .eq("party_type", "customer")
-    .eq("is_active", true)
-    .ilike("name", billing)
-    .limit(1);
+    .eq("is_active", true);
 
-  let partyId: string | null = matches?.[0]?.id || null;
+  const match = (activeParties || []).find((p: { id: string; name: string }) =>
+    isSamePartyName(p.name, billing),
+  );
+  let partyId: string | null = match?.id || null;
 
   if (!partyId) {
     const { data: created, error } = await sb
