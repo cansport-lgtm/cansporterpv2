@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { Package, Printer, MessageCircle } from "lucide-react";
@@ -97,33 +97,67 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
   });
 
   // Item-level detail for vouchers that originate from a source document.
-  //   - domestic_sales: source_reference_id is a dispatch id; resolve it to the
-  //     invoice, then read its line items.
+  //   - domestic_sales: source_reference_id is a dispatch id. A dispatch can
+  //     carry several shops, each with its own invoice, and the voucher covers
+  //     ALL invoices billed to its party — so resolve every invoice on the
+  //     dispatch, keep the ones billed to this voucher's party, and show their
+  //     items grouped per invoice.
   //   - purchase:       source_reference_id IS the GRN id; read its received items.
   // Returns null for manual / non-itemised vouchers (JV adjustments, CRV, etc.).
   const srcModule = voucher?.source_module as string | undefined;
   const srcRefId = voucher?.source_reference_id as string | undefined;
+  const voucherPartyId = voucher?.party_id as string | undefined;
   const itemsEnabled = !!voucherId && !!srcRefId && (srcModule === "domestic_sales" || srcModule === "purchase");
 
   const { data: itemDetail } = useQuery({
-    queryKey: ["voucher-view-dialog-items", voucherId, srcModule, srcRefId],
+    queryKey: ["voucher-view-dialog-items", voucherId, srcModule, srcRefId, voucherPartyId],
     queryFn: async () => {
       if (!srcRefId) return null;
       if (srcModule === "domestic_sales") {
-        const { data: inv, error: invErr } = await sb
+        const { data: invs, error: invErr } = await sb
           .from("domestic_invoices")
-          .select("id, invoice_number")
+          .select("id, invoice_number, total_amount, customer_id")
           .eq("dispatch_id", srcRefId)
-          .maybeSingle();
+          .order("invoice_number");
         if (invErr) throw invErr;
-        if (!inv?.id) return null;
+        if (!invs?.length) return null;
+
+        const customerIds = [...new Set(invs.map((i: any) => i.customer_id).filter(Boolean))];
+        const { data: custs } = await sb
+          .from("customers")
+          .select("id, name, accounting_party_id")
+          .in("id", customerIds);
+        const custById = new Map<string, any>((custs || []).map((c: any) => [c.id, c]));
+
+        // Keep the invoices billed to this voucher's party; if nothing matches
+        // (e.g. a customer not yet linked to a party), fall back to all rather
+        // than showing nothing.
+        let relevant = invs.filter(
+          (i: any) => custById.get(i.customer_id)?.accounting_party_id === voucherPartyId,
+        );
+        if (!relevant.length) relevant = invs;
+
         const { data: items, error: itErr } = await sb
           .from("domestic_invoice_items")
           .select("*")
-          .eq("invoice_id", inv.id)
+          .in("invoice_id", relevant.map((i: any) => i.id))
           .order("line_order");
         if (itErr) throw itErr;
-        return { kind: "invoice" as const, docNumber: inv.invoice_number as string | null, items: items || [] };
+
+        const groups = relevant.map((inv: any) => ({
+          id: inv.id as string,
+          number: (inv.invoice_number || "") as string,
+          shopName: (custById.get(inv.customer_id)?.name || "") as string,
+          total: Number(inv.total_amount || 0),
+          items: (items || []).filter((it: any) => it.invoice_id === inv.id),
+        }));
+        const docNumber = groups.map((g) => g.number).filter(Boolean).join(", ");
+        return {
+          kind: "invoice" as const,
+          docNumber: docNumber || null,
+          groups,
+          items: (items || []) as any[],
+        };
       }
       if (srcModule === "purchase") {
         const { data: items, error: itErr } = await sb
@@ -221,7 +255,7 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
                   Item Details
                   <span className="text-xs font-normal text-muted-foreground">
                     {itemDetail.kind === "invoice"
-                      ? `Invoice ${itemDetail.docNumber || ""}`.trim()
+                      ? `${(itemDetail as any).groups?.length > 1 ? "Invoices" : "Invoice"} ${itemDetail.docNumber || ""}`.trim()
                       : "Goods Receipt"}
                   </span>
                 </div>
@@ -237,14 +271,29 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {itemDetail.items.map((it: any) => (
-                        <TableRow key={it.id}>
-                          <TableCell className="text-xs">{it.description || "—"}</TableCell>
-                          <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>
-                          <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-xs">Rs. {Number(it.price_per_dozen).toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-xs font-medium">Rs. {Number(it.amount).toLocaleString()}</TableCell>
-                        </TableRow>
+                      {(itemDetail as any).groups?.map((g: any) => (
+                        <Fragment key={g.id}>
+                          <TableRow className="bg-muted/50">
+                            <TableCell colSpan={5} className="text-xs font-medium">
+                              {g.number}{g.shopName ? ` — ${g.shopName}` : ""}
+                            </TableCell>
+                          </TableRow>
+                          {g.items.map((it: any) => (
+                            <TableRow key={it.id}>
+                              <TableCell className="text-xs">{it.description || "—"}</TableCell>
+                              <TableCell className="text-xs">{it.grade_name || "—"}</TableCell>
+                              <TableCell className="text-right text-xs">{Number(it.quantity_dozens).toLocaleString()}</TableCell>
+                              <TableCell className="text-right text-xs">Rs. {Number(it.price_per_dozen).toLocaleString()}</TableCell>
+                              <TableCell className="text-right text-xs font-medium">Rs. {Number(it.amount).toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-right text-xs text-muted-foreground">
+                              {g.number} total
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-semibold">Rs. {Number(g.total).toLocaleString()}</TableCell>
+                          </TableRow>
+                        </Fragment>
                       ))}
                     </TableBody>
                   </Table>
