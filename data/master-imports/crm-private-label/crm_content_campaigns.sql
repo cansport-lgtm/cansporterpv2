@@ -1,0 +1,2 @@
+INSERT INTO public.crm_content_campaigns ("id", "name", "objective", "channel", "start_date", "end_date", "status", "owner_id", "linked_deal_id", "linked_lead_id", "notes", "created_at", "updated_at") VALUES
+  ('2ac16910-c192-486e-8b92-7bbd34f4a453','pro72',NULL,'instagram','2026-04-01','2026-04-29','planned',NULL,NULL,NULL,NULL,'2026-04-19 06:41:25.231344+00','2026-04-19 06:41:25.231344+00') ON CONFLICT DO NOTHING;

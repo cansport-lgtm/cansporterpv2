@@ -1,0 +1,3 @@
+INSERT INTO public.crm_sample_stock_movements ("id", "sample_item_id", "movement_date", "movement_type", "quantity", "reference_type", "reference_id", "remarks", "created_by", "created_at") VALUES
+  ('4e2dcdf3-415d-4d0b-8945-085310a58e42','c0cd3e1e-98a4-476f-a024-e3559846657b','2026-05-18','receipt','12.00','manual',NULL,NULL,'UA','2026-05-18 13:57:01.009211+00'),
+  ('dbe31fdf-b61d-485a-8dc8-5c454e602ced','c0cd3e1e-98a4-476f-a024-e3559846657b','2026-05-18','issue','-3.00','request','2cfc9227-12d5-4664-a77b-3a591620bd44','Issued via SR-26-0001','UA','2026-05-18 14:08:18.941366+00') ON CONFLICT DO NOTHING;
