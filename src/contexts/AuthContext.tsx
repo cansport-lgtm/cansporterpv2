@@ -15,7 +15,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer';
 }
 
 // Define which modules each special role can access
@@ -79,6 +79,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   distributor_sales: ['distributor', 'dashboard'],
   distributor_manager: ['distributor', 'dashboard'],
   distributor_admin: ['distributor', 'dashboard'],
+  labour_productivity_approver: ['labour', 'dashboard'],
+  labour_productivity_poster: ['labour', 'dashboard'],
+  labour_productivity_viewer: ['labour', 'dashboard'],
 };
 
 // Define specific route restrictions for roles (only these exact routes are allowed)
@@ -193,6 +196,12 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/dispatch',
     '/distributor/admin',
   ],
+  // Labour Productivity Approver: approve entries and edit requests
+  labour_productivity_approver: ['/labour/edit-requests', '/labour/dashboard'],
+  // Labour Productivity Poster: create and post entries
+  labour_productivity_poster: ['/labour/entry', '/labour/todays-target', '/labour/dashboard'],
+  // Labour Productivity Viewer: read-only access
+  labour_productivity_viewer: ['/labour/dashboard'],
 };
 
 // Routes a role is explicitly DENIED even though it otherwise has broad access to the module.
@@ -238,6 +247,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'distributor_sales',
   'distributor_manager',
   'distributor_admin',
+  'labour_productivity_approver',
+  'labour_productivity_poster',
+  'labour_productivity_viewer',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -260,6 +272,10 @@ const STRICT_LOCKED_ROLES = new Set([
   'online_sales_admin',
   'online_sales_manager',
   'online_sales_agent',
+  // Labour Productivity tiers are role-specific (approver/poster/viewer), enforce lockdown.
+  'labour_productivity_approver',
+  'labour_productivity_poster',
+  'labour_productivity_viewer',
 ]);
 
 interface ModulePermission {
@@ -615,6 +631,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Floor incharge cannot approve any data (hard restriction)
     if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
       return false;
+    }
+
+    // Labour Productivity access tiers (labour module only)
+    //   • labour_productivity_approver → view / approve (no create/edit/delete)
+    //   • labour_productivity_poster → view / create / edit (no delete/approve)
+    //   • labour_productivity_viewer → view only
+    if (module === 'labour') {
+      if (roles.some(r => r.role === 'labour_productivity_approver')) {
+        return permission === 'view' || permission === 'approve';
+      }
+      if (roles.some(r => r.role === 'labour_productivity_poster')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+      if (roles.some(r => r.role === 'labour_productivity_viewer')) {
+        return permission === 'view';
+      }
     }
 
     // Purchase officer cannot approve purchase orders — approval is reserved for

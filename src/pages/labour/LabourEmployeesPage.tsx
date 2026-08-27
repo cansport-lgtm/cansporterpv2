@@ -50,6 +50,7 @@ const LabourEmployeesPage = () => {
     hasRole('admin') ||
     hasRole('manager') ||
     hasRole('operational_manager') ||
+    hasRole('labour_productivity_approver') ||
     user?.user_id === 'HR01';
   const queryClient = useQueryClient();
   
@@ -386,7 +387,7 @@ const LabourEmployeesPage = () => {
         </Badge>
       ),
     },
-    ...((isSuperAdmin || user?.user_id === 'HR01') ? [{
+    ...(canEditCode ? [{
       key: "actions",
       header: "Actions",
       render: (item: LabourEmployee) => (
