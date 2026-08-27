@@ -19,10 +19,10 @@ import { format } from "date-fns";
 
 export default function LabourProductivityEditRequestsPage() {
   const queryClient = useQueryClient();
-  const { user, hasRole } = useAuth();
+  const { user, hasRole, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
-  const isHR01 = user?.user_id === 'HR01';
-  const canReview = isSuperAdmin || isHR01;
+  const isApprover = hasRole('labour_productivity_approver');
+  const canReview = isSuperAdmin || isApprover || hasModulePermission('labour', 'approve');
   const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectNotes, setRejectNotes] = useState("");
 

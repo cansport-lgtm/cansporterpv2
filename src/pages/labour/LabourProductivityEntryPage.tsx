@@ -1345,9 +1345,10 @@ const LabourProductivityEntryPage = () => {
         const isDraft = item.status !== "approved";
         const isSuperAdminLocal = hasRole("super_admin");
         const isFloorIncharge = hasRole("floor_incharge");
+        const isApprover = hasRole("labour_productivity_approver");
         const canEdit = isDraft;
         const canDelete = isSuperAdminLocal;
-        const canApprove = isDraft && (isSuperAdminLocal || !isFloorIncharge);
+        const canApprove = isDraft && (isSuperAdminLocal || isApprover || (!isFloorIncharge && hasModulePermission("labour", "approve")));
         const hasPendingRequest = !!(pendingRequestsByEntry as Record<string, string>)[item.id];
         
         return (
