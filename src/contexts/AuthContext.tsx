@@ -80,7 +80,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   distributor_manager: ['distributor', 'dashboard'],
   distributor_admin: ['distributor', 'dashboard'],
   labour_productivity_approver: ['labour', 'dashboard'],
-  labour_productivity_poster: ['labour'],
+  labour_productivity_poster: ['labour', 'dashboard'],
   labour_productivity_viewer: ['labour', 'dashboard'],
 };
 
