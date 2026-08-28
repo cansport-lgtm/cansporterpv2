@@ -10,10 +10,28 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
+      _mig_stage: {
+        Row: {
+          content: string
+          part: number
+          piece: number
+        }
+        Insert: {
+          content: string
+          part: number
+          piece: number
+        }
+        Update: {
+          content?: string
+          part?: number
+          piece?: number
+        }
+        Relationships: []
+      }
       accounting_audit_log: {
         Row: {
           after_data: Json | null
@@ -46,6 +64,117 @@ export type Database = {
           table_name?: string
         }
         Relationships: []
+      }
+      accounting_budget_lines: {
+        Row: {
+          account_id: string
+          amount: number
+          budget_id: string
+          created_at: string
+          id: string
+          period_month: number
+          period_year: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          budget_id: string
+          created_at?: string
+          id?: string
+          period_month: number
+          period_year: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          budget_id?: string
+          created_at?: string
+          id?: string
+          period_month?: number
+          period_year?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_budget_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_budget_lines_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_budgets: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          fiscal_year_label: string
+          id: string
+          name: string
+          notes: string | null
+          num_months: number
+          start_month: number
+          start_year: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          fiscal_year_label: string
+          id?: string
+          name: string
+          notes?: string | null
+          num_months?: number
+          start_month: number
+          start_year: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          fiscal_year_label?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          num_months?: number
+          start_month?: number
+          start_year?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_budgets_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_budgets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       accounting_chart_of_accounts: {
         Row: {
@@ -148,6 +277,8 @@ export type Database = {
           code: string | null
           contact_person: string | null
           created_at: string | null
+          credit_days: number | null
+          credit_limit: number | null
           email: string | null
           id: string
           is_active: boolean | null
@@ -162,6 +293,8 @@ export type Database = {
           code?: string | null
           contact_person?: string | null
           created_at?: string | null
+          credit_days?: number | null
+          credit_limit?: number | null
           email?: string | null
           id?: string
           is_active?: boolean | null
@@ -176,6 +309,8 @@ export type Database = {
           code?: string | null
           contact_person?: string | null
           created_at?: string | null
+          credit_days?: number | null
+          credit_limit?: number | null
           email?: string | null
           id?: string
           is_active?: boolean | null
@@ -218,6 +353,62 @@ export type Database = {
             columns: ["last_closed_by"]
             isOneToOne: false
             referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_scheduled_cash_items: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category: string
+          created_at: string | null
+          direction: string
+          due_date: string | null
+          due_day: number | null
+          frequency: string
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category?: string
+          created_at?: string | null
+          direction: string
+          due_date?: string | null
+          due_day?: number | null
+          frequency?: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category?: string
+          created_at?: string | null
+          direction?: string
+          due_date?: string | null
+          due_day?: number | null
+          frequency?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_scheduled_cash_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_chart_of_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -879,6 +1070,42 @@ export type Database = {
           },
         ]
       }
+      backup_log: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          files: Json | null
+          id: string
+          pruned_count: number | null
+          status: string
+          tables_count: number | null
+          total_bytes: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          files?: Json | null
+          id?: string
+          pruned_count?: number | null
+          status: string
+          tables_count?: number | null
+          total_bytes?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          files?: Json | null
+          id?: string
+          pruned_count?: number | null
+          status?: string
+          tables_count?: number | null
+          total_bytes?: number | null
+        }
+        Relationships: []
+      }
       breakdown_logs: {
         Row: {
           breakdown_end: string | null
@@ -1142,11 +1369,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "consumption_bom_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_from_production"
+            referencedColumns: ["product_id"]
+          },
+          {
             foreignKeyName: "consumption_bom_raw_material_id_fkey"
             columns: ["raw_material_id"]
             isOneToOne: false
             referencedRelation: "consumption_raw_materials"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumption_bom_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_receipts"
+            referencedColumns: ["raw_material_id"]
           },
         ]
       }
@@ -1228,6 +1469,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "consumption_products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumption_production_entry_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_from_production"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -1341,9 +1589,16 @@ export type Database = {
           {
             foreignKeyName: "consumption_raw_materials_source_product_id_fkey"
             columns: ["source_product_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "consumption_products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumption_raw_materials_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_from_production"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -1401,6 +1656,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "consumption_raw_materials"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumption_stock_closing_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_receipts"
+            referencedColumns: ["raw_material_id"]
           },
         ]
       }
@@ -5394,6 +5656,13 @@ export type Database = {
             referencedRelation: "goods_receipt_notes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "grn_attachments_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_grn_unmapped"
+            referencedColumns: ["grn_id"]
+          },
         ]
       }
       grn_items: {
@@ -5443,6 +5712,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goods_receipt_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grn_items_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_grn_unmapped"
+            referencedColumns: ["grn_id"]
           },
           {
             foreignKeyName: "grn_items_item_id_fkey"
@@ -6225,17 +6501,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "items_raw_material_category_id_fkey"
-            columns: ["raw_material_category_id"]
+            foreignKeyName: "items_consumption_raw_material_id_fkey"
+            columns: ["consumption_raw_material_id"]
             isOneToOne: false
-            referencedRelation: "consumption_categories"
+            referencedRelation: "consumption_raw_materials"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "items_consumption_raw_material_id_fkey"
             columns: ["consumption_raw_material_id"]
             isOneToOne: false
-            referencedRelation: "consumption_raw_materials"
+            referencedRelation: "v_consumption_production_receipts"
+            referencedColumns: ["raw_material_id"]
+          },
+          {
+            foreignKeyName: "items_raw_material_category_id_fkey"
+            columns: ["raw_material_category_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_categories"
             referencedColumns: ["id"]
           },
           {
@@ -10886,17 +11169,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "products_planning_item_id_fkey"
-            columns: ["planning_item_id"]
-            isOneToOne: false
-            referencedRelation: "planning_items"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "products_grade_id_fkey"
             columns: ["grade_id"]
             isOneToOne: false
             referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_planning_item_id_fkey"
+            columns: ["planning_item_id"]
+            isOneToOne: false
+            referencedRelation: "planning_items"
             referencedColumns: ["id"]
           },
           {
@@ -11251,287 +11534,6 @@ export type Database = {
           },
         ]
       }
-      purchase_qc_inspection_items: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          id: string
-          inspection_id: string
-          item_id: string | null
-          po_item_id: string | null
-          quantity_accepted: number
-          quantity_inspected: number
-          quantity_ordered: number | null
-          quantity_rejected: number
-          remarks: string | null
-          result: string
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          inspection_id: string
-          item_id?: string | null
-          po_item_id?: string | null
-          quantity_accepted?: number
-          quantity_inspected?: number
-          quantity_ordered?: number | null
-          quantity_rejected?: number
-          remarks?: string | null
-          result?: string
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          inspection_id?: string
-          item_id?: string | null
-          po_item_id?: string | null
-          quantity_accepted?: number
-          quantity_inspected?: number
-          quantity_ordered?: number | null
-          quantity_rejected?: number
-          remarks?: string | null
-          result?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "purchase_qc_inspection_items_inspection_id_fkey"
-            columns: ["inspection_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_qc_inspections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspection_items_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspection_items_po_item_id_fkey"
-            columns: ["po_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_order_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      purchase_qc_inspections: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          created_at: string | null
-          id: string
-          inspected_by: string | null
-          inspection_date: string
-          notes: string | null
-          purchase_order_id: string
-          qc_number: string
-          result: string | null
-          status: string
-          supplier_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string | null
-          id?: string
-          inspected_by?: string | null
-          inspection_date?: string
-          notes?: string | null
-          purchase_order_id: string
-          qc_number: string
-          result?: string | null
-          status?: string
-          supplier_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string | null
-          id?: string
-          inspected_by?: string | null
-          inspection_date?: string
-          notes?: string | null
-          purchase_order_id?: string
-          qc_number?: string
-          result?: string | null
-          status?: string
-          supplier_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "purchase_qc_inspections_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspections_inspected_by_fkey"
-            columns: ["inspected_by"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspections_purchase_order_id_fkey"
-            columns: ["purchase_order_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspections_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      purchase_qc_inspection_readings: {
-        Row: {
-          created_at: string | null
-          expected_value: string | null
-          id: string
-          inspection_item_id: string
-          is_required: boolean
-          is_within_spec: boolean | null
-          max_value: number | null
-          min_value: number | null
-          parameter_id: string | null
-          parameter_name: string
-          parameter_name_ur: string | null
-          parameter_type: string
-          remarks: string | null
-          unit: string | null
-          value_boolean: boolean | null
-          value_number: number | null
-          value_text: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          expected_value?: string | null
-          id?: string
-          inspection_item_id: string
-          is_required?: boolean
-          is_within_spec?: boolean | null
-          max_value?: number | null
-          min_value?: number | null
-          parameter_id?: string | null
-          parameter_name: string
-          parameter_name_ur?: string | null
-          parameter_type?: string
-          remarks?: string | null
-          unit?: string | null
-          value_boolean?: boolean | null
-          value_number?: number | null
-          value_text?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          expected_value?: string | null
-          id?: string
-          inspection_item_id?: string
-          is_required?: boolean
-          is_within_spec?: boolean | null
-          max_value?: number | null
-          min_value?: number | null
-          parameter_id?: string | null
-          parameter_name?: string
-          parameter_name_ur?: string | null
-          parameter_type?: string
-          remarks?: string | null
-          unit?: string | null
-          value_boolean?: boolean | null
-          value_number?: number | null
-          value_text?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "purchase_qc_inspection_readings_inspection_item_id_fkey"
-            columns: ["inspection_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_qc_inspection_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_qc_inspection_readings_parameter_id_fkey"
-            columns: ["parameter_id"]
-            isOneToOne: false
-            referencedRelation: "raw_material_qc_parameters"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      raw_material_qc_parameters: {
-        Row: {
-          created_at: string | null
-          expected_value: string | null
-          id: string
-          is_active: boolean
-          is_required: boolean
-          item_id: string
-          max_value: number | null
-          min_value: number | null
-          options: Json | null
-          parameter_name: string
-          parameter_name_ur: string | null
-          parameter_type: string
-          sequence_order: number
-          unit: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          expected_value?: string | null
-          id?: string
-          is_active?: boolean
-          is_required?: boolean
-          item_id: string
-          max_value?: number | null
-          min_value?: number | null
-          options?: Json | null
-          parameter_name: string
-          parameter_name_ur?: string | null
-          parameter_type?: string
-          sequence_order?: number
-          unit?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          expected_value?: string | null
-          id?: string
-          is_active?: boolean
-          is_required?: boolean
-          item_id?: string
-          max_value?: number | null
-          min_value?: number | null
-          options?: Json | null
-          parameter_name?: string
-          parameter_name_ur?: string | null
-          parameter_type?: string
-          sequence_order?: number
-          unit?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "raw_material_qc_parameters_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       purchase_orders: {
         Row: {
           approved_at: string | null
@@ -11614,6 +11616,225 @@ export type Database = {
           },
         ]
       }
+      purchase_qc_inspection_items: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          inspection_id: string
+          item_id: string | null
+          po_item_id: string | null
+          quantity_accepted: number
+          quantity_inspected: number
+          quantity_ordered: number | null
+          quantity_rejected: number
+          remarks: string | null
+          result: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          inspection_id: string
+          item_id?: string | null
+          po_item_id?: string | null
+          quantity_accepted?: number
+          quantity_inspected?: number
+          quantity_ordered?: number | null
+          quantity_rejected?: number
+          remarks?: string | null
+          result?: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          inspection_id?: string
+          item_id?: string | null
+          po_item_id?: string | null
+          quantity_accepted?: number
+          quantity_inspected?: number
+          quantity_ordered?: number | null
+          quantity_rejected?: number
+          remarks?: string | null
+          result?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspection_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_qc_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_items_po_item_id_fkey"
+            columns: ["po_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_qc_inspection_readings: {
+        Row: {
+          created_at: string | null
+          expected_value: string | null
+          id: string
+          inspection_item_id: string
+          is_required: boolean
+          is_within_spec: boolean | null
+          max_value: number | null
+          min_value: number | null
+          parameter_id: string | null
+          parameter_name: string
+          parameter_name_ur: string | null
+          parameter_type: string
+          remarks: string | null
+          unit: string | null
+          value_boolean: boolean | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          inspection_item_id: string
+          is_required?: boolean
+          is_within_spec?: boolean | null
+          max_value?: number | null
+          min_value?: number | null
+          parameter_id?: string | null
+          parameter_name: string
+          parameter_name_ur?: string | null
+          parameter_type?: string
+          remarks?: string | null
+          unit?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          inspection_item_id?: string
+          is_required?: boolean
+          is_within_spec?: boolean | null
+          max_value?: number | null
+          min_value?: number | null
+          parameter_id?: string | null
+          parameter_name?: string
+          parameter_name_ur?: string | null
+          parameter_type?: string
+          remarks?: string | null
+          unit?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspection_readings_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_qc_inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspection_readings_parameter_id_fkey"
+            columns: ["parameter_id"]
+            isOneToOne: false
+            referencedRelation: "raw_material_qc_parameters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_qc_inspections: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          id: string
+          inspected_by: string | null
+          inspection_date: string
+          notes: string | null
+          purchase_order_id: string
+          qc_number: string
+          result: string | null
+          status: string
+          supplier_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          inspected_by?: string | null
+          inspection_date?: string
+          notes?: string | null
+          purchase_order_id: string
+          qc_number: string
+          result?: string | null
+          status?: string
+          supplier_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          inspected_by?: string | null
+          inspection_date?: string
+          notes?: string | null
+          purchase_order_id?: string
+          qc_number?: string
+          result?: string | null
+          status?: string
+          supplier_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_qc_inspections_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_inspected_by_fkey"
+            columns: ["inspected_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_qc_inspections_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_return_items: {
         Row: {
           amount: number
@@ -11661,6 +11882,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "grn_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_return_items_grn_item_id_fkey"
+            columns: ["grn_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_grn_unmapped"
+            referencedColumns: ["grn_item_id"]
           },
           {
             foreignKeyName: "purchase_return_items_item_id_fkey"
@@ -11737,6 +11965,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goods_receipt_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_grn_unmapped"
+            referencedColumns: ["grn_id"]
           },
           {
             foreignKeyName: "purchase_returns_supplier_id_fkey"
@@ -12664,6 +12899,68 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      raw_material_qc_parameters: {
+        Row: {
+          created_at: string | null
+          expected_value: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          item_id: string
+          max_value: number | null
+          min_value: number | null
+          options: Json | null
+          parameter_name: string
+          parameter_name_ur: string | null
+          parameter_type: string
+          sequence_order: number
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          item_id: string
+          max_value?: number | null
+          min_value?: number | null
+          options?: Json | null
+          parameter_name: string
+          parameter_name_ur?: string | null
+          parameter_type?: string
+          sequence_order?: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          item_id?: string
+          max_value?: number | null
+          min_value?: number | null
+          options?: Json | null
+          parameter_name?: string
+          parameter_name_ur?: string | null
+          parameter_type?: string
+          sequence_order?: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_material_qc_parameters_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
             referencedColumns: ["id"]
           },
         ]
@@ -15503,7 +15800,22 @@ export type Database = {
           receipt_date: string | null
           receipt_quantity: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "items_consumption_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_raw_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_consumption_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "v_consumption_production_receipts"
+            referencedColumns: ["raw_material_id"]
+          },
+        ]
       }
       v_consumption_grn_unmapped: {
         Row: {
@@ -15514,14 +15826,6 @@ export type Database = {
           grn_number: string | null
           quantity_received: number | null
           receipt_date: string | null
-        }
-        Relationships: []
-      }
-      v_consumption_production_receipts: {
-        Row: {
-          raw_material_id: string | null
-          receipt_date: string | null
-          receipt_quantity: number | null
         }
         Relationships: []
       }
@@ -15539,6 +15843,14 @@ export type Database = {
         }
         Relationships: []
       }
+      v_consumption_production_receipts: {
+        Row: {
+          raw_material_id: string | null
+          receipt_date: string | null
+          receipt_quantity: number | null
+        }
+        Relationships: []
+      }
       v_consumption_unmapped_production: {
         Row: {
           department_code: string | null
@@ -15553,18 +15865,41 @@ export type Database = {
           total_ok: number | null
           total_produced: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "production_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
+      accounting_periodic_cogs_details: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       accounting_periodic_cogs_inputs: {
         Args: { p_from: string; p_to: string }
         Returns: {
           already_posted_cogs: number
+          already_posted_dispatch: number
+          already_posted_periodic: number
           current_fg_wip_items: number
           current_fg_wip_value: number
           current_rm_items: number
           current_rm_value: number
+          dispatch_voucher_count: number
+          periodic_voucher_count: number
           previous_fg_wip_items: number
           previous_fg_wip_value: number
           previous_rm_items: number
@@ -15576,46 +15911,24 @@ export type Database = {
         }[]
       }
       backup_list_tables: { Args: never; Returns: string[] }
-      production_monthly_report: {
-        Args: { p_from: string; p_to: string }
-        Returns: {
-          planning_item_id: string
-          item_code: string
-          item_name: string
-          item_unit: string | null
-          department_id: string | null
-          department_name: string | null
-          opening_qty: number
-          opening_date: string | null
-          closing_qty: number | null
-          closing_date: string | null
-          dispatched_qty: number
-          returned_qty: number
-          derived_production: number | null
-        }[]
-      }
-      production_unmapped_sales: {
-        Args: { p_from: string; p_to: string }
-        Returns: {
-          product_id: string
-          product_code: string
-          product_name: string
-          dispatched_qty: number
-          returned_qty: number
-        }[]
-      }
       backup_schema_sql: { Args: never; Returns: string }
-      recent_backup_logs: {
-        Args: { p_limit?: number }
-        Returns: {
-          created_at: string
-          status: string
-          tables_count: number
-          total_bytes: number
-          pruned_count: number
-          duration_ms: number
-          error: string
-        }[]
+      consumption_grn_cutover: { Args: never; Returns: string }
+      consumption_grn_receipt_qty: {
+        Args: { p_date: string; p_material: string }
+        Returns: number
+      }
+      consumption_product_for_production: {
+        Args: { p_department: string; p_grade: string }
+        Returns: string
+      }
+      consumption_production_sync_cutover: { Args: never; Returns: string }
+      consumption_receipt_for_closing: {
+        Args: { p_closing_date: string; p_material: string }
+        Returns: number
+      }
+      consumption_resync_production_day: {
+        Args: { p_date: string; p_product: string }
+        Returns: undefined
       }
       create_app_user: {
         Args: {
@@ -15625,10 +15938,6 @@ export type Database = {
           p_password: string
           p_user_id: string
         }
-        Returns: string
-      }
-      consumption_product_for_production: {
-        Args: { p_grade: string; p_department: string }
         Returns: string
       }
       floor_inventory_apply_movement: {
@@ -15663,9 +15972,53 @@ export type Database = {
         }
         Returns: boolean
       }
+      production_monthly_report: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          closing_date: string
+          closing_qty: number
+          department_id: string
+          department_name: string
+          derived_production: number
+          dispatched_qty: number
+          item_code: string
+          item_name: string
+          item_unit: string
+          opening_date: string
+          opening_qty: number
+          planning_item_id: string
+          returned_qty: number
+        }[]
+      }
+      production_unmapped_sales: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          dispatched_qty: number
+          product_code: string
+          product_id: string
+          product_name: string
+          returned_qty: number
+        }[]
+      }
+      recent_backup_logs: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          duration_ms: number
+          error: string
+          pruned_count: number
+          status: string
+          tables_count: number
+          total_bytes: number
+        }[]
+      }
       reset_user_password: {
         Args: { p_new_password: string; p_user_uuid: string }
         Returns: boolean
+      }
+      resync_closing_receipt: {
+        Args: { p_date: string; p_material: string }
+        Returns: undefined
       }
       verify_user_password: {
         Args: { p_password: string; p_user_id: string }
@@ -15709,15 +16062,11 @@ export type Database = {
         | "store_operator"
         | "project_manager"
         | "online_sales_packing"
-        | "online_sales_admin"
-        | "online_sales_manager"
-        | "online_sales_agent"
         | "accounting_poster"
         | "accounting_officer"
         | "accounting_manager"
         | "purchase_officer"
         | "purchase_manager"
-        | "purchase_qc_inspector"
         | "billing_officer"
         | "dispatch_operator"
         | "sales_order_manager"
@@ -15726,6 +16075,13 @@ export type Database = {
         | "distributor_sales"
         | "distributor_manager"
         | "distributor_admin"
+        | "online_sales_admin"
+        | "online_sales_manager"
+        | "online_sales_agent"
+        | "purchase_qc_inspector"
+        | "labour_productivity_approver"
+        | "labour_productivity_poster"
+        | "labour_productivity_viewer"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -15920,15 +16276,11 @@ export const Constants = {
         "store_operator",
         "project_manager",
         "online_sales_packing",
-        "online_sales_admin",
-        "online_sales_manager",
-        "online_sales_agent",
         "accounting_poster",
         "accounting_officer",
         "accounting_manager",
         "purchase_officer",
         "purchase_manager",
-        "purchase_qc_inspector",
         "billing_officer",
         "dispatch_operator",
         "sales_order_manager",
@@ -15937,6 +16289,13 @@ export const Constants = {
         "distributor_sales",
         "distributor_manager",
         "distributor_admin",
+        "online_sales_admin",
+        "online_sales_manager",
+        "online_sales_agent",
+        "purchase_qc_inspector",
+        "labour_productivity_approver",
+        "labour_productivity_poster",
+        "labour_productivity_viewer",
       ],
       asset_category: [
         "office_assets",
