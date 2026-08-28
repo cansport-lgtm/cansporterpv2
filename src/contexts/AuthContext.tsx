@@ -80,7 +80,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   distributor_manager: ['distributor', 'dashboard'],
   distributor_admin: ['distributor', 'dashboard'],
   labour_productivity_approver: ['labour', 'dashboard'],
-  labour_productivity_poster: ['labour', 'dashboard'],
+  labour_productivity_poster: ['labour'],
   labour_productivity_viewer: ['labour', 'dashboard'],
 };
 
@@ -198,8 +198,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   ],
   // Labour Productivity Approver: full labour module access except admin pages
   labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries'],
-  // Labour Productivity Poster: create and post entries
-  labour_productivity_poster: ['/labour/entry', '/labour/todays-target', '/labour/dashboard'],
+  // Labour Productivity Poster: create and post entries only (no dashboard access)
+  labour_productivity_poster: ['/labour/entry', '/labour/todays-target'],
   // Labour Productivity Viewer: read-only access
   labour_productivity_viewer: ['/labour/dashboard'],
 };
