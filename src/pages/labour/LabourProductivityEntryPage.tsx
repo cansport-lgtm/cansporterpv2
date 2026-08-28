@@ -94,6 +94,8 @@ const LabourProductivityEntryPage = () => {
 
   // Excel import/export state
   const isSuperAdmin = hasRole("super_admin");
+  const isPoster = hasRole("labour_productivity_poster");
+  const canEditFields = isSuperAdmin || isPoster;
   const canImportExport = isSuperAdmin || (hasRole("manager") && hasModulePermission("labour", "view"));
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const importTimesFileInputRef = useRef<HTMLInputElement>(null);
@@ -1720,7 +1722,7 @@ const LabourProductivityEntryPage = () => {
                 <Select
                   value={formData.department_id}
                   onValueChange={(v) => setFormData({ ...formData, department_id: v, employee_id: "", process_id: "" })}
-                  disabled={!!editingEntry && !isSuperAdmin}
+                  disabled={!!editingEntry && !canEditFields}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
@@ -1742,7 +1744,7 @@ const LabourProductivityEntryPage = () => {
                     const newTarget = getProcessTarget(v, formData.department_id, formData.work_type);
                     setFormData({ ...formData, process_id: v, target_quantity: newTarget || formData.target_quantity });
                   }}
-                  disabled={(!!editingEntry && !isSuperAdmin) || !formData.department_id || processes.length === 0}
+                  disabled={(!!editingEntry && !canEditFields) || !formData.department_id || processes.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={!formData.department_id ? "Select department first" : processes.length === 0 ? "No processes available" : "Select process"} />
@@ -1815,7 +1817,7 @@ const LabourProductivityEntryPage = () => {
                   <Select
                     value={formData.shift}
                     onValueChange={(v) => setFormData({ ...formData, shift: v })}
-                    disabled={!!editingEntry && !isSuperAdmin}
+                    disabled={!!editingEntry && !canEditFields}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select shift" />
@@ -1834,7 +1836,7 @@ const LabourProductivityEntryPage = () => {
                       const newTarget = getProcessTarget(formData.process_id, formData.department_id, v);
                       setFormData({ ...formData, work_type: v, target_quantity: newTarget || formData.target_quantity });
                     }}
-                    disabled={!!editingEntry && !isSuperAdmin}
+                    disabled={!!editingEntry && !canEditFields}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select work type" />
