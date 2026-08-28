@@ -92,6 +92,9 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "sales_order_manager", label: "Sales Order Management (orders + dispatch, no prices/invoices)" },
   { value: "production_operator", label: "Production Operator (post production + planning, edit ≤48h)" },
   { value: "closing_data_poster", label: "Closing Data Poster (Daily Stock Closing + Stock Closing only)" },
+  { value: "labour_productivity_approver", label: "Labour Productivity Approver (review & approve entries)" },
+  { value: "labour_productivity_poster", label: "Labour Productivity Poster (create & post entries)" },
+  { value: "labour_productivity_viewer", label: "Labour Productivity Viewer (read-only access)" },
   // Distributor roles are intentionally NOT listed here: they require a distributor_id,
   // which is assigned in the Distributor module's "Manage Users" page (Distributor Orders →
   // Manage Users). Creating them here would leave distributor_id NULL and break isolation.
