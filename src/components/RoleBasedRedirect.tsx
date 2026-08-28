@@ -140,6 +140,21 @@ export function RoleBasedRedirect() {
     return <Navigate to="/purchase/qc" replace />;
   }
 
+  // Labour Productivity Approver lands on Labour Dashboard (full access)
+  if (roles.some(r => (r.role as string) === 'labour_productivity_approver')) {
+    return <Navigate to="/labour/dashboard" replace />;
+  }
+
+  // Labour Productivity Poster lands on Daily Entry (post-only; no dashboard)
+  if (roles.some(r => (r.role as string) === 'labour_productivity_poster')) {
+    return <Navigate to="/labour/entry" replace />;
+  }
+
+  // Labour Productivity Viewer lands on Labour Dashboard (view-only)
+  if (roles.some(r => (r.role as string) === 'labour_productivity_viewer')) {
+    return <Navigate to="/labour/dashboard" replace />;
+  }
+
   // Accounting Poster lands on New Voucher (post-only; no financial dashboard/reports)
   if (roles.some(r => (r.role as string) === 'accounting_poster')) {
     return <Navigate to="/accounting/vouchers/new" replace />;
