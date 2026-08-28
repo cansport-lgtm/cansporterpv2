@@ -45,6 +45,9 @@ const roleDescriptions: Record<AppRole, string> = {
   distributor_sales: "Distributor Orders – create customers and make/submit orders for their distributor only",
   distributor_manager: "Distributor Orders – approve/reject/edit orders and run the dispatch sheet for their distributor",
   distributor_admin: "Distributor Orders – manage their distributor's sales & manager users, plus full module access",
+  labour_productivity_approver: "Labour Productivity – review and approve labour productivity entries and edit requests",
+  labour_productivity_poster: "Labour Productivity – create and post labour productivity entries",
+  labour_productivity_viewer: "Labour Productivity – read-only access to labour productivity data",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -82,6 +85,9 @@ const roleColors: Record<AppRole, string> = {
   distributor_sales: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   distributor_manager: "bg-amber-600/10 text-amber-600 border-amber-600/20",
   distributor_admin: "bg-amber-700/10 text-amber-700 border-amber-700/20",
+  labour_productivity_approver: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  labour_productivity_poster: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+  labour_productivity_viewer: "bg-slate-500/10 text-slate-500 border-slate-500/20",
 };
 
 export default function RolesPage() {
@@ -120,6 +126,9 @@ export default function RolesPage() {
     distributor_sales: 0,
     distributor_manager: 0,
     distributor_admin: 0,
+    labour_productivity_approver: 0,
+    labour_productivity_poster: 0,
+    labour_productivity_viewer: 0,
   });
 
   useEffect(() => {
@@ -136,7 +145,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
