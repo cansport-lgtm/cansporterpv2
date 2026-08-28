@@ -196,8 +196,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/dispatch',
     '/distributor/admin',
   ],
-  // Labour Productivity Approver: approve entries and edit requests
-  labour_productivity_approver: ['/labour/edit-requests', '/labour/dashboard'],
+  // Labour Productivity Approver: full labour module access except admin pages
+  labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries'],
   // Labour Productivity Poster: create and post entries
   labour_productivity_poster: ['/labour/entry', '/labour/todays-target', '/labour/dashboard'],
   // Labour Productivity Viewer: read-only access
@@ -216,6 +216,11 @@ const ROLE_ROUTE_DENY: Record<string, string[]> = {
     '/accounting/equity-changes',
     '/production/mph-master',
     '/production/wip-sequence',
+  ],
+  // Labour Productivity Approver: no access to admin/config pages
+  labour_productivity_approver: [
+    '/labour/public-holidays',
+    '/labour/mph-management',
   ],
 };
 
@@ -634,12 +639,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Labour Productivity access tiers (labour module only)
-    //   • labour_productivity_approver → view / approve (no create/edit/delete)
+    //   • labour_productivity_approver → view / create / edit / approve (no delete)
     //   • labour_productivity_poster → view / create / edit (no delete/approve)
     //   • labour_productivity_viewer → view only
     if (module === 'labour') {
       if (roles.some(r => r.role === 'labour_productivity_approver')) {
-        return permission === 'view' || permission === 'approve';
+        return permission !== 'delete';
       }
       if (roles.some(r => r.role === 'labour_productivity_poster')) {
         return permission === 'view' || permission === 'create' || permission === 'edit';
