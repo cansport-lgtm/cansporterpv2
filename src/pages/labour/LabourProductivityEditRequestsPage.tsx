@@ -22,7 +22,8 @@ export default function LabourProductivityEditRequestsPage() {
   const { user, hasRole, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
   const isApprover = hasRole('labour_productivity_approver');
-  const canReview = isSuperAdmin || isApprover || hasModulePermission('labour', 'approve');
+  const isPoster = hasRole('labour_productivity_poster');
+  const canReview = (isSuperAdmin || isApprover) && !isPoster;
   const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectNotes, setRejectNotes] = useState("");
 
