@@ -15,7 +15,43 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer';
+}
+
+// Per-module access tiers. Every module that had no dedicated role of its own gets the
+// same three-tier set (identical in shape to the Labour Productivity tiers above/below):
+//   <prefix>_manager → view / create / edit / approve   (delete stays with super admin)
+//   <prefix>_officer → view / create / edit
+//   <prefix>_viewer  → view only
+// Each tier is scoped to its own module (+ the dashboard shell), so a user can hold
+// several of them at once and receives the UNION of those module scopes — that is what
+// makes "many roles on one user" work without touching per-user module permissions.
+type ModuleTier = 'manager' | 'officer' | 'viewer';
+
+const MODULE_TIER_DEFINITIONS: { rolePrefix: string; module: string; routePrefix: string }[] = [
+  { rolePrefix: 'export', module: 'export', routePrefix: '/export' },
+  { rolePrefix: 'master_data', module: 'master_data', routePrefix: '/master' },
+  { rolePrefix: 'hr', module: 'hr', routePrefix: '/hr' },
+  { rolePrefix: 'wip', module: 'wip_management', routePrefix: '/wip' },
+  { rolePrefix: 'rejections', module: 'rejections_wastages', routePrefix: '/rejections' },
+  { rolePrefix: 'performance', module: 'performance', routePrefix: '/performance' },
+  { rolePrefix: 'floor_inventory', module: 'floor_inventory', routePrefix: '/floor-inventory' },
+  { rolePrefix: 'fixed_assets', module: 'fixed_assets', routePrefix: '/fixed-assets' },
+  { rolePrefix: 'five_s', module: 'five_s', routePrefix: '/five-s' },
+  { rolePrefix: 'hourly_production', module: 'hourly_production', routePrefix: '/hourly-production' },
+  { rolePrefix: 'rd', module: 'rd', routePrefix: '/rd' },
+  { rolePrefix: 'crm', module: 'crm', routePrefix: '/crm' },
+  { rolePrefix: 'marketing', module: 'marketing', routePrefix: '/marketing' },
+];
+
+const MODULE_TIERS: ModuleTier[] = ['manager', 'officer', 'viewer'];
+
+// role name → { module, tier }, used by hasModulePermission to grant the tier's actions.
+const MODULE_TIER_ROLES: Record<string, { module: string; tier: ModuleTier }> = {};
+for (const def of MODULE_TIER_DEFINITIONS) {
+  for (const tier of MODULE_TIERS) {
+    MODULE_TIER_ROLES[`${def.rolePrefix}_${tier}`] = { module: def.module, tier };
+  }
 }
 
 // Define which modules each special role can access
@@ -282,6 +318,20 @@ const STRICT_LOCKED_ROLES = new Set([
   'labour_productivity_poster',
   'labour_productivity_viewer',
 ]);
+
+// Register every module tier into the four maps/sets above. Doing it in one loop keeps
+// the 39 roles consistent: each gets its own module (+ dashboard shell), a route whitelist
+// covering its module prefix, and hard/strict lockdown so a stray flexible role cannot
+// silently widen the scope (same treatment as the Labour Productivity tiers).
+for (const def of MODULE_TIER_DEFINITIONS) {
+  for (const tier of MODULE_TIERS) {
+    const role = `${def.rolePrefix}_${tier}`;
+    ROLE_MODULE_ACCESS[role] = [def.module, 'dashboard'];
+    ROLE_ROUTE_RESTRICTIONS[role] = [def.routePrefix, '/dashboard'];
+    HARD_RESTRICTED_MODULE_ROLES.add(role);
+    STRICT_LOCKED_ROLES.add(role);
+  }
+}
 
 interface ModulePermission {
   module_name: string;
@@ -736,6 +786,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (roles.some(r => r.role === 'online_sales_agent')) {
         return permission === 'view' || permission === 'create' || permission === 'edit';
       }
+    }
+
+    // Generic per-module tiers (export / master data / HR / WIP / rejections / performance /
+    // floor inventory / fixed assets / 5S / hourly production / R&D / CRM / marketing).
+    // GRANT-ONLY (additive) like the strict operational roles above: an out-of-scope tier
+    // falls through instead of returning false, so one tier can never veto another tier the
+    // same user also holds. Delete always falls through (reserved for super admin).
+    for (const r of roles) {
+      const tier = MODULE_TIER_ROLES[r.role];
+      if (!tier || tier.module !== module) continue;
+      if (tier.tier === 'manager' && permission !== 'delete') return true;
+      if (tier.tier === 'officer' && (permission === 'view' || permission === 'create' || permission === 'edit')) return true;
+      if (tier.tier === 'viewer' && permission === 'view') return true;
     }
 
     const perm = modulePermissions.find(p => p.module_name === module);
