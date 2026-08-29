@@ -18,15 +18,15 @@ const roleDescriptions: Record<AppRole, string> = {
   operator: "Data entry and operational tasks",
   viewer: "Read-only access to permitted modules",
   operational_manager: "Full access to Production and QA modules",
-  qa_manager: "Full access to Quality Assurance module only",
-  maintenance_manager: "Full access to Maintenance module only",
+  qa_manager: "Quality Assurance – full access including approve (delete reserved for super admin)",
+  maintenance_manager: "Maintenance – full access including approve (delete reserved for super admin)",
   sales_executive: "Access to Sales module for order management",
   order_management: "View access to Sales and Production dashboards only",
   floor_incharge: "Labour Productivity Entry, plus Hourly Production & Machine Monitor when authorized",
   private_label_distributor: "View-only access to Private Label Sales module",
   pettycash_handler: "Access to Petty Cash page only with entry creation",
   store_operator: "Access to Stock Closing page in Material Consumption module only",
-  project_manager: "Access to Project Management module – can only see assigned projects",
+  project_manager: "Project Management – full access including approve (delete reserved for super admin); can only see assigned projects",
   online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",
   online_sales_admin: "Online Sales – full module access including financials, masters and settings (all actions)",
   online_sales_manager: "Online Sales – full module visibility incl. financials; can approve but not delete",
@@ -87,6 +87,18 @@ const roleDescriptions: Record<AppRole, string> = {
   marketing_manager: "Marketing – full access including approve (delete reserved for super admin)",
   marketing_officer: "Marketing – create and edit entries (no approve, no delete)",
   marketing_viewer: "Marketing – read-only access",
+  projects_officer: "Project Management – create and edit projects (no approve, no delete)",
+  projects_viewer: "Project Management – read-only access",
+  qa_officer: "Quality Assurance – create and edit inspections (no approve, no delete)",
+  qa_viewer: "Quality Assurance – read-only access",
+  maintenance_officer: "Maintenance – create and edit work orders (no approve, no delete)",
+  maintenance_viewer: "Maintenance – read-only access",
+  expenses_manager: "Expenses – full access including approve (delete reserved for super admin)",
+  expenses_officer: "Expenses – create and edit entries (no approve, no delete)",
+  expenses_viewer: "Expenses – read-only access",
+  material_consumption_manager: "Material Consumption – full access including approve (delete reserved for super admin)",
+  material_consumption_officer: "Material Consumption – create and edit entries (no approve, no delete)",
+  material_consumption_viewer: "Material Consumption – read-only access",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -166,6 +178,18 @@ const roleColors: Record<AppRole, string> = {
   marketing_manager: "bg-purple-600/10 text-purple-600 border-purple-600/20",
   marketing_officer: "bg-purple-500/10 text-purple-500 border-purple-500/20",
   marketing_viewer: "bg-purple-400/10 text-purple-400 border-purple-400/20",
+  projects_officer: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  projects_viewer: "bg-blue-400/10 text-blue-400 border-blue-400/20",
+  qa_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+  qa_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
+  maintenance_officer: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  maintenance_viewer: "bg-amber-400/10 text-amber-400 border-amber-400/20",
+  expenses_manager: "bg-yellow-600/10 text-yellow-600 border-yellow-600/20",
+  expenses_officer: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  expenses_viewer: "bg-yellow-400/10 text-yellow-400 border-yellow-400/20",
+  material_consumption_manager: "bg-sky-600/10 text-sky-600 border-sky-600/20",
+  material_consumption_officer: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+  material_consumption_viewer: "bg-sky-400/10 text-sky-400 border-sky-400/20",
 };
 
 export default function RolesPage() {
@@ -246,6 +270,18 @@ export default function RolesPage() {
     marketing_manager: 0,
     marketing_officer: 0,
     marketing_viewer: 0,
+    projects_officer: 0,
+    projects_viewer: 0,
+    qa_officer: 0,
+    qa_viewer: 0,
+    maintenance_officer: 0,
+    maintenance_viewer: 0,
+    expenses_manager: 0,
+    expenses_officer: 0,
+    expenses_viewer: 0,
+    material_consumption_manager: 0,
+    material_consumption_officer: 0,
+    material_consumption_viewer: 0,
   });
 
   useEffect(() => {
@@ -262,7 +298,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>

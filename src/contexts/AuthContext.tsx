@@ -15,7 +15,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -28,7 +28,15 @@ interface UserRole {
 // makes "many roles on one user" work without touching per-user module permissions.
 type ModuleTier = 'manager' | 'officer' | 'viewer';
 
-const MODULE_TIER_DEFINITIONS: { rolePrefix: string; module: string; routePrefix: string }[] = [
+// `existingManagerRole` names a manager-equivalent role that predates the tiers. It keeps its
+// own name and its existing module/route/lockdown configuration untouched, and only picks up the
+// manager tier's action grants — so a module never ends up with two near-identical manager roles.
+const MODULE_TIER_DEFINITIONS: {
+  rolePrefix: string;
+  module: string;
+  routePrefix: string;
+  existingManagerRole?: string;
+}[] = [
   { rolePrefix: 'export', module: 'export', routePrefix: '/export' },
   { rolePrefix: 'master_data', module: 'master_data', routePrefix: '/master' },
   { rolePrefix: 'hr', module: 'hr', routePrefix: '/hr' },
@@ -42,15 +50,30 @@ const MODULE_TIER_DEFINITIONS: { rolePrefix: string; module: string; routePrefix
   { rolePrefix: 'rd', module: 'rd', routePrefix: '/rd' },
   { rolePrefix: 'crm', module: 'crm', routePrefix: '/crm' },
   { rolePrefix: 'marketing', module: 'marketing', routePrefix: '/marketing' },
+  { rolePrefix: 'projects', module: 'projects', routePrefix: '/projects', existingManagerRole: 'project_manager' },
+  { rolePrefix: 'qa', module: 'qa', routePrefix: '/qa', existingManagerRole: 'qa_manager' },
+  { rolePrefix: 'maintenance', module: 'maintenance', routePrefix: '/maintenance', existingManagerRole: 'maintenance_manager' },
+  { rolePrefix: 'expenses', module: 'expenses', routePrefix: '/expenses' },
+  { rolePrefix: 'material_consumption', module: 'material_consumption', routePrefix: '/consumption' },
 ];
 
 const MODULE_TIERS: ModuleTier[] = ['manager', 'officer', 'viewer'];
+
+// The role that carries a given tier for a module — the pre-existing manager where one is
+// declared, otherwise the generated `<prefix>_<tier>` name.
+const tierRoleName = (
+  def: (typeof MODULE_TIER_DEFINITIONS)[number],
+  tier: ModuleTier,
+): string =>
+  tier === 'manager' && def.existingManagerRole
+    ? def.existingManagerRole
+    : `${def.rolePrefix}_${tier}`;
 
 // role name → { module, tier }, used by hasModulePermission to grant the tier's actions.
 const MODULE_TIER_ROLES: Record<string, { module: string; tier: ModuleTier }> = {};
 for (const def of MODULE_TIER_DEFINITIONS) {
   for (const tier of MODULE_TIERS) {
-    MODULE_TIER_ROLES[`${def.rolePrefix}_${tier}`] = { module: def.module, tier };
+    MODULE_TIER_ROLES[tierRoleName(def, tier)] = { module: def.module, tier };
   }
 }
 
@@ -325,7 +348,11 @@ const STRICT_LOCKED_ROLES = new Set([
 // silently widen the scope (same treatment as the Labour Productivity tiers).
 for (const def of MODULE_TIER_DEFINITIONS) {
   for (const tier of MODULE_TIERS) {
-    const role = `${def.rolePrefix}_${tier}`;
+    const role = tierRoleName(def, tier);
+    // A pre-existing manager role (project_manager / qa_manager / maintenance_manager) already
+    // has its own module scope and lockdown settled; re-registering it here would silently
+    // change how existing accounts behave. It takes the action grants only.
+    if (role === def.existingManagerRole) continue;
     ROLE_MODULE_ACCESS[role] = [def.module, 'dashboard'];
     ROLE_ROUTE_RESTRICTIONS[role] = [def.routePrefix, '/dashboard'];
     HARD_RESTRICTED_MODULE_ROLES.add(role);
