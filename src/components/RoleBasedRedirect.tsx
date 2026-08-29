@@ -191,6 +191,10 @@ export function RoleBasedRedirect() {
     projects: '/projects',
     rd: '/rd/dashboard',
     crm: '/crm/dashboard',
+    wip_management: '/wip/dashboard',
+    rejections_wastages: '/rejections/dashboard',
+    hourly_production: '/hourly-production/dashboard',
+    marketing: '/marketing',
   };
   for (const [module, route] of Object.entries(moduleDashboardRoutes)) {
     if (canAccessModule(module)) {
