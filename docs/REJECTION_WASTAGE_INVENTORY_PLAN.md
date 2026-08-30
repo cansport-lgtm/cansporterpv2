@@ -6,8 +6,9 @@ Module: `rejections_wastages` (`rw_*` schema, `/rejections/*` routes).
 Confirmed with the plant: leaker cores at Jorr are **covered first, then sold**;
 counting is **per ball model**; the checker works on the production floor and
 keys **one entry per day** (with an optional interval breakdown); handover to
-store is **daily**; and the **checker's count is the source of truth** for
-rejections, with `production_entries.quantity_rejected` derived from it.
+store is **daily**; checkers sit at **Jorr, Local Final, Fancy Final and
+Packing**; and the **checker's count is the source of truth** for rejections,
+with `production_entries.quantity_rejected` derived from it.
 
 ---
 
@@ -161,7 +162,6 @@ CREATE TABLE rw_defect_grades (
   name_urdu text,
   defect_type text NOT NULL CHECK (defect_type IN ('leakage','rejection')),
   detected_stage text NOT NULL CHECK (detected_stage IN ('core','covered','finished')),
-  department_id uuid REFERENCES production_departments(id),   -- where it is normally found
   onward_route text NOT NULL DEFAULT 'to_store'
     CHECK (onward_route IN ('to_store','cover_then_store','destroy')),
   covered_output_grade_id uuid REFERENCES rw_defect_grades(id),  -- what it becomes after covering
@@ -182,6 +182,10 @@ Seed shape:
 | `LEAK_COVERED` | leakage | covered | `to_store` | — |
 | `REJ_SPOT` | rejection | finished | `to_store` | — |
 | `REJ_SEAM` | rejection | finished | `to_store` | — |
+
+There is deliberately **no `department_id` here.** Rejects are counted at Local
+Final, Fancy Final *and* Packing, so a defect grade belongs to several
+departments — see §4.4.
 
 `rw_reasons` stays and is orthogonal: the **reason** says *why* (bad seam roller,
 operator error, compound batch); the **defect grade** says *what saleable class
@@ -235,11 +239,62 @@ CREATE TABLE rw_locations (
 ```
 
 Typical rows: `leaker_wip` at Jorr (leaker cores awaiting covering), `floor_bin`
-at Local Final and Fancy Final (covered leakers + rejects awaiting the daily
-handover), one shared `transit`, and one `store` ("Cheap Ball Store") carrying
-`inventory_location_id` so Phase 4 can mirror into `inventory_stock`.
+at Local Final, Fancy Final and Packing (covered leakers and rejects awaiting the
+daily handover), one shared `transit`, and one `store` ("Cheap Ball Store")
+carrying `inventory_location_id` so Phase 4 can mirror into `inventory_stock`.
 
-### 4.4 `rw_checker_entries` — the daily floor count
+Four bins means **four daily handovers**, one per bin — the `UNIQUE (handover_date,
+from_location_id)` in §4.10 already allows exactly that, and keeps each
+department's variance its own.
+
+### 4.4 `rw_department_defect_grades` — who counts what, into which bin
+
+Rejects are counted at Local Final, Fancy Final **and** Packing; leaker cores only
+at Jorr. So the relationship between a department and a defect grade is
+many-to-many, and it also carries the bin the balls go into:
+
+```sql
+CREATE TABLE rw_department_defect_grades (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  department_id uuid NOT NULL REFERENCES production_departments(id) ON DELETE CASCADE,
+  defect_grade_id uuid NOT NULL REFERENCES rw_defect_grades(id) ON DELETE CASCADE,
+  location_id uuid NOT NULL REFERENCES rw_locations(id),   -- bin this department deposits into
+  sort_order integer NOT NULL DEFAULT 0,                   -- column order on the checker grid
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (department_id, defect_grade_id)
+);
+```
+
+Seed:
+
+| department | defect grades counted | bin |
+|---|---|---|
+| Jorr | `LEAK_CORE` | `JORR-LEAK` (`leaker_wip`) |
+| Local Final | `LEAK_COVERED`, `REJ_SPOT`, `REJ_SEAM` | `LF-CHEAP` (`floor_bin`) |
+| Fancy Final | `LEAK_COVERED`, `REJ_SPOT`, `REJ_SEAM` | `FF-CHEAP` (`floor_bin`) |
+| Packing | `REJ_SPOT`, `REJ_SEAM` | `PACK-CHEAP` (`floor_bin`) |
+
+This table earns its place three times over:
+
+1. **It drives the checker grid.** Picking a department decides the columns, so
+   Packing's checker sees two reject columns and no leakage at all, and Jorr's
+   sees one. Nobody scrolls past options that cannot apply to them.
+2. **It resolves the bin** without the checker choosing a location — the single
+   most error-prone field on any stock screen, removed entirely.
+3. **It defines the completeness check.** A department only owes a daily entry for
+   the grades mapped to it, so `v_rw_entry_coverage` can be exact instead of
+   guessing which departments should have posted.
+
+Adding a checker at a new department later is a row here, not a migration.
+
+**Note on Packing rejects.** A reject found at Packing has already passed the
+Final departments' inspection, so its bin balance is a direct measure of what
+Final let through. Worth watching as its own number rather than merging it into
+a plant-wide reject total.
+
+### 4.5 `rw_checker_entries` — the daily floor count
 
 Now that the entry is **one per day** and both ball leakage and ball rejection
 have the same shape — date, shift, department, model, defect grade, quantity —
@@ -296,7 +351,7 @@ existing tables that also carry rework, disposition and material columns that no
 longer apply to balls — leaves every future change to be made twice and every
 query to guess which columns are meaningful. The clean table is worth the union.
 
-### 4.5 `rw_checker_entry_intervals` — the optional tally
+### 4.6 `rw_checker_entry_intervals` — the optional tally
 
 The checker counts several times through the day but keys one daily figure. If
 they want the interval tally recorded rather than discarded, it goes here. It is
@@ -322,7 +377,7 @@ cannot quietly contradict the daily total. If no lines exist, nothing is checked
 Only the parent `rw_checker_entries.quantity` ever posts to the ledger — the
 interval lines are detail, never a second source of stock.
 
-### 4.6 `rw_ball_ledger` — every movement, running balance
+### 4.7 `rw_ball_ledger` — every movement, running balance
 
 Item identity is **`(product_id, defect_grade_id)`** — an LB leaker and an FB
 leaker are different stock at different values, and a leaker core is different
@@ -365,7 +420,7 @@ CREATE INDEX rw_ball_ledger_item_idx ON rw_ball_ledger (product_id, defect_grade
 CREATE INDEX rw_ball_ledger_loc_idx  ON rw_ball_ledger (location_id, txn_date);
 ```
 
-### 4.7 `rw_ball_stock` — on-hand cache
+### 4.8 `rw_ball_stock` — on-hand cache
 
 ```sql
 CREATE TABLE rw_ball_stock (
@@ -388,7 +443,7 @@ CREATE TABLE rw_ball_stock (
 Trigger-maintained from `rw_ball_ledger`; the ledger stays the source of truth
 (the `inventory_ledger` ↔ `inventory_stock` relationship).
 
-### 4.8 `rw_cover_transfers` + `rw_cover_transfer_items` — leaker cores through covering
+### 4.9 `rw_cover_transfers` + `rw_cover_transfer_items` — leaker cores through covering
 
 The step that answer 1 creates. Leaker cores leave the Jorr bin; covered cheap
 balls arrive in the Final bin. It is a **transformation**: the same physical ball
@@ -439,7 +494,7 @@ leaker, never an FB one. `to_defect_grade_id` defaults from
 Any variance here is real: cores issued to covering that never came out. Nothing
 in the current system would show that at all.
 
-### 4.9 `rw_handovers` + `rw_handover_items` — the daily floor → store handover
+### 4.10 `rw_handovers` + `rw_handover_items` — the daily floor → store handover
 
 Handover is **daily**, so exactly one per (date, source bin):
 
@@ -512,7 +567,7 @@ becomes theatre.
 return to zero after receipt. A non-zero carry-over is itself a flag, shown on
 the dashboard — no extra data needed to detect it.
 
-### 4.10 `rw_stock_counts` + `rw_stock_count_lines` — periodic store count
+### 4.11 `rw_stock_counts` + `rw_stock_count_lines` — periodic store count
 
 ```sql
 CREATE TABLE rw_stock_counts (
@@ -566,7 +621,7 @@ in this schema.
 shrinkage or weighing error to absorb. Any non-zero variance demands a reason and
 a manager approval.
 
-### 4.11 Rejections: one source of truth
+### 4.12 Rejections: one source of truth
 
 The checker's count wins. `production_entries.quantity_rejected` stops being
 typed and becomes derived, so the two modules can never disagree.
@@ -644,20 +699,21 @@ backfill nobody can verify.
 
 ## 6. Integrity Controls
 
-1. **Every producing department must post.** A view compares departments with
-   production on a date against departments with a checker entry on that date. A
-   missing day is flagged immediately — silence is the cheapest way to hide balls,
-   and it costs nothing today.
+1. **Every producing department must post.** A view compares departments that had
+   production on a date against departments that posted a checker entry that date,
+   scoped by `rw_department_defect_grades` so only departments that actually have a
+   checker are expected. A missing day is flagged immediately — silence is the
+   cheapest way to hide balls, and it costs nothing today.
 2. **Defect % plausibility.** Leak and reject counts per `(date, shift, department,
    model)` divided by `production_entries.quantity_produced` for the same key.
    Outside a configured band → flagged before handover. Since `quantity_rejected`
-   is now derived from these same entries (§4.11), the check is against
+   is now derived from these same entries (§4.12), the check is against
    `quantity_produced`, which stays independently entered.
 3. **The Jorr bin must drain.** Leaker cores in must equal cores issued to
    covering. A growing `leaker_wip` balance means cores are being counted but
    never covered — or never existed.
 4. **Cover transfer variance.** Cores issued vs covered balls returned.
-5. **Blind receipt** at the store (§4.9).
+5. **Blind receipt** at the store (§4.10).
 6. **Two separate handover variances** (declared→sent, sent→received), each with
    its own mandatory reason, so the failure is attributable.
 7. **The floor bin must empty daily.** Non-zero carry-over after a received
@@ -700,7 +756,7 @@ group in `ERPSidebar.tsx`, following existing page structure (`ERPLayout` +
 
 | Route | Page | Notes |
 |---|---|---|
-| `/rejections/checker` | **Daily Checker Entry** | Department + shift + date, then a compact grid of **model × defect grade** with number inputs. Models default to those actually in production for that department/shift (from `production_entries`), with an "add another model" escape — so the grid stays two or three rows, not thirty. Mobile-first, large tap targets, one save for the day, live defect % against the day's produced qty. Each row can be expanded to key the **optional interval tally**; collapsed by default, and the lines must sum to the row total before it saves. |
+| `/rejections/checker` | **Daily Checker Entry** | Department + shift + date, then a compact grid of **model × defect grade**. Columns come from `rw_department_defect_grades`, so Packing shows two reject columns and Jorr shows one leakage column — never the full set. Rows default to the models actually in production for that department/shift (from `production_entries`), with an "add another model" escape, so the grid stays two or three rows, not thirty. The bin is resolved from the mapping and never asked for. Mobile-first, large tap targets, one save for the day, live defect % against the day's produced qty. Each row expands to key the **optional interval tally**; collapsed by default, and the lines must sum to the row total before it saves. |
 | `/rejections/leaker-wip` | **Leaker Cores (Jorr)** | Bin balance by model, ageing, and the "issue to covering" action |
 | `/rejections/cover-transfers` | **Cover Transfers** | Issue cores → covering reports covered qty → variance |
 | `/rejections/handovers` | **Daily Handover** | Auto-filled declared column from the day's entries; floor enters sent; store enters a **blind** received count; both variances shown only after saving; dispute path; printable slip |
@@ -709,6 +765,7 @@ group in `ERPSidebar.tsx`, following existing page structure (`ERPLayout` +
 | `/rejections/counts` | **Store Physical Count** | Frozen book snapshot, physical entry, variance, verify → approve → adjust |
 | `/rejections/reconciliation` | **Reconciliation Dashboard** | Interval coverage, defect-% flags, leaker-WIP ageing, cover variance, handover variances, bin-not-empty flags, store variance, checker accuracy |
 | `/rejections/defect-grades` | **Defect Grades Master** | super admin |
+| `/rejections/checkpoints` | **Department Checkpoints** | which departments count which defect grades, into which bin; super admin |
 | `/rejections/defect-rates` | **Cheap Ball Rates** | cost + sale rate per model × defect grade; manager |
 | `/rejections/locations` | **Locations Master** | super admin |
 
@@ -736,7 +793,9 @@ The nuance is that whoever receives must differ from whoever sent — enforced p
 ## 10. Phasing
 
 **Phase 1 — Capture the count properly**
-`rw_defect_grades`, `rw_defect_rates`, `rw_locations`, `rw_checker_entries` +
+`rw_defect_grades`, `rw_defect_rates`, `rw_locations`,
+`rw_department_defect_grades` (seeded for Jorr, Local Final, Fancy Final and
+Packing), `rw_checker_entries` +
 `rw_checker_entry_intervals`, `rw_ball_ledger` + `rw_ball_stock` + posting
 trigger, `rw_ball_cutover()`, the derived-`quantity_rejected` function, trigger
 and the read-only field in `DailyEntryPage.tsx`, the Daily Checker Entry screen,
@@ -786,18 +845,22 @@ Answered and now built into the design:
 
 - **Leaker cores at Jorr are covered first, then sold** → `onward_route =
   'cover_then_store'`, a `leaker_wip` bin at Jorr, and the `rw_cover_transfers`
-  step (§4.8).
+  step (§4.9).
 - **Counting is per ball model** → `product_id` on every entry, ledger row and
   handover line, and `rw_defect_rates` per model × defect grade (§4.2).
 - **Handover is daily** → `UNIQUE (handover_date, from_location_id)`, declared
-  column auto-summed from the day's entries, bin-must-empty check (§4.9).
+  column auto-summed from the day's entries, bin-must-empty check (§4.10).
 - **The checker works on the floor and keys one entry per day**, with an optional
   interval tally → `rw_checker_entries` at daily grain plus
-  `rw_checker_entry_intervals` (§4.4, §4.5). Completeness is checked per
+  `rw_checker_entry_intervals` (§4.5, §4.6). Completeness is checked per
   department-day rather than per interval.
 - **The checker's count is the source of truth for rejections** →
   `production_entries.quantity_rejected` is derived and read-only from the cutover
-  (§4.11).
+  (§4.12).
+- **Checkers sit at Jorr, Local Final, Fancy Final and Packing** → a defect grade
+  is not owned by one department, so `rw_department_defect_grades` maps
+  department → defect grades → bin, and drives both the checker grid and the
+  completeness check (§4.4).
 
 **Phase 1 is fully specified. Nothing below blocks it.**
 
@@ -808,25 +871,21 @@ covered, does it go to the cheap-ball store as an identified batch — or rejoin
 normal stream and get air-tested again at Final? If the latter, the Jorr count
 becomes informational only and the cover-transfer step disappears.
 
-**B. Which departments have a checker** *(Phase 1 seed data).* Jorr and both Final
-departments are assumed. Does Packing also count rejects? Only affects which
-`rw_locations` rows and defect grades get seeded — the schema is unaffected.
-
-**C. Interval numbering** *(Phase 1, cosmetic).* If the optional tally is used,
+**B. Interval numbering** *(Phase 1, cosmetic).* If the optional tally is used,
 should `interval_no` be the hour of day (matching
 `hourly_production_entries.hour_slot`) or a simple 1, 2, 3 per shift? Defaulting
 to a simple sequence unless told otherwise.
 
-**D. Cheap-ball SKUs** *(Phase 4).* Do products exist in `products` for cheap
+**C. Cheap-ball SKUs** *(Phase 4).* Do products exist in `products` for cheap
 balls today, or are they sold without a product record? Phase 4 needs one SKU per
 (model, defect class).
 
-**E. Store location and receiver** *(Phase 2).* Is the cheap-ball store the
+**D. Store location and receiver** *(Phase 2).* Is the cheap-ball store the
 existing "Store department" or a separate physical store? Who receives, and is
 that person distinct from the floor person who sends?
 
-**F. Cutover date** *(before go-live).* From which date do entries start producing
+**E. Cutover date** *(before go-live).* From which date do entries start producing
 stock and driving `quantity_rejected`? Recommend the 1st of the month you go live.
 
-**G. Material wastage** (`rw_wastages` — compound, cloth off-cuts). Left as a pure
+**F. Material wastage** (`rw_wastages` — compound, cloth off-cuts). Left as a pure
 log by this plan. Bring into a separate scrap inventory later, or leave as is?
