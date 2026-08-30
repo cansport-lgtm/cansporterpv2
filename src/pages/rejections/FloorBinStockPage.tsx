@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, List, Workflow, Loader2 } from "lucide-react";
+import { Boxes, List, Workflow, Loader2, AlertTriangle, Info } from "lucide-react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { Link } from "react-router-dom";
 
@@ -35,6 +35,41 @@ const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFra
 
 export default function FloorBinStockPage() {
   const [locationFilter, setLocationFilter] = useState("all");
+
+  // Where a defect grade needs no covering, the department books its cheap balls
+  // the same day it counts them, so the two numbers describe the same balls and
+  // must agree. This costs no new document — the data is already there.
+  const { data: mismatches = [] } = useQuery({
+    queryKey: ["rw-output-mismatches"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("v_rw_output_reconciliation")
+        .select("entry_date, department_name, output_grade_name, counted_qty, booked_qty, variance_qty")
+        .eq("is_mismatch", true)
+        .order("entry_date", { ascending: false })
+        .limit(10);
+      return (data || []) as {
+        entry_date: string; department_name: string; output_grade_name: string;
+        counted_qty: number; booked_qty: number; variance_qty: number;
+      }[];
+    },
+  });
+
+  // Cheap balls booked whose leaker cores have not left the WIP bin. Until the
+  // cover-transfer document exists that is every covering run, so it is shown as
+  // pending work rather than as a loss.
+  const { data: wip = [] } = useQuery({
+    queryKey: ["rw-leaker-wip-recon"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("v_rw_leaker_wip_reconciliation")
+        .select("department_name, cores_counted, bin_quantity, cheap_balls_booked, bin_check, unreleased_qty");
+      return (data || []) as {
+        department_name: string; cores_counted: number; bin_quantity: number;
+        cheap_balls_booked: number; bin_check: number; unreleased_qty: number;
+      }[];
+    },
+  });
 
   const { data: rows = [], isLoading } = useQuery<StockRow[]>({
     queryKey: ["rw-ball-stock"],
@@ -118,6 +153,64 @@ export default function FloorBinStockPage() {
             />
           ))}
         </div>
+
+        {mismatches.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Counted and booked disagree on {mismatches.length} department-day
+                {mismatches.length > 1 ? "s" : ""}
+              </div>
+            </div>
+            <div className="text-[12.5px] text-amber-900/80 dark:text-amber-200/80">
+              These defect grades need no covering, so the department books its cheap balls the same
+              day it counts them — the two should be the same number.
+            </div>
+            <div className="space-y-1 pt-1">
+              {mismatches.map((m, i) => (
+                <div key={i} className="text-[12.5px] tabular-nums">
+                  <span className="text-muted-foreground">
+                    {format(parseISO(m.entry_date), "dd MMM")}
+                  </span>{" "}
+                  <b>{m.department_name}</b> · {m.output_grade_name} — counted {fmt(m.counted_qty)},
+                  booked {fmt(m.booked_qty)}{" "}
+                  <Badge variant="destructive">
+                    {m.variance_qty > 0 ? "+" : ""}{fmt(m.variance_qty)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {wip.some((w) => w.unreleased_qty !== 0 || w.bin_check !== 0) && (
+          <div className="rounded-2xl border border-sky-500/25 bg-sky-500/[0.06] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-sky-500 shrink-0" />
+              <div className="text-sm font-semibold text-sky-900 dark:text-sky-200">
+                Leaker cores against covering output
+              </div>
+            </div>
+            {wip.map((w) => (
+              <div key={w.department_name} className="text-[12.5px] tabular-nums">
+                <b>{w.department_name}</b> — {fmt(w.cores_counted)} cores counted,{" "}
+                {fmt(w.bin_quantity)} still in the bin, {fmt(w.cheap_balls_booked)} cheap balls booked.
+                {w.unreleased_qty !== 0 && (
+                  <span className="text-muted-foreground">
+                    {" "}{fmt(w.unreleased_qty)} covered but not yet released from the bin — the cover
+                    transfer that does this is Phase 2.
+                  </span>
+                )}
+                {w.bin_check !== 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    ledger off by {fmt(w.bin_check)}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <Card>
           <CardContent className="p-3 md:p-4 flex flex-wrap items-end gap-3">

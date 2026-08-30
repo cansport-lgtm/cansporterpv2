@@ -10,7 +10,9 @@ store is **daily**; checkers sit at **Jorr, Local Final, Fancy Final and
 Packing**; the **checker's count is the source of truth** for rejections, with
 `production_entries.quantity_rejected` derived from it; and the sellable cheap
 ball is an **existing production grade** — leakers are sold as *Leak ball*,
-rejects as *Rejection*, both already booked by the production module.
+rejects as *Rejection*, both booked by the department that **found** the defect
+and recording the **finished** cheap balls; and leaker cores are covered as a
+**separate batch run**.
 
 ---
 
@@ -777,6 +779,8 @@ backfill nobody can verify.
 | `v_rw_handover_variance` | Declared vs sent vs received per day, department, checker, storekeeper |
 | `v_rw_store_reconciliation` | Opening + receipts − sales = book vs physical, per model × defect grade per period |
 | `v_rw_checker_accuracy` | Per checker: declared, sent, received, variance, accuracy % |
+| `v_rw_output_reconciliation` | Does the checker's count match the cheap-ball production the same department booked? Flagged only where no covering step separates them. |
+| `v_rw_leaker_wip_reconciliation` | Leaker cores counted, released and still in the bin, against the covering output booked. |
 | `v_rw_unlinked_models` | Which ball models are counted but carry no production grade, so their counts cannot reach `quantity_rejected`? |
 | `v_rw_cost_of_quality` | `standard_costs` value of the good ball − cheap-ball realisation, per period/department/model |
 
@@ -904,6 +908,16 @@ Answered and now built into the design:
 - **Segregation of leaker cores is settled by the same answer.** Covering
   consumes them into a separate sellable grade, so they never rejoin the good
   stream and cannot be re-counted at Final as new leakers.
+- **The output entry records finished cheap balls and is booked by the finding
+  department**, and **covering runs as a separate batch**. Together these give a
+  check that needs no new document, built in §8: where a defect grade needs no
+  covering — every covered leaker and every reject — the department books its
+  cheap balls the same day it counts them, so the two numbers describe the same
+  balls and **must match exactly**. Where covering is involved the batch run
+  separates them, so the leaker-WIP bin balance is the check instead.
+- **Cheap-ball production rows are excluded from the primary-production views.**
+  They are output, not production: leaving them in inflated the produced figure
+  the defect rate divides by and added rows whose own defect rate is meaningless.
 
 **Phase 1 is built. Nothing below blocks Phase 2.**
 
