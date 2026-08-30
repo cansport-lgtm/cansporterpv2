@@ -59,6 +59,8 @@ interface NavChild {
   // module's children. Used to group long modules (e.g. Accounting) into
   // standard-practice sections — Masters / Entries / Books / Ledgers / Reports etc.
   isHeader?: boolean;
+  // Marks the module's primary action. Set on a few entries; not rendered yet.
+  highlight?: boolean;
 }
 
 interface NavItem {
@@ -199,9 +201,19 @@ const navigationItems: NavItem[] = [
     module: "rejections_wastages",
     children: [
       { title: "Dashboard", href: "/rejections/dashboard" },
-      { title: "New Entry", href: "/rejections/entry", highlight: true },
+      { title: "Entries", href: "", isHeader: true },
+      { title: "Daily Checker Entry", href: "/rejections/checker", highlight: true },
+      { title: "New Entry", href: "/rejections/entry" },
       { title: "Rework Tracking", href: "/rejections/rework" },
+      { title: "Ball Inventory", href: "", isHeader: true },
+      { title: "Floor Bin Stock", href: "/rejections/bin-stock" },
+      { title: "Ball Ledger", href: "/rejections/ledger" },
       { title: "Analytics", href: "/rejections/analytics" },
+      { title: "Masters", href: "", isHeader: true },
+      { title: "Cheap Ball Rates", href: "/rejections/defect-rates" },
+      { title: "Defect Grades", href: "/rejections/defect-grades", superAdminOnly: true },
+      { title: "Department Checkpoints", href: "/rejections/checkpoints", superAdminOnly: true },
+      { title: "R&W Locations", href: "/rejections/locations", superAdminOnly: true },
       { title: "Reasons Master", href: "/rejections/reasons", superAdminOnly: true },
       { title: "Units Master", href: "/rejections/units", superAdminOnly: true },
       { title: "Dispositions Master", href: "/rejections/dispositions", superAdminOnly: true },
