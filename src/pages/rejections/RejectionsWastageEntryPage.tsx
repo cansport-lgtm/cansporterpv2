@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 
-import { Trash2, Plus, AlertOctagon, Loader2, Droplets, Pencil } from "lucide-react";
+import { Trash2, Plus, AlertOctagon, Loader2, Droplets, Pencil, ClipboardCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 type Lookup = { id: string; name: string; code?: string | null; unit?: string | null; unit_cost?: number | null; selectable?: boolean };
 
@@ -33,6 +34,27 @@ export default function RejectionsWastageEntryPage() {
   const qc = useQueryClient();
 
   const [entryDate, setEntryDate] = useState(today);
+  const [tab, setTab] = useState<string>("rejections");
+
+  // From the R&W cutover the floor checker owns ball rejections and leakages,
+  // so those tabs come off this page for on/after dates — two places to type the
+  // same ball is how the counts start disagreeing. Pre-cutover dates keep them,
+  // because that is where the history lives and it still needs reading.
+  const { data: rwCutover } = useQuery({
+    queryKey: ["rw-ball-cutover"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("rw_ball_cutover");
+      if (error) return null;
+      return data as string | null;
+    },
+    staleTime: Infinity,
+  });
+  const ballTabsHidden = !!rwCutover && entryDate >= rwCutover;
+
+  useEffect(() => {
+    if (ballTabsHidden && tab !== "wastages") setTab("wastages");
+  }, [ballTabsHidden, tab]);
+
   const [departmentId, setDepartmentId] = useState<string>("");
   const [shift, setShift] = useState<string>("Day");
 
@@ -537,11 +559,32 @@ export default function RejectionsWastageEntryPage() {
         </Card>
 
 
-        <Tabs defaultValue="rejections" className="w-full">
-          <TabsList className="grid grid-cols-3 w-full h-12 sticky top-16 z-20 shadow-sm">
-            <TabsTrigger value="rejections" className="text-xs sm:text-sm h-10">Rejections</TabsTrigger>
+        {ballTabsHidden && (
+          <div className="flex items-start gap-2 rounded-lg bg-primary/5 ring-1 ring-inset ring-primary/20 px-3 py-2 mb-3">
+            <ClipboardCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <div className="font-semibold">Ball rejections and leakages moved to the checker's screen</div>
+              <div className="text-muted-foreground mt-0.5">
+                From {rwCutover} they are counted on{' '}
+                <Link to="/rejections/checker" className="underline font-medium">Daily Checker Entry</Link>,
+                where they post to the bin and drive the production figure. Pick an earlier date to read
+                the history here.
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
+          <TabsList
+            className={`grid ${ballTabsHidden ? "grid-cols-1" : "grid-cols-3"} w-full h-12 sticky top-16 z-20 shadow-sm`}
+          >
+            {!ballTabsHidden && (
+              <TabsTrigger value="rejections" className="text-xs sm:text-sm h-10">Rejections</TabsTrigger>
+            )}
             <TabsTrigger value="wastages" className="text-xs sm:text-sm h-10">Wastages</TabsTrigger>
-            <TabsTrigger value="leakages" className="text-xs sm:text-sm h-10">Leakages</TabsTrigger>
+            {!ballTabsHidden && (
+              <TabsTrigger value="leakages" className="text-xs sm:text-sm h-10">Leakages</TabsTrigger>
+            )}
           </TabsList>
 
           {/* REJECTIONS TAB */}
