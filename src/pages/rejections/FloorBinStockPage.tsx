@@ -55,6 +55,23 @@ export default function FloorBinStockPage() {
     },
   });
 
+  // Posted production entries the derivation deliberately did not touch. The
+  // posting lock keeps them frozen, so this needs an unpost, not a retry.
+  const { data: postedConflicts = [] } = useQuery({
+    queryKey: ["rw-posted-conflicts"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("v_rw_posted_entry_conflicts")
+        .select("entry_date, department_name, grade_code, posted_rejected, counted_rejected, variance_qty")
+        .order("entry_date", { ascending: false })
+        .limit(10);
+      return (data || []) as {
+        entry_date: string; department_name: string; grade_code: string;
+        posted_rejected: number; counted_rejected: number; variance_qty: number;
+      }[];
+    },
+  });
+
   // Cheap balls booked whose leaker cores have not left the WIP bin. Until the
   // cover-transfer document exists that is every covering run, so it is shown as
   // pending work rather than as a loss.
@@ -177,6 +194,37 @@ export default function FloorBinStockPage() {
                   booked {fmt(m.booked_qty)}{" "}
                   <Badge variant="destructive">
                     {m.variance_qty > 0 ? "+" : ""}{fmt(m.variance_qty)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {postedConflicts.length > 0 && (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/[0.06] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+              <div className="text-sm font-semibold">
+                {postedConflicts.length} posted production entr
+                {postedConflicts.length > 1 ? "ies do" : "y does"} not match the floor count
+              </div>
+            </div>
+            <div className="text-[12.5px] text-muted-foreground">
+              These were posted before the count changed, and the posting lock keeps them frozen.
+              Someone with the production approve permission needs to unpost them; the rejected
+              figure then updates on its own.
+            </div>
+            <div className="space-y-1 pt-1">
+              {postedConflicts.map((c, i) => (
+                <div key={i} className="text-[12.5px] tabular-nums">
+                  <span className="text-muted-foreground">
+                    {format(parseISO(c.entry_date), "dd MMM")}
+                  </span>{" "}
+                  <b>{c.department_name}</b> · {c.grade_code} — posted {fmt(c.posted_rejected)},
+                  counted {fmt(c.counted_rejected)}{" "}
+                  <Badge variant="destructive">
+                    {c.variance_qty > 0 ? "+" : ""}{fmt(c.variance_qty)}
                   </Badge>
                 </div>
               ))}
