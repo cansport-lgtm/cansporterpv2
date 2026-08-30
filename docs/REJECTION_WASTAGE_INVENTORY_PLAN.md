@@ -7,8 +7,10 @@ Confirmed with the plant: leaker cores at Jorr are **covered first, then sold**;
 counting is **per ball model**; the checker works on the production floor and
 keys **one entry per day** (with an optional interval breakdown); handover to
 store is **daily**; checkers sit at **Jorr, Local Final, Fancy Final and
-Packing**; and the **checker's count is the source of truth** for rejections,
-with `production_entries.quantity_rejected` derived from it.
+Packing**; the **checker's count is the source of truth** for rejections, with
+`production_entries.quantity_rejected` derived from it; and the sellable cheap
+ball is an **existing production grade** — leakers are sold as *Leak ball*,
+rejects as *Rejection*, both already booked by the production module.
 
 ---
 
@@ -165,6 +167,7 @@ CREATE TABLE rw_defect_grades (
   onward_route text NOT NULL DEFAULT 'to_store'
     CHECK (onward_route IN ('to_store','cover_then_store','destroy')),
   covered_output_grade_id uuid REFERENCES rw_defect_grades(id),  -- what it becomes after covering
+  output_grade_id uuid REFERENCES grades(id),                   -- the production grade it is SOLD as
   is_sellable boolean NOT NULL DEFAULT true,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -186,6 +189,24 @@ Seed shape:
 There is deliberately **no `department_id` here.** Rejects are counted at Local
 Final, Fancy Final *and* Packing, so a defect grade belongs to several
 departments — see §4.4.
+
+`output_grade_id` is the other half, and the one that keeps the two modules from
+double-counting. **The cheap ball is not an R&W invention: it is an existing
+production grade.** Covering *consumes* leaker cores and books its output as
+production of grade **Leak ball**; rejects are sold as grade **Rejection**. Both
+rows are entered by the production module today. So the R&W ledger holds a
+defective ball only up to the point production takes over, and never creates the
+sellable cheap ball itself.
+
+Two consequences, both implemented:
+
+- A production entry whose grade is one of these output grades is **left exactly
+  as production entered it** — `rw_apportion_production_rejected` returns early
+  for it. A cheap-ball row has no rejections of its own; the defects that
+  produced it were already counted against the grade they came from.
+- The **cover transfer in Phase 2 becomes a consumption document, not a
+  production one** (§4.9): cores leave the Jorr bin, and the counterpart is the
+  existing *Leak ball* production entry rather than a second stock movement.
 
 `rw_reasons` stays and is orthogonal: the **reason** says *why* (bad seam roller,
 operator error, compound batch); the **defect grade** says *what saleable class
@@ -445,9 +466,15 @@ Trigger-maintained from `rw_ball_ledger`; the ledger stays the source of truth
 
 ### 4.9 `rw_cover_transfers` + `rw_cover_transfer_items` — leaker cores through covering
 
-The step that answer 1 creates. Leaker cores leave the Jorr bin; covered cheap
-balls arrive in the Final bin. It is a **transformation**: the same physical ball
-changes defect grade from `LEAK_CORE` to `LEAK_COVERED`.
+The step that answer 1 creates — and, given that covering already books its
+output as production of grade *Leak ball*, a **consumption** document rather than
+a transformation. Leaker cores leave the Jorr bin and the R&W ledger's
+involvement ends there; the cheap balls that come out are the production
+module's *Leak ball* entry, not a second stock movement.
+
+The reconciliation this buys: **cores consumed should agree with the cheap-ball
+production booked for the same day.** Cores issued to covering that never appear
+as output are visible immediately, which nothing in either module shows today.
 
 ```sql
 CREATE TABLE rw_cover_transfers (
@@ -750,6 +777,7 @@ backfill nobody can verify.
 | `v_rw_handover_variance` | Declared vs sent vs received per day, department, checker, storekeeper |
 | `v_rw_store_reconciliation` | Opening + receipts − sales = book vs physical, per model × defect grade per period |
 | `v_rw_checker_accuracy` | Per checker: declared, sent, received, variance, accuracy % |
+| `v_rw_unlinked_models` | Which ball models are counted but carry no production grade, so their counts cannot reach `quantity_rejected`? |
 | `v_rw_cost_of_quality` | `standard_costs` value of the good ball − cheap-ball realisation, per period/department/model |
 
 ---
@@ -868,14 +896,25 @@ Answered and now built into the design:
   department → defect grades → bin, and drives both the checker grid and the
   completeness check (§4.4).
 
-**Phase 1 is fully specified. Nothing below blocks it.**
+- **The cheap ball is an existing production grade**, already booked by the
+  production module — leakers as *Leak ball*, rejects as *Rejection* →
+  `rw_defect_grades.output_grade_id`, production rows for those grades excluded
+  from the derivation, and Phase 2's cover transfer reshaped as a consumption
+  document (§4.1, §4.9).
+- **Segregation of leaker cores is settled by the same answer.** Covering
+  consumes them into a separate sellable grade, so they never rejoin the good
+  stream and cannot be re-counted at Final as new leakers.
 
-Still open, needed later:
+**Phase 1 is built. Nothing below blocks Phase 2.**
 
-**A. Segregation of leaker cores** *(Phase 2).* Once a Jorr leaker core is
-covered, does it go to the cheap-ball store as an identified batch — or rejoin the
-normal stream and get air-tested again at Final? If the latter, the Jorr count
-becomes informational only and the cover-transfer step disappears.
+Still open:
+
+**A. `products.grade_id` is unset on most models** *(operational, not schema).*
+The derivation bridges model → grade through that column, so a model without it
+posts to the ledger correctly but never updates the production figure.
+`v_rw_unlinked_models` lists exactly which models are affected, and the checker
+screen warns when one is on the grid. Filling the column in Master Data closes
+the gap with no code change.
 
 **B. Interval numbering** *(Phase 1, cosmetic).* If the optional tally is used,
 should `interval_no` be the hour of day (matching

@@ -126,6 +126,18 @@ export default function DailyCheckerEntryPage() {
     },
   });
 
+  // Models counted but not linked to a production grade. Their counts still post
+  // to the ledger; they just cannot reach production_entries.quantity_rejected.
+  const { data: unlinked = [] } = useQuery({
+    queryKey: ["rw-unlinked-models"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("v_rw_unlinked_models")
+        .select("product_id, product_code, product_name");
+      return (data || []) as { product_id: string; product_code: string; product_name: string }[];
+    },
+  });
+
   const { data: employees = [] } = useQuery({
     queryKey: ["rw-checker-employees"],
     queryFn: async () => {
@@ -298,6 +310,14 @@ export default function DailyCheckerEntryPage() {
     });
     return out;
   }, [rows, checkpoints, productMap]);
+
+  const unlinkedOnGrid = useMemo(() => {
+    const ids = new Set(unlinked.map((u) => u.product_id));
+    return rows
+      .filter((r) => r.productId && (ids.has(r.productId) || !productMap[r.productId]?.grade_id))
+      .map((r) => productMap[r.productId]?.code)
+      .filter(Boolean) as string[];
+  }, [rows, unlinked, productMap]);
 
   const bins = useMemo(() => {
     const seen = new Map<string, string>();
@@ -473,6 +493,19 @@ export default function DailyCheckerEntryPage() {
                 <span>
                   Columns come from this department's checkpoints. Jorr counts leaker cores only;
                   Packing counts the two reject grades.
+                </span>
+              </div>
+            )}
+
+            {unlinkedOnGrid.length > 0 && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/[0.08] ring-1 ring-inset ring-amber-500/25 px-3 py-2 text-[12.5px] text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <span>
+                  <b>{unlinkedOnGrid.join(", ")}</b>{" "}
+                  {unlinkedOnGrid.length > 1 ? "have" : "has"} no production grade set, so{" "}
+                  {unlinkedOnGrid.length > 1 ? "these counts" : "this count"} will not reach the
+                  production entry's rejected figure. The count still posts to the bin — set the
+                  grade on the model in Master Data to close the gap.
                 </span>
               </div>
             )}
