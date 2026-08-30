@@ -386,6 +386,13 @@ import RWUnitsMasterPage from "./pages/rejections/RWUnitsMasterPage";
 import RWDispositionsMasterPage from "./pages/rejections/RWDispositionsMasterPage";
 import RWMaterialsMasterPage from "./pages/rejections/RWMaterialsMasterPage";
 import RejectionsAnalyticsPage from "./pages/rejections/RejectionsAnalyticsPage";
+import DailyCheckerEntryPage from "./pages/rejections/DailyCheckerEntryPage";
+import FloorBinStockPage from "./pages/rejections/FloorBinStockPage";
+import BallLedgerPage from "./pages/rejections/BallLedgerPage";
+import RWDefectGradesPage from "./pages/rejections/RWDefectGradesPage";
+import RWDefectRatesPage from "./pages/rejections/RWDefectRatesPage";
+import RWLocationsPage from "./pages/rejections/RWLocationsPage";
+import RWCheckpointsPage from "./pages/rejections/RWCheckpointsPage";
 // WIP Management pages
 import WIPMonitorDashboard from "./pages/wip/WIPMonitorDashboard";
 import WIPStockEntryPage from "./pages/wip/WIPStockEntryPage";
@@ -861,6 +868,13 @@ const App = () => (
             <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/materials" element={<ProtectedRoute><RWMaterialsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/analytics" element={<ProtectedRoute><RejectionsAnalyticsPage /></ProtectedRoute>} />
+            <Route path="/rejections/checker" element={<ProtectedRoute><DailyCheckerEntryPage /></ProtectedRoute>} />
+            <Route path="/rejections/bin-stock" element={<ProtectedRoute><FloorBinStockPage /></ProtectedRoute>} />
+            <Route path="/rejections/ledger" element={<ProtectedRoute><BallLedgerPage /></ProtectedRoute>} />
+            <Route path="/rejections/defect-grades" element={<ProtectedRoute><RWDefectGradesPage /></ProtectedRoute>} />
+            <Route path="/rejections/defect-rates" element={<ProtectedRoute><RWDefectRatesPage /></ProtectedRoute>} />
+            <Route path="/rejections/locations" element={<ProtectedRoute><RWLocationsPage /></ProtectedRoute>} />
+            <Route path="/rejections/checkpoints" element={<ProtectedRoute><RWCheckpointsPage /></ProtectedRoute>} />
 
             {/* WIP Management module */}
             <Route path="/wip/dashboard" element={<ProtectedRoute><WIPMonitorDashboard /></ProtectedRoute>} />

@@ -654,12 +654,18 @@ Three points worth being explicit about:
    would leave `quantity_ok + quantity_rejected <> quantity_produced`.
 2. **`quantity_ok` follows.** It is recomputed as
    `quantity_produced - quantity_rejected` so the identity always holds.
-3. **The write guard.** A trigger on `production_entries` overwrites
-   `quantity_rejected` on insert and update for dates on or after the cutover,
-   and `DailyEntryPage.tsx` renders the field read-only with a note pointing at
-   the checker entry. Same shape as `enforce_consumption_manual_entry_guard()`
-   and `set_closing_receipt_from_grn()`, both already in this schema. Pre-cutover
-   entries stay editable and untouched.
+3. **The write guard.** `production_entries` has **no unique key** on
+   `(date, shift, department, sub-department, grade)`, so a key can legitimately
+   carry several rows. Writing the day's whole defect figure to each of them would
+   multiply the plant's rejected total, so `rw_apportion_production_rejected()`
+   splits it across them **pro-rata by `quantity_produced`**, with cumulative
+   rounding so the parts add back to the whole exactly. It runs from both
+   directions: an `AFTER` trigger on `rw_checker_entries` (a count changed) and one
+   on `production_entries` (a row was added, edited or moved), each guarded by a
+   transaction-local flag so the recomputation does not re-enter itself.
+   `DailyEntryPage.tsx` renders both fields read-only with a note pointing at the
+   checker entry, and stops writing `production_rejections`. Pre-cutover entries
+   stay editable and untouched.
 
 `production_rejections` (the `defect_reason_id` child of a production entry)
 becomes redundant — the checker entry carries `reason_id` against `rw_reasons`.
@@ -678,7 +684,7 @@ the ledger row, so later rate changes never rewrite history.
 |---|---|
 | Daily checker entry, `onward_route = 'to_store'` (covered leakers, rejects) | **IN** to the department floor bin, `checker_entry` |
 | Daily checker entry, `onward_route = 'cover_then_store'` (Jorr leaker cores) | **IN** to the Jorr `leaker_wip` bin, `checker_entry` — held as WIP, not sellable |
-| Daily checker entry, `onward_route = 'destroy'` | **IN** then immediate **OUT**, so the count reports but no stock is held |
+| Daily checker entry, `onward_route = 'destroy'` | **no ledger row** — the count is recorded and reported, but never stocked. (The draft said IN-then-OUT; the source unique index makes a same-key pair impossible, and an immediately-cancelling pair carries no information a zero balance does not.) |
 | Cover transfer `issued` | **OUT** Jorr bin at `issued_quantity` (`cover_out`) |
 | Cover transfer `completed` | **IN** Final bin at `covered_quantity` as the **`to_defect_grade_id`** (`cover_in`); shortfall stays visible as the transfer's variance |
 | Handover `sent` | **OUT** floor bin → **IN** transit, at `sent_quantity` |

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, AlertTriangle, Trash2, Pencil, CheckCircle2, RotateCcw } from "lucide-react";
+import { Plus, AlertTriangle, Trash2, Pencil, CheckCircle2, RotateCcw, Lock } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { Link } from "react-router-dom";
 
 interface RejectionEntry {
   defect_reason_id: string;
@@ -57,6 +58,49 @@ export default function DailyEntryPage() {
     remarks: '',
   });
   const [rejections, setRejections] = useState<RejectionEntry[]>([]);
+
+  // ---- Rejected / OK come from the floor checker, not from this form -------
+  // From the R&W cutover onward the checker's daily count is the source of
+  // truth, and the database recomputes both figures on save. The form shows
+  // them read-only so the two modules can never be seen to disagree.
+  const { data: rwCutover } = useQuery({
+    queryKey: ['rw-ball-cutover'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('rw_ball_cutover');
+      if (error) return null;
+      return data as string | null;
+    },
+    staleTime: Infinity,
+  });
+
+  const rejectionsAreDerived = !!rwCutover && formData.entry_date >= rwCutover;
+
+  const { data: derivedRejected } = useQuery({
+    queryKey: ['rw-derived-rejected', formData.entry_date, formData.shift,
+               formData.department_id, formData.sub_department_id, formData.grade_id],
+    enabled: rejectionsAreDerived && !!formData.department_id && !!formData.grade_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('rw_defect_qty_for_production', {
+        p_date: formData.entry_date,
+        p_shift: formData.shift,
+        p_department: formData.department_id,
+        p_sub_department: formData.sub_department_id || null,
+        p_grade: formData.grade_id,
+      });
+      if (error) return 0;
+      return Number(data ?? 0);
+    },
+  });
+
+  useEffect(() => {
+    if (!rejectionsAreDerived || derivedRejected === undefined) return;
+    const rejected = Number(derivedRejected) || 0;
+    const produced = Number(formData.quantity_produced) || 0;
+    const ok = String(Math.max(0, produced - rejected));
+    if (formData.quantity_rejected === String(rejected) && formData.quantity_ok === ok) return;
+    setFormData((d) => ({ ...d, quantity_rejected: String(rejected), quantity_ok: ok }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejectionsAreDerived, derivedRejected, formData.quantity_produced]);
 
   const getUomIdForDepartment = (deptId: string): string => {
     const dept = departments?.find(d => d.id === deptId);
@@ -188,7 +232,7 @@ export default function DailyEntryPage() {
         .single();
       if (entryError) throw entryError;
 
-      if (rejections.length > 0 && entry) {
+      if (!rejectionsAreDerived && rejections.length > 0 && entry) {
         const rejectionsToInsert = rejections.filter(r => r.quantity > 0).map(r => ({
           production_entry_id: entry.id,
           defect_reason_id: r.defect_reason_id,
@@ -557,18 +601,51 @@ export default function DailyEntryPage() {
                     </div>
                   </div>
 
+                  {rejectionsAreDerived && (
+                    <div className="flex items-start gap-2 rounded-lg bg-primary/5 ring-1 ring-inset ring-primary/20 px-3 py-2">
+                      <Lock className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <div className="font-semibold">Rejected and OK come from the floor checker</div>
+                        <div className="text-muted-foreground mt-0.5">
+                          They are no longer typed here, so the two modules can never disagree. Leakage
+                          counts too &mdash; a leaker is equally a ball that was not OK. To change them, edit
+                          the day&rsquo;s count on{' '}
+                          <Link to="/rejections/checker" className="underline font-medium">Daily Checker Entry</Link>.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Qty OK</Label>
-                      <Input type="number" value={formData.quantity_ok} onChange={(e) => handleQuantityChange('quantity_ok', e.target.value)} placeholder="0" className="text-green-600" />
+                      <Input
+                        type="number" value={formData.quantity_ok}
+                        onChange={(e) => handleQuantityChange('quantity_ok', e.target.value)}
+                        placeholder="0" className="text-green-600"
+                        readOnly={rejectionsAreDerived} disabled={rejectionsAreDerived}
+                      />
+                      {rejectionsAreDerived && (
+                        <p className="text-[11px] text-muted-foreground mt-1">= produced &minus; rejected</p>
+                      )}
                     </div>
                     <div>
                       <Label>Qty Rejected</Label>
-                      <Input type="number" value={formData.quantity_rejected} onChange={(e) => handleQuantityChange('quantity_rejected', e.target.value)} placeholder="0" className="text-red-600" />
+                      <Input
+                        type="number" value={formData.quantity_rejected}
+                        onChange={(e) => handleQuantityChange('quantity_rejected', e.target.value)}
+                        placeholder="0" className="text-red-600"
+                        readOnly={rejectionsAreDerived} disabled={rejectionsAreDerived}
+                      />
+                      {rejectionsAreDerived && (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          From the day&rsquo;s checker entries
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {Number(formData.quantity_rejected) > 0 && (
+                  {!rejectionsAreDerived && Number(formData.quantity_rejected) > 0 && (
                     <Card className="border-red-200 bg-red-50/50">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
