@@ -232,6 +232,13 @@ BEGIN
   ORDER BY l.ledger_date DESC, l.created_at DESC
   LIMIT 1;
 
+  -- No ledger rows means there is no balance to sync — and on a fresh replay
+  -- (a preview branch) the hardcoded location below may not even exist, so an
+  -- insert here would break the FK. Nothing to do either way.
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
   latest_balance := COALESCE(latest_balance, 0);
   latest_unit := COALESCE(latest_unit, 'pcs');
 
