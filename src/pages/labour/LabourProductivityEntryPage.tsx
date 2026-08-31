@@ -83,7 +83,7 @@ const LabourProductivityEntryPage = () => {
     process_id: string;
     department_id: string;
     mph: number;
-  }>({ target_quantity: 0, process_id: "", department_id: "", mph: 0 });
+  }>({ target_quantity: 0, process_id: "", department_id: "", mph: 12 });
   const [requestEditReason, setRequestEditReason] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("all");
@@ -461,7 +461,7 @@ const LabourProductivityEntryPage = () => {
       target_quantity: Number(entry.target_quantity) || 0,
       process_id: entry.process_id || "",
       department_id: entry.department_id || "",
-      mph: Number(entry.mph) || 0,
+      mph: Number(entry.mph) === 6 ? 6 : 12,
     });
     setRequestEditReason("");
   };
@@ -2288,13 +2288,19 @@ const LabourProductivityEntryPage = () => {
 
             <div className="space-y-2">
               <Label>Requested MPH</Label>
-              <Input
-                type="number"
-                min={0}
-                step="any"
-                value={requestEditFields.mph}
-                onChange={(e) => setRequestEditFields({ ...requestEditFields, mph: Number(e.target.value) })}
-              />
+              {/* MPH is derived from the work type — a full day is 12 and a half day is 6.
+                  Nothing else is a valid value, so this offers the same two choices the
+                  daily entry form does rather than a free number field. */}
+              <Select
+                value={String(requestEditFields.mph)}
+                onValueChange={(v) => setRequestEditFields({ ...requestEditFields, mph: Number(v) })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select MPH" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="12">Full Day (12 MPH)</SelectItem>
+                  <SelectItem value="6">Half Day (6 MPH)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

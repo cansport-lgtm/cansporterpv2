@@ -240,14 +240,21 @@ export default function LabourProductivityEditRequestsPage() {
       if (request.requested_standard_target !== null && request.requested_standard_target !== undefined) {
         updatePayload.target_quantity = request.requested_standard_target;
       }
-      // MPH is a generated column derived from work_type (full_day=12, half_day=6).
-      // Translate the requested MPH value into the corresponding work_type.
+      // MPH is a generated column derived from work_type, and only two values exist:
+      // a full day is 12 and a half day is 6. Match them exactly rather than bucketing
+      // by range — the old `>= 12` / `> 0` test silently turned a stray request for 600
+      // into a full day and one for 5 into a half day, approving something nobody asked
+      // for. Anything else is refused so the mismatch is visible instead of guessed at.
       if (request.requested_mph !== null && request.requested_mph !== undefined) {
         const reqMph = Number(request.requested_mph);
-        if (reqMph >= 12) {
+        if (reqMph === 12) {
           updatePayload.work_type = "full_day";
-        } else if (reqMph > 0) {
+        } else if (reqMph === 6) {
           updatePayload.work_type = "half_day";
+        } else {
+          throw new Error(
+            `Requested MPH ${request.requested_mph} is not valid — MPH must be 12 (full day) or 6 (half day). Reject this request and ask for a new one.`
+          );
         }
       }
 
