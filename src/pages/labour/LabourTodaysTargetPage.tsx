@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 import { Badge } from "@/components/ui/badge";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
+import { DeploymentExcelExportButton } from "@/components/labour/DeploymentExcelExportButton";
 
 interface TargetEntry {
   id: string;
@@ -357,6 +358,7 @@ export default function LabourTodaysTargetPage() {
             <ClipboardCheck className="h-4 w-4" />
             Print Verification Sheet
           </Button>
+          <DeploymentExcelExportButton defaultDate={selectedDate} />
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-2">

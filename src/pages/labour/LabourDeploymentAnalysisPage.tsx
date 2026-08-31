@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { DeploymentExcelExportButton } from "@/components/labour/DeploymentExcelExportButton";
 
 interface TargetEntry {
   id: string;
@@ -449,6 +450,7 @@ export default function LabourDeploymentAnalysisPage() {
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
+          <DeploymentExcelExportButton defaultDate={selectedDate} />
         </div>
       </PageHeader>
 
