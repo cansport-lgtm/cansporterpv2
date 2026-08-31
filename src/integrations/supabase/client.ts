@@ -8,10 +8,43 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_maHf4XFU4sbsRHv1Z-8jgw_5qoDvpYq
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+const SESSION_KEY = 'erp_session';
+
+// The app uses its own auth (app_users), not Supabase Auth, so the database
+// cannot identify the acting user via auth.uid(). Attach the logged-in user's
+// id as a header on every request; audit triggers read it via app_user_id().
+const fetchWithAppUser: typeof fetch = (input, init) => {
+  let userUuid: string | null = null;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const session = JSON.parse(raw);
+      if (
+        typeof session?.userUuid === 'string' &&
+        typeof session?.expiry === 'number' &&
+        Date.now() < session.expiry
+      ) {
+        userUuid = session.userUuid;
+      }
+    }
+  } catch {
+    // Not logged in / unreadable session — send the request unattributed.
+  }
+
+  if (!userUuid) return fetch(input, init);
+
+  const headers = new Headers(init?.headers);
+  headers.set('x-app-user-id', userUuid);
+  return fetch(input, { ...init, headers });
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+  },
+  global: {
+    fetch: fetchWithAppUser,
   }
 });

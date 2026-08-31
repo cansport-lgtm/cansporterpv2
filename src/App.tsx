@@ -462,13 +462,13 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/settings/audit-log" 
+            <Route
+              path="/settings/audit-log"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="super_admin">
                   <AuditLogPage />
                 </ProtectedRoute>
-              } 
+              }
             />
 
             <Route 
