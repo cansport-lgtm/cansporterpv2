@@ -179,6 +179,7 @@ import LabourPublicHolidaysPage from "./pages/labour/LabourPublicHolidaysPage";
 import LabourProcessTargetsPage from "./pages/labour/LabourProcessTargetsPage";
 import IndividualPerformanceDashboard from "./pages/labour/IndividualPerformanceDashboard";
 import LabourMPHManagementPage from "./pages/labour/LabourMPHManagementPage";
+import LabourMPHAnalysisPage from "./pages/labour/LabourMPHAnalysisPage";
 import LabourTodaysTargetPage from "./pages/labour/LabourTodaysTargetPage";
 import LabourDeploymentAnalysisPage from "./pages/labour/LabourDeploymentAnalysisPage";
 import LabourProductivityEditRequestsPage from "./pages/labour/LabourProductivityEditRequestsPage";
@@ -656,6 +657,7 @@ const App = () => (
             <Route path="/labour/public-holidays" element={<ProtectedRoute><LabourPublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
+            <Route path="/labour/mph-analysis" element={<ProtectedRoute><LabourMPHAnalysisPage /></ProtectedRoute>} />
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRoles={["super_admin", "labour_productivity_approver"]}><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/time-sheet" element={<ProtectedRoute><LabourTimeSheetPage /></ProtectedRoute>} />
