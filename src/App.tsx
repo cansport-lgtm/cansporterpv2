@@ -656,7 +656,7 @@ const App = () => (
             <Route path="/labour/public-holidays" element={<ProtectedRoute><LabourPublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
-            <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRole="super_admin"><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
+            <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRoles={["super_admin", "labour_productivity_approver"]}><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/time-sheet" element={<ProtectedRoute><LabourTimeSheetPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
