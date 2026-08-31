@@ -304,6 +304,8 @@ import AccountingBudgetsPage from "./pages/accounting/AccountingBudgetsPage";
 import BudgetVsActualPage from "./pages/accounting/BudgetVsActualPage";
 import PeriodClosePage from "./pages/accounting/PeriodClosePage";
 import PeriodicCOGSPage from "./pages/accounting/PeriodicCOGSPage";
+import FinishedGoodsInventoryPage from "./pages/accounting/FinishedGoodsInventoryPage";
+import RawMaterialInventoryPage from "./pages/accounting/RawMaterialInventoryPage";
 import AccountingAuditLogPage from "./pages/accounting/AuditLogPage";
 import AccountingSettingsPage from "./pages/accounting/AccountingSettingsPage";
 
@@ -827,6 +829,8 @@ const App = () => (
             <Route path="/accounting/budget-vs-actual" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><BudgetVsActualPage /></ProtectedRoute>} />
             <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
             <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
+            <Route path="/accounting/fg-inventory" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><FinishedGoodsInventoryPage /></ProtectedRoute>} />
+            <Route path="/accounting/rm-inventory" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><RawMaterialInventoryPage /></ProtectedRoute>} />
             <Route path="/accounting/audit-log" element={<ProtectedRoute><AccountingAuditLogPage /></ProtectedRoute>} />
             <Route path="/accounting/settings" element={<ProtectedRoute requiredRole="super_admin"><AccountingSettingsPage /></ProtectedRoute>} />
             <Route path="/accounting/*" element={<ProtectedRoute><ComingSoon title="Accounting (Standalone)" /></ProtectedRoute>} />
