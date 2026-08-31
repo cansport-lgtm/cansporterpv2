@@ -29,21 +29,37 @@ export default function AuditLogPage() {
   const [filterAction, setFilterAction] = useState<string>("all");
   const [viewEntryId, setViewEntryId] = useState<string | null>(null);
 
+  // Accounting rows in the central audit_log (populated by DB triggers).
+  // Actions there are lowercase create/update/delete; this page keeps its
+  // historical INSERT/UPDATE/DELETE labels, so map both ways.
+  const toDbAction: Record<string, string> = { INSERT: "create", UPDATE: "update", DELETE: "delete" };
+  const fromDbAction: Record<string, string> = { create: "INSERT", update: "UPDATE", delete: "DELETE" };
+
   const { data: entries } = useQuery({
     queryKey: ["acc-audit-log", fromDate, toDate, filterTable, filterAction],
     queryFn: async () => {
       let q = sb
-        .from("accounting_audit_log")
-        .select("id, table_name, record_id, action, before_data, after_data, changed_at, changed_by_id")
-        .gte("changed_at", fromDate + "T00:00:00")
-        .lte("changed_at", toDate + "T23:59:59")
-        .order("changed_at", { ascending: false })
+        .from("audit_log")
+        .select("id, record_type, record_id, action, old_values, new_values, created_at, app_users!audit_log_user_id_fkey (full_name)")
+        .eq("module", "accounting")
+        .gte("created_at", fromDate + "T00:00:00")
+        .lte("created_at", toDate + "T23:59:59")
+        .order("created_at", { ascending: false })
         .limit(500);
-      if (filterTable !== "all") q = q.eq("table_name", filterTable);
-      if (filterAction !== "all") q = q.eq("action", filterAction);
+      if (filterTable !== "all") q = q.eq("record_type", filterTable);
+      if (filterAction !== "all") q = q.eq("action", toDbAction[filterAction] || filterAction);
       const { data, error } = await q;
       if (error) throw error;
-      return data || [];
+      return (data || []).map((r: any) => ({
+        id: r.id,
+        table_name: r.record_type,
+        record_id: r.record_id,
+        action: fromDbAction[r.action] || r.action,
+        before_data: r.old_values,
+        after_data: r.new_values,
+        changed_at: r.created_at,
+        user_name: r.app_users?.full_name || null,
+      }));
     },
   });
 
@@ -86,7 +102,7 @@ export default function AuditLogPage() {
 
   return (
     <ERPLayout>
-      <PageHeader title="Audit Log" description="Every INSERT / UPDATE / DELETE on vouchers and voucher lines (DB-trigger-captured)">
+      <PageHeader title="Audit Log" description="Every INSERT / UPDATE / DELETE on accounting tables (DB-trigger-captured)">
         <div className="flex gap-2">
           <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-[150px]" />
           <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-[150px]" />
@@ -96,6 +112,11 @@ export default function AuditLogPage() {
               <SelectItem value="all">All tables</SelectItem>
               <SelectItem value="accounting_vouchers">Vouchers</SelectItem>
               <SelectItem value="accounting_voucher_lines">Voucher lines</SelectItem>
+              <SelectItem value="accounting_parties">Parties</SelectItem>
+              <SelectItem value="accounting_chart_of_accounts">Chart of accounts</SelectItem>
+              <SelectItem value="accounting_default_accounts">Default accounts</SelectItem>
+              <SelectItem value="accounting_period_close">Period close</SelectItem>
+              <SelectItem value="accounting_budgets">Budgets</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterAction} onValueChange={setFilterAction}>
@@ -122,6 +143,7 @@ export default function AuditLogPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-44">Timestamp</TableHead>
+              <TableHead>By</TableHead>
               <TableHead>Table</TableHead>
               <TableHead>Action</TableHead>
               <TableHead>Record</TableHead>
@@ -130,13 +152,14 @@ export default function AuditLogPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {!entries?.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No audit entries in this range</TableCell></TableRow>}
+            {!entries?.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No audit entries in this range</TableCell></TableRow>}
             {entries?.map((e: any) => (
               <TableRow key={e.id}>
                 <TableCell className="text-xs font-mono">{format(new Date(e.changed_at), "dd MMM HH:mm:ss")}</TableCell>
-                <TableCell className="text-xs">{e.table_name.replace("accounting_", "")}</TableCell>
+                <TableCell className="text-xs">{e.user_name || "System"}</TableCell>
+                <TableCell className="text-xs">{(e.table_name || "").replace("accounting_", "")}</TableCell>
                 <TableCell>{actionBadge(e.action)}</TableCell>
-                <TableCell className="text-[10px] font-mono text-muted-foreground">{e.record_id.slice(0, 8)}…</TableCell>
+                <TableCell className="text-[10px] font-mono text-muted-foreground">{e.record_id ? e.record_id.slice(0, 8) + "…" : "—"}</TableCell>
                 <TableCell className="text-xs">{summary(e)}</TableCell>
                 <TableCell>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewEntryId(e.id)} title="View JSON"><Eye className="h-3 w-3" /></Button>
@@ -157,8 +180,9 @@ export default function AuditLogPage() {
           </DialogHeader>
           {selectedEntry && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 text-xs">
                 <div><span className="text-muted-foreground">Timestamp:</span> <strong className="font-mono">{format(new Date(selectedEntry.changed_at), "dd MMM yyyy HH:mm:ss")}</strong></div>
+                <div><span className="text-muted-foreground">By:</span> <strong>{selectedEntry.user_name || "System"}</strong></div>
                 <div><span className="text-muted-foreground">Table:</span> <strong>{selectedEntry.table_name}</strong></div>
                 <div><span className="text-muted-foreground">Record id:</span> <code className="text-[10px]">{selectedEntry.record_id}</code></div>
               </div>

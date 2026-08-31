@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { logActivity } from '@/lib/audit';
 
 interface AppUser {
   id: string;
@@ -573,6 +574,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Login/failed-login events are recorded inside verify_user_password;
+    // logout only happens client-side so it is recorded here.
+    logActivity({ module: 'auth', action: 'logout' });
     localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setRoles([]);

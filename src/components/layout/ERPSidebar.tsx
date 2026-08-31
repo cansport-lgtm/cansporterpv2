@@ -701,7 +701,7 @@ const navigationItems: NavItem[] = [
       { title: "Users", href: "/settings/users", superAdminOnly: true },
       { title: "Roles & Permissions", href: "/settings/roles" },
       { title: "System Alerts", href: "/settings/alerts" },
-      { title: "Audit Log", href: "/settings/audit-log" },
+      { title: "Audit Log", href: "/settings/audit-log", superAdminOnly: true },
     ],
   },
 ];
