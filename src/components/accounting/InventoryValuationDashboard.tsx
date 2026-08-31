@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Package, FlaskConical, Banknote, Boxes, AlertTriangle, ChevronRight, ChevronDown,
-  Download, Search, Scale,
+  Download, Search, Scale, Layers,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -328,13 +328,21 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         </Button>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${isFG ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
         <MetricCard
           title={isFG ? "Finished Goods Value" : "Raw Material Value"}
           value={kpi ? fmtRs(kpi.value) : "—"}
           icon={Banknote}
           description={isFG ? `Packing dept · as of ${asOf}` : `as of ${asOf} · intermediates excluded`}
         />
+        {isFG && (
+          <MetricCard
+            title="FG + WIP Value"
+            value={computed ? fmtRs(computed.allTotal) : "—"}
+            icon={Layers}
+            description="all departments · matches GL strip"
+          />
+        )}
         <MetricCard
           title={isFG ? "Quantity On Hand" : "Active Materials"}
           value={kpi ? (isFG ? kpi.qty.toLocaleString() : kpi.items.toLocaleString()) : "—"}
