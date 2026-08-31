@@ -155,6 +155,10 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
       { title: "Expenses Analysis", href: "/accounting/expenses-analysis" },
 
+      { title: "Inventory", href: "", isHeader: true },
+      { title: "Finished Goods Inventory", href: "/accounting/fg-inventory", allowedRoles: ["accounting_manager", "super_admin"] },
+      { title: "Raw Material Inventory", href: "/accounting/rm-inventory", allowedRoles: ["accounting_manager", "super_admin"] },
+
       { title: "Budgeting", href: "", isHeader: true },
       { title: "Budgets", href: "/accounting/budgets", allowedRoles: ["accounting_manager", "super_admin"] },
       { title: "Budget vs Actual", href: "/accounting/budget-vs-actual", allowedRoles: ["accounting_manager", "super_admin"] },
