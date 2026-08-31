@@ -26,9 +26,12 @@ export default function LabourProductivityEditRequestsPage() {
   const roleNames = roles.map((r) => r.role as string);
   const isSuperAdmin = roleNames.includes('super_admin');
   const isApprover = roleNames.includes('labour_productivity_approver');
-  const isPoster = roleNames.includes('labour_productivity_poster');
-  // Posters raise edit requests; they never review them. Approvers and super admins do.
-  const canReview = isSuperAdmin || (isApprover && !isPoster);
+  // Roles grant, they do not veto. Holding the poster role must not cancel out an
+  // approver role granted alongside it — the labour manager holds both, and an earlier
+  // `&& !isPoster` guard silently left that account unable to approve anything.
+  // A poster WITHOUT the approver role still cannot review: raising edit requests and
+  // approving them stay separate unless someone is explicitly granted both.
+  const canReview = isSuperAdmin || isApprover;
   const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectNotes, setRejectNotes] = useState("");
 
