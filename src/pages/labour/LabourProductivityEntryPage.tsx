@@ -94,7 +94,7 @@ const LabourProductivityEntryPage = () => {
 
   // Excel import/export state
   const isSuperAdmin = hasRole("super_admin");
-  const canImportExport = isSuperAdmin || (hasRole("manager") && hasModulePermission("labour", "view"));
+  const canImportExport = isSuperAdmin || hasRole("manager");
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const importTimesFileInputRef = useRef<HTMLInputElement>(null);
   const importCheckInFileInputRef = useRef<HTMLInputElement>(null);
