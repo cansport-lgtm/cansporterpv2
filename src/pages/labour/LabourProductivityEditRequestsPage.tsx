@@ -19,11 +19,16 @@ import { format } from "date-fns";
 
 export default function LabourProductivityEditRequestsPage() {
   const queryClient = useQueryClient();
-  const { user, hasRole, hasModulePermission } = useAuth();
-  const isSuperAdmin = hasRole('super_admin');
-  const isApprover = hasRole('labour_productivity_approver');
-  const isPoster = hasRole('labour_productivity_poster');
-  const canReview = (isSuperAdmin || isApprover) && !isPoster;
+  const { user, roles } = useAuth();
+  // Read the role list directly: hasRole() answers true for a super_admin no matter which
+  // role is asked, which made `isPoster` true for super admins and hid the review actions
+  // from them. These flags must mean "actually holds this role".
+  const roleNames = roles.map((r) => r.role as string);
+  const isSuperAdmin = roleNames.includes('super_admin');
+  const isApprover = roleNames.includes('labour_productivity_approver');
+  const isPoster = roleNames.includes('labour_productivity_poster');
+  // Posters raise edit requests; they never review them. Approvers and super admins do.
+  const canReview = isSuperAdmin || (isApprover && !isPoster);
   const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectNotes, setRejectNotes] = useState("");
 

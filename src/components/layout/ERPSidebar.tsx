@@ -496,7 +496,7 @@ const navigationItems: NavItem[] = [
       { title: "Individual Performance", href: "/labour/individual-performance" },
       { title: "Public Holidays", href: "/labour/public-holidays" },
       { title: "MPH Management", href: "/labour/mph-management" },
-      { title: "Edit Requests", href: "/labour/edit-requests", superAdminOnly: true },
+      { title: "Edit Requests", href: "/labour/edit-requests", requiresApprove: "labour" },
       { title: "Dashboard", href: "/labour/dashboard" },
     ],
   },
