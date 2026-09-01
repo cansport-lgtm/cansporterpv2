@@ -16133,6 +16133,9 @@ export type Database = {
         | "material_consumption_manager"
         | "material_consumption_officer"
         | "material_consumption_viewer"
+        | "machine_monitor_manager"
+        | "machine_monitor_officer"
+        | "machine_monitor_viewer"
       asset_category:
         | "office_assets"
         | "production_machinery"

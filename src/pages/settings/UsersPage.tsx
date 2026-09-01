@@ -154,6 +154,9 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "material_consumption_manager", label: "Material Consumption — Manager (full + approve)" },
   { value: "material_consumption_officer", label: "Material Consumption — Officer (create & edit)" },
   { value: "material_consumption_viewer", label: "Material Consumption — Viewer (read-only)" },
+  { value: "machine_monitor_manager", label: "Machine Monitor — Manager (full + approve)" },
+  { value: "machine_monitor_officer", label: "Machine Monitor — Officer (create & edit)" },
+  { value: "machine_monitor_viewer", label: "Machine Monitor — Viewer (read-only)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -628,6 +631,9 @@ export default function UsersPage() {
       material_consumption_manager: "bg-sky-600/10 text-sky-600",
       material_consumption_officer: "bg-sky-500/10 text-sky-500",
       material_consumption_viewer: "bg-sky-400/10 text-sky-400",
+      machine_monitor_manager: "bg-cyan-600/10 text-cyan-600",
+      machine_monitor_officer: "bg-cyan-500/10 text-cyan-500",
+      machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400",
     };
     return colors[role] || "";
   };
