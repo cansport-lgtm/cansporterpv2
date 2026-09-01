@@ -50,9 +50,9 @@ interface AttendanceFormData {
 
 export default function AttendancePage() {
   const queryClient = useQueryClient();
-  const { hasRole, hasModulePermission } = useAuth();
+  const { hasRole } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
-  const canImportExport = isSuperAdmin || (hasRole("manager") && hasModulePermission("hr", "view"));
+  const canImportExport = isSuperAdmin || hasRole("manager");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);

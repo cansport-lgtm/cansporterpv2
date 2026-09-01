@@ -58,9 +58,8 @@ const parseDate = (v: any): string | null => {
 };
 
 const MissingProductivityEntriesPage = () => {
-  const { hasRole, hasModulePermission } = useAuth();
-  const canUse =
-    hasRole("super_admin") || (hasRole("manager") && hasModulePermission("labour", "view"));
+  const { hasRole } = useAuth();
+  const canUse = hasRole("super_admin") || hasRole("manager");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
