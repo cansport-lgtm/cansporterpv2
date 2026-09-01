@@ -52,7 +52,7 @@ export default function AttendancePage() {
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
-  const canImportExport = isSuperAdmin || hasRole("manager");
+  const canImportExport = isSuperAdmin || hasRole("manager") || hasRole("hr_manager");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
