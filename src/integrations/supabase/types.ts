@@ -8761,6 +8761,69 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string | null
+          module: string | null
+          read_at: string | null
+          recipient_id: string
+          reference_id: string | null
+          reference_type: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          module?: string | null
+          read_at?: string | null
+          recipient_id: string
+          reference_id?: string | null
+          reference_type?: string | null
+          title: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          module?: string | null
+          read_at?: string | null
+          recipient_id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       online_customers: {
         Row: {
           city: string | null
@@ -15971,6 +16034,39 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      mark_all_notifications_read: {
+        Args: { p_recipient_id: string }
+        Returns: number
+      }
+      notify_role: {
+        Args: {
+          p_roles: Database["public"]["Enums"]["app_role"][]
+          p_title: string
+          p_message?: string
+          p_type?: string
+          p_module?: string
+          p_link?: string
+          p_reference_type?: string
+          p_reference_id?: string
+          p_created_by?: string
+          p_exclude_user?: string
+        }
+        Returns: number
+      }
+      notify_user: {
+        Args: {
+          p_recipient_id: string
+          p_title: string
+          p_message?: string
+          p_type?: string
+          p_module?: string
+          p_link?: string
+          p_reference_type?: string
+          p_reference_id?: string
+          p_created_by?: string
+        }
+        Returns: string
       }
       production_monthly_report: {
         Args: { p_from: string; p_to: string }

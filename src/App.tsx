@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ComingSoon from "./pages/ComingSoon";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
+import NotificationsPage from "./pages/NotificationsPage";
 
 // Settings pages
 import UsersPage from "./pages/settings/UsersPage";
@@ -444,7 +445,16 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            
+            {/* Notifications inbox — available to every authenticated user */}
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Settings Routes */}
             <Route 
               path="/settings/users" 

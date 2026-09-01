@@ -893,6 +893,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Super admin has all access
     if (roles.some((r) => r.role === 'super_admin')) return true;
 
+    // The notifications inbox only ever shows the user's own notifications, so
+    // every role — including strictly route-locked ones — may open it.
+    if (route === '/notifications') return true;
+
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (
       roles.some((r) =>

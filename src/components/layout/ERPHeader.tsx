@@ -1,4 +1,5 @@
-import { Bell, Search, Menu, User, LogOut, Settings as SettingsIcon, UserCircle } from "lucide-react";
+import { Search, Menu, User, LogOut, Settings as SettingsIcon, UserCircle } from "lucide-react";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -75,57 +76,7 @@ export function ERPHeader({ onMenuClick }: ERPHeaderProps) {
         {/* Right section */}
         <div className="flex items-center gap-2">
           {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative rounded-full">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive/70 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 bg-popover shadow-popover-soft">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notifications</span>
-                <span className="rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5">
-                  5 new
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  <span className="font-medium text-sm">Purchase Approval Pending</span>
-                </div>
-                <span className="text-xs text-muted-foreground pl-3.5">
-                  PR-2024-0045 requires your approval
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                  <span className="font-medium text-sm">PM Due Today</span>
-                </div>
-                <span className="text-xs text-muted-foreground pl-3.5">
-                  3 machines have scheduled maintenance
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                  <span className="font-medium text-sm">QA Hold Alert</span>
-                </div>
-                <span className="text-xs text-muted-foreground pl-3.5">
-                  Batch #B2024-0089 on hold — NCR pending
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-center text-primary font-medium justify-center">
-                View all notifications
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell />
 
           <div className="hidden md:block h-6 w-px bg-border/80 mx-1" />
 
