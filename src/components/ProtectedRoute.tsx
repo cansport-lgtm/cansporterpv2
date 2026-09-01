@@ -179,6 +179,16 @@ export function ProtectedRoute({
       return <Navigate to="/production/daily-entry" replace />;
     }
 
+    // For QA officer (single-purpose inspection role), redirect back to the inspections
+    // page when accessing anything outside their two allowed pages.
+    if (roles.some((r) => (r.role as string) === 'qa_officer')) {
+      const allowed = ['/qa/inspections', '/qa/officer-dashboard'];
+      const isAllowed = allowed.some(p => location.pathname === p || location.pathname.startsWith(p + '/'));
+      if (!isAllowed) {
+        return <Navigate to="/qa/inspections" replace />;
+      }
+    }
+
     // For purchase QC inspector, redirect back to the Quality Inspection page when
     // accessing anything outside it (keeps them away from every pricing page).
     if (roles.some((r) => (r.role as string) === 'purchase_qc_inspector')) {

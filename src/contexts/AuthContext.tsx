@@ -361,6 +361,13 @@ for (const def of MODULE_TIER_DEFINITIONS) {
   }
 }
 
+// QA Officer is a single-purpose inspection role: it can ONLY record inspections and
+// review its own on the officer dashboard. Override the generated '/qa' prefix whitelist
+// (and the '/dashboard' shell) so no other QA page — or any other module — is reachable
+// or visible in the sidebar. Action grants stay at the officer tier (view/create/edit).
+ROLE_MODULE_ACCESS['qa_officer'] = ['qa'];
+ROLE_ROUTE_RESTRICTIONS['qa_officer'] = ['/qa/inspections', '/qa/officer-dashboard'];
+
 interface ModulePermission {
   module_name: string;
   can_view: boolean;

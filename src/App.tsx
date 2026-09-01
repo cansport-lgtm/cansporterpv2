@@ -38,6 +38,7 @@ import SystemAlertsPage from "./pages/settings/SystemAlertsPage";
 
 // QA pages
 import QADashboard from "./pages/qa/QADashboard";
+import QAOfficerDashboard from "./pages/qa/QAOfficerDashboard";
 import ProcessMasterPage from "./pages/qa/ProcessMasterPage";
 import InspectionsPage from "./pages/qa/InspectionsPage";
 import OperatorInspectionPage from "./pages/qa/OperatorInspectionPage";
@@ -500,6 +501,7 @@ const App = () => (
             <Route path="/qa/floor-display" element={<FloorInspectionDisplayPage />} />
             {/* QA Routes */}
             <Route path="/qa/dashboard" element={<ProtectedRoute><QADashboard /></ProtectedRoute>} />
+            <Route path="/qa/officer-dashboard" element={<ProtectedRoute><QAOfficerDashboard /></ProtectedRoute>} />
             <Route path="/qa/processes" element={<ProtectedRoute><ProcessMasterPage /></ProtectedRoute>} />
             <Route path="/qa/inspections" element={<ProtectedRoute><InspectionsPage /></ProtectedRoute>} />
             <Route path="/qa/operator-inspection" element={<ProtectedRoute><OperatorInspectionPage /></ProtectedRoute>} />

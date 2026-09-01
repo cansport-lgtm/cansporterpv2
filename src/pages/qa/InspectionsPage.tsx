@@ -58,7 +58,8 @@ interface InspectionReading {
 export default function InspectionsPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, hasModulePermission } = useAuth();
+  const canDeleteInspections = hasModulePermission("qa", "delete");
   const [showDialog, setShowDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -491,9 +492,11 @@ export default function InspectionsPage() {
           <Button variant="ghost" size="icon" onClick={() => handleViewInspection(row)} title="View Details">
             <Eye className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDeleteInspection(row)} title="Delete Inspection">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canDeleteInspections && (
+            <Button variant="ghost" size="icon" onClick={() => handleDeleteInspection(row)} title="Delete Inspection">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },

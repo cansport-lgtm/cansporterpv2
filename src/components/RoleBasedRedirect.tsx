@@ -45,6 +45,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/qa/dashboard" replace />;
   }
 
+  // QA Officer opens the inspection form directly (single-purpose inspection role)
+  if (roles.some(r => (r.role as string) === 'qa_officer')) {
+    return <Navigate to="/qa/inspections" state={{ openNewInspection: true }} replace />;
+  }
+
   // Maintenance Manager goes to Maintenance Dashboard
   if (roles.some(r => r.role === 'maintenance_manager')) {
     return <Navigate to="/maintenance/dashboard" replace />;
