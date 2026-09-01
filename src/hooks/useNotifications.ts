@@ -9,6 +9,33 @@ export type SystemNotification = Database["public"]["Tables"]["notifications"]["
 
 const LIST_LIMIT = 30;
 
+// Raise an OS-level notification. Mobile browsers (Android Chrome in
+// particular) don't allow `new Notification()` from a page — it must go
+// through the service worker registration (the PWA registers one), so try
+// that first and fall back to direct construction for desktop browsers.
+async function showDeviceNotification(n: SystemNotification): Promise<void> {
+  const options: NotificationOptions = {
+    body: n.message ?? undefined,
+    icon: "/pwa-192x192-v3.png",
+    tag: n.id,
+    data: { link: n.link },
+  };
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration();
+    if (registration) {
+      await registration.showNotification(n.title, options);
+      return;
+    }
+  } catch {
+    // fall through to direct construction
+  }
+  try {
+    new Notification(n.title, options);
+  } catch {
+    // Notifications unsupported in this context — the in-app toast still showed.
+  }
+}
+
 /**
  * The current user's system notifications: latest items + unread count,
  * kept live via a realtime subscription on the notifications table.
@@ -73,22 +100,14 @@ export function useNotifications() {
             variant: n.type === "error" ? "destructive" : "default",
           });
 
-          // Desktop notification when the tab is in the background and the
+          // Device notification when the tab is in the background and the
           // user granted permission (see requestDesktopNotifications below).
           if (
             typeof Notification !== "undefined" &&
             Notification.permission === "granted" &&
             document.visibilityState !== "visible"
           ) {
-            try {
-              new Notification(n.title, {
-                body: n.message ?? undefined,
-                icon: "/favicon.ico",
-                tag: n.id,
-              });
-            } catch {
-              // Some mobile browsers throw on direct construction — ignore.
-            }
+            void showDeviceNotification(n);
           }
         }
       )

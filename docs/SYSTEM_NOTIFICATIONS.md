@@ -60,6 +60,12 @@ PERFORM public.notify_role(
 );
 ```
 
+A second producer covers dispatches: every new row in `sales_dispatches`
+notifies `super_admin` / `admin` / `sales_order_manager` (except the
+dispatcher) with the dispatch number, order, customer, and vehicle
+(`20260901160000_dispatch_notifications.sql`). To change who is notified,
+edit the role array in `notify_new_dispatch()`.
+
 Copy this pattern for other events (QA holds, PM due, low stock, …): write a
 trigger function that calls `notify_role` / `notify_user` and attach it to the
 relevant table.
@@ -98,6 +104,24 @@ logged-in user and keeps everything live via realtime. The bell
 
 Clicking a notification marks it read and navigates to its `link` (when set).
 "Mark all read" uses the `mark_all_notifications_read` RPC.
+
+## Notifications on mobile
+
+There are three delivery levels; the first two work today with no extra setup:
+
+1. **In-app (always)** — bell badge, dropdown, toast, and the /notifications
+   page update in real time whenever the app is open, on any device.
+2. **Device notification (app open, possibly in background)** — after the user
+   taps the bell once and grants the browser's notification permission, new
+   notifications appear as OS notifications whenever the tab/PWA is open but
+   not in the foreground. On Android this requires the app to be installed as
+   a PWA ("Add to Home Screen"); delivery goes through the service worker.
+   iOS Safari only supports this for an installed PWA on iOS 16.4+.
+3. **Push with the app fully closed (not implemented)** — would require Web
+   Push: storing a push subscription per device, a VAPID key pair, and an
+   edge function that sends the push whenever a notification row is inserted.
+   The `notifications` table is already the single source of truth, so this
+   can be layered on later without changing any producers.
 
 ## Notification fields
 
