@@ -24,14 +24,13 @@ export interface CreateInvoiceResult {
  */
 export async function createInvoiceForDispatch(
   dispatchId: string,
-  opts: { createdBy?: string | null; paymentTerms?: string } = {},
+  opts: { createdBy?: string | null; paymentTerms?: string; invoiceDate?: string; notes?: string | null } = {},
 ): Promise<CreateInvoiceResult> {
   try {
     const paymentTerms = opts.paymentTerms || "Net 30";
-    const today = new Date();
-    const invoiceDate = today.toISOString().slice(0, 10);
+    const invoiceDate = opts.invoiceDate || new Date().toISOString().slice(0, 10);
     const netDays = parseInt(paymentTerms.match(/Net (\d+)/)?.[1] || "30", 10);
-    const dueDate = new Date(today.getTime() + netDays * 86400000).toISOString().slice(0, 10);
+    const dueDate = new Date(new Date(invoiceDate).getTime() + netDays * 86400000).toISOString().slice(0, 10);
 
     // 1) Load the dispatch items + their customer / price / product.
     const { data: items, error: iErr } = await sb
@@ -90,6 +89,7 @@ export async function createInvoiceForDispatch(
           payment_terms: paymentTerms,
           subtotal: total,
           total_amount: total,
+          notes: opts.notes || null,
           status: "draft",
           created_by: opts.createdBy || null,
         })

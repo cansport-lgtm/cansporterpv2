@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { Plus, Printer, FileText, Eye, Pencil } from "lucide-react";
 import { format, addDays, startOfMonth, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
 
 const sb = supabase as any;
 
@@ -97,12 +98,17 @@ export default function DomesticInvoicesPage() {
     return Array.from(map.values());
   };
 
-  // Dispatches that don't yet have an invoice. Customer is derived from items.
+  // Dispatches with at least one customer not yet invoiced. A dispatch can span
+  // several customers (one invoice per customer), so exclusion is per
+  // (dispatch, customer) pair — a partially invoiced dispatch stays listed
+  // until every customer on it has an invoice.
   const { data: invoiceableDispatches } = useQuery({
     queryKey: ["invoiceable-dispatches"],
     queryFn: async () => {
-      const { data: existing } = await sb.from("domestic_invoices").select("dispatch_id");
-      const usedIds = new Set((existing || []).map((r: any) => r.dispatch_id));
+      const { data: existing } = await sb.from("domestic_invoices").select("dispatch_id, customer_id");
+      const existingRows: { dispatch_id: string; customer_id: string | null }[] = existing || [];
+      const usedPairs = new Set(existingRows.map((r) => `${r.dispatch_id}|${r.customer_id || ""}`));
+      const usedIds = new Set(existingRows.map((r) => r.dispatch_id));
 
       const { data, error } = await sb
         .from("sales_dispatches")
@@ -119,8 +125,14 @@ export default function DomesticInvoicesPage() {
         .limit(200);
       if (error) throw error;
       return (data || [])
-        .filter((d: any) => !usedIds.has(d.id))
-        .map((d: any) => ({ ...d, customers: customersFromItems(d.items || []) }));
+        .map((d: any) => {
+          const customers = customersFromItems(d.items || []);
+          const pendingCustomers = customers.filter((c) => !usedPairs.has(`${d.id}|${c.id}`));
+          return { ...d, customers, pendingCustomers };
+        })
+        .filter((d: any) =>
+          d.customers.length > 0 ? d.pendingCustomers.length > 0 : !usedIds.has(d.id)
+        );
     },
     enabled: createOpen,
   });
@@ -132,7 +144,7 @@ export default function DomesticInvoicesPage() {
       .from("sales_dispatch_items")
       .select(`
         id, quantity_dozens, packing_type,
-        order_item:sales_order_items(price_per_dozen, details, product:products(id, code, name), grade:grades(name))
+        order_item:sales_order_items(price_per_dozen, details, product:products(id, code, name), grade:grades(name), order:sales_orders(customer_id))
       `)
       .eq("dispatch_id", dispatchId);
     if (error) throw error;
@@ -151,7 +163,16 @@ export default function DomesticInvoicesPage() {
     }, 0);
   };
 
-  const totalForCreate = computeTotal(createDispatchItems || []);
+  // Only the lines of customers that still need an invoice count towards the
+  // preview — already-invoiced customers on the same dispatch are excluded.
+  const selectedDispatch = invoiceableDispatches?.find((d: any) => d.id === selectedDispatchId);
+  const itemsForCreate = (createDispatchItems || []).filter((it: any) => {
+    if (!selectedDispatch?.pendingCustomers?.length) return true;
+    const cid = it.order_item?.order?.customer_id;
+    return selectedDispatch.pendingCustomers.some((c: { id: string }) => c.id === cid);
+  });
+  const totalForCreate = computeTotal(itemsForCreate);
+  const pendingInvoiceCount = selectedDispatch?.pendingCustomers?.length || 0;
 
   // Default due date = invoice date + payment-terms days
   const dueDate = (() => {
@@ -161,95 +182,40 @@ export default function DomesticInvoicesPage() {
   })();
 
   // === Create ===
+  // Delegates to the same grouped helper the dispatch flow uses: one invoice per
+  // customer on the dispatch, idempotent per (dispatch, customer). This is the
+  // recovery path when the auto-create at dispatch time failed or was skipped
+  // (e.g. prices were still Rs. 0), and it handles multi-customer dispatches
+  // instead of refusing them.
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedDispatchId) throw new Error("Pick a dispatch");
 
-      // Resolve the customer through the dispatch's items chain (the only path
-      // that works for both legacy single-order dispatches and the current
-      // many-to-many domestic dispatches that use sales_dispatch_orders).
-      const cached = invoiceableDispatches?.find((d: any) => d.id === selectedDispatchId);
-      let customers = cached?.customers as { id: string; name: string }[] | undefined;
-      if (!customers || customers.length === 0) {
-        const { data: directItems, error: dErr } = await sb
-          .from("sales_dispatch_items")
-          .select("order_item:sales_order_items(order:sales_orders(customer:customers(id, name, code)))")
-          .eq("dispatch_id", selectedDispatchId);
-        if (dErr) throw dErr;
-        customers = customersFromItems(directItems || []);
-      }
-      if (!customers || customers.length === 0) {
+      const res = await createInvoiceForDispatch(selectedDispatchId, {
+        createdBy: user?.id || null,
+        paymentTerms,
+        invoiceDate,
+        notes: notes || null,
+      });
+      if (!res.ok) throw new Error(res.error || "Invoice creation failed");
+      if (res.created.length === 0) {
+        if (res.skippedZeroPrice > 0) {
+          throw new Error("Cannot create a Rs. 0 invoice — set selling prices on the dispatched order lines first.");
+        }
+        if (res.skippedExisting > 0) {
+          throw new Error("Every customer on this dispatch already has an invoice.");
+        }
         throw new Error("Dispatch has no items linked to a customer. Add line items in the dispatch first.");
       }
-      if (customers.length > 1) {
-        throw new Error(`Dispatch spans ${customers.length} customers. Split into separate invoices manually, one per customer.`);
-      }
-      const customerId = customers[0].id;
-
-      // Refuse to create a second invoice for the same dispatch.
-      const { data: existing } = await sb
-        .from("domestic_invoices")
-        .select("id, invoice_number")
-        .eq("dispatch_id", selectedDispatchId)
-        .maybeSingle();
-      if (existing) throw new Error(`Dispatch already invoiced as ${existing.invoice_number}`);
-
-      // Block Rs. 0 invoices — these would book no revenue/AR against the sale.
-      // Fix the selling prices on the dispatched order lines first.
-      if (!(totalForCreate > 0)) {
-        throw new Error("Cannot create a Rs. 0 invoice — set selling prices on the dispatched order lines first.");
-      }
-
-      const { data, error } = await sb
-        .from("domestic_invoices")
-        .insert({
-          invoice_number: "",
-          dispatch_id: selectedDispatchId,
-          customer_id: customerId,
-          invoice_date: invoiceDate,
-          due_date: dueDate,
-          payment_terms: paymentTerms,
-          subtotal: totalForCreate,
-          total_amount: totalForCreate,
-          notes: notes || null,
-          status: "draft",
-          created_by: user?.id || null,
-        })
-        .select("id, invoice_number")
-        .single();
-      if (error) throw error;
-
-      // Snapshot dispatch items into the invoice's own item table so the
-      // invoice becomes a fully independent, editable document.
-      const itemsPayload = (createDispatchItems || []).map((it: any, i: number) => {
-        const qty = Number(it.quantity_dozens || 0);
-        const price = Number(it.order_item?.price_per_dozen || 0);
-        const product = it.order_item?.product;
-        return {
-          invoice_id: data.id,
-          dispatch_item_id: it.id,
-          product_id: product?.id || null,
-          description: product ? `${product.code || ""} — ${product.name || ""}` : null,
-          details: it.order_item?.details || null,
-          grade_name: it.order_item?.grade?.name || null,
-          packing_type: it.packing_type || null,
-          quantity_dozens: qty,
-          price_per_dozen: price,
-          amount: qty * price,
-          line_order: i,
-        };
-      });
-      if (itemsPayload.length > 0) {
-        const { error: iErr } = await sb.from("domestic_invoice_items").insert(itemsPayload);
-        if (iErr) throw iErr;
-      }
-
-      return data;
+      return res;
     },
-    onSuccess: (data) => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["domestic-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoiceable-dispatches"] });
-      toast({ title: `Invoice ${data.invoice_number} created` });
+      toast({ title: res.created.length > 1 ? `Invoices created: ${res.created.join(", ")}` : `Invoice ${res.created[0]} created` });
+      if (res.skippedZeroPrice > 0) {
+        toast({ title: `${res.skippedZeroPrice} invoice(s) skipped — items have no selling price (Rs. 0). Fix prices on the sales order.`, variant: "destructive" });
+      }
       setCreateOpen(false);
       setSelectedDispatchId("");
       setNotes("");
@@ -475,8 +441,9 @@ export default function DomesticInvoicesPage() {
                 <SelectTrigger><SelectValue placeholder={invoiceableDispatches?.length ? "Pick a dispatch without an invoice" : "All dispatches have invoices"} /></SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {invoiceableDispatches?.map((d: any) => {
-                    const cust = d.customers?.[0]?.name;
-                    const more = (d.customers?.length || 0) > 1 ? ` +${d.customers.length - 1} more` : "";
+                    const pending = d.pendingCustomers?.length ? d.pendingCustomers : d.customers;
+                    const cust = pending?.[0]?.name;
+                    const more = (pending?.length || 0) > 1 ? ` +${pending.length - 1} more` : "";
                     return (
                       <SelectItem key={d.id} value={d.id}>
                         <span className="font-mono text-xs mr-2">{d.dispatch_number}</span>
@@ -488,7 +455,10 @@ export default function DomesticInvoicesPage() {
               </Select>
               {selectedDispatchId && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  Total: Rs. {totalForCreate.toLocaleString()} · {createDispatchItems?.length || 0} line item(s)
+                  Total: Rs. {totalForCreate.toLocaleString()} · {itemsForCreate?.length || 0} line item(s)
+                  {pendingInvoiceCount > 1 && (
+                    <span> · dispatch spans {pendingInvoiceCount} customers — {pendingInvoiceCount} invoices will be created (one per customer)</span>
+                  )}
                 </div>
               )}
             </div>
