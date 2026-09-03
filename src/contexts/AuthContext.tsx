@@ -666,10 +666,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // user also holds another *scoped* role (e.g. pettycash_handler alongside dispatch_operator),
     // grant the union of all their hard-restricted module scopes — a flexible role still cannot
     // widen this, which is the whole point of "strict".
+    // Per-user module permission rows are an explicit admin grant (not a stray role), so they
+    // still apply — but ONLY for modules OUTSIDE every strict role's own scope. Inside a strict
+    // role's scope the role stays the only authority, so permission rows can never widen e.g.
+    // a purchase_qc_inspector's Purchase access or a labour viewer's Labour access.
     const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
     if (strictRoles.length > 0) {
       const scopedRoles = roles.filter((r) => HARD_RESTRICTED_MODULE_ROLES.has(r.role));
-      return scopedRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod));
+      if (scopedRoles.some((r) => ROLE_MODULE_ACCESS[r.role]?.includes(mod))) return true;
+      const strictScope = new Set(strictRoles.flatMap((r) => ROLE_MODULE_ACCESS[r.role] ?? []));
+      if (!strictScope.has(mod)) {
+        return !!modulePermissions.find((p) => p.module_name === mod)?.can_view;
+      }
+      return false;
     }
 
     // Accounting Officer: its module grants are role-driven and additive — they apply even
@@ -949,14 +958,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // A hard-restricted role WITHOUT an explicit whitelist (accounting_manager /
     // accounting_officer / qa_manager / …) joins the union with the routes of its own
     // module scope, mirroring how canAccessModule unions module scopes above.
+    // Per-user module permission rows (an explicit admin grant) also join the union with
+    // their module's routes — but ONLY for modules outside every strict role's own scope,
+    // matching canAccessModule: inside a strict role's scope its whitelist stays the only
+    // authority, so permission rows can never widen a strict role's own module.
     const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
     if (strictRoles.length > 0) {
       const scopedRoles = roles.filter(
         (r) => ROLE_ROUTE_RESTRICTIONS[r.role] || HARD_RESTRICTED_MODULE_ROLES.has(r.role)
       );
-      return scopedRoles.some((r) => {
-        const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] ?? implicitRouteWhitelist(r.role);
-        return allowedRoutes.some((allowed) => route === allowed || route.startsWith(allowed + '/'));
+      if (
+        scopedRoles.some((r) => {
+          const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] ?? implicitRouteWhitelist(r.role);
+          return allowedRoutes.some((allowed) => route === allowed || route.startsWith(allowed + '/'));
+        })
+      ) {
+        return true;
+      }
+      const strictScope = new Set(strictRoles.flatMap((r) => ROLE_MODULE_ACCESS[r.role] ?? []));
+      return modulePermissions.some((p) => {
+        if (!p.can_view || strictScope.has(p.module_name)) return false;
+        const prefix = MODULE_ROUTE_PREFIXES[p.module_name];
+        return !!prefix && (route === prefix || route.startsWith(prefix + '/'));
       });
     }
 
