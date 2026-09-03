@@ -42,6 +42,7 @@ interface LabourEmployee {
   employee_type: "salary" | "daily_wages";
   per_day_wages: number | null;
   attendance_allowance: number | null;
+  joining_date: string | null;
   production_departments?: { id: string; name: string } | null;
 }
 
@@ -347,25 +348,28 @@ const LabourSalaryPage = () => {
   };
 
   // Helper function to calculate paid Sundays & public holidays based on adjacent working day attendance
-  const calculatePaidSundays = (empEntries: ProductivityEntry[], monthStr: string) => {
+  const calculatePaidSundays = (empEntries: ProductivityEntry[], monthStr: string, joiningDateRaw?: string | null) => {
     const monthStart = startOfMonth(parseISO(`${monthStr}-01`));
     const monthEnd = endOfMonth(monthStart);
-    
+
     const holidaySet = new Set(PUBLIC_HOLIDAYS);
-    
+    // Sundays/holidays before the employee's joining date are never paid
+    const joiningDate = joiningDateRaw?.slice(0, 10) || null;
+
     // Create a set of dates the employee worked
     const workedDates = new Set(empEntries.map(e => e.target_date));
-    
+
     let paidDays = 0;
-    
+
     // Count paid Sundays
     const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
     allDays.forEach(day => {
       if (getDay(day) !== 0) return; // only Sundays
-      
+      if (joiningDate && format(day, 'yyyy-MM-dd') < joiningDate) return;
+
       const workDayBefore = findAdjacentWorkingDay(day, 'backward', holidaySet);
       const workDayAfter = findAdjacentWorkingDay(day, 'forward', holidaySet);
-      
+
       if (workedDates.has(format(workDayBefore, 'yyyy-MM-dd')) && workedDates.has(format(workDayAfter, 'yyyy-MM-dd'))) {
         paidDays++;
       }
@@ -376,7 +380,8 @@ const LabourSalaryPage = () => {
       const holidayDate = parseISO(holidayStr);
       if (!isSameMonth(holidayDate, monthStart)) return;
       if (getDay(holidayDate) === 0) return; // already counted as Sunday
-      
+      if (joiningDate && holidayStr.slice(0, 10) < joiningDate) return;
+
       const workDayBefore = findAdjacentWorkingDay(holidayDate, 'backward', holidaySet);
       const workDayAfter = findAdjacentWorkingDay(holidayDate, 'forward', holidaySet);
       
@@ -435,7 +440,7 @@ const LabourSalaryPage = () => {
       : (emp.per_day_wages || 0);
     
     // Calculate paid Sundays - only for salary-based employees
-    const paidSundays = isSalaryBased ? calculatePaidSundays(allEmpEntries, referenceMonth) : 0;
+    const paidSundays = isSalaryBased ? calculatePaidSundays(allEmpEntries, referenceMonth, emp.joining_date) : 0;
     
     // Calculate total advances for this employee in selected date range
     const totalAdvance = advances

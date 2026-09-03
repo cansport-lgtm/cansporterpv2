@@ -132,7 +132,7 @@ export default function SalaryReportPage() {
     queryFn: async () => {
       let query = supabase
         .from("employees")
-        .select("id, employee_code, full_name, basic_salary, allowances, attendance_allowance, department_id, is_active, production_departments(name), designations(name)")
+        .select("id, employee_code, full_name, basic_salary, allowances, attendance_allowance, department_id, is_active, joining_date, production_departments(name), designations(name)")
         .eq("is_active", true)
         .order("full_name");
       if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
@@ -444,20 +444,24 @@ export default function SalaryReportPage() {
     
     employees.forEach((emp) => {
       const presentDates = employeePresentDatesMap[emp.id] || new Set();
+      // Sundays/holidays before the employee's joining date are never paid
+      const joiningDate = ((emp as any).joining_date as string | null)?.slice(0, 10) || null;
       let paidDays = 0;
-      
+
       allDays.forEach(day => {
         if (getDay(day) !== 0) return;
+        if (joiningDate && format(day, 'yyyy-MM-dd') < joiningDate) return;
         const workDayBefore = findAdjacentWorkingDay(day, 'backward', holidaySet);
         const workDayAfter = findAdjacentWorkingDay(day, 'forward', holidaySet);
         if (presentDates.has(format(workDayBefore, 'yyyy-MM-dd')) || presentDates.has(format(workDayAfter, 'yyyy-MM-dd'))) {
           paidDays++;
         }
       });
-      
+
       monthHolidayDates.forEach(holidayStr => {
         const holidayDate = parseISO(holidayStr);
         if (getDay(holidayDate) === 0) return;
+        if (joiningDate && holidayStr.slice(0, 10) < joiningDate) return;
         const workDayBefore = findAdjacentWorkingDay(holidayDate, 'backward', holidaySet);
         const workDayAfter = findAdjacentWorkingDay(holidayDate, 'forward', holidaySet);
         if (presentDates.has(format(workDayBefore, 'yyyy-MM-dd')) || presentDates.has(format(workDayAfter, 'yyyy-MM-dd'))) {
