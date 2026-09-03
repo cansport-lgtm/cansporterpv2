@@ -285,6 +285,40 @@ const ROLE_ROUTE_DENY: Record<string, string[]> = {
   ],
 };
 
+// The route prefix that hosts each module's pages. Used to derive an implicit route
+// whitelist for hard-restricted roles that carry no explicit ROLE_ROUTE_RESTRICTIONS
+// entry (accounting_manager, accounting_officer, qa_manager, …): when a strict-locked
+// role on the same account forces whitelist-union mode in canAccessRoute, those roles
+// must still contribute their own module scope — otherwise adding e.g. an HR or Labour
+// Productivity tier to an accounting account silently hides every accounting page.
+const MODULE_ROUTE_PREFIXES: Record<string, string> = {
+  dashboard: '/dashboard',
+  accounting: '/accounting',
+  production: '/production',
+  planning: '/planning',
+  sales: '/sales',
+  domestic: '/domestic',
+  export: '/export',
+  purchase: '/purchase',
+  qa: '/qa',
+  maintenance: '/maintenance',
+  labour: '/labour',
+  expenses: '/expenses',
+  material_consumption: '/consumption',
+  projects: '/projects',
+  online_sales: '/online-sales',
+  distributor: '/distributor',
+  master_data: '/master',
+};
+for (const def of MODULE_TIER_DEFINITIONS) {
+  MODULE_ROUTE_PREFIXES[def.module] ??= def.routePrefix;
+}
+
+const implicitRouteWhitelist = (role: string): string[] =>
+  (ROLE_MODULE_ACCESS[role] ?? [])
+    .map((m) => MODULE_ROUTE_PREFIXES[m])
+    .filter((p): p is string => Boolean(p));
+
 const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'qa_manager',
   'maintenance_manager',
@@ -912,11 +946,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // also holds a flexible role. When the user also holds another route-restricted role
     // (e.g. pettycash_handler alongside dispatch_operator), confine to the UNION of all their
     // restricted whitelists — a flexible role (no whitelist) still cannot widen this.
+    // A hard-restricted role WITHOUT an explicit whitelist (accounting_manager /
+    // accounting_officer / qa_manager / …) joins the union with the routes of its own
+    // module scope, mirroring how canAccessModule unions module scopes above.
     const strictRoles = roles.filter((r) => STRICT_LOCKED_ROLES.has(r.role));
     if (strictRoles.length > 0) {
-      const restrictedRoles = roles.filter((r) => ROLE_ROUTE_RESTRICTIONS[r.role]);
-      return restrictedRoles.some((r) => {
-        const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] || [];
+      const scopedRoles = roles.filter(
+        (r) => ROLE_ROUTE_RESTRICTIONS[r.role] || HARD_RESTRICTED_MODULE_ROLES.has(r.role)
+      );
+      return scopedRoles.some((r) => {
+        const allowedRoutes = ROLE_ROUTE_RESTRICTIONS[r.role] ?? implicitRouteWhitelist(r.role);
         return allowedRoutes.some((allowed) => route === allowed || route.startsWith(allowed + '/'));
       });
     }
