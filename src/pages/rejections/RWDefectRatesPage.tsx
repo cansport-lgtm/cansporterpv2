@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface Rate {
   id: string;
-  product_id: string | null;
+  grade_id: string | null;
   defect_grade_id: string;
   standard_cost: number;
   sale_rate: number;
@@ -34,7 +34,7 @@ interface Rate {
 }
 
 const empty = {
-  product_id: "default", defect_grade_id: "", standard_cost: "", sale_rate: "",
+  grade_id: "default", defect_grade_id: "", standard_cost: "", sale_rate: "",
   notes: "", is_active: true,
 };
 
@@ -66,17 +66,17 @@ export default function RWDefectRatesPage() {
     },
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["rw-rate-products"],
+  const { data: ballGrades = [] } = useQuery({
+    queryKey: ["rw-rate-ball-grades"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("products").select("id, code, name").eq("is_active", true).order("name");
+        .from("grades").select("id, code, name").eq("is_active", true).order("code");
       return (data || []) as { id: string; code: string; name: string }[];
     },
   });
 
   const gradeMap = useMemo(() => Object.fromEntries(grades.map((g) => [g.id, g])), [grades]);
-  const productMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
+  const ballGradeMap = useMemo(() => Object.fromEntries(ballGrades.map((g) => [g.id, g])), [ballGrades]);
 
   const sorted = useMemo(
     () =>
@@ -85,18 +85,18 @@ export default function RWDefectRatesPage() {
           gradeMap[b.defect_grade_id]?.name ?? "",
         );
         if (g) return g;
-        if (!a.product_id) return -1;
-        if (!b.product_id) return 1;
-        return (productMap[a.product_id]?.code ?? "").localeCompare(productMap[b.product_id]?.code ?? "");
+        if (!a.grade_id) return -1;
+        if (!b.grade_id) return 1;
+        return (ballGradeMap[a.grade_id]?.code ?? "").localeCompare(ballGradeMap[b.grade_id]?.code ?? "");
       }),
-    [rows, gradeMap, productMap],
+    [rows, gradeMap, ballGradeMap],
   );
 
   const save = useMutation({
     mutationFn: async () => {
       if (!form.defect_grade_id) throw new Error("Pick a defect grade");
       const payload = {
-        product_id: form.product_id !== "default" ? form.product_id : null,
+        grade_id: form.grade_id !== "default" ? form.grade_id : null,
         defect_grade_id: form.defect_grade_id,
         standard_cost: parseFloat(form.standard_cost) || 0,
         sale_rate: parseFloat(form.sale_rate) || 0,
@@ -132,7 +132,7 @@ export default function RWDefectRatesPage() {
   const startEdit = (r: Rate) => {
     setEditing(r);
     setForm({
-      product_id: r.product_id ?? "default",
+      grade_id: r.grade_id ?? "default",
       defect_grade_id: r.defect_grade_id,
       standard_cost: String(r.standard_cost ?? ""),
       sale_rate: String(r.sale_rate ?? ""),
@@ -147,7 +147,7 @@ export default function RWDefectRatesPage() {
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
         <PageHeader
           title="Cheap Ball Rates"
-          description="Book value and expected realisation per model and defect grade"
+          description="Book value and expected realisation per grade and defect type"
           icon={Coins}
           iconColor="bg-emerald-600 text-white"
         >
@@ -161,8 +161,8 @@ export default function RWDefectRatesPage() {
         <div className="flex items-start gap-2 rounded-lg bg-sky-500/[0.06] ring-1 ring-inset ring-sky-500/20 px-3 py-2 text-[12.5px] text-sky-900 dark:text-sky-200">
           <Info className="h-4 w-4 text-sky-500 shrink-0 mt-0.5" />
           <span>
-            An exact model rate wins; otherwise the grade's default row applies. The cost is copied
-            onto each ledger movement when it posts, so changing a rate never rewrites past value.
+            An exact grade rate wins; otherwise the defect type's default row applies. The cost is
+            copied onto each ledger movement when it posts, so changing a rate never rewrites past value.
           </span>
         </div>
 
@@ -180,7 +180,7 @@ export default function RWDefectRatesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Defect grade</TableHead>
-                      <TableHead>Model</TableHead>
+                      <TableHead>Grade</TableHead>
                       <TableHead className="text-right">Standard cost</TableHead>
                       <TableHead className="text-right">Sale rate</TableHead>
                       <TableHead>Notes</TableHead>
@@ -195,12 +195,12 @@ export default function RWDefectRatesPage() {
                           {gradeMap[r.defect_grade_id]?.name ?? "—"}
                         </TableCell>
                         <TableCell>
-                          {r.product_id ? (
+                          {r.grade_id ? (
                             <span className="font-display font-bold">
-                              {productMap[r.product_id]?.code ?? "—"}
+                              {ballGradeMap[r.grade_id]?.name ?? "—"}
                             </span>
                           ) : (
-                            <Badge variant="secondary">Default for the grade</Badge>
+                            <Badge variant="secondary">Default for the defect type</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{fmt(r.standard_cost)}</TableCell>
@@ -251,13 +251,13 @@ export default function RWDefectRatesPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Model</Label>
-                <Select value={form.product_id} onValueChange={(v) => setForm({ ...form, product_id: v })}>
+                <Label className="text-xs">Grade</Label>
+                <Select value={form.grade_id} onValueChange={(v) => setForm({ ...form, grade_id: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">Default for the grade</SelectItem>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
+                    <SelectItem value="default">Default for the defect type</SelectItem>
+                    {ballGrades.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

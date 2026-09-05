@@ -47,6 +47,6 @@ DROP FUNCTION IF EXISTS public.rw_ball_cutover();
 -- Migration-history rows, so a later db push can re-apply cleanly.
 DELETE FROM supabase_migrations.schema_migrations
  WHERE version IN ('20260830120000','20260830130000','20260830140000',
-                   '20260830150000','20260830160000');
+                   '20260830150000','20260830160000','20260905130000');
 
 COMMIT;

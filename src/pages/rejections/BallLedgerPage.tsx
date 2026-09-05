@@ -30,7 +30,7 @@ type LedgerRow = {
   reference_number: string | null;
   remarks: string | null;
   rw_locations: { code: string; name: string } | null;
-  products: { code: string; name: string } | null;
+  grades: { code: string; name: string } | null;
   rw_defect_grades: { code: string; name: string } | null;
   app_users: { full_name: string | null } | null;
 };
@@ -83,7 +83,7 @@ export default function BallLedgerPage() {
         .select(
           "id, txn_date, quantity_in, quantity_out, balance_quantity, unit_cost," +
           "source_type, reference_number, remarks," +
-          "rw_locations(code, name), products(code, name), rw_defect_grades(code, name)," +
+          "rw_locations(code, name), grades(code, name), rw_defect_grades(code, name)," +
           "app_users(full_name)"
         )
         .gte("txn_date", fromDate)
@@ -187,7 +187,7 @@ export default function BallLedgerPage() {
                       <TableHead>Date</TableHead>
                       <TableHead>Reference</TableHead>
                       <TableHead>Location</TableHead>
-                      <TableHead>Model</TableHead>
+                      <TableHead>Grade</TableHead>
                       <TableHead>Defect grade</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead className="text-right">In</TableHead>
@@ -206,7 +206,7 @@ export default function BallLedgerPage() {
                           </TableCell>
                           <TableCell className="font-mono text-xs">{r.reference_number ?? "—"}</TableCell>
                           <TableCell className="font-semibold">{r.rw_locations?.code}</TableCell>
-                          <TableCell className="font-display font-bold">{r.products?.code}</TableCell>
+                          <TableCell className="font-display font-bold">{r.grades?.name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {r.rw_defect_grades?.name}
                           </TableCell>
