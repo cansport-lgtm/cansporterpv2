@@ -27,7 +27,7 @@ type StockRow = {
   first_movement_date: string | null;
   last_movement_date: string | null;
   rw_locations: { code: string; name: string; location_type: string } | null;
-  products: { code: string; name: string } | null;
+  grades: { code: string; name: string } | null;
   rw_defect_grades: { code: string; name: string; defect_type: string; onward_route: string } | null;
 };
 
@@ -96,7 +96,7 @@ export default function FloorBinStockPage() {
         .select(
           "id, quantity, unit_cost, stock_value, first_movement_date, last_movement_date," +
           "rw_locations(code, name, location_type)," +
-          "products(code, name)," +
+          "grades(code, name)," +
           "rw_defect_grades(code, name, defect_type, onward_route)"
         );
       if (error) throw error;
@@ -112,7 +112,7 @@ export default function FloorBinStockPage() {
         .sort((a, b) => {
           const l = (a.rw_locations?.code ?? "").localeCompare(b.rw_locations?.code ?? "");
           if (l) return l;
-          return (a.products?.code ?? "").localeCompare(b.products?.code ?? "");
+          return (a.grades?.code ?? "").localeCompare(b.grades?.code ?? "");
         }),
     [rows, locationFilter],
   );
@@ -296,7 +296,7 @@ export default function FloorBinStockPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Bin</TableHead>
-                      <TableHead>Model</TableHead>
+                      <TableHead>Grade</TableHead>
                       <TableHead>Defect grade</TableHead>
                       <TableHead className="text-right">Qty (pcs)</TableHead>
                       <TableHead className="text-right">Unit cost</TableHead>
@@ -318,7 +318,7 @@ export default function FloorBinStockPage() {
                             </div>
                           </TableCell>
                           <TableCell className="font-display font-bold">
-                            {r.products?.code}
+                            {r.grades?.name}
                           </TableCell>
                           <TableCell>
                             <Badge

@@ -211,3 +211,33 @@ No existing role enum was touched — the `rejections_manager` / `officer` /
 | Repo missing `20260830141303_party_type_matches_control_account` | Applied remotely (another session), no file in the repo |
 | Maintenance data imports (`20260828*`, from #250) fail fresh replays | Pre-existing; only affects Supabase preview branches, never production |
 | Phase 2 — cover transfer (a consumption document releasing cores from the Jorr bin) and the daily blind handover to the store | Designed in the plan; unblocked |
+
+---
+
+## Post-release change: track by grade, not by product (5 Sep)
+
+Migration `20260905130000_rw_track_by_grade`. The first week of live use
+showed the product keying was wrong: 14 of 16 entries pointed at sales SKUs
+with no grade link, so counts posted to the ledger but never reached the
+production figures — and the floor's own history (2,349 leakage rows, 591
+rejection rows) had always identified balls as stage + grade, never as a
+product. The plant confirmed: use the production module's `grades` master and
+track only grades.
+
+- `rw_checker_entries`, `rw_ball_ledger`, `rw_ball_stock` and `rw_defect_rates`
+  now carry `grade_id`; `product_id` is gone. Existing entries whose product
+  had a grade were mapped across (colliding rows merged, tallies dropped); the
+  unmappable ones were deleted, per the plant's instruction. Ledger and stock
+  were wiped and reposted on the new key.
+- The derivation lost its weakest link: a checker entry and a production entry
+  now share `(date, shift, department, grade)` directly, so the
+  `products.grade_id` bridge, `v_rw_unlinked_models` and the checker screen's
+  unlinked warning are all gone — that failure mode can no longer exist.
+- The checker grid's rows are now grades (defaulting to the grades in
+  production that day, with the *Leak ball* / *Rejection* output grades
+  excluded from the picker); rates are per grade × defect type.
+- Material wastage is untouched: `rw_wastages` keeps `hp_materials`, because
+  solvent, compound and kapra have no ball grade.
+- Accepted trade-off, decided by the plant: size/colour detail (KB70 vs KB72,
+  YELLOW vs GOLDEN) is not tracked — production books at grade level, so
+  nothing could reconcile finer than that anyway.

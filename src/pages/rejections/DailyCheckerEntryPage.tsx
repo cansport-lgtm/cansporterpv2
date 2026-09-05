@@ -36,11 +36,11 @@ type Checkpoint = {
   location_name: string;
 };
 
-type Product = { id: string; code: string; name: string; grade_id: string | null };
+type BallGrade = { id: string; code: string; name: string };
 
-/** One editable row: a model, its per-defect-grade counts, and its interval tally. */
+/** One editable row: a ball grade, its per-defect counts, and its interval tally. */
 type Row = {
-  productId: string;
+  gradeId: string;
   qty: Record<string, string>;                 // defect_grade_id -> typed quantity
   intervals: Record<string, string[]>;         // defect_grade_id -> per-interval quantities
   openGrade: string | null;                    // which grade's tally is expanded
@@ -114,27 +114,21 @@ export default function DailyCheckerEntryPage() {
     },
   });
 
-  const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ["rw-checker-products"],
+  // The ball grades the checker can count against — the production module's own
+  // master, minus the grades that ARE defect output (Leak ball / Rejection) and
+  // the non-ball grades. Output grades are what defective balls become, never
+  // what they are counted as.
+  const { data: ballGrades = [] } = useQuery<BallGrade[]>({
+    queryKey: ["rw-checker-grades"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("products")
-        .select("id, code, name, grade_id")
-        .eq("is_active", true)
-        .order("name");
-      return (data || []) as Product[];
-    },
-  });
-
-  // Models counted but not linked to a production grade. Their counts still post
-  // to the ledger; they just cannot reach production_entries.quantity_rejected.
-  const { data: unlinked = [] } = useQuery({
-    queryKey: ["rw-unlinked-models"],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("v_rw_unlinked_models")
-        .select("product_id, product_code, product_name");
-      return (data || []) as { product_id: string; product_code: string; product_name: string }[];
+      const [{ data: grades }, { data: dg }] = await Promise.all([
+        supabase.from("grades").select("id, code, name").eq("is_active", true).order("code"),
+        (supabase as any).from("rw_defect_grades").select("output_grade_id"),
+      ]);
+      const outputIds = new Set(
+        ((dg || []) as any[]).map((r) => r.output_grade_id).filter(Boolean),
+      );
+      return ((grades || []) as BallGrade[]).filter((g) => !outputIds.has(g.id));
     },
   });
 
@@ -187,9 +181,9 @@ export default function DailyCheckerEntryPage() {
     },
   });
 
-  const productMap = useMemo(
-    () => Object.fromEntries(products.map((p) => [p.id, p])),
-    [products],
+  const gradeMap = useMemo(
+    () => Object.fromEntries(ballGrades.map((g) => [g.id, g])),
+    [ballGrades],
   );
 
   // Rebuild the grid whenever the day, shift or department changes: saved rows
@@ -197,11 +191,11 @@ export default function DailyCheckerEntryPage() {
   useEffect(() => {
     if (!departmentId || !checkpoints.length) return;
 
-    const byProduct = new Map<string, Row>();
-    const blank = (): Row => ({ productId: "", qty: {}, intervals: {}, openGrade: null });
+    const byGrade = new Map<string, Row>();
+    const blank = (): Row => ({ gradeId: "", qty: {}, intervals: {}, openGrade: null });
 
     for (const e of existing) {
-      const row = byProduct.get(e.product_id) ?? { ...blank(), productId: e.product_id };
+      const row = byGrade.get(e.grade_id) ?? { ...blank(), gradeId: e.grade_id };
       row.qty[e.defect_grade_id] = String(num(e.quantity) || "");
       const lines = (e.rw_checker_entry_intervals || []) as { interval_no: number; quantity: number }[];
       if (lines.length) {
@@ -211,32 +205,29 @@ export default function DailyCheckerEntryPage() {
         }
         row.intervals[e.defect_grade_id] = Array.from(arr, (v) => v ?? "0");
       }
-      byProduct.set(e.product_id, row);
+      byGrade.set(e.grade_id, row);
     }
 
-    if (!byProduct.size) {
-      const gradesInProduction = new Set(Object.keys(producedByGrade));
-      for (const p of products) {
-        if (p.grade_id && gradesInProduction.has(p.grade_id)) {
-          byProduct.set(p.id, { ...blank(), productId: p.id });
-        }
+    if (!byGrade.size) {
+      for (const gradeId of Object.keys(producedByGrade)) {
+        if (gradeMap[gradeId]) byGrade.set(gradeId, { ...blank(), gradeId });
       }
     }
 
-    setRows(byProduct.size ? [...byProduct.values()] : [{ productId: "", qty: {}, intervals: {}, openGrade: null }]);
+    setRows(byGrade.size ? [...byGrade.values()] : [{ gradeId: "", qty: {}, intervals: {}, openGrade: null }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryDate, shift, departmentId, checkpoints.length, existing, products.length]);
+  }, [entryDate, shift, departmentId, checkpoints.length, existing, ballGrades.length]);
 
-  const usedProductIds = useMemo(
-    () => new Set(rows.map((r) => r.productId).filter(Boolean)),
+  const usedGradeIds = useMemo(
+    () => new Set(rows.map((r) => r.gradeId).filter(Boolean)),
     [rows],
   );
 
   const setQty = (i: number, gradeId: string, v: string) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, qty: { ...r.qty, [gradeId]: v } } : r)));
 
-  const setProduct = (i: number, productId: string) =>
-    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, productId } : r)));
+  const setGrade = (i: number, gradeId: string) =>
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, gradeId } : r)));
 
   const toggleTally = (i: number, gradeId: string) =>
     setRows((rs) =>
@@ -280,10 +271,7 @@ export default function DailyCheckerEntryPage() {
   const rowTotal = (r: Row) =>
     checkpoints.reduce((s, c) => s + num(r.qty[c.defect_grade_id]), 0);
 
-  const rowProduced = (r: Row) => {
-    const gradeId = productMap[r.productId]?.grade_id;
-    return gradeId ? producedByGrade[gradeId] || 0 : 0;
-  };
+  const rowProduced = (r: Row) => (r.gradeId ? producedByGrade[r.gradeId] || 0 : 0);
 
   const rowPct = (r: Row) => {
     const p = rowProduced(r);
@@ -297,7 +285,7 @@ export default function DailyCheckerEntryPage() {
   const tallyErrors = useMemo(() => {
     const out: string[] = [];
     rows.forEach((r) => {
-      const model = productMap[r.productId]?.code ?? "—";
+      const model = gradeMap[r.gradeId]?.code ?? "—";
       for (const [gradeId, lines] of Object.entries(r.intervals)) {
         if (!lines.length) continue;
         const sum = lines.reduce((s, v) => s + num(v), 0);
@@ -309,15 +297,7 @@ export default function DailyCheckerEntryPage() {
       }
     });
     return out;
-  }, [rows, checkpoints, productMap]);
-
-  const unlinkedOnGrid = useMemo(() => {
-    const ids = new Set(unlinked.map((u) => u.product_id));
-    return rows
-      .filter((r) => r.productId && (ids.has(r.productId) || !productMap[r.productId]?.grade_id))
-      .map((r) => productMap[r.productId]?.code)
-      .filter(Boolean) as string[];
-  }, [rows, unlinked, productMap]);
+  }, [rows, checkpoints, gradeMap]);
 
   const bins = useMemo(() => {
     const seen = new Map<string, string>();
@@ -329,7 +309,7 @@ export default function DailyCheckerEntryPage() {
     if (!departmentId) return toast.error("Pick a department");
     if (tallyErrors.length) return toast.error("An interval breakdown does not add up");
 
-    const filled = rows.filter((r) => r.productId && rowTotal(r) > 0);
+    const filled = rows.filter((r) => r.gradeId && rowTotal(r) > 0);
     if (!filled.length) return toast.error("Nothing counted yet");
 
     setSaving(true);
@@ -338,7 +318,7 @@ export default function DailyCheckerEntryPage() {
         for (const c of checkpoints) {
           const qty = num(r.qty[c.defect_grade_id]);
           const prior = existing.find(
-            (e: any) => e.product_id === r.productId && e.defect_grade_id === c.defect_grade_id,
+            (e: any) => e.grade_id === r.gradeId && e.defect_grade_id === c.defect_grade_id,
           );
 
           if (qty <= 0) {
@@ -354,7 +334,7 @@ export default function DailyCheckerEntryPage() {
             entry_date: entryDate,
             shift,
             department_id: departmentId,
-            product_id: r.productId,
+            grade_id: r.gradeId,
             defect_grade_id: c.defect_grade_id,
             quantity: qty,
             unit: "pcs",
@@ -481,10 +461,10 @@ export default function DailyCheckerEntryPage() {
               <div>
                 <div className="font-display text-base font-semibold">Balls counted today</div>
                 <div className="text-xs text-muted-foreground">
-                  One row per model in production · one saved entry for the day
+                  One row per grade in production · one saved entry for the day
                 </div>
               </div>
-              <Badge variant="soft">{rows.filter((r) => r.productId).length} models</Badge>
+              <Badge variant="soft">{rows.filter((r) => r.gradeId).length} grades</Badge>
             </div>
 
             {checkpoints.length > 0 && (
@@ -493,19 +473,6 @@ export default function DailyCheckerEntryPage() {
                 <span>
                   Columns come from this department's checkpoints. Jorr counts leaker cores only;
                   Packing counts the two reject grades.
-                </span>
-              </div>
-            )}
-
-            {unlinkedOnGrid.length > 0 && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-500/[0.08] ring-1 ring-inset ring-amber-500/25 px-3 py-2 text-[12.5px] text-amber-900 dark:text-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                <span>
-                  <b>{unlinkedOnGrid.join(", ")}</b>{" "}
-                  {unlinkedOnGrid.length > 1 ? "have" : "has"} no production grade set, so{" "}
-                  {unlinkedOnGrid.length > 1 ? "these counts" : "this count"} will not reach the
-                  production entry's rejected figure. The count still posts to the bin — set the
-                  grade on the model in Master Data to close the gap.
                 </span>
               </div>
             )}
@@ -519,7 +486,7 @@ export default function DailyCheckerEntryPage() {
                 <table className="data-table min-w-[900px]">
                   <thead>
                     <tr>
-                      <th className="w-[28%]">Model</th>
+                      <th className="w-[28%]">Grade</th>
                       {checkpoints.map((c) => (
                         <th key={c.defect_grade_id} className="text-right">
                           {c.grade_name}
@@ -545,22 +512,22 @@ export default function DailyCheckerEntryPage() {
                       const lineOk = lineSum === lineTarget;
                       return (
                         <>
-                          <tr key={r.productId || `new-${i}`}>
+                          <tr key={r.gradeId || `new-${i}`}>
                             <td>
                               <div className="flex items-center gap-2">
                                 <Select
-                                  value={r.productId || undefined}
-                                  onValueChange={(v) => setProduct(i, v)}
+                                  value={r.gradeId || undefined}
+                                  onValueChange={(v) => setGrade(i, v)}
                                 >
                                   <SelectTrigger className="w-full max-w-[240px] h-9">
-                                    <SelectValue placeholder="Pick a model" />
+                                    <SelectValue placeholder="Pick a grade" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {products
-                                      .filter((p) => p.id === r.productId || !usedProductIds.has(p.id))
-                                      .map((p) => (
-                                        <SelectItem key={p.id} value={p.id}>
-                                          {p.code} — {p.name}
+                                    {ballGrades
+                                      .filter((g) => g.id === r.gradeId || !usedGradeIds.has(g.id))
+                                      .map((g) => (
+                                        <SelectItem key={g.id} value={g.id}>
+                                          {g.name}
                                         </SelectItem>
                                       ))}
                                   </SelectContent>
@@ -622,13 +589,13 @@ export default function DailyCheckerEntryPage() {
                           </tr>
 
                           {openGrade && (
-                            <tr key={`${r.productId}-tally`}>
+                            <tr key={`${r.gradeId}-tally`}>
                               <td colSpan={checkpoints.length + 3} className="bg-muted/40">
                                 <div className="pl-10 pr-2 py-3 space-y-2">
                                   <div className="flex items-center justify-between gap-3">
                                     <div>
                                       <div className="text-[13px] font-semibold">
-                                        Interval tally — {productMap[r.productId]?.code ?? "model"} ·{" "}
+                                        Interval tally — {gradeMap[r.gradeId]?.name ?? "grade"} ·{" "}
                                         {checkpoints.find((c) => c.defect_grade_id === openGrade)?.grade_name}
                                       </div>
                                       <div className="text-[11.5px] text-muted-foreground">
@@ -703,10 +670,10 @@ export default function DailyCheckerEntryPage() {
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    setRows((rs) => [...rs, { productId: "", qty: {}, intervals: {}, openGrade: null }])
+                    setRows((rs) => [...rs, { gradeId: "", qty: {}, intervals: {}, openGrade: null }])
                   }
                 >
-                  <Plus className="h-4 w-4 mr-1" /> Add another model
+                  <Plus className="h-4 w-4 mr-1" /> Add another grade
                 </Button>
               </div>
 

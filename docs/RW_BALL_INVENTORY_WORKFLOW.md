@@ -20,6 +20,11 @@ match the cheap-ball production the same department books the same day. A
 number that used to be a bare claim now has physical inventory and a second
 recording it must agree with.
 
+**Identity is the production grade** (LB, KB, T, VM…) — the same master the
+production module books against, and the same identity the floor has always
+used ("JORR VM72", "FINAL T70 YELLOW"). Counts, bins, ledger and rates are all
+per grade × defect type; individual sales SKUs are not tracked here.
+
 ## How a ball flows
 
 ```mermaid
@@ -57,9 +62,9 @@ Open **Rejections & Wastages → Daily Checker Entry**.
 2. The grid is already shaped for you: **columns** are the defect grades your
    department counts (Jorr sees only *Leaker — core*; Local/Fancy Final see
    *Leaker — covered* plus the two rejects; Packing sees the two rejects), and
-   **rows** default to the models that were actually in production. The
+   **rows** default to the grades that were actually in production. The
    destination bin is shown at the top — you never pick a location.
-3. Type the day's quantities per model. The defect % updates live against
+3. Type the day's quantities per grade. The defect % updates live against
    produced quantity; above 2% it flags amber for review.
 4. Optional: expand a cell's chevron to record the interval tally (your
    through-the-day counts). If you use it, the intervals **must add up to the
@@ -70,10 +75,7 @@ Open **Rejections & Wastages → Daily Checker Entry**.
 
 Things the screen will tell you:
 
-- **Amber "no production grade" warning** — that model's count still posts to
-  the bin, but it cannot reach the production entry's rejected figure until
-  someone links the model to a grade in Master Data.
-- A day/model/grade can only exist **once** — a duplicate save is refused
+- A day/grade/defect can only exist **once** — a duplicate save is refused
   rather than silently doubling the count.
 
 ### The production clerk
@@ -112,10 +114,9 @@ drill-down):
 | **Posted entry conflicts** | A posted production day no longer matches the count | Unpost (approve permission), let it update, re-post |
 | **Coverage** (`v_rw_entry_coverage`) | A department produced but posted no checker count — silence is the cheapest way to hide balls | Chase the missing day |
 | **Defect %** (`v_rw_defect_vs_production`) | Live leak/reject rate per department and grade | Out-of-band days deserve a look the same day |
-| **Unlinked models** (`v_rw_unlinked_models`) | Models being counted whose production sync silently can't run | Fill `products.grade_id` in Master Data |
 
 **Valuation:** every ledger row snapshots the unit cost at posting time from
-**Cheap Ball Rates** (exact model rate wins, else the grade default). Changing
+**Cheap Ball Rates** (exact grade rate wins, else the defect type's default). Changing
 a rate later never rewrites past value. Until rates are filled in, counts post
 at zero value — quantities are correct regardless.
 
@@ -123,15 +124,12 @@ at zero value — quantities are correct regardless.
 
 ## Before go-live (1 Sep) — the checklist
 
-1. **Link the ball models to grades** (Master Data → Products,
-   `grade_id`) — ~47 of 53 are unlinked; this is what makes the production
-   sync work.
-2. **Fill in Cheap Ball Rates** (Rejections → Cheap Ball Rates) so stock
+1. **Fill in Cheap Ball Rates** (Rejections → Cheap Ball Rates) so stock
    carries value.
-3. **Glance over Department Checkpoints** (Rejections → Department
+2. **Glance over Department Checkpoints** (Rejections → Department
    Checkpoints) — Jorr/Local Final/Fancy Final/Packing are pre-seeded; adding
    a checker elsewhere later is a row here, not a code change.
-4. Tell the checkers where the new screen is. The old entry page's Rejections
+3. Tell the checkers where the new screen is. The old entry page's Rejections
    and Leakages tabs disappear for post-cutover dates so there is only one
    place to type a ball; pre-cutover history stays readable there, and
    material wastage is unchanged.
