@@ -193,6 +193,7 @@ export function RoleBasedRedirect() {
     crm: '/crm/dashboard',
     wip_management: '/wip/dashboard',
     rejections_wastages: '/rejections/dashboard',
+    quality_score: '/quality-score/dashboard',
     hourly_production: '/hourly-production/dashboard',
     marketing: '/marketing',
   };

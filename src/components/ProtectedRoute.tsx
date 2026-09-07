@@ -66,6 +66,8 @@ export function ProtectedRoute({
          return 'material_consumption';
       case 'five-s':
         return 'five_s';
+      case 'quality-score':
+        return 'quality_score';
       case 'hourly-production':
         return 'hourly_production';
       case 'online-sales':

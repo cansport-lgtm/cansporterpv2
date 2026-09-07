@@ -225,6 +225,19 @@ const navigationItems: NavItem[] = [
     ],
   },
   {
+    title: "Quality Score",
+    icon: Target,
+    color: "text-indigo-400",
+    module: "quality_score",
+    children: [
+      { title: "Score Dashboard", href: "/quality-score/dashboard" },
+      { title: "Ball Quality Entry", href: "/quality-score/ball-entry", highlight: true },
+      { title: "Process Quality Entry", href: "/quality-score/process-entry" },
+      { title: "Score History", href: "/quality-score/history" },
+      { title: "Parameters Master", href: "/quality-score/parameters" },
+    ],
+  },
+  {
     title: "WIP Management",
     icon: Workflow,
     color: "text-amber-400",

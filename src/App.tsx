@@ -398,6 +398,11 @@ import RWDefectGradesPage from "./pages/rejections/RWDefectGradesPage";
 import RWDefectRatesPage from "./pages/rejections/RWDefectRatesPage";
 import RWLocationsPage from "./pages/rejections/RWLocationsPage";
 import RWCheckpointsPage from "./pages/rejections/RWCheckpointsPage";
+import QualityScoreDashboard from "./pages/quality-score/QualityScoreDashboard";
+import BallQualityEntryPage from "./pages/quality-score/BallQualityEntryPage";
+import ProcessQualityEntryPage from "./pages/quality-score/ProcessQualityEntryPage";
+import ScoreHistoryPage from "./pages/quality-score/ScoreHistoryPage";
+import QSParametersMasterPage from "./pages/quality-score/QSParametersMasterPage";
 // WIP Management pages
 import WIPMonitorDashboard from "./pages/wip/WIPMonitorDashboard";
 import WIPStockEntryPage from "./pages/wip/WIPStockEntryPage";
@@ -893,6 +898,11 @@ const App = () => (
             <Route path="/rejections/defect-rates" element={<ProtectedRoute><RWDefectRatesPage /></ProtectedRoute>} />
             <Route path="/rejections/locations" element={<ProtectedRoute><RWLocationsPage /></ProtectedRoute>} />
             <Route path="/rejections/checkpoints" element={<ProtectedRoute><RWCheckpointsPage /></ProtectedRoute>} />
+            <Route path="/quality-score/dashboard" element={<ProtectedRoute><QualityScoreDashboard /></ProtectedRoute>} />
+            <Route path="/quality-score/ball-entry" element={<ProtectedRoute><BallQualityEntryPage /></ProtectedRoute>} />
+            <Route path="/quality-score/process-entry" element={<ProtectedRoute><ProcessQualityEntryPage /></ProtectedRoute>} />
+            <Route path="/quality-score/history" element={<ProtectedRoute><ScoreHistoryPage /></ProtectedRoute>} />
+            <Route path="/quality-score/parameters" element={<ProtectedRoute><QSParametersMasterPage /></ProtectedRoute>} />
 
             {/* WIP Management module */}
             <Route path="/wip/dashboard" element={<ProtectedRoute><WIPMonitorDashboard /></ProtectedRoute>} />
