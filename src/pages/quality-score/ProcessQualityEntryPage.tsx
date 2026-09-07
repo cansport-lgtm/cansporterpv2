@@ -10,12 +10,16 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   EntryContextSection, useQsEntryContext,
 } from "@/components/quality-score/EntryContextSection";
 import {
-  fmtScore, round2, useQsParameters, useQsSettings,
+  fmtScore, round2, useQsParameters, useQsProcesses, useQsSettings,
 } from "@/components/quality-score/qsShared";
 
 export default function ProcessQualityEntryPage() {
@@ -30,6 +34,17 @@ export default function ProcessQualityEntryPage() {
   const mode = settings?.process_mode ?? "parameters";
   const [scores, setScores] = useState<Record<string, string>>({});
   const [holistic, setHolistic] = useState("");
+  const [processId, setProcessId] = useState("none");
+
+  // Processes from the QS Process Master; a process tied to a department only
+  // shows when that department is selected.
+  const { data: processes = [] } = useQsProcesses();
+  const availableProcesses = useMemo(
+    () => processes.filter(
+      (p) => p.is_active && (!p.department_id || p.department_id === ctx.departmentId),
+    ),
+    [processes, ctx.departmentId],
+  );
 
   const myScore = useMemo(
     () => ctx.entry?.process_scores?.find((s) => s.inspector_id === user?.id),
@@ -40,11 +55,13 @@ export default function ProcessQualityEntryPage() {
   useEffect(() => {
     if (myScore) {
       setHolistic(String(myScore.score));
+      setProcessId(myScore.process_id ?? "none");
       setScores(
         Object.fromEntries((myScore.params ?? []).map((p) => [p.parameter_id, String(p.score)])),
       );
     } else {
       setHolistic("");
+      setProcessId("none");
       setScores({});
     }
   }, [myScore?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,6 +92,7 @@ export default function ProcessQualityEntryPage() {
           ? parsed.map(({ param, value }) => ({ parameter_id: param.id, score: value }))
           : null,
         p_holistic: mode === "holistic" ? holisticValue : null,
+        p_process_id: processId !== "none" ? processId : null,
       });
       if (error) throw error;
       return data as number;
@@ -109,7 +127,8 @@ export default function ProcessQualityEntryPage() {
               </Badge>
               {submitted.map((s) => (
                 <Badge key={s.id} variant="secondary">
-                  {s.inspector?.full_name ?? "Inspector"} · {fmtScore(Number(s.score))}
+                  {s.inspector?.full_name ?? "Inspector"}
+                  {s.process_name ? ` · ${s.process_name}` : ""} · {fmtScore(Number(s.score))}
                 </Badge>
               ))}
               {myScore && (
@@ -128,6 +147,23 @@ export default function ProcessQualityEntryPage() {
               <Badge variant="secondary">
                 {mode === "holistic" ? "Single holistic score" : "Parameter-based"} — set in Parameters Master
               </Badge>
+            </div>
+
+            <div className="max-w-sm">
+              <Label className="text-xs">Process being assessed</Label>
+              <Select value={processId} onValueChange={setProcessId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  {availableProcesses.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Maintained in Quality Score → Process Master; department-specific processes appear
+                once their department is selected above.
+              </p>
             </div>
 
             {mode === "holistic" ? (

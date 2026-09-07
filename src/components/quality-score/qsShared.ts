@@ -48,9 +48,20 @@ export interface QsProcessScore {
   inspector_id: string;
   mode: "holistic" | "parameters";
   score: number;
+  process_id: string | null;
+  process_name: string | null;
   created_at: string;
   inspector?: { full_name: string } | null;
   params?: QsScoreParam[];
+}
+
+export interface QsProcess {
+  id: string;
+  name: string;
+  description: string | null;
+  department_id: string | null;
+  sort_order: number;
+  is_active: boolean;
 }
 
 export interface QsEntry {
@@ -90,6 +101,18 @@ export function useQsSettings() {
         .from("qs_settings").select("*").eq("id", 1).single();
       if (error) throw error;
       return data as QsSettings;
+    },
+  });
+}
+
+export function useQsProcesses() {
+  return useQuery({
+    queryKey: ["qs-processes"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("qs_processes").select("*").order("sort_order").order("name");
+      if (error) throw error;
+      return data as QsProcess[];
     },
   });
 }

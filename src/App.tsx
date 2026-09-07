@@ -403,6 +403,7 @@ import BallQualityEntryPage from "./pages/quality-score/BallQualityEntryPage";
 import ProcessQualityEntryPage from "./pages/quality-score/ProcessQualityEntryPage";
 import ScoreHistoryPage from "./pages/quality-score/ScoreHistoryPage";
 import QSParametersMasterPage from "./pages/quality-score/QSParametersMasterPage";
+import QSProcessMasterPage from "./pages/quality-score/QSProcessMasterPage";
 // WIP Management pages
 import WIPMonitorDashboard from "./pages/wip/WIPMonitorDashboard";
 import WIPStockEntryPage from "./pages/wip/WIPStockEntryPage";
@@ -903,6 +904,7 @@ const App = () => (
             <Route path="/quality-score/process-entry" element={<ProtectedRoute><ProcessQualityEntryPage /></ProtectedRoute>} />
             <Route path="/quality-score/history" element={<ProtectedRoute><ScoreHistoryPage /></ProtectedRoute>} />
             <Route path="/quality-score/parameters" element={<ProtectedRoute><QSParametersMasterPage /></ProtectedRoute>} />
+            <Route path="/quality-score/processes" element={<ProtectedRoute><QSProcessMasterPage /></ProtectedRoute>} />
 
             {/* WIP Management module */}
             <Route path="/wip/dashboard" element={<ProtectedRoute><WIPMonitorDashboard /></ProtectedRoute>} />
