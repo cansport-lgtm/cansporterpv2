@@ -86,6 +86,7 @@ import AttendancePage from "./pages/hr/AttendancePage";
 import LeaveRequestsPage from "./pages/hr/LeaveRequestsPage";
 import RecruitmentPage from "./pages/hr/RecruitmentPage";
 import LoansPage from "./pages/hr/LoansPage";
+import LoanTrackingPage from "./pages/hr/LoanTrackingPage";
 import EmployeesPage from "./pages/hr/EmployeesPage";
 import SalaryReportPage from "./pages/hr/SalaryReportPage";
 import AttendanceSheetPage from "./pages/hr/AttendanceSheetPage";
@@ -533,6 +534,7 @@ const App = () => (
             <Route path="/hr/leaves" element={<ProtectedRoute><LeaveRequestsPage /></ProtectedRoute>} />
             <Route path="/hr/recruitment" element={<ProtectedRoute><RecruitmentPage /></ProtectedRoute>} />
             <Route path="/hr/loans" element={<ProtectedRoute><LoansPage /></ProtectedRoute>} />
+            <Route path="/hr/loan-tracking" element={<ProtectedRoute><LoanTrackingPage /></ProtectedRoute>} />
             <Route path="/hr/salary-report" element={<ProtectedRoute><SalaryReportPage /></ProtectedRoute>} />
             <Route path="/hr/public-holidays" element={<ProtectedRoute requiredRole="super_admin"><PublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
