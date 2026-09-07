@@ -272,6 +272,7 @@ const navigationItems: NavItem[] = [
       { title: "Leave Requests", href: "/hr/leaves" },
       { title: "Recruitment", href: "/hr/recruitment" },
       { title: "Loans", href: "/hr/loans" },
+      { title: "Loan Tracking", href: "/hr/loan-tracking" },
       { title: "Salary Sheet", href: "/hr/salary-report" },
       { title: "Public Holidays", href: "/hr/public-holidays", superAdminOnly: true },
       { title: "Punctuality Analytics", href: "/hr/punctuality-analytics" },
