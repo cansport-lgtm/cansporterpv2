@@ -144,6 +144,7 @@ export function ScoreDrillDownDialog({ entry, settings, onClose }: Props) {
                     <div className="text-xs text-muted-foreground">{s.inspector?.full_name ?? "Inspector"}</div>
                     <div className="font-display text-xl font-bold">{fmtScore(Number(s.score))}</div>
                     <div className="text-[11px] text-muted-foreground">
+                      {s.process_name ? `${s.process_name} · ` : ""}
                       {s.mode === "holistic"
                         ? "Single holistic score"
                         : `${s.params?.length ?? 0} parameters`}

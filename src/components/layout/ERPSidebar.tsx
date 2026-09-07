@@ -235,6 +235,7 @@ const navigationItems: NavItem[] = [
       { title: "Process Quality Entry", href: "/quality-score/process-entry" },
       { title: "Score History", href: "/quality-score/history" },
       { title: "Parameters Master", href: "/quality-score/parameters" },
+      { title: "Process Master", href: "/quality-score/processes" },
     ],
   },
   {
