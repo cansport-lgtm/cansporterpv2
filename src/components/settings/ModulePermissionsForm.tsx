@@ -22,6 +22,7 @@ const MODULES = [
   { key: "wip_management", label: "WIP Management" },
   { key: "qa", label: "Quality Assurance" },
   { key: "rejections_wastages", label: "Rejections & Wastages" },
+  { key: "quality_score", label: "Quality Score" },
   { key: "hr", label: "Human Resources" },
   { key: "performance", label: "Performance" },
   { key: "maintenance", label: "Maintenance" },
