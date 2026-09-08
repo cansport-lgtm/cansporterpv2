@@ -70,6 +70,13 @@ const statusColor: Record<string, string> = {
   done: "bg-green-100 text-green-800",
 };
 
+const priorityColor: Record<string, string> = {
+  low: "bg-gray-100 text-gray-700",
+  medium: "bg-blue-100 text-blue-700",
+  high: "bg-orange-100 text-orange-700",
+  critical: "bg-red-100 text-red-700",
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -180,7 +187,7 @@ export default function ProjectDetailPage() {
         </CardContent></Card>
         <Card><CardContent className="p-3 text-center">
           <p className="text-xs text-muted-foreground">Priority</p>
-          <Badge variant="secondary">{project.priority}</Badge>
+          <Badge variant="secondary" className={priorityColor[project.priority] || ""}>{project.priority}</Badge>
         </CardContent></Card>
         <Card><CardContent className="p-3 text-center">
           <p className="text-xs text-muted-foreground">Progress</p>
@@ -230,7 +237,7 @@ export default function ProjectDetailPage() {
                             {t.is_milestone && "🏆 "}{t.title}
                           </td>
                           <td className="p-2"><Badge variant="outline" className={statusColor[t.status]}>{t.status.replace("_", " ")}</Badge></td>
-                          <td className="p-2"><Badge variant="secondary">{t.priority}</Badge></td>
+                          <td className="p-2"><Badge variant="secondary" className={priorityColor[t.priority] || ""}>{t.priority}</Badge></td>
                           <td className="p-2 text-xs">{users.find((u) => u.id === t.assigned_to)?.full_name || "-"}</td>
                           <td className="p-2 text-xs">{t.due_date ? format(new Date(t.due_date), "dd MMM yy") : "-"}</td>
                           <td className="p-2 text-xs">{t.estimated_hours || "-"}</td>

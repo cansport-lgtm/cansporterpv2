@@ -62,6 +62,13 @@ export default function ProjectsDashboard() {
     cancelled: "bg-red-100 text-red-800",
   };
 
+  const priorityColor: Record<string, string> = {
+    low: "bg-gray-100 text-gray-700",
+    medium: "bg-blue-100 text-blue-700",
+    high: "bg-orange-100 text-orange-700",
+    critical: "bg-red-100 text-red-700",
+  };
+
   const recentProjects = projects.slice(0, 8);
 
   return (
@@ -118,7 +125,7 @@ export default function ProjectsDashboard() {
                     <Badge variant="outline" className={statusColor[project.status] || ""}>
                       {project.status.replace("_", " ")}
                     </Badge>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className={`text-xs ${priorityColor[project.priority] || ""}`}>
                       {project.priority}
                     </Badge>
                   </div>
