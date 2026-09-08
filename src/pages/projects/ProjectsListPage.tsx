@@ -174,6 +174,13 @@ export default function ProjectsListPage() {
     cancelled: "bg-red-100 text-red-800",
   };
 
+  const priorityColor: Record<string, string> = {
+    low: "bg-gray-100 text-gray-700",
+    medium: "bg-blue-100 text-blue-700",
+    high: "bg-orange-100 text-orange-700",
+    critical: "bg-red-100 text-red-700",
+  };
+
   return (
     <ERPLayout>
       <PageHeader title="Projects List" description="Manage all manufacturing projects">
@@ -228,7 +235,7 @@ export default function ProjectsListPage() {
                       <td className="p-2">
                         <Badge variant="outline" className={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
                       </td>
-                      <td className="p-2"><Badge variant="secondary">{p.priority}</Badge></td>
+                      <td className="p-2"><Badge variant="secondary" className={priorityColor[p.priority] || ""}>{p.priority}</Badge></td>
                       <td className="p-2 text-xs">{p.start_date ? format(new Date(p.start_date), "dd MMM yy") : "-"}</td>
                       <td className="p-2 text-xs">{p.target_end_date ? format(new Date(p.target_end_date), "dd MMM yy") : "-"}</td>
                       <td className="p-2 text-xs">{users.find((u) => u.id === p.project_manager_id)?.full_name || "-"}</td>
