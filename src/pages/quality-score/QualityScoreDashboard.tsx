@@ -234,7 +234,7 @@ export default function QualityScoreDashboard() {
                     >
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-semibold">
-                          {e.department?.name ?? "—"} · <span className="capitalize">{e.shift}</span>
+                          {e.department?.name ?? "—"}
                           {e.product?.name ? ` · ${e.product.name}` : ""}
                         </span>
                         {flagged && delta ? (
@@ -308,7 +308,6 @@ export default function QualityScoreDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Department</TableHead>
-                      <TableHead>Shift</TableHead>
                       <TableHead>Product / Grade</TableHead>
                       <TableHead className="text-right">Ball</TableHead>
                       <TableHead className="text-right">Process</TableHead>
@@ -322,7 +321,6 @@ export default function QualityScoreDashboard() {
                       return (
                         <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelected(e)}>
                           <TableCell className="font-medium">{e.department?.name ?? "—"}</TableCell>
-                          <TableCell className="capitalize">{e.shift}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {[e.product?.name, e.grade?.name].filter(Boolean).join(" · ") || "—"}
                           </TableCell>

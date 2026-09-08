@@ -106,7 +106,6 @@ export default function ScoreHistoryPage() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Department</TableHead>
-                      <TableHead>Shift</TableHead>
                       <TableHead>Product / Grade</TableHead>
                       <TableHead className="text-right">Ball</TableHead>
                       <TableHead className="text-right">Process</TableHead>
@@ -128,7 +127,6 @@ export default function ScoreHistoryPage() {
                         >
                           <TableCell>{format(new Date(e.entry_date), "dd MMM yyyy")}</TableCell>
                           <TableCell>{e.department?.name ?? "—"}</TableCell>
-                          <TableCell className="capitalize">{e.shift}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {[e.product?.name, e.grade?.name].filter(Boolean).join(" · ") || "—"}
                           </TableCell>

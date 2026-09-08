@@ -50,7 +50,7 @@ export function ScoreDrillDownDialog({ entry, settings, onClose }: Props) {
           <DialogTitle className="flex flex-wrap items-center gap-2">
             Score Drill-down
             <span className="text-sm font-normal text-muted-foreground">
-              {format(new Date(entry.entry_date), "dd MMM yyyy")} · {entry.department?.name ?? "—"} · {entry.shift}
+              {format(new Date(entry.entry_date), "dd MMM yyyy")} · {entry.department?.name ?? "—"}
               {entry.product?.name ? ` · ${entry.product.name}` : ""}
               {entry.grade?.name ? ` · ${entry.grade.name}` : ""}
             </span>
