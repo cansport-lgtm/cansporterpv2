@@ -13,11 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
+import { printGRN } from "@/lib/purchase/printGRN";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
@@ -380,9 +381,19 @@ export default function GoodsReceiptPage() {
       key: 'id',
       header: 'Actions',
       render: (grn) => (
-        <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="flex">
+          <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Print GRN (quantities only, no prices)"
+            onClick={() => printGRN(grn.id).catch((e: any) => toast.error(e.message || 'Failed to print GRN'))}
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];

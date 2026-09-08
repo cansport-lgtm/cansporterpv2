@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload, Pencil, Save, X } from "lucide-react";
+import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload, Pencil, Save, X, Printer } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { syncGRNToLedger } from "@/lib/accounting/syncGRNToLedger";
+import { printGRN } from "@/lib/purchase/printGRN";
 
 const sb = supabase as any;
 const ATTACHMENT_BUCKET = "grn-attachments";
@@ -409,6 +410,16 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
                 </>
               ) : (
                 <>
+                  <Button
+                    variant="outline"
+                    title="Print GRN (quantities only, no prices)"
+                    onClick={() =>
+                      grnId && printGRN(grnId).catch((e: any) =>
+                        toast({ title: "Failed to print GRN", description: e.message, variant: "destructive" }))
+                    }
+                  >
+                    <Printer className="h-4 w-4 mr-1" /> Print
+                  </Button>
                   {canEdit && (
                     <Button variant="outline" onClick={startEdit}>
                       <Pencil className="h-4 w-4 mr-1" /> Edit Prices
