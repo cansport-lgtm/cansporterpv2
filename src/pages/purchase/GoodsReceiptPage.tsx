@@ -13,11 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { postGRNVoucher } from "@/lib/accounting/postGRNVoucher";
+import { printGRN } from "@/lib/purchase/printGRN";
 import { GRNViewDialog } from "@/components/purchase/GRNViewDialog";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
@@ -48,6 +49,8 @@ interface GRNItem {
   item_id: string | null;
   description: string;
   quantity_ordered: number;
+  quantity_already_received: number;
+  quantity_remaining: number;
   quantity_received: string;
   unit_price: number;
 }
@@ -167,6 +170,19 @@ export default function GoodsReceiptPage() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      // Block over-receipt: each line may receive at most its outstanding qty.
+      for (const item of data.items) {
+        const qty = parseFloat(item.quantity_received) || 0;
+        if (qty > item.quantity_remaining + 0.001) {
+          throw new Error(
+            `"${item.description}": receiving ${qty} exceeds remaining quantity ${item.quantity_remaining}`
+          );
+        }
+      }
+      if (!data.items.some(item => (parseFloat(item.quantity_received) || 0) > 0)) {
+        throw new Error('Enter a received quantity for at least one item');
+      }
+
       const itemsSubtotal = data.items.reduce((sum, item) => {
         return sum + (parseFloat(item.quantity_received) || 0) * item.unit_price;
       }, 0);
@@ -215,10 +231,20 @@ export default function GoodsReceiptPage() {
         if (itemsError) throw itemsError;
       }
 
-      // Update PO status
+      // Update PO status: 'received' only when every line is now fully
+      // received, otherwise 'partially_received' so the balance stays
+      // receivable. The DB trigger (recalc_po_receipt_status) computes the
+      // same answer from grn_items; this write is a belt-and-braces no-op
+      // when the trigger has already run.
+      const fullyReceived = (poItems || []).every((poItem) => {
+        const receivedNow = data.items.find(i => i.po_item_id === poItem.id);
+        const total = Number(poItem.quantity_received || 0) +
+          (receivedNow ? parseFloat(receivedNow.quantity_received) || 0 : 0);
+        return total + 0.001 >= Number(poItem.quantity);
+      });
       const { error: poError } = await supabase
         .from('purchase_orders')
-        .update({ status: 'received' })
+        .update({ status: fullyReceived ? 'received' : 'partially_received' })
         .eq('id', data.purchase_order_id);
       if (poError) console.error('Failed to update PO status:', poError);
 
@@ -267,27 +293,35 @@ export default function GoodsReceiptPage() {
     setFormData({ ...formData, purchase_order_id: poId, items: [] });
   };
 
-  // When PO items are loaded, populate form items
+  // When PO items are loaded, populate form items. Fully received lines are
+  // left out so a follow-up (partial) GRN only offers the outstanding balance.
   const loadPOItems = () => {
     if (poItems && poItems.length > 0) {
       const isRawMaterial = selectedPO?.category === 'raw_material';
-      const items: GRNItem[] = poItems.map((item: any) => {
-        const remaining = Number(item.quantity) - Number(item.quantity_received || 0);
-        // For raw material, default to the QC-accepted quantity (capped at the
-        // outstanding quantity). For other categories, default to the remaining qty.
-        const accepted = qcAccepted?.[item.id] ?? remaining;
-        const defaultQty = isRawMaterial
-          ? Math.max(0, Math.min(accepted, remaining))
-          : remaining;
-        return {
-          po_item_id: item.id,
-          item_id: item.item_id,
-          description: item.description || item.items?.name || '',
-          quantity_ordered: item.quantity,
-          quantity_received: defaultQty.toString(),
-          unit_price: item.unit_price,
-        };
-      });
+      const items: GRNItem[] = poItems
+        .filter((item) => Number(item.quantity) - Number(item.quantity_received || 0) > 0.001)
+        .map((item: any) => {
+          const alreadyReceived = Number(item.quantity_received || 0);
+          const remaining = Number(item.quantity) - alreadyReceived;
+          // For raw material, default to the QC-accepted quantity not yet
+          // received (capped at the outstanding quantity). For other
+          // categories, default to the remaining qty.
+          const accepted = qcAccepted?.[item.id];
+          const acceptedOutstanding = accepted !== undefined ? accepted - alreadyReceived : remaining;
+          const defaultQty = isRawMaterial
+            ? Math.max(0, Math.min(acceptedOutstanding, remaining))
+            : remaining;
+          return {
+            po_item_id: item.id,
+            item_id: item.item_id,
+            description: item.description || item.items?.name || '',
+            quantity_ordered: item.quantity,
+            quantity_already_received: alreadyReceived,
+            quantity_remaining: remaining,
+            quantity_received: defaultQty.toString(),
+            unit_price: item.unit_price,
+          };
+        });
       setFormData(prev => ({ ...prev, items }));
     }
   };
@@ -303,6 +337,9 @@ export default function GoodsReceiptPage() {
   }, 0);
   const transportationCost = parseFloat(formData.transportation_cost) || 0;
   const totalAmount = itemsSubtotal + transportationCost;
+  const hasOverReceipt = formData.items.some(
+    item => (parseFloat(item.quantity_received) || 0) > item.quantity_remaining + 0.001
+  );
 
   const columns: Column<any>[] = [
     { key: 'grn_number', header: 'GRN #' },
@@ -344,9 +381,19 @@ export default function GoodsReceiptPage() {
       key: 'id',
       header: 'Actions',
       render: (grn) => (
-        <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="flex">
+          <Button variant="ghost" size="icon" onClick={() => setViewGRNId(grn.id)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Print GRN (quantities only, no prices)"
+            onClick={() => printGRN(grn.id).catch((e: any) => toast.error(e.message || 'Failed to print GRN'))}
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -464,6 +511,8 @@ export default function GoodsReceiptPage() {
                             <TableHead>Item</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead className="text-right">Ordered</TableHead>
+                            <TableHead className="text-right">Received</TableHead>
+                            <TableHead className="text-right">Remaining</TableHead>
                             <TableHead className="text-right w-32">Receiving</TableHead>
                             <TableHead className="text-right">Unit Price</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
@@ -475,12 +524,20 @@ export default function GoodsReceiptPage() {
                               <TableCell>{poItems?.find((p: any) => p.id === item.po_item_id)?.items?.code || '-'}</TableCell>
                               <TableCell>{item.description}</TableCell>
                               <TableCell className="text-right">{item.quantity_ordered}</TableCell>
+                              <TableCell className="text-right">{item.quantity_already_received}</TableCell>
+                              <TableCell className="text-right">{item.quantity_remaining}</TableCell>
                               <TableCell>
                                 <Input
                                   type="number"
+                                  min="0"
+                                  max={item.quantity_remaining}
                                   value={item.quantity_received}
                                   onChange={(e) => updateItemQty(index, e.target.value)}
-                                  className="text-right"
+                                  className={`text-right ${
+                                    (parseFloat(item.quantity_received) || 0) > item.quantity_remaining + 0.001
+                                      ? 'border-destructive text-destructive'
+                                      : ''
+                                  }`}
                                 />
                               </TableCell>
                               <TableCell className="text-right">Rs. {item.unit_price?.toLocaleString()}</TableCell>
@@ -495,6 +552,11 @@ export default function GoodsReceiptPage() {
 
                     {formData.items.length > 0 && (
                       <div className="space-y-1 pt-2 text-right text-sm">
+                        {hasOverReceipt && (
+                          <div className="text-destructive">
+                            Receiving quantity cannot exceed the remaining quantity
+                          </div>
+                        )}
                         <div className="text-muted-foreground">
                           Subtotal: Rs. {itemsSubtotal.toLocaleString()}
                         </div>
@@ -524,7 +586,7 @@ export default function GoodsReceiptPage() {
                   <Button variant="outline" onClick={resetForm}>Cancel</Button>
                   <Button
                     onClick={() => saveMutation.mutate(formData)}
-                    disabled={!formData.purchase_order_id || formData.items.length === 0 || saveMutation.isPending}
+                    disabled={!formData.purchase_order_id || formData.items.length === 0 || hasOverReceipt || saveMutation.isPending}
                   >
                     {saveMutation.isPending ? 'Creating...' : 'Create GRN'}
                   </Button>

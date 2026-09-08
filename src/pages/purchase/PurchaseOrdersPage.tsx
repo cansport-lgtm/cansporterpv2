@@ -268,6 +268,33 @@ export default function PurchaseOrdersPage() {
     },
   });
 
+  // Close-short mutation (manager only). Marks a partially received PO as
+  // completed when the supplier will not deliver the balance quantity. The
+  // audit columns record who closed it short; the DB recalc trigger then
+  // leaves the PO's status alone.
+  const closeShortMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await (supabase as any)
+        .from('purchase_orders')
+        .update({
+          status: 'received',
+          closed_short_by: user?.id,
+          closed_short_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['approved-purchase-orders'] });
+      toast.success('Purchase order marked completed (closed short)');
+      setViewOrder(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to mark completed');
+    },
+  });
+
   // Rate edit mutation. Before a purchase order is approved, ANY user who can
   // view it may correct the line-item rates (unit price). Each item's amount is
   // recomputed from its quantity and the order total is re-summed.
@@ -934,7 +961,15 @@ export default function PurchaseOrdersPage() {
                 <div><strong>Category:</strong> {CATEGORIES.find(c => c.value === viewOrder.category)?.label}</div>
                 <div><strong>Order Date:</strong> {format(new Date(viewOrder.order_date), 'dd/MM/yyyy')}</div>
                 <div><strong>Expected Date:</strong> {viewOrder.expected_date ? format(new Date(viewOrder.expected_date), 'dd/MM/yyyy') : '-'}</div>
-                <div><strong>Status:</strong> <Badge className={STATUS_COLORS[viewOrder.status]}>{viewOrder.status?.replace('_', ' ')}</Badge></div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <strong>Status:</strong>
+                  <Badge className={STATUS_COLORS[viewOrder.status]}>{viewOrder.status?.replace('_', ' ')}</Badge>
+                  {viewOrder.closed_short_at && (
+                    <Badge variant="outline" title={`Marked completed with balance quantity outstanding on ${format(new Date(viewOrder.closed_short_at), 'dd/MM/yyyy')}`}>
+                      closed short {format(new Date(viewOrder.closed_short_at), 'dd/MM/yyyy')}
+                    </Badge>
+                  )}
+                </div>
                 <div><strong>Total:</strong> Rs. {(editingRates ? editedTotal : viewOrder.total_amount)?.toLocaleString()}</div>
                 {viewOrder.category === 'raw_material' && (
                   <div className="flex items-center gap-1">
@@ -1128,6 +1163,36 @@ export default function PurchaseOrdersPage() {
                       <Button onClick={() => approveMutation.mutate(viewOrder.id)}>
                         <Check className="h-4 w-4 mr-2" /> Approve
                       </Button>
+                    )}
+                    {/* Close short: a manager can complete a partially received PO
+                        whose balance the supplier will never deliver. */}
+                    {viewOrder.status === 'partially_received' &&
+                      canApprove && canApproveForCategory(viewOrder.category) && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button disabled={closeShortMutation.isPending}>
+                            <Check className="h-4 w-4 mr-2" /> Mark Completed
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[95vw] max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Mark {viewOrder.po_number} as completed?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This purchase order has received less than the ordered
+                              quantity. Marking it completed closes it short: the
+                              balance quantity will no longer be receivable and the
+                              order will show as Received. This is recorded against
+                              your name.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => closeShortMutation.mutate(viewOrder.id)}>
+                              Mark Completed
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                     <Button variant="outline" onClick={() => setViewOrder(null)}>Close</Button>
                   </>
