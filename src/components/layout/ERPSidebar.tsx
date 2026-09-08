@@ -236,6 +236,7 @@ const navigationItems: NavItem[] = [
       { title: "Score History", href: "/quality-score/history" },
       { title: "Parameters Master", href: "/quality-score/parameters" },
       { title: "Process Master", href: "/quality-score/processes" },
+      { title: "Selection Master", href: "/quality-score/selections" },
     ],
   },
   {

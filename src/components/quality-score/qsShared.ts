@@ -87,11 +87,39 @@ export const QS_ENTRY_SELECT = `*,
   ball_scores:qs_ball_scores(*, inspector:app_users(full_name), params:qs_ball_score_params(*)),
   process_scores:qs_process_scores(*, inspector:app_users(full_name), params:qs_process_score_params(*))`;
 
-export const SHIFT_OPTIONS = [
-  { value: "morning", label: "Morning" },
-  { value: "afternoon", label: "Afternoon" },
-  { value: "night", label: "Night" },
-] as const;
+export interface QsSelectionOption {
+  id: string;
+  list_type: "department" | "product" | "grade";
+  ref_id: string;
+  sort_order: number;
+}
+
+export function useQsSelectionOptions() {
+  return useQuery({
+    queryKey: ["qs-selection-options"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("qs_selection_options").select("*").order("sort_order");
+      if (error) throw error;
+      return data as QsSelectionOption[];
+    },
+  });
+}
+
+// Entry-form dropdowns show only the items picked in the Selection Master;
+// a list with no picks falls back to showing everything.
+export function applySelection<T extends { id: string }>(
+  rows: T[],
+  selections: QsSelectionOption[],
+  list: QsSelectionOption["list_type"],
+): T[] {
+  const picked = selections.filter((s) => s.list_type === list);
+  if (picked.length === 0) return rows;
+  const order = new Map(picked.map((s, i) => [s.ref_id, s.sort_order * 1000 + i]));
+  return rows
+    .filter((r) => order.has(r.id))
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+}
 
 export function useQsSettings() {
   return useQuery({

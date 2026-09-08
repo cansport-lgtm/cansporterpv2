@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { QS_ENTRY_SELECT, QsEntry, SHIFT_OPTIONS } from "./qsShared";
+import {
+  QS_ENTRY_SELECT, QsEntry, applySelection, useQsSelectionOptions,
+} from "./qsShared";
 
 interface Lookup { id: string; name: string; }
 
@@ -19,8 +21,6 @@ export interface QsEntryContext {
   setDate: (v: string) => void;
   departmentId: string;
   setDepartmentId: (v: string) => void;
-  shift: string;
-  setShift: (v: string) => void;
   productId: string; // "none" when not set
   setProductId: (v: string) => void;
   gradeId: string; // "none" when not set
@@ -33,19 +33,18 @@ export interface QsEntryContext {
   findOrCreateEntry: () => Promise<string>;
 }
 
-// Both inspector entry pages score against the same context: date + department + shift
+// Both inspector entry pages score against the same context: date + department
 // (+ optional product/grade). The qs_score_entries row is created lazily on first submit.
 export function useQsEntryContext(): QsEntryContext {
   const { user } = useAuth();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [departmentId, setDepartmentId] = useState("");
-  const [shift, setShift] = useState("morning");
   const [productId, setProductId] = useState("none");
   const [gradeId, setGradeId] = useState("none");
 
   const ready = !!date && !!departmentId;
   const entryQueryKey = [
-    "qs-entry-context", date, departmentId, shift,
+    "qs-entry-context", date, departmentId,
     productId === "none" ? null : productId,
     gradeId === "none" ? null : gradeId,
   ];
@@ -58,8 +57,7 @@ export function useQsEntryContext(): QsEntryContext {
         .from("qs_score_entries")
         .select(QS_ENTRY_SELECT)
         .eq("entry_date", date)
-        .eq("department_id", departmentId)
-        .eq("shift", shift);
+        .eq("department_id", departmentId);
       q = productId !== "none" ? q.eq("product_id", productId) : q.is("product_id", null);
       q = gradeId !== "none" ? q.eq("grade_id", gradeId) : q.is("grade_id", null);
       const { data, error } = await q.limit(1);
@@ -75,7 +73,6 @@ export function useQsEntryContext(): QsEntryContext {
       .insert({
         entry_date: date,
         department_id: departmentId,
-        shift,
         product_id: productId !== "none" ? productId : null,
         grade_id: gradeId !== "none" ? gradeId : null,
         created_by: user?.id ?? null,
@@ -87,13 +84,15 @@ export function useQsEntryContext(): QsEntryContext {
   };
 
   return {
-    date, setDate, departmentId, setDepartmentId, shift, setShift,
+    date, setDate, departmentId, setDepartmentId,
     productId, setProductId, gradeId, setGradeId,
     ready, entry, entryLoading, refetchEntry, entryQueryKey, findOrCreateEntry,
   };
 }
 
 export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
+  const { data: selections = [] } = useQsSelectionOptions();
+
   const { data: departments = [] } = useQuery({
     queryKey: ["qs-lookup-departments"],
     queryFn: async () => {
@@ -124,10 +123,14 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
     },
   });
 
+  const departmentOptions = applySelection(departments, selections, "department");
+  const productOptions = applySelection(products, selections, "product");
+  const gradeOptions = applySelection(grades, selections, "grade");
+
   return (
     <Card>
       <CardContent className="p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Label className="text-xs">Date</Label>
             <Input type="date" value={ctx.date} onChange={(e) => ctx.setDate(e.target.value)} />
@@ -137,19 +140,8 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
             <Select value={ctx.departmentId} onValueChange={ctx.setDepartmentId}>
               <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
               <SelectContent>
-                {departments.map((d) => (
+                {departmentOptions.map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Shift</Label>
-            <Select value={ctx.shift} onValueChange={ctx.setShift}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {SHIFT_OPTIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -160,7 +152,7 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">All / not specified</SelectItem>
-                {products.map((p) => (
+                {productOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -172,7 +164,7 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">All / not specified</SelectItem>
-                {grades.map((g) => (
+                {gradeOptions.map((g) => (
                   <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                 ))}
               </SelectContent>
