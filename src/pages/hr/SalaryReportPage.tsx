@@ -536,9 +536,14 @@ export default function SalaryReportPage() {
       const perDayRate = totalDaysInMonth > 0 ? gross / totalDaysInMonth : 0;
       const earnedSalary = Math.round(gross - (absentDays * perDayRate));
       
-      // Attendance allowance: auto-add if 0 absent and 0 half days and no unpaid holidays
+      // Full-day absences: working days with no attendance at all, plus unpaid
+      // holidays. Half-day dates count as attended here so a single half day
+      // (0.5 shortfall inside absentDays) doesn't forfeit the allowance.
+      const fullDayAbsences = Math.max(0, workingDays - presentDays - halfDays - paidLeaveDays) + unpaidHolidays;
+
+      // Attendance allowance: auto-add if no full-day absence, at most 1 half day, and no paid leaves
       const attAllowanceConfig = Number((e as any).attendance_allowance) || 0;
-      const attendanceAllowance = (absentDays === 0 && halfDays === 0 && paidLeaveDays === 0) ? attAllowanceConfig : 0;
+      const attendanceAllowance = (fullDayAbsences === 0 && halfDays <= 1 && paidLeaveDays === 0) ? attAllowanceConfig : 0;
       
       const overtimeAmount = overtimeMap[e.id] || 0;
       const advanceDeduction = advanceMap[e.id] || 0;
