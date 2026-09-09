@@ -465,9 +465,15 @@ const LabourSalaryPage = () => {
       .filter(a => a.employee_id === emp.id)
       .reduce((sum, a) => sum + Number(a.amount || 0), 0);
     
-    // Auto-add attendance allowance if employee has 0 absent days and max 2 half days
-    const autoAttAllowance = (absentDays === 0 && halfDays <= 2 && daysWorked > 0) 
-      ? Number(emp.attendance_allowance || 0) 
+    // Full-day absences: working days with no attendance entry at all.
+    // Half-day dates count as attended here so that 1-2 half days alone
+    // don't forfeit the attendance allowance (absentDays includes the 0.5
+    // shortfall per half day, which would always fail an === 0 check).
+    const fullDayAbsences = Math.max(0, workingDaysInMonth - (fullDays + halfDays));
+
+    // Auto-add attendance allowance if employee has no full-day absence and max 2 half days
+    const autoAttAllowance = (fullDayAbsences === 0 && halfDays <= 2 && daysWorked > 0)
+      ? Number(emp.attendance_allowance || 0)
       : 0;
     const totalAttAllowance = manualAttAllowance + autoAttAllowance;
     
