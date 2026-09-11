@@ -582,6 +582,7 @@ const navigationItems: NavItem[] = [
     module: "projects",
     children: [
       { title: "Dashboard", href: "/projects" },
+      { title: "Analysis", href: "/projects/analysis" },
       { title: "Projects List", href: "/projects/list" },
       { title: "Kanban Board", href: "/projects/kanban" },
     ],

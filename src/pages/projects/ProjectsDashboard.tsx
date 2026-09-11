@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { FolderKanban, Plus, Clock, CheckCircle, AlertTriangle, Briefcase } from "lucide-react";
+import { FolderKanban, Plus, Clock, CheckCircle, AlertTriangle, Briefcase, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 
@@ -77,9 +77,14 @@ export default function ProjectsDashboard() {
         title="Project Management"
         description="Overview of manufacturing projects"
       >
-        <Button onClick={() => navigate("/projects/list")} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> New Project
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/projects/analysis")}>
+            <BarChart3 className="h-4 w-4 mr-1" /> Analysis
+          </Button>
+          <Button onClick={() => navigate("/projects/list")} size="sm">
+            <Plus className="h-4 w-4 mr-1" /> New Project
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
