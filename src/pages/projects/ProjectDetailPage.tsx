@@ -136,9 +136,13 @@ export default function ProjectDetailPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDownload = (doc: Doc) => {
-    const { data } = supabase.storage.from("project-documents").getPublicUrl(doc.file_path);
-    window.open(data.publicUrl, "_blank");
+  const handleDownload = async (doc: Doc) => {
+    // Bucket is private; issue a short-lived signed URL instead of a public one
+    const { data, error } = await supabase.storage
+      .from("project-documents")
+      .createSignedUrl(doc.file_path, 3600);
+    if (error || !data?.signedUrl) { toast.error("Failed to generate download link"); return; }
+    window.open(data.signedUrl, "_blank");
   };
 
   const handleDeleteDoc = async (docId: string, filePath: string) => {

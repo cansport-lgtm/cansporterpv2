@@ -248,6 +248,7 @@ import ProjectsDashboard from "./pages/projects/ProjectsDashboard";
 import ProjectsListPage from "./pages/projects/ProjectsListPage";
 import ProjectKanbanPage from "./pages/projects/ProjectKanbanPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
+import ProjectAnalysisPage from "./pages/projects/ProjectAnalysisPage";
 
 // R&D pages
 import RDDashboard from "./pages/rd/RDDashboard";
@@ -778,6 +779,7 @@ const App = () => (
             <Route path="/projects" element={<ProtectedRoute><ProjectsDashboard /></ProtectedRoute>} />
             <Route path="/projects/list" element={<ProtectedRoute><ProjectsListPage /></ProtectedRoute>} />
             <Route path="/projects/kanban" element={<ProtectedRoute><ProjectKanbanPage /></ProtectedRoute>} />
+            <Route path="/projects/analysis" element={<ProtectedRoute><ProjectAnalysisPage /></ProtectedRoute>} />
             <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
             <Route path="/projects/*" element={<ProtectedRoute><ComingSoon title="Project Management" /></ProtectedRoute>} />
 
