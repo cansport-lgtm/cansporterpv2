@@ -22,6 +22,7 @@ interface PayslipData {
   grossSalary: number;
   earnedSalary: number;
   daysWorked: number;
+  serialNo?: number;
 }
 
 interface PayslipDialogProps {
@@ -80,8 +81,10 @@ export const PayslipDialog = ({ open, onOpenChange, employee, month }: PayslipDi
               padding-bottom: 4mm;
               margin-bottom: 4mm;
             }
+            .header { position: relative; }
             .header h1 { font-size: 16px; margin-bottom: 2px; font-weight: bold; }
             .header h2 { font-size: 12px; font-weight: normal; color: #333; }
+            .serial-badge { position: absolute; left: 0; top: 0; font-size: 26px; font-weight: 900; border: 2px solid #000; padding: 1mm 4mm; line-height: 1.2; }
             .employee-info {
               display: flex;
               justify-content: space-between;
@@ -161,6 +164,7 @@ export const PayslipDialog = ({ open, onOpenChange, employee, month }: PayslipDi
         <body>
           <div class="payslip">
             <div class="header">
+              ${employee.serialNo ? `<div class="serial-badge">${employee.serialNo}</div>` : ''}
               <h1>PAYSLIP - ${monthDisplay.toUpperCase()}</h1>
             </div>
             
@@ -276,7 +280,10 @@ export const PayslipDialog = ({ open, onOpenChange, employee, month }: PayslipDi
       <DialogContent className="max-w-lg" aria-describedby="payslip-description">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Payslip - {monthDisplay}</span>
+            <span>
+              {employee.serialNo ? <span className="mr-2 rounded border-2 border-foreground px-2 font-black">{employee.serialNo}</span> : null}
+              Payslip - {monthDisplay}
+            </span>
             <Button variant="outline" size="sm" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
               Print
