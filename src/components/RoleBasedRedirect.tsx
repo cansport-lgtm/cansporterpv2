@@ -60,6 +60,12 @@ export function RoleBasedRedirect() {
     return <Navigate to="/qa/operator-inspection" replace />;
   }
 
+  // QA Inspector lands directly on the inspection entry form — their only page
+  // (create-only; no dashboard or any other QA page)
+  if (roles.some(r => (r.role as string) === 'qa_inspector')) {
+    return <Navigate to="/qa/operator-inspection" replace />;
+  }
+
   // Sales Executive goes to Sales Orders page
   if (roles.some(r => r.role === 'sales_executive')) {
     return <Navigate to="/sales/orders" replace />;
