@@ -32,6 +32,7 @@ import {
   Monitor,
   Headphones,
   Workflow,
+  LifeBuoy,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -708,6 +709,16 @@ const navigationItems: NavItem[] = [
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
+    ],
+  },
+  {
+    // No `module` key: the Help Desk is open to every logged-in user
+    // (children still pass through canAccessRoute / superAdminOnly filters).
+    title: "Help Desk",
+    icon: LifeBuoy,
+    children: [
+      { title: "My Tickets", href: "/helpdesk" },
+      { title: "Manage Tickets", href: "/helpdesk/manage", superAdminOnly: true },
     ],
   },
   {
