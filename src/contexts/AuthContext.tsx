@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -135,6 +135,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // route lockdown below confines it to just the Quality Inspection page, and it
   // never sees prices (canViewPrices).
   purchase_qc_inspector: ['purchase', 'dashboard'],
+  // QA Inspector: a single-purpose quality role. 'qa' satisfies the /qa/* module
+  // check; route lockdown below confines it to just the inspection entry form —
+  // no QA dashboard or any other QA page.
+  qa_inspector: ['qa'],
   // Distributor Order Management — a self-contained external module. All three
   // distributor roles are confined to the 'distributor' module (+ dashboard shell).
   // Per-distributor data isolation is enforced in-page by filtering on distributor_id.
@@ -229,6 +233,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   // prices/amounts).
   purchase_qc_inspector: [
     '/purchase/qc',
+  ],
+  // QA Inspector: ONLY the inspection entry form (chrome-free operator layout).
+  // No QA dashboard, inspections list, release, NCR/CAPA or master pages.
+  qa_inspector: [
+    '/qa/operator-inspection',
   ],
   // Distributor Sales: ONLY make/submit sales orders. The orders page is fully
   // self-contained — customers and products load inside the order dialog — so no
@@ -341,6 +350,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'purchase_officer',
   'purchase_manager',
   'purchase_qc_inspector',
+  'qa_inspector',
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
@@ -365,6 +375,9 @@ const STRICT_LOCKED_ROLES = new Set([
   // Purchase QC Inspector must never gain price visibility or reach other purchase
   // pages, even if the user also holds a flexible role — enforce its lockdown always.
   'purchase_qc_inspector',
+  // QA Inspector must never reach any QA page beyond the inspection entry form,
+  // even if the user also holds a flexible role — enforce its lockdown always.
+  'qa_inspector',
   'distributor_sales',
   'distributor_manager',
   'distributor_admin',
@@ -834,6 +847,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // check below, which denies them (strict roles carry no module_permissions rows).
     const grantsWithinScope = (modules: string[]): boolean =>
       modules.includes(module) && permission !== 'delete' && permission !== 'approve';
+
+    // QA Inspector: view + create ONLY within the QA module (the inspection entry
+    // form needs view to render and create to save). GRANT-ONLY (additive) like the
+    // strict roles below — out-of-scope falls through, never vetoes another role.
+    if (
+      roles.some(r => r.role === 'qa_inspector') &&
+      module === 'qa' &&
+      (permission === 'view' || permission === 'create')
+    ) {
+      return true;
+    }
 
     if (roles.some(r => r.role === 'dispatch_operator') && grantsWithinScope(['sales', 'domestic'])) return true;
     if (roles.some(r => r.role === 'sales_order_manager') && grantsWithinScope(['sales', 'domestic'])) return true;

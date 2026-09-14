@@ -189,6 +189,14 @@ export function ProtectedRoute({
       }
     }
 
+    // For QA inspector, redirect back to the inspection entry form when accessing
+    // anything outside it (no dashboard or any other QA page).
+    if (roles.some((r) => (r.role as string) === 'qa_inspector')) {
+      if (location.pathname !== '/qa/operator-inspection') {
+        return <Navigate to="/qa/operator-inspection" replace />;
+      }
+    }
+
     // For closing data poster, redirect to the Planning Daily Stock Closing page when
     // accessing anything outside their two allowed stock-closing pages.
     if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {
