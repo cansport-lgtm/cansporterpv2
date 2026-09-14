@@ -115,7 +115,7 @@ const LabourEmployeesPage = () => {
       setFormData((p) => ({ ...p, photo_url: data.publicUrl }));
       toast.success("Photo uploaded");
     } catch (err: any) {
-      toast.error(err.message || "Upload failed");
+      toast.error(`Photo upload failed: ${err.message || "unknown error"}. The photo will NOT be saved with this employee.`, { duration: 8000 });
     } finally {
       setUploadingPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = "";
