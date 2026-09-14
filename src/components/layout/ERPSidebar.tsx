@@ -260,6 +260,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Quality Coordinator", href: "/qa/quality-coordinator", highlight: true },
       { title: "New Inspection", href: "/qa/inspections", state: { openNewInspection: true } },
+      { title: "Inspection Entry", href: "/qa/operator-inspection" },
       { title: "Process Master", href: "/qa/processes", superAdminOnly: true },
       { title: "Process Instructions", href: "/qa/process-instructions" },
       { title: "Process Standards", href: "/qa/process-standards", superAdminOnly: true },

@@ -91,7 +91,7 @@ const roleDescriptions: Record<AppRole, string> = {
   projects_viewer: "Project Management – read-only access",
   qa_officer: "Quality Assurance – create and edit inspections (no approve, no delete)",
   qa_viewer: "Quality Assurance – read-only access",
-  qa_inspector: "Quality Assurance – inspection entry form only; can only create inspections (no dashboard or any other page)",
+  qa_inspector: "Quality Assurance – inspection entry form only; can only create inspections (no QA dashboard or any other QA page). Combine with other module roles (e.g. Rejections & Wastages / WIP tiers) to also grant those modules",
   maintenance_officer: "Maintenance – create and edit work orders (no approve, no delete)",
   maintenance_viewer: "Maintenance – read-only access",
   expenses_manager: "Expenses – full access including approve (delete reserved for super admin)",
