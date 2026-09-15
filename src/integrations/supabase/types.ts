@@ -15088,6 +15088,7 @@ export type Database = {
           total_cost: number | null
           unit_cost: number | null
           updated_at: string | null
+          usage_type: string
           work_order_id: string | null
         }
         Insert: {
@@ -15106,6 +15107,7 @@ export type Database = {
           total_cost?: number | null
           unit_cost?: number | null
           updated_at?: string | null
+          usage_type?: string
           work_order_id?: string | null
         }
         Update: {
@@ -15124,6 +15126,7 @@ export type Database = {
           total_cost?: number | null
           unit_cost?: number | null
           updated_at?: string | null
+          usage_type?: string
           work_order_id?: string | null
         }
         Relationships: [
