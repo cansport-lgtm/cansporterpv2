@@ -858,55 +858,129 @@ export default function SalaryReportPage() {
   };
 
   // Bulk pay slips: prints every row currently shown in the sheet, in the same
-  // order, with the sheet's serial number on each slip. One compact slip layout
-  // shared by all modes; slipsPerPage (1/2/3) only changes the page split.
+  // order, using the SAME detailed template as the per-row payslip print
+  // (Employee Details / Earnings / Attendance & Calculation / Overtime /
+  // Advances / Deductions / Loan Details / Net Payable / signatures), plus the
+  // sheet's serial number as a bold badge.
+  //
+  // 1 per page keeps the single-column layout of the per-row print; 2 and 3
+  // per page arrange the same sections in two columns so a worst-case slip
+  // (overtime + advances + active loan) fits its A4 band — verified against a
+  // rendered worst-case sample. Itemized advance/overtime lists are capped in
+  // 2-up/3-up (extras collapse into one "… and N more" row; totals always
+  // complete).
   const handlePrintBulkPayslips = () => {
     if (filtered.length === 0) return;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     const perPage = Number(slipsPerPage);
+    const twoCol = perPage > 1;
     const monthDisplay = `${MONTHS[selectedMonth]} ${selectedYear}`;
-    const fontSize = perPage === 1 ? "11px" : perPage === 2 ? "10px" : "8.5px";
-    const cellPad = perPage === 3 ? "1mm 2mm" : "1.6mm 2.5mm";
-    const slipPad = perPage === 3 ? "5mm 8mm" : "8mm 12mm";
+    const fontSize = perPage === 1 ? "12px" : perPage === 2 ? "9px" : "7.5px";
+    const cellPad = perPage === 1 ? "4px 8px" : perPage === 2 ? "2.5px 6px" : "1px 5px";
+    const slipPad = perPage === 1 ? "12mm 18mm" : perPage === 2 ? "6mm 14mm" : "3mm 12mm";
+    const sectionGap = perPage === 1 ? "12px" : perPage === 2 ? "6px" : "3px";
+    const maxDetailRows = perPage === 1 ? Number.MAX_SAFE_INTEGER : perPage === 2 ? 3 : 2;
 
-    const slipInner = (emp: EmployeeSalary, serialNo: number) => `
-      <div class="slip-header">
-        <div class="serial-badge">${serialNo}</div>
-        <h1>PAY SLIP — ${monthDisplay.toUpperCase()}</h1>
-      </div>
-      <div class="emp-info">
-        <div><label>CODE</label><span>${emp.employee_code}</span></div>
-        <div><label>NAME</label><span>${emp.full_name}</span></div>
-        <div><label>DEPARTMENT</label><span>${emp.department}</span></div>
-        <div><label>DESIGNATION</label><span>${emp.designation}</span></div>
-      </div>
-      <div class="cols">
-        <table class="t">
+    const slipInner = (emp: EmployeeSalary, serialNo: number) => {
+      const empAdvances = monthAdvances.filter((a: any) => a.employee_id === emp.id);
+      const shownAdv = empAdvances.slice(0, maxDetailRows);
+      const extraAdv = empAdvances.length - shownAdv.length;
+      const advRows = empAdvances.length > 0
+        ? shownAdv.map((a: any) => `<tr><td>${format(new Date(a.advance_date), "dd MMM yyyy")}</td><td class="r">Rs. ${Number(a.amount).toLocaleString()}</td><td>${a.remarks || "-"}</td></tr>`).join("")
+          + (extraAdv > 0 ? `<tr><td colspan="3" style="color:#666">… and ${extraAdv} more (included in total)</td></tr>` : "")
+        : `<tr><td colspan="3" style="text-align:center;color:#999">No advances</td></tr>`;
+
+      const empOT = monthOvertime.filter((o: any) => o.employee_id === emp.id);
+      const shownOT = empOT.slice(0, maxDetailRows);
+      const extraOT = empOT.length - shownOT.length;
+      const otRows = shownOT.map((o: any) => `<tr><td>${format(new Date(o.overtime_date), "dd MMM yyyy")}</td><td class="r">${Number(o.hours)} hrs</td><td class="r">Rs. ${Number(o.amount).toLocaleString()}</td><td>${o.remarks || "-"}</td></tr>`).join("")
+        + (extraOT > 0 ? `<tr><td colspan="4" style="color:#666">… and ${extraOT} more (included in total)</td></tr>` : "");
+
+      const empLoans = (loans || []).filter((l) => l.employee_id === emp.id && Number(l.remaining_amount) > 0);
+      const loanRows = empLoans.slice(0, maxDetailRows).map((l) => `<tr><td>Rs. ${Number(l.monthly_installment).toLocaleString()}</td><td>${l.paid_installments}/${l.total_installments}</td><td>Rs. ${Number(l.remaining_amount).toLocaleString()}</td></tr>`).join("");
+
+      const leftSections = `
+      <div class="section">
+        <h4>Earnings</h4>
+        <table>
           <tr><td>Basic Salary</td><td class="r">Rs. ${emp.basic_salary.toLocaleString()}</td></tr>
           <tr><td>Allowances</td><td class="r">Rs. ${emp.allowances.toLocaleString()}</td></tr>
-          <tr class="b"><td>Gross Salary</td><td class="r">Rs. ${emp.gross.toLocaleString()}</td></tr>
-          <tr><td>Working Days</td><td class="r">${emp.workingDays}</td></tr>
-          <tr><td>Present / Half</td><td class="r">${emp.presentDays} / ${emp.halfDays}</td></tr>
-          <tr><td>Paid Leave / Paid S-PH</td><td class="r">${emp.paidLeaveDays} / ${emp.paidSundaysHolidays}</td></tr>
-          <tr><td>Absent Days</td><td class="r">${emp.absentDays}</td></tr>
-          <tr><td>Absent Deduction</td><td class="r">Rs. ${Math.round(emp.absentDays * emp.gross / totalDaysInMonth).toLocaleString()}</td></tr>
-        </table>
-        <table class="t">
-          <tr class="b"><td>Earned Salary</td><td class="r">Rs. ${emp.earnedSalary.toLocaleString()}</td></tr>
-          <tr class="plus"><td>Attendance Allowance</td><td class="r">+ Rs. ${emp.attendanceAllowance.toLocaleString()}</td></tr>
-          <tr class="plus"><td>Overtime</td><td class="r">+ Rs. ${emp.overtimeAmount.toLocaleString()}</td></tr>
-          <tr class="minus"><td>Less: Advances</td><td class="r">- Rs. ${emp.advanceDeduction.toLocaleString()}</td></tr>
-          <tr class="minus"><td>Less: Loan EMI</td><td class="r">- Rs. ${emp.loanDeduction.toLocaleString()}</td></tr>
-          <tr class="minus b"><td>Total Deductions</td><td class="r">Rs. ${emp.totalDeduction.toLocaleString()}</td></tr>
-          <tr class="net"><td>NET PAYABLE</td><td class="r">Rs. ${emp.netSalary.toLocaleString()}</td></tr>
+          <tr><td class="b">Gross Salary</td><td class="r b">Rs. ${emp.gross.toLocaleString()}</td></tr>
         </table>
       </div>
-      <div class="sig">
+      <div class="section">
+        <h4>Attendance &amp; Calculation</h4>
+        <table>
+          <tr><td>Days in Month</td><td class="r">${totalDaysInMonth}</td></tr>
+          <tr><td>Working Days</td><td class="r">${emp.workingDays}</td></tr>
+          <tr><td>Present Days</td><td class="r">${emp.presentDays}</td></tr>
+          <tr><td>Half Days</td><td class="r">${emp.halfDays}</td></tr>
+          <tr><td>Paid Leave Days</td><td class="r">${emp.paidLeaveDays}</td></tr>
+          <tr><td>Paid Sundays/Public Holidays</td><td class="r">${emp.paidSundaysHolidays}</td></tr>
+          <tr><td>Absent Days</td><td class="r">${emp.absentDays}</td></tr>
+          <tr><td class="b">Per Day Rate (Gross ÷ ${totalDaysInMonth})</td><td class="r b">Rs. ${Math.round(emp.gross / totalDaysInMonth).toLocaleString()}</td></tr>
+          <tr><td class="b">Absent Deduction</td><td class="r b">Rs. ${Math.round(emp.absentDays * emp.gross / totalDaysInMonth).toLocaleString()}</td></tr>
+          <tr><td class="b">Earned Salary</td><td class="r b">Rs. ${emp.earnedSalary.toLocaleString()}</td></tr>
+          <tr><td class="b" style="color:blue">Attendance Allowance</td><td class="r b" style="color:blue">Rs. ${emp.attendanceAllowance.toLocaleString()}</td></tr>
+        </table>
+      </div>`;
+
+      const rightSections = `
+      ${empOT.length > 0 ? `<div class="section">
+        <h4>Overtime</h4>
+        <table><thead><tr><th>Date</th><th class="r">Hours</th><th class="r">Amount</th><th>Remarks</th></tr></thead>
+        <tbody>${otRows}</tbody>
+        <tfoot><tr><td colspan="2" class="b">Total Overtime</td><td class="r b" colspan="2">Rs. ${emp.overtimeAmount.toLocaleString()}</td></tr></tfoot></table>
+      </div>` : ""}
+      <div class="section">
+        <h4>Advances</h4>
+        <table><thead><tr><th>Date</th><th class="r">Amount</th><th>Remarks</th></tr></thead>
+        <tbody>${advRows}</tbody></table>
+      </div>
+      <div class="section">
+        <h4>Deductions</h4>
+        <table>
+          <tr><td>Advance Deduction</td><td class="r">Rs. ${emp.advanceDeduction.toLocaleString()}</td></tr>
+          <tr><td>Loan EMI</td><td class="r">Rs. ${emp.loanDeduction.toLocaleString()}</td></tr>
+          <tr><td class="b">Total Deductions</td><td class="r b">Rs. ${emp.totalDeduction.toLocaleString()}</td></tr>
+        </table>
+      </div>
+      ${loanRows ? `<div class="section">
+        <h4>Loan Details</h4>
+        <table><thead><tr><th>Monthly EMI</th><th>Paid/Total</th><th>Remaining</th></tr></thead>
+        <tbody>${loanRows}</tbody></table>
+      </div>` : ""}`;
+
+      return `
+      <div class="slip-head">
+        <div class="serial-badge">${serialNo}</div>
+        <h2>Pay Slip</h2>
+        <p class="sub">${monthDisplay}</p>
+      </div>
+
+      <div class="section">
+        <h4>Employee Details</h4>
+        <table>
+          <tr><td class="b" style="width:22%">Employee Code</td><td>${emp.employee_code}</td>
+              <td class="b" style="width:18%">Department</td><td>${emp.department}</td></tr>
+          <tr><td class="b">Employee Name</td><td>${emp.full_name}</td>
+              <td class="b">Designation</td><td>${emp.designation}</td></tr>
+        </table>
+      </div>
+
+      ${twoCol
+        ? `<div class="cols"><div class="col">${leftSections}</div><div class="col">${rightSections}</div></div>`
+        : leftSections + rightSections}
+
+      <table><tr class="total-row"><td>Net Payable</td><td class="r">Rs. ${emp.netSalary.toLocaleString()}</td></tr></table>
+
+      <div class="footer">
         <div>Employee Signature</div>
         <div>Authorized Signature</div>
       </div>`;
+    };
 
     const slips = filtered.map((emp, i) => `<div class="slip">${slipInner(emp, i + 1)}</div>`);
     let pagesHtml = "";
@@ -918,7 +992,7 @@ export default function SalaryReportPage() {
       pagesHtml += `<div class="page">${page}</div>`;
     }
 
-    printWindow.document.write(`<html><head><title>Pay Slips - ${monthDisplay}</title>
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Pay Slips - ${monthDisplay}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         @page { size: A4 portrait; margin: 0; }
@@ -927,22 +1001,20 @@ export default function SalaryReportPage() {
         .page:last-child { page-break-after: auto; }
         .slip { height: ${(100 / perPage).toFixed(3)}%; padding: ${slipPad}; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px dashed #999; }
         .slip:last-child { border-bottom: none; }
-        .slip-header { position: relative; text-align: center; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2.5mm; }
-        .slip-header h1 { font-size: ${perPage === 3 ? "12px" : "14px"}; letter-spacing: 1px; font-weight: bold; }
-        .serial-badge { position: absolute; left: 0; top: 0; font-size: ${perPage === 3 ? "20px" : "24px"}; font-weight: 900; border: 2px solid #000; padding: 0.5mm 3mm; line-height: 1.2; }
-        .emp-info { display: flex; justify-content: space-between; gap: 3mm; margin-bottom: 2.5mm; padding: 1.8mm 3mm; background: #f0f0f0; border: 1px solid #ccc; }
-        .emp-info label { font-weight: bold; display: block; font-size: 0.8em; color: #555; }
-        .emp-info span { font-weight: 600; }
-        .cols { display: flex; gap: 4mm; flex: 1; align-items: flex-start; }
-        .t { flex: 1; width: 100%; border-collapse: collapse; }
-        .t td { border: 1px solid #ccc; padding: ${cellPad}; text-align: left; }
-        .r { text-align: right; white-space: nowrap; }
-        .b td { font-weight: bold; background: #f5f5f5; }
-        .plus td { color: #16a34a; }
-        .minus td { color: #dc2626; }
-        .net td { font-weight: bold; background: #d4edda; color: #000; font-size: 1.15em; }
-        .sig { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 1mm; }
-        .sig div { border-top: 1px solid #333; padding-top: 1mm; width: 38mm; text-align: center; font-size: 0.85em; }
+        .slip-head { position: relative; text-align: center; margin-bottom: ${sectionGap}; }
+        .slip-head h2 { font-size: ${perPage === 1 ? "18px" : perPage === 2 ? "13px" : "11px"}; margin-bottom: 1px; }
+        .slip-head p.sub { color: #666; }
+        .serial-badge { position: absolute; left: 0; top: 0; font-size: ${perPage === 1 ? "26px" : perPage === 2 ? "20px" : "16px"}; font-weight: 900; border: 2px solid #000; padding: 1px 8px; line-height: 1.25; }
+        .cols { display: flex; gap: 4mm; align-items: flex-start; }
+        .col { flex: 1; min-width: 0; }
+        .section { margin-bottom: ${sectionGap}; }
+        .section h4 { margin: 0 0 2px; padding-bottom: 2px; border-bottom: 1px solid #ccc; font-size: 0.95em; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: ${cellPad}; text-align: left; border-bottom: 1px solid #eee; }
+        .r { text-align: right; } .b { font-weight: 700; }
+        .total-row td { border-top: 2px solid #333; font-weight: 700; font-size: 1.15em; padding-top: ${perPage === 1 ? "8px" : "4px"}; }
+        .footer { margin-top: auto; padding-top: ${perPage === 1 ? "24px" : "8px"}; display: flex; justify-content: space-between; }
+        .footer div { border-top: 1px solid #333; padding-top: 3px; width: ${perPage === 1 ? "200px" : "140px"}; text-align: center; }
         @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head><body>${pagesHtml}</body></html>`);
     printWindow.document.close();
