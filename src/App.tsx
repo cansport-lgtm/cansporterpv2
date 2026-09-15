@@ -15,6 +15,10 @@ import ComingSoon from "./pages/ComingSoon";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 import NotificationsPage from "./pages/NotificationsPage";
 
+// Help Desk pages
+import HelpDeskPage from "./pages/helpdesk/HelpDeskPage";
+import HelpDeskAdminPage from "./pages/helpdesk/HelpDeskAdminPage";
+
 // Settings pages
 import UsersPage from "./pages/settings/UsersPage";
 import RolesPage from "./pages/settings/RolesPage";
@@ -460,6 +464,24 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Help Desk — every authenticated user can raise tickets; super admin manages them */}
+            <Route
+              path="/helpdesk"
+              element={
+                <ProtectedRoute>
+                  <HelpDeskPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/helpdesk/manage"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <HelpDeskAdminPage />
                 </ProtectedRoute>
               }
             />

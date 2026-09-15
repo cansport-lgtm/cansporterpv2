@@ -19,6 +19,8 @@ import { TravelAdvanceDialog } from "@/components/labour/TravelAdvanceDialog";
 import { AttendanceAllowanceDialog } from "@/components/labour/AttendanceAllowanceDialog";
 import { OvertimeDialog } from "@/components/labour/OvertimeDialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Users, Wallet, TrendingUp, Calendar as CalendarLucide, CreditCard } from "lucide-react";
@@ -73,7 +75,8 @@ const LabourSalaryPage = () => {
   const [travelAdvanceEmployee, setTravelAdvanceEmployee] = useState<{ id: string; employee_code: string; full_name: string } | null>(null);
   const [attAllowanceOpen, setAttAllowanceOpen] = useState(false);
   const [attAllowanceEmployee, setAttAllowanceEmployee] = useState<{ id: string; employee_code: string; full_name: string } | null>(null);
-  
+  const [twoSlipsPerPage, setTwoSlipsPerPage] = useState(false);
+
   // Date range filter (super admin only)
   const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -145,7 +148,8 @@ const LabourSalaryPage = () => {
       const { data } = await supabase
         .from("labour_salary_snapshots" as any)
         .select("*")
-        .eq("lock_id", lockId);
+        .eq("lock_id", lockId)
+        .order("full_name");
       return (data || []) as any[];
     },
     enabled: !!lockId,
@@ -543,8 +547,12 @@ const LabourSalaryPage = () => {
   }).sort((a: any, b: any) => {
     const rateA = a.employee_type === 'salary' ? (a.monthly_salary || 0) : (a.per_day_wages || 0);
     const rateB = b.employee_type === 'salary' ? (b.monthly_salary || 0) : (b.per_day_wages || 0);
-    return rateB - rateA;
-  });
+    // Stable tiebreakers so the serial number never shifts between print runs
+    if (rateB !== rateA) return rateB - rateA;
+    const nameCmp = (a.full_name || '').localeCompare(b.full_name || '');
+    if (nameCmp !== 0) return nameCmp;
+    return (a.employee_code || '').localeCompare(b.employee_code || '');
+  }).map((emp: any, i: number) => ({ ...emp, serialNo: i + 1 }));
 
   // Summary metrics
   const totalEmployees = filteredData.length;
@@ -558,16 +566,16 @@ const LabourSalaryPage = () => {
 
   const handlePrintAll = () => {
     if (filteredData.length === 0) return;
-    
+
     const monthDisplay = format(new Date(`${selectedMonth}-01`), "MMMM yyyy");
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const payslipsHtml = filteredData.map(emp => {
+    const slipInnerHtml = (emp: any) => {
       const departmentName = emp.production_departments?.name || '-';
       return `
-        <div class="payslip">
           <div class="header">
+            <div class="serial-badge">${emp.serialNo}</div>
             <h1>PAYSLIP - ${monthDisplay.toUpperCase()}</h1>
           </div>
           <div class="employee-info">
@@ -598,18 +606,15 @@ const LabourSalaryPage = () => {
           <div class="signature-section">
             <div class="signature-box"><div class="signature-line">Employee Signature</div></div>
             <div class="signature-box"><div class="signature-line">Authorized Signature</div></div>
-          </div>
-        </div>`;
-    }).join('');
+          </div>`;
+    };
 
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>Payslips - ${monthDisplay}</title><style>
-      @page { size: 21.5cm 9.5cm; margin: 0; }
+    const sharedCss = `
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: Arial, sans-serif; font-size: 9px; }
-      .payslip { width: 21.5cm; height: 9.5cm; padding: 6mm 8mm; display: flex; flex-direction: column; page-break-after: always; }
-      .payslip:last-child { page-break-after: auto; }
-      .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 3mm; margin-bottom: 3mm; }
+      .header { position: relative; text-align: center; border-bottom: 1px solid #000; padding-bottom: 3mm; margin-bottom: 3mm; }
       .header h1 { font-size: 12px; font-weight: bold; }
+      .serial-badge { position: absolute; left: 0; top: 0; font-size: 22px; font-weight: 900; border: 2px solid #000; padding: 0.5mm 3mm; line-height: 1.2; }
       .employee-info { display: flex; justify-content: space-between; margin-bottom: 3mm; padding: 2mm 3mm; background: #f0f0f0; border: 1px solid #ccc; }
       .info-group label { font-weight: bold; display: block; font-size: 7px; color: #555; }
       .info-group span { font-size: 9px; font-weight: 600; }
@@ -626,8 +631,35 @@ const LabourSalaryPage = () => {
       .signature-section { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 2mm; }
       .signature-box { text-align: center; font-size: 7px; }
       .signature-line { width: 35mm; border-top: 1px solid #000; padding-top: 1mm; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    </style></head><body>${payslipsHtml}</body></html>`);
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`;
+
+    let layoutCss: string;
+    let bodyHtml: string;
+
+    if (twoSlipsPerPage) {
+      // Two complete slips per A4 portrait page, dashed cut line between halves
+      layoutCss = `
+      @page { size: A4 portrait; margin: 0; }
+      .page { width: 21cm; height: 296mm; display: flex; flex-direction: column; page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
+      .half { height: 50%; padding: 8mm 10mm; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px dashed #999; }
+      .half:last-child { border-bottom: none; }`;
+      const halves = filteredData.map(emp => `<div class="half">${slipInnerHtml(emp)}</div>`);
+      let pagesHtml = '';
+      for (let i = 0; i < halves.length; i += 2) {
+        pagesHtml += `<div class="page">${halves[i]}${halves[i + 1] || '<div class="half"></div>'}</div>`;
+      }
+      bodyHtml = pagesHtml;
+    } else {
+      // Original layout: one slip per 21.5cm x 9.5cm page
+      layoutCss = `
+      @page { size: 21.5cm 9.5cm; margin: 0; }
+      .payslip { width: 21.5cm; height: 9.5cm; padding: 6mm 8mm; display: flex; flex-direction: column; page-break-after: always; }
+      .payslip:last-child { page-break-after: auto; }`;
+      bodyHtml = filteredData.map(emp => `<div class="payslip">${slipInnerHtml(emp)}</div>`).join('');
+    }
+
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Payslips - ${monthDisplay}</title><style>${layoutCss}${sharedCss}</style></head><body>${bodyHtml}</body></html>`);
 
     printWindow.document.close();
     printWindow.focus();
@@ -639,7 +671,7 @@ const LabourSalaryPage = () => {
     const monthDisplay = format(new Date(`${selectedMonth}-01`), "MMMM yyyy");
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    const rows = filteredData.map((emp, i) => `<tr><td>${i + 1}</td><td>${emp.employee_code}</td><td>${emp.full_name}</td><td>${emp.production_departments?.name || '-'}</td><td>${emp.employee_type === 'salary' ? 'Salary' : 'Daily'}</td><td class="right">${emp.employee_type === 'salary' ? (emp.monthly_salary || 0).toLocaleString() : (emp.per_day_wages || 0).toLocaleString()}</td><td class="center">${emp.fullDays}</td><td class="center">${emp.halfDays}</td><td class="center">${emp.paidSundays}</td><td class="right">${emp.totalOvertime.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right">${emp.grossSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right red">${emp.totalAdvance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right bold">${emp.earnedSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td></td></tr>`).join('');
+    const rows = filteredData.map((emp) => `<tr><td class="bold">${emp.serialNo}</td><td>${emp.employee_code}</td><td>${emp.full_name}</td><td>${emp.production_departments?.name || '-'}</td><td>${emp.employee_type === 'salary' ? 'Salary' : 'Daily'}</td><td class="right">${emp.employee_type === 'salary' ? (emp.monthly_salary || 0).toLocaleString() : (emp.per_day_wages || 0).toLocaleString()}</td><td class="center">${emp.fullDays}</td><td class="center">${emp.halfDays}</td><td class="center">${emp.paidSundays}</td><td class="right">${emp.totalOvertime.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right">${emp.grossSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right red">${emp.totalAdvance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right bold">${emp.earnedSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td></td></tr>`).join('');
     const totals = filteredData.reduce((acc, e) => ({ overtime: acc.overtime + e.totalOvertime, gross: acc.gross + e.grossSalary, advance: acc.advance + e.totalAdvance, net: acc.net + e.earnedSalary }), { overtime: 0, gross: 0, advance: 0, net: 0 });
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Salary List - ${monthDisplay}</title><style>@page{size:landscape;margin:10mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;padding:5mm}h1{text-align:center;font-size:14px;margin-bottom:2mm}h2{text-align:center;font-size:11px;font-weight:normal;color:#555;margin-bottom:5mm}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:2mm 2.5mm;text-align:left;font-size:9px}th{background:#e8e8e8;font-weight:bold;font-size:8px;text-transform:uppercase}.right{text-align:right}.center{text-align:center}.bold{font-weight:bold}.red{color:#dc2626}.total-row{background:#d4edda;font-weight:bold;font-size:10px}.total-row td{padding:3mm 2.5mm}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><h1>SALARY LIST</h1><h2>${monthDisplay.toUpperCase()}${filterDepartment !== 'all' ? ' — ' + (departments.find(d => d.id === filterDepartment)?.name || '') : ''}</h2><table><thead><tr><th>#</th><th>Code</th><th>Name</th><th>Dept</th><th>Type</th><th>Rate</th><th>Full</th><th>Half</th><th>Sun</th><th>OT</th><th>Gross</th><th>Advance</th><th>Net Payable</th><th>Signature</th></tr></thead><tbody>${rows}<tr class="total-row"><td colspan="9" class="right">TOTALS</td><td class="right">${totals.overtime.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right">${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right red">${totals.advance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td class="right">${totals.net.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td><td></td></tr></tbody></table></body></html>`);
     printWindow.document.close();
@@ -653,8 +685,8 @@ const LabourSalaryPage = () => {
     const monthDisplay = format(new Date(`${selectedMonth}-01`), "MMMM yyyy");
 
     const headers = ["#", "Code", "Name", "Dept", "Category", "Type", "Rate", "Present", "Absent", "Full Days", "Half Days", "Paid Sundays", "Total MPH", "Overtime", "Att. Allowance", "Gross Salary", "Advance", "Travel Adv.", "Net Payable"];
-    const rows = filteredData.map((emp, i) => [
-      i + 1,
+    const rows = filteredData.map((emp) => [
+      emp.serialNo,
       emp.employee_code,
       emp.full_name,
       emp.production_departments?.name || '-',
@@ -718,14 +750,15 @@ const LabourSalaryPage = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const voucherBlocks = voucherData.map((emp, idx) => {
+    const voucherBlocks = voucherData.map((emp) => {
       const departmentName = emp.production_departments?.name || '-';
       return `
         <div class="voucher">
           <div class="voucher-header">
+            <div class="serial-badge">${emp.serialNo}</div>
             <h1>SALARY PAYMENT VOUCHER - ${monthDisplay.toUpperCase()}</h1>
             <div class="voucher-meta">
-              <div><label>Voucher No:</label> <span>SPV-${(idx + 1).toString().padStart(3, '0')}</span></div>
+              <div><label>Voucher No:</label> <span>SPV-${emp.serialNo.toString().padStart(3, '0')}</span></div>
             </div>
           </div>
           <div class="employee-info">
@@ -771,8 +804,9 @@ const LabourSalaryPage = () => {
       .page:last-child { page-break-after: auto; }
       .voucher { flex: 1; padding: 4mm 3mm; border-bottom: 1px dashed #999; display: flex; flex-direction: column; overflow: hidden; }
       .voucher:last-child { border-bottom: none; }
-      .voucher-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 1.5mm; margin-bottom: 2mm; }
+      .voucher-header { position: relative; text-align: center; border-bottom: 2px solid #000; padding-bottom: 1.5mm; margin-bottom: 2mm; }
       .voucher-header h1 { font-size: 11px; letter-spacing: 1px; font-weight: bold; }
+      .serial-badge { position: absolute; left: 0; top: 0; font-size: 22px; font-weight: 900; border: 2px solid #000; padding: 0.5mm 3mm; line-height: 1.2; }
       .voucher-meta { display: flex; justify-content: flex-end; font-size: 8px; margin-top: 1mm; }
       .voucher-meta label { font-weight: bold; }
       .employee-info { display: flex; justify-content: space-between; margin-bottom: 2mm; padding: 2mm 3mm; background: #f0f0f0; border: 1px solid #ccc; }
@@ -798,6 +832,11 @@ const LabourSalaryPage = () => {
   };
 
   const columns: Column<typeof salaryData[0]>[] = [
+    {
+      key: "serial_no",
+      header: "#",
+      render: (item: any) => <span className="font-bold">{item.serialNo}</span>,
+    },
     {
       key: "employee_code",
       header: "Code",
@@ -1205,14 +1244,26 @@ const LabourSalaryPage = () => {
           </SelectContent>
         </Select>
 
-        <Button
-          variant="outline"
-          onClick={() => handlePrintAll()}
-          disabled={filteredData.length === 0}
-        >
-          <Printer className="h-4 w-4 mr-2" />
-          Print All Payslips
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handlePrintAll()}
+            disabled={filteredData.length === 0}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print All Payslips
+          </Button>
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id="two-slips-per-page"
+              checked={twoSlipsPerPage}
+              onCheckedChange={(v) => setTwoSlipsPerPage(v === true)}
+            />
+            <Label htmlFor="two-slips-per-page" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+              Print 2 slips per page
+            </Label>
+          </div>
+        </div>
 
         <Button
           variant="outline"

@@ -176,7 +176,7 @@ const LabourProductivityEntryPage = () => {
       setEmployeeFormData((prev) => ({ ...prev, photo_url: data.publicUrl }));
       toast.success("Photo uploaded");
     } catch (error: any) {
-      toast.error(error.message || "Upload failed");
+      toast.error(`Photo upload failed: ${error.message || "unknown error"}. The photo will NOT be saved with this employee.`, { duration: 8000 });
     } finally {
       setUploadingEmployeePhoto(false);
       if (employeePhotoInputRef.current) employeePhotoInputRef.current.value = "";

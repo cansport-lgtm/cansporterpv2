@@ -965,6 +965,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every role — including strictly route-locked ones — may open it.
     if (route === '/notifications') return true;
 
+    // The help desk submit page only ever shows the user's own tickets, so
+    // every role may open it. Ticket management stays super_admin-only via
+    // the /helpdesk/manage route's requiredRole guard.
+    if (route === '/helpdesk') return true;
+
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (
       roles.some((r) =>
