@@ -68,6 +68,7 @@ export default function SalaryReportPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [slipsPerPage, setSlipsPerPage] = useState("1");
 
   // Advance dialog
   const [advDialogOpen, setAdvDialogOpen] = useState(false);
@@ -856,6 +857,99 @@ export default function SalaryReportPage() {
     printWindow.print();
   };
 
+  // Bulk pay slips: prints every row currently shown in the sheet, in the same
+  // order, with the sheet's serial number on each slip. One compact slip layout
+  // shared by all modes; slipsPerPage (1/2/3) only changes the page split.
+  const handlePrintBulkPayslips = () => {
+    if (filtered.length === 0) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const perPage = Number(slipsPerPage);
+    const monthDisplay = `${MONTHS[selectedMonth]} ${selectedYear}`;
+    const fontSize = perPage === 1 ? "11px" : perPage === 2 ? "10px" : "8.5px";
+    const cellPad = perPage === 3 ? "1mm 2mm" : "1.6mm 2.5mm";
+    const slipPad = perPage === 3 ? "5mm 8mm" : "8mm 12mm";
+
+    const slipInner = (emp: EmployeeSalary, serialNo: number) => `
+      <div class="slip-header">
+        <div class="serial-badge">${serialNo}</div>
+        <h1>PAY SLIP — ${monthDisplay.toUpperCase()}</h1>
+      </div>
+      <div class="emp-info">
+        <div><label>CODE</label><span>${emp.employee_code}</span></div>
+        <div><label>NAME</label><span>${emp.full_name}</span></div>
+        <div><label>DEPARTMENT</label><span>${emp.department}</span></div>
+        <div><label>DESIGNATION</label><span>${emp.designation}</span></div>
+      </div>
+      <div class="cols">
+        <table class="t">
+          <tr><td>Basic Salary</td><td class="r">Rs. ${emp.basic_salary.toLocaleString()}</td></tr>
+          <tr><td>Allowances</td><td class="r">Rs. ${emp.allowances.toLocaleString()}</td></tr>
+          <tr class="b"><td>Gross Salary</td><td class="r">Rs. ${emp.gross.toLocaleString()}</td></tr>
+          <tr><td>Working Days</td><td class="r">${emp.workingDays}</td></tr>
+          <tr><td>Present / Half</td><td class="r">${emp.presentDays} / ${emp.halfDays}</td></tr>
+          <tr><td>Paid Leave / Paid S-PH</td><td class="r">${emp.paidLeaveDays} / ${emp.paidSundaysHolidays}</td></tr>
+          <tr><td>Absent Days</td><td class="r">${emp.absentDays}</td></tr>
+          <tr><td>Absent Deduction</td><td class="r">Rs. ${Math.round(emp.absentDays * emp.gross / totalDaysInMonth).toLocaleString()}</td></tr>
+        </table>
+        <table class="t">
+          <tr class="b"><td>Earned Salary</td><td class="r">Rs. ${emp.earnedSalary.toLocaleString()}</td></tr>
+          <tr class="plus"><td>Attendance Allowance</td><td class="r">+ Rs. ${emp.attendanceAllowance.toLocaleString()}</td></tr>
+          <tr class="plus"><td>Overtime</td><td class="r">+ Rs. ${emp.overtimeAmount.toLocaleString()}</td></tr>
+          <tr class="minus"><td>Less: Advances</td><td class="r">- Rs. ${emp.advanceDeduction.toLocaleString()}</td></tr>
+          <tr class="minus"><td>Less: Loan EMI</td><td class="r">- Rs. ${emp.loanDeduction.toLocaleString()}</td></tr>
+          <tr class="minus b"><td>Total Deductions</td><td class="r">Rs. ${emp.totalDeduction.toLocaleString()}</td></tr>
+          <tr class="net"><td>NET PAYABLE</td><td class="r">Rs. ${emp.netSalary.toLocaleString()}</td></tr>
+        </table>
+      </div>
+      <div class="sig">
+        <div>Employee Signature</div>
+        <div>Authorized Signature</div>
+      </div>`;
+
+    const slips = filtered.map((emp, i) => `<div class="slip">${slipInner(emp, i + 1)}</div>`);
+    let pagesHtml = "";
+    for (let i = 0; i < slips.length; i += perPage) {
+      let page = "";
+      for (let j = 0; j < perPage; j++) {
+        page += slips[i + j] || '<div class="slip"></div>';
+      }
+      pagesHtml += `<div class="page">${page}</div>`;
+    }
+
+    printWindow.document.write(`<html><head><title>Pay Slips - ${monthDisplay}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { size: A4 portrait; margin: 0; }
+        body { font-family: Arial, sans-serif; font-size: ${fontSize}; }
+        .page { width: 21cm; height: 296mm; display: flex; flex-direction: column; page-break-after: always; }
+        .page:last-child { page-break-after: auto; }
+        .slip { height: ${(100 / perPage).toFixed(3)}%; padding: ${slipPad}; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px dashed #999; }
+        .slip:last-child { border-bottom: none; }
+        .slip-header { position: relative; text-align: center; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2.5mm; }
+        .slip-header h1 { font-size: ${perPage === 3 ? "12px" : "14px"}; letter-spacing: 1px; font-weight: bold; }
+        .serial-badge { position: absolute; left: 0; top: 0; font-size: ${perPage === 3 ? "20px" : "24px"}; font-weight: 900; border: 2px solid #000; padding: 0.5mm 3mm; line-height: 1.2; }
+        .emp-info { display: flex; justify-content: space-between; gap: 3mm; margin-bottom: 2.5mm; padding: 1.8mm 3mm; background: #f0f0f0; border: 1px solid #ccc; }
+        .emp-info label { font-weight: bold; display: block; font-size: 0.8em; color: #555; }
+        .emp-info span { font-weight: 600; }
+        .cols { display: flex; gap: 4mm; flex: 1; align-items: flex-start; }
+        .t { flex: 1; width: 100%; border-collapse: collapse; }
+        .t td { border: 1px solid #ccc; padding: ${cellPad}; text-align: left; }
+        .r { text-align: right; white-space: nowrap; }
+        .b td { font-weight: bold; background: #f5f5f5; }
+        .plus td { color: #16a34a; }
+        .minus td { color: #dc2626; }
+        .net td { font-weight: bold; background: #d4edda; color: #000; font-size: 1.15em; }
+        .sig { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 1mm; }
+        .sig div { border-top: 1px solid #333; padding-top: 1mm; width: 38mm; text-align: center; font-size: 0.85em; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style></head><body>${pagesHtml}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+  };
+
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
 
   return (
@@ -892,6 +986,19 @@ export default function SalaryReportPage() {
               </Select>
               <Button variant="outline" onClick={handleExport}><Download className="h-4 w-4 mr-2" />Export</Button>
               <Button variant="outline" onClick={handlePrintSalarySheet}><Printer className="h-4 w-4 mr-2" />Print Sheet</Button>
+              <div className="flex items-center gap-1.5">
+                <Button variant="outline" onClick={handlePrintBulkPayslips} disabled={filtered.length === 0}>
+                  <Printer className="h-4 w-4 mr-2" />Print Pay Slips
+                </Button>
+                <Select value={slipsPerPage} onValueChange={setSlipsPerPage}>
+                  <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 per page</SelectItem>
+                    <SelectItem value="2">2 per page</SelectItem>
+                    <SelectItem value="3">3 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {isSuperAdmin && !isLocked && (
                 <Button variant="default" className="bg-amber-600 hover:bg-amber-700" onClick={() => {
                   if (confirm(`Are you sure you want to lock salary for ${MONTHS[selectedMonth]} ${selectedYear}? This will also auto-deduct loan EMIs.`)) {
