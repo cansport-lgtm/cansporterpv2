@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -113,6 +113,40 @@ export default function NewVoucherPage() {
   // specific party, so a line posting to one must name its vendor/customer.
   const controlAccountIds = useMemo(() => new Set(allAccounts.filter((a: any) => a.is_control_account).map((a: any) => a.id)), [allAccounts]);
 
+  // The two mapped control accounts only accept a party of the matching type:
+  // customers on Accounts Receivable, suppliers on Accounts Payable. Filtering
+  // the dropdown is the first line of defence; the same rule is enforced for
+  // real by a DB trigger, so imports and direct writes cannot slip past it.
+  // Cash Book quick entry already restricts its party list the same way.
+  const { data: defaultAccountSlots } = useQuery({
+    queryKey: ["accounting-default-ar-ap"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("accounting_default_accounts")
+        .select("key, account_id")
+        .in("key", ["accounts_receivable", "accounts_payable"]);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { if (r.account_id) map[r.key] = r.account_id; });
+      return map;
+    },
+  });
+
+  const partyTypeForAccount = useCallback((accountId: string | null | undefined): "customer" | "supplier" | null => {
+    if (!accountId || !defaultAccountSlots) return null;
+    if (accountId === defaultAccountSlots.accounts_receivable) return "customer";
+    if (accountId === defaultAccountSlots.accounts_payable) return "supplier";
+    return null;
+  }, [defaultAccountSlots]);
+
+  // Every other account (expenses with an employee party, cash, bank, stock)
+  // keeps the unrestricted list.
+  const partiesForAccount = useCallback((accountId: string | null | undefined) => {
+    const want = partyTypeForAccount(accountId);
+    if (!want) return parties || [];
+    return (parties || []).filter((p: any) => p.party_type === want);
+  }, [parties, partyTypeForAccount]);
+
   // Auto-pick primary account for receipt/payment when accounts load
   useEffect(() => {
     if (!primaryAccountId) {
@@ -214,14 +248,27 @@ export default function NewVoucherPage() {
   });
 
   // ----- Helpers for the form -----
+  // Repointing a line at a different account can strand an already-picked party
+  // (a customer chosen while the line sat on AR, then switched to AP). Drop the
+  // selection instead of carrying a mismatch the DB would reject on post.
+  const dropMismatchedParty = (line: VoucherLine, patch: Partial<VoucherLine>): Partial<VoucherLine> => {
+    if (patch.account_id === undefined) return patch;
+    const merged = { ...line, ...patch };
+    if (!merged.party_id) return patch;
+    const want = partyTypeForAccount(merged.account_id);
+    if (!want) return patch;
+    const picked = (parties || []).find((p: any) => p.id === merged.party_id);
+    return picked && picked.party_type !== want ? { ...patch, party_id: null } : patch;
+  };
+
   const updateSecondary = (i: number, patch: Partial<VoucherLine>) => {
     const next = [...secondaryLines];
-    next[i] = { ...next[i], ...patch };
+    next[i] = { ...next[i], ...dropMismatchedParty(next[i], patch) };
     setSecondaryLines(next);
   };
   const updateJournal = (i: number, patch: Partial<VoucherLine>) => {
     const next = [...journalLines];
-    next[i] = { ...next[i], ...patch };
+    next[i] = { ...next[i], ...dropMismatchedParty(next[i], patch) };
     setJournalLines(next);
   };
 
@@ -349,7 +396,7 @@ export default function NewVoucherPage() {
                               triggerClassName="h-8 w-full"
                               options={[
                                 { value: "none", label: "—" },
-                                ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                                ...partiesForAccount(line.account_id).map((p: any) => ({ value: p.id, label: p.name })),
                               ]}
                             />
                           </TableCell>
@@ -424,7 +471,7 @@ export default function NewVoucherPage() {
                               triggerClassName="h-8 w-full"
                               options={[
                                 { value: "none", label: "—" },
-                                ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                                ...partiesForAccount(line.account_id).map((p: any) => ({ value: p.id, label: p.name })),
                               ]}
                             />
                           </TableCell>
@@ -519,7 +566,7 @@ export default function NewVoucherPage() {
                             triggerClassName="h-11 w-full"
                             options={[
                               { value: "none", label: "—" },
-                              ...(parties || []).map((p: any) => ({ value: p.id, label: p.name })),
+                              ...partiesForAccount(line.account_id).map((p: any) => ({ value: p.id, label: p.name })),
                             ]}
                           />
                         </TableCell>
