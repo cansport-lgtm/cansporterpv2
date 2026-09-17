@@ -47,6 +47,10 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Adds Web Push `push`/`notificationclick` handling to the generated
+        // service worker without switching off the generateSW strategy —
+        // see public/push-sw.js and docs/SYSTEM_NOTIFICATIONS.md.
+        importScripts: ["push-sw.js"],
         // App bundle currently builds to ~8 MiB on Vercel; raise the cap until
         // route-level code splitting (React.lazy) lands. Below this the PWA
         // plugin aborts the build.

@@ -12,9 +12,14 @@ Producer (DB trigger or app code)
         │  notify_user(...) / notify_role(...)
         ▼
 public.notifications  ──(one row per recipient)──►  supabase_realtime
-        ▼                                                 │
-  /notifications page  ◄──── useNotifications() hook ◄────┘
-  header NotificationBell        (toast + desktop notification)
+        │                                                 ▼
+        │                                     /notifications page  ◄─┐
+        │                                     header NotificationBell│ useNotifications() hook
+        │                                     (toast + desktop notif)┘
+        ▼  trg_send_web_push (pg_net)
+send-web-push Edge Function ──► Web Push ──► OS notification (app fully closed)
+        ▲
+public.push_subscriptions  (one row per device that granted permission)
 ```
 
 - **`public.notifications`** — one row per recipient. Role sends are fanned out
@@ -107,7 +112,7 @@ Clicking a notification marks it read and navigates to its `link` (when set).
 
 ## Notifications on mobile
 
-There are three delivery levels; the first two work today with no extra setup:
+There are three delivery levels; all three work once the setup below is done:
 
 1. **In-app (always)** — bell badge, dropdown, toast, and the /notifications
    page update in real time whenever the app is open, on any device.
@@ -117,11 +122,36 @@ There are three delivery levels; the first two work today with no extra setup:
    not in the foreground. On Android this requires the app to be installed as
    a PWA ("Add to Home Screen"); delivery goes through the service worker.
    iOS Safari only supports this for an installed PWA on iOS 16.4+.
-3. **Push with the app fully closed (not implemented)** — would require Web
-   Push: storing a push subscription per device, a VAPID key pair, and an
-   edge function that sends the push whenever a notification row is inserted.
-   The `notifications` table is already the single source of truth, so this
-   can be layered on later without changing any producers.
+3. **Push with the app fully closed** — Web Push. The same permission prompt
+   in (2) also subscribes the device (`src/lib/webPush.ts`,
+   `public/push-sw.js`) and saves the subscription in
+   `public.push_subscriptions`. Every insert into `notifications` fires the
+   `send-web-push` Edge Function via the `trg_send_web_push` trigger
+   (`supabase/migrations/20260917120000_push_subscriptions.sql`), which sends
+   a real push through the browser's push service — no tab or PWA needs to be
+   open at all. Same platform support as (2): Android needs the PWA
+   installed; iOS Safari needs iOS 16.4+ and an installed PWA.
+
+### Enabling push delivery (one-time, per environment)
+
+1. Apply `20260917120000_push_subscriptions.sql` (adds `push_subscriptions`
+   and the trigger). Rollback:
+   `20260917120000_push_subscriptions_down.sql`.
+2. Deploy the `send-web-push` Edge Function (`supabase functions deploy
+   send-web-push`) and set `verify_jwt = false` for it (dashboard or
+   `config.toml`) — the trigger calls it with only the anon `apikey`, the
+   same as `postex`.
+3. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:`
+   contact address) as function secrets, or as rows in
+   `integration_secrets` (same fallback `postex` uses for its API token —
+   the function checks a real secret first). A key pair is already
+   generated and wired into `src/lib/webPush.ts` (`VAPID_PUBLIC_KEY`) — set
+   the matching private key as `VAPID_PRIVATE_KEY`. To rotate, generate a
+   fresh EC P-256 pair, update both the secret and `VAPID_PUBLIC_KEY` in the
+   frontend, and redeploy; existing subscriptions become invalid and are
+   re-created next time each device grants/renews permission.
+4. Deploy the frontend. Nothing else to configure — granting permission via
+   the bell now also enables level 3.
 
 ## Notification fields
 

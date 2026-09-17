@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { subscribeToPush } from "@/lib/webPush";
 import type { Database } from "@/integrations/supabase/types";
 
 export type SystemNotification = Database["public"]["Tables"]["notifications"]["Row"];
@@ -46,6 +47,15 @@ export function useNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id;
+
+  // Keep this device's Web Push subscription registered whenever permission
+  // is already granted (e.g. a previous session asked, or the PWA install
+  // re-granted it) — covers app reloads and new logins without re-prompting.
+  useEffect(() => {
+    if (!userId) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    void subscribeToPush(userId);
+  }, [userId]);
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications", userId],
@@ -154,9 +164,18 @@ export function useNotifications() {
   return { notifications, unreadCount, isLoading, markRead, markAllRead };
 }
 
-/** Ask the browser for desktop-notification permission (no-op if already decided). */
-export function requestDesktopNotifications(): void {
-  if (typeof Notification !== "undefined" && Notification.permission === "default") {
-    void Notification.requestPermission();
+/**
+ * Ask the browser for notification permission (no-op if already decided).
+ * When granted, also registers this device for Web Push so notifications
+ * keep arriving with the app fully closed — see src/lib/webPush.ts.
+ */
+export function requestDesktopNotifications(userId?: string): void {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission === "default") {
+    void Notification.requestPermission().then((permission) => {
+      if (permission === "granted" && userId) void subscribeToPush(userId);
+    });
+  } else if (Notification.permission === "granted" && userId) {
+    void subscribeToPush(userId);
   }
 }
