@@ -111,13 +111,26 @@ export default function ConsumptionUsageReportPage() {
     enabled: !!selectedMaterialId,
   });
 
-  // Fetch product names for BOM breakdown display
+  // Fetch product names (and their production department) for BOM breakdown display
   const { data: productsData } = useQuery({
     queryKey: ["consumption-products-lookup"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_products")
-        .select("id, name, code");
+        .select("id, name, code, production_department_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch production departments for the department-wise usage breakdown
+  const { data: departmentsData } = useQuery({
+    queryKey: ["consumption-departments-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_departments")
+        .select("id, name, sequence_order")
+        .order("sequence_order");
       if (error) throw error;
       return data;
     },
@@ -128,6 +141,18 @@ export default function ConsumptionUsageReportPage() {
     productsData?.forEach((p) => { map[p.id] = p.name || p.code; });
     return map;
   }, [productsData]);
+
+  const productDepartmentLookup = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    productsData?.forEach((p) => { map[p.id] = p.production_department_id ?? null; });
+    return map;
+  }, [productsData]);
+
+  const departmentNameLookup = useMemo(() => {
+    const map: Record<string, string> = {};
+    departmentsData?.forEach((d) => { map[d.id] = d.name; });
+    return map;
+  }, [departmentsData]);
 
   const selectedMaterial = materials?.find((m) => m.id === selectedMaterialId);
   const unit = selectedMaterial?.unit || "kg";
@@ -143,17 +168,19 @@ export default function ConsumptionUsageReportPage() {
 
       const dayProduction = productionData.filter((p) => p.entry_date === dateStr);
       let standard = 0;
-      const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number }[] = [];
+      const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number; departmentName: string }[] = [];
       dayProduction.forEach((p) => {
         const bom = bomData.find((b) => b.product_id === p.product_id);
         if (bom) {
           const subtotal = Number(bom.standard_quantity) * Number(p.quantity_produced);
           standard += subtotal;
+          const deptId = productDepartmentLookup[p.product_id];
           bomBreakdown.push({
             productName: productLookup[p.product_id] || p.product_id,
             produced: Number(p.quantity_produced),
             bomRate: Number(bom.standard_quantity),
             subtotal,
+            departmentName: deptId ? (departmentNameLookup[deptId] || "Unassigned") : "Unassigned",
           });
         }
       });
@@ -203,7 +230,7 @@ export default function ConsumptionUsageReportPage() {
           (p) => p.entry_date >= monthStart && p.entry_date <= monthEnd
         );
         let standard = 0;
-        const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number }[] = [];
+        const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number; departmentName: string }[] = [];
         // Aggregate by product for the month
         const prodAgg: Record<string, number> = {};
         monthProduction.forEach((p) => {
@@ -214,11 +241,13 @@ export default function ConsumptionUsageReportPage() {
           if (bom) {
             const subtotal = Number(bom.standard_quantity) * totalProduced;
             standard += subtotal;
+            const deptId = productDepartmentLookup[productId];
             bomBreakdown.push({
               productName: productLookup[productId] || productId,
               produced: totalProduced,
               bomRate: Number(bom.standard_quantity),
               subtotal,
+              departmentName: deptId ? (departmentNameLookup[deptId] || "Unassigned") : "Unassigned",
             });
           }
         });
@@ -236,7 +265,7 @@ export default function ConsumptionUsageReportPage() {
         };
       });
     }
-  }, [closingData, bomData, productionData, viewMode, selectedDate, productLookup]);
+  }, [closingData, bomData, productionData, viewMode, selectedDate, productLookup, productDepartmentLookup, departmentNameLookup]);
 
   const totals = useMemo(() => {
     const totalActual = chartData.reduce((s, d) => s + d.actual, 0);
@@ -248,6 +277,27 @@ export default function ConsumptionUsageReportPage() {
       variancePct: totalStandard > 0 ? ((totalActual - totalStandard) / totalStandard * 100) : 0,
     };
   }, [chartData]);
+
+  // Department-wise usage breakdown — standard is exact (from BOM), actual is prorated by each
+  // department's share of standard usage since actual consumption is only tracked at material level.
+  const departmentUsage = useMemo(() => {
+    const map: Record<string, { departmentName: string; produced: number; standard: number }> = {};
+    chartData.forEach((d) => {
+      d.bomBreakdown?.forEach((b) => {
+        const key = b.departmentName;
+        if (!map[key]) map[key] = { departmentName: key, produced: 0, standard: 0 };
+        map[key].produced += b.produced;
+        map[key].standard += b.subtotal;
+      });
+    });
+    return Object.values(map)
+      .map((d) => ({
+        ...d,
+        actualEst: totals.standard > 0 ? d.standard * (totals.actual / totals.standard) : 0,
+        pctOfTotal: totals.standard > 0 ? (d.standard / totals.standard) * 100 : 0,
+      }))
+      .sort((a, b) => b.standard - a.standard);
+  }, [chartData, totals]);
 
   const usageChartConfig = {
     actual: { label: "Actual", color: "hsl(var(--primary))" },
@@ -285,35 +335,65 @@ export default function ConsumptionUsageReportPage() {
 
   const handlePrint = () => {
     if (!selectedMaterial || chartData.length === 0) return;
-    const filteredData = chartData.filter(d => d.actual > 0 || d.standard > 0);
+    // Single Day always prints its one row even when usage is zero; Daily/Monthly skip inactive rows to keep the report readable.
+    const usageRows = viewMode === "single" ? chartData : chartData.filter(d => d.actual > 0 || d.standard > 0);
+    const summaryRows = viewMode === "single" ? chartData : chartData.filter(d => d.opening > 0 || d.receipts > 0 || d.actual > 0 || d.closingBal > 0);
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
-    
-    const tableRows = filteredData.map(d => {
+
+    const tableRows = usageRows.map(d => {
       const pct = d.standard > 0 ? (d.variance / d.standard * 100) : d.actual > 0 ? 100 : 0;
+      const breakdown = d.bomBreakdown && d.bomBreakdown.length > 0
+        ? `<div class="breakdown">${d.bomBreakdown.map(b => `${b.productName} (${b.departmentName}): ${b.produced} × ${b.bomRate} = ${b.subtotal.toFixed(2)}`).join("<br/>")}</div>`
+        : "";
       return `<tr>
         <td>${d.fullDate}</td>
         <td style="text-align:right">${d.actual.toFixed(2)}</td>
-        <td style="text-align:right">${d.standard.toFixed(2)}</td>
+        <td style="text-align:right">${d.standard.toFixed(2)}${breakdown}</td>
         <td style="text-align:right;color:${d.variance > 0 ? '#dc2626' : d.variance < 0 ? '#16a34a' : 'inherit'}">${d.variance > 0 ? '+' : ''}${d.variance.toFixed(2)}</td>
         <td style="text-align:right;${Math.abs(pct) > 10 ? 'color:#dc2626;font-weight:bold' : ''}">${pct > 0 ? '+' : ''}${pct.toFixed(1)}%</td>
       </tr>`;
-    }).join("");
-    
+    }).join("") || `<tr><td colspan="5" style="text-align:center;color:#888">No consumption data found for this period</td></tr>`;
+
+    const summaryTotalReceipts = summaryRows.reduce((s, d) => s + d.receipts, 0);
+    const summaryTotalUsage = summaryRows.reduce((s, d) => s + d.actual, 0);
+    const summaryFirstOpening = summaryRows[0]?.opening || 0;
+    const summaryLastClosing = summaryRows[summaryRows.length - 1]?.closingBal || 0;
+
+    const summaryTableRows = summaryRows.map(d => `<tr>
+        <td>${d.fullDate}</td>
+        <td style="text-align:right">${d.opening.toFixed(2)}</td>
+        <td style="text-align:right">${d.receipts.toFixed(2)}</td>
+        <td style="text-align:right">${d.actual.toFixed(2)}</td>
+        <td style="text-align:right">${d.closingBal.toFixed(2)}</td>
+      </tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:#888">No data found for this period</td></tr>`;
+
+    const departmentTableRows = departmentUsage.length > 0
+      ? departmentUsage.map(d => `<tr>
+          <td>${d.departmentName}</td>
+          <td style="text-align:right">${d.produced.toFixed(2)}</td>
+          <td style="text-align:right">${d.standard.toFixed(2)}</td>
+          <td style="text-align:right">${d.actualEst.toFixed(2)}</td>
+          <td style="text-align:right">${d.pctOfTotal.toFixed(1)}%</td>
+        </tr>`).join("")
+      : `<tr><td colspan="5" style="text-align:center;color:#888">No department-linked production in this period</td></tr>`;
+
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Material Usage Report - ${selectedMaterial.name}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
         h1 { font-size: 18px; margin-bottom: 4px; }
+        h2 { font-size: 14px; margin: 24px 0 8px; }
         .meta { font-size: 13px; color: #555; margin-bottom: 16px; }
-        .summary { display: flex; gap: 24px; margin-bottom: 20px; }
+        .summary { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
         .summary div { border: 1px solid #ddd; border-radius: 6px; padding: 10px 16px; }
         .summary .label { font-size: 12px; color: #666; }
         .summary .value { font-size: 20px; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { border: 1px solid #ddd; padding: 6px 10px; }
+        th, td { border: 1px solid #ddd; padding: 6px 10px; vertical-align: top; }
         th { background: #f3f4f6; text-align: left; font-weight: 600; }
         .total-row { font-weight: bold; border-top: 2px solid #333; }
-        @media print { body { padding: 0; } }
+        .breakdown { margin-top: 4px; font-size: 11px; color: #666; text-align: left; }
+        @media print { body { padding: 0; } h2 { break-before: auto; } table { break-inside: auto; } tr { break-inside: avoid; } }
       </style>
     </head><body>
       <h1>Material Usage Report — ${selectedMaterial.code} — ${selectedMaterial.name}</h1>
@@ -324,6 +404,8 @@ export default function ConsumptionUsageReportPage() {
         <div><div class="label">Variance</div><div class="value" style="color:${totals.variance > 0 ? '#dc2626' : '#16a34a'}">${totals.variance > 0 ? '+' : ''}${totals.variance.toFixed(2)} ${unit}</div></div>
         <div><div class="label">Variance %</div><div class="value">${totals.variancePct > 0 ? '+' : ''}${totals.variancePct.toFixed(1)}%</div></div>
       </div>
+
+      <h2>${viewLabel} Usage Data</h2>
       <table>
         <thead><tr>
           <th>${periodColumnLabel}</th>
@@ -343,6 +425,43 @@ export default function ConsumptionUsageReportPage() {
           </tr>
         </tbody>
       </table>
+
+      <h2>${viewLabel} Summary — Opening, Receipts, Usage &amp; Closing</h2>
+      <table>
+        <thead><tr>
+          <th>${periodColumnLabel}</th>
+          <th style="text-align:right">Opening (${unit})</th>
+          <th style="text-align:right">Receipts (${unit})</th>
+          <th style="text-align:right">Usage (${unit})</th>
+          <th style="text-align:right">Closing (${unit})</th>
+        </tr></thead>
+        <tbody>
+          ${summaryTableRows}
+          ${summaryRows.length > 0 ? `<tr class="total-row">
+            <td>Total / Net</td>
+            <td style="text-align:right">${summaryFirstOpening.toFixed(2)}</td>
+            <td style="text-align:right">${summaryTotalReceipts.toFixed(2)}</td>
+            <td style="text-align:right">${summaryTotalUsage.toFixed(2)}</td>
+            <td style="text-align:right">${summaryLastClosing.toFixed(2)}</td>
+          </tr>` : ""}
+        </tbody>
+      </table>
+
+      <h2>Department-wise Usage Breakdown</h2>
+      <table>
+        <thead><tr>
+          <th>Department</th>
+          <th style="text-align:right">Produced (units)</th>
+          <th style="text-align:right">Standard Usage (${unit})</th>
+          <th style="text-align:right">Actual Usage — Est. (${unit})</th>
+          <th style="text-align:right">% of Total</th>
+        </tr></thead>
+        <tbody>
+          ${departmentTableRows}
+        </tbody>
+      </table>
+      ${departmentUsage.length > 0 ? `<div style="margin-top:6px;font-size:11px;color:#888;">Standard usage is exact (from BOM); Actual Usage is estimated by prorating total actual consumption across departments by their share of standard usage.</div>` : ""}
+
       <div style="margin-top:12px;font-size:11px;color:#888;">Printed on ${format(new Date(), 'dd MMM yyyy, hh:mm a')}</div>
       <script>window.onload=function(){window.print();}</script>
     </body></html>`);
@@ -357,7 +476,7 @@ export default function ConsumptionUsageReportPage() {
             <h1 className="page-title">Material Usage Report</h1>
             <p className="page-description">Daily/Monthly usage trends and variance analysis for selected material</p>
           </div>
-          {selectedMaterialId && chartData.some(d => d.actual > 0 || d.standard > 0) && (
+          {selectedMaterialId && chartData.length > 0 && (
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -681,6 +800,50 @@ export default function ConsumptionUsageReportPage() {
                     })()}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+
+            {/* Department-wise Usage Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Department-wise Usage Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Department</TableHead>
+                      <TableHead className="text-right">Produced (units)</TableHead>
+                      <TableHead className="text-right">Standard Usage ({unit})</TableHead>
+                      <TableHead className="text-right">Actual Usage — Est. ({unit})</TableHead>
+                      <TableHead className="text-right">% of Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {departmentUsage.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          No department-linked production in this period
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      departmentUsage.map((d, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{d.departmentName}</TableCell>
+                          <TableCell className="text-right">{d.produced.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.standard.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.actualEst.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.pctOfTotal.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {departmentUsage.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Standard usage is exact (from BOM); Actual Usage is estimated by prorating total actual consumption across departments by their share of standard usage.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </>
