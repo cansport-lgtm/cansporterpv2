@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -90,6 +90,13 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   order_management: ['production'], // Order management: production orders only
   floor_incharge: ['labour'], // Floor incharge: labour productivity entry only
   private_label_distributor: ['sales'], // Private label distributors: sales module (view-only) only
+  // Private Label Sales access tiers (sales module, private-label pages only):
+  //   • private_label_manager → view / create / edit / approve (no delete)
+  //   • private_label_officer → view / create / edit
+  //   • private_label_viewer  → view only
+  private_label_manager: ['sales', 'dashboard'],
+  private_label_officer: ['sales', 'dashboard'],
+  private_label_viewer: ['sales', 'dashboard'],
   pettycash_handler: ['expenses'], // Petty cash handler: petty cash page only
   store_operator: ['material_consumption'], // Store operator: stock closing page only
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
@@ -156,6 +163,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   order_management: ['/production/orders'], // Can ONLY access production orders page
   floor_incharge: ['/labour/entry', '/labour/todays-target'], // Can access labour productivity entry and today's target pages
   private_label_distributor: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/visit-dashboard'], // Private Label Sales view-only (all pages)
+  // Private Label Sales tiers: the module's operational pages (no master-config pages like
+  // City/Area Master, Customer Categories or Fuel Vehicles/Prices, which stay super-admin-only).
+  private_label_manager: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
+  private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
+  private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   pettycash_handler: ['/expenses/petty-cash'], // Petty cash handler: petty cash page only
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
@@ -338,6 +350,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'order_management',
   'floor_incharge',
   'private_label_distributor',
+  'private_label_manager',
+  'private_label_officer',
+  'private_label_viewer',
   'pettycash_handler',
   'store_operator',
   'project_manager',
@@ -391,6 +406,12 @@ const STRICT_LOCKED_ROLES = new Set([
   'labour_productivity_approver',
   'labour_productivity_poster',
   'labour_productivity_viewer',
+  // Private Label Sales tiers share the 'sales' module with unrelated roles (sales_executive,
+  // dispatch_operator, sales_order_manager, accounting_officer, ...) — enforce their explicit
+  // route whitelist always so a stray flexible role never widens them past private-label pages.
+  'private_label_manager',
+  'private_label_officer',
+  'private_label_viewer',
 ]);
 
 // Register every module tier into the four maps/sets above. Doing it in one loop keeps
@@ -820,6 +841,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (permission !== 'view') return false;
       // Allow view only for sales module
       return module === 'sales';
+    }
+
+    // Private Label Sales access tiers (sales module, private-label pages only):
+    //   • private_label_manager → view / create / edit / approve (no delete)
+    //   • private_label_officer → view / create / edit
+    //   • private_label_viewer  → view only
+    if (module === 'sales') {
+      if (roles.some(r => r.role === 'private_label_manager')) return permission !== 'delete';
+      if (roles.some(r => r.role === 'private_label_officer')) {
+        return permission === 'view' || permission === 'create' || permission === 'edit';
+      }
+      if (roles.some(r => r.role === 'private_label_viewer')) return permission === 'view';
     }
 
     // Pettycash handler: view and create only for the expenses module. GRANT-ONLY (additive)
