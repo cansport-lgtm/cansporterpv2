@@ -794,8 +794,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Floor incharge cannot approve any data (hard restriction)
-    if (roles.some(r => r.role === 'floor_incharge') && permission === 'approve') {
+    // Floor incharge cannot approve labour data (hard restriction). Scoped to the
+    // 'labour' module — floor_incharge's own access never extends beyond it (see
+    // ROLE_MODULE_ACCESS above) — so it doesn't veto an unrelated approve grant from
+    // another role the same user also holds (e.g. floor_incharge + production_operator
+    // blocking that user's production 'Post Day' permission).
+    if (roles.some(r => r.role === 'floor_incharge') && module === 'labour' && permission === 'approve') {
       return false;
     }
 
