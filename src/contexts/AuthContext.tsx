@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -156,6 +156,11 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   labour_productivity_approver: ['labour', 'dashboard'],
   labour_productivity_poster: ['labour', 'dashboard'],
   labour_productivity_viewer: ['labour', 'dashboard'],
+  // Help Desk Manager: a single-purpose role confined to the ticket admin board.
+  // 'dashboard' is already always allowed; there's no separate 'helpdesk' module
+  // check anywhere (ProtectedRoute doesn't map /helpdesk to a module), so route
+  // lockdown below is what actually confines this role.
+  helpdesk_manager: ['dashboard'],
 };
 
 // Define specific route restrictions for roles (only these exact routes are allowed)
@@ -286,6 +291,10 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   labour_productivity_poster: ['/labour/entry', '/labour/todays-target'],
   // Labour Productivity Viewer: read-only access
   labour_productivity_viewer: ['/labour/dashboard'],
+  // Help Desk Manager: manages all tickets (view/assign/comment/resolve) on the
+  // admin ticket board. The submit page ('/helpdesk') is already open to every
+  // role via the explicit bypass in canAccessRoute below.
+  helpdesk_manager: ['/helpdesk', '/dashboard'],
 };
 
 // Routes a role is explicitly DENIED even though it otherwise has broad access to the module.
@@ -377,6 +386,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'labour_productivity_approver',
   'labour_productivity_poster',
   'labour_productivity_viewer',
+  'helpdesk_manager',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -412,6 +422,9 @@ const STRICT_LOCKED_ROLES = new Set([
   'private_label_manager',
   'private_label_officer',
   'private_label_viewer',
+  // Help Desk Manager is a single-purpose ticket-admin role — enforce its
+  // lockdown always, even if the user also holds a flexible role.
+  'helpdesk_manager',
 ]);
 
 // Register every module tier into the four maps/sets above. Doing it in one loop keeps
@@ -1009,8 +1022,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (route === '/notifications') return true;
 
     // The help desk submit page only ever shows the user's own tickets, so
-    // every role may open it. Ticket management stays super_admin-only via
-    // the /helpdesk/manage route's requiredRole guard.
+    // every role may open it. Ticket management is gated separately via the
+    // /helpdesk/manage route's requiredRoles guard (super_admin + helpdesk_manager).
     if (route === '/helpdesk') return true;
 
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)

@@ -16280,6 +16280,7 @@ export type Database = {
         | "machine_monitor_officer"
         | "machine_monitor_viewer"
         | "qa_inspector"
+        | "helpdesk_manager"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -16498,6 +16499,7 @@ export const Constants = {
         "labour_productivity_poster",
         "labour_productivity_viewer",
         "qa_inspector",
+        "helpdesk_manager",
       ],
       asset_category: [
         "office_assets",

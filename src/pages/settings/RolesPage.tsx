@@ -51,6 +51,7 @@ const roleDescriptions: Record<AppRole, string> = {
   labour_productivity_approver: "Labour Productivity – review and approve labour productivity entries and edit requests",
   labour_productivity_poster: "Labour Productivity – create and post labour productivity entries",
   labour_productivity_viewer: "Labour Productivity – read-only access to labour productivity data",
+  helpdesk_manager: "Help Desk – manages all support tickets (assign, comment, change status/priority, resolve) on the ticket admin board",
   export_manager: "Export Sales – full access including approve (delete reserved for super admin)",
   export_officer: "Export Sales – create and edit entries (no approve, no delete)",
   export_viewer: "Export Sales – read-only access",
@@ -204,6 +205,7 @@ const roleColors: Record<AppRole, string> = {
   machine_monitor_manager: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
   machine_monitor_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
   machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
+  helpdesk_manager: "bg-rose-600/10 text-rose-600 border-rose-600/20",
 };
 
 export default function RolesPage() {
@@ -303,6 +305,7 @@ export default function RolesPage() {
     machine_monitor_manager: 0,
     machine_monitor_officer: 0,
     machine_monitor_viewer: 0,
+    helpdesk_manager: 0,
   });
 
   useEffect(() => {
@@ -319,7 +322,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
