@@ -713,12 +713,12 @@ const navigationItems: NavItem[] = [
   },
   {
     // No `module` key: the Help Desk is open to every logged-in user
-    // (children still pass through canAccessRoute / superAdminOnly filters).
+    // (children still pass through canAccessRoute / allowedRoles filters).
     title: "Help Desk",
     icon: LifeBuoy,
     children: [
       { title: "My Tickets", href: "/helpdesk" },
-      { title: "Manage Tickets", href: "/helpdesk/manage", superAdminOnly: true },
+      { title: "Manage Tickets", href: "/helpdesk/manage", allowedRoles: ["super_admin", "helpdesk_manager"] },
     ],
   },
   {

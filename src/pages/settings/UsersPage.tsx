@@ -164,6 +164,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "machine_monitor_manager", label: "Machine Monitor — Manager (full + approve)" },
   { value: "machine_monitor_officer", label: "Machine Monitor — Officer (create & edit)" },
   { value: "machine_monitor_viewer", label: "Machine Monitor — Viewer (read-only)" },
+  { value: "helpdesk_manager", label: "Help Desk — Manager (manages all tickets)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -648,6 +649,7 @@ export default function UsersPage() {
       machine_monitor_manager: "bg-cyan-600/10 text-cyan-600",
       machine_monitor_officer: "bg-cyan-500/10 text-cyan-500",
       machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400",
+      helpdesk_manager: "bg-rose-600/10 text-rose-600",
     };
     return colors[role] || "";
   };

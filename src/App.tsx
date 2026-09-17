@@ -468,7 +468,7 @@ const App = () => (
               }
             />
 
-            {/* Help Desk — every authenticated user can raise tickets; super admin manages them */}
+            {/* Help Desk — every authenticated user can raise tickets; super admin and Help Desk Managers manage them */}
             <Route
               path="/helpdesk"
               element={
@@ -480,7 +480,7 @@ const App = () => (
             <Route
               path="/helpdesk/manage"
               element={
-                <ProtectedRoute requiredRole="super_admin">
+                <ProtectedRoute requiredRoles={["super_admin", "helpdesk_manager"]}>
                   <HelpDeskAdminPage />
                 </ProtectedRoute>
               }
