@@ -40,7 +40,7 @@ const roleDescriptions: Record<AppRole, string> = {
   purchase_qc_inspector: "Quality Inspection page only – inspects incoming raw material against POs and approves QC; no prices, no other purchase pages",
   dispatch_operator: "Domestic Dispatch page only – can create dispatches without seeing any prices",
   sales_order_manager: "Domestic sales orders + dispatch coordination & dashboards – no customer/product creation, no invoices, no prices",
-  production_operator: "Production & Production Planning – can post and edit entries within 48 hours of creation (no delete/approve)",
+  production_operator: "Production & Production Planning – can post/unpost the day's production entries and edit within 48 hours of creation (no delete)",
   closing_data_poster: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption) – limited to those two pages only",
   distributor_sales: "Distributor Orders – create customers and make/submit orders for their distributor only",
   distributor_manager: "Distributor Orders – approve/reject/edit orders and run the dispatch sheet for their distributor",
