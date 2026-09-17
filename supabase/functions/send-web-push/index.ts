@@ -7,11 +7,12 @@
 // supabase/migrations/20260917120000_push_subscriptions.sql. Body:
 //   { notificationId, recipientId, title, message, link }
 //
-// Requires these function secrets (Supabase dashboard -> Edge Functions ->
-// send-web-push -> Secrets, or `supabase secrets set`):
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (a "mailto:" address)
-// The public key must match VAPID_PUBLIC_KEY in src/lib/webPush.ts — the
-// browser signs up for push with it, the private key here signs the push.
+// Prefers real Edge Function secrets (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
+// VAPID_SUBJECT — a "mailto:" address); falls back to the private
+// integration_secrets table (same pattern as postex's API token: anon
+// cannot read it, service role bypasses RLS). The public key must match
+// VAPID_PUBLIC_KEY in src/lib/webPush.ts — the browser subscribes with it,
+// the private key here signs the push.
 //
 // NOTE: verify_jwt is disabled (dashboard function setting) — the app has no
 // Supabase Auth and the trigger calls this with only the anon apikey.
@@ -31,9 +32,23 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
-  const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
-  const vapidSubject = Deno.env.get("VAPID_SUBJECT");
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const secret = async (key: string): Promise<string | undefined> => {
+    const fromEnv = Deno.env.get(key);
+    if (fromEnv) return fromEnv;
+    const { data } = await supabase.from("integration_secrets").select("value").eq("key", key).single();
+    return data?.value;
+  };
+
+  const [vapidPublicKey, vapidPrivateKey, vapidSubject] = await Promise.all([
+    secret("VAPID_PUBLIC_KEY"),
+    secret("VAPID_PRIVATE_KEY"),
+    secret("VAPID_SUBJECT"),
+  ]);
   if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
     return json({ error: "VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT not configured" }, 500);
   }
@@ -46,11 +61,6 @@ Deno.serve(async (req: Request) => {
   }
   const { notificationId, recipientId, title, message, link } = body;
   if (!recipientId || !title) return json({ error: "recipientId and title are required" }, 400);
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
 
   const { data: subs, error: subsErr } = await supabase
     .from("push_subscriptions")

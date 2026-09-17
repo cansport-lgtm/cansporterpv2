@@ -141,13 +141,15 @@ There are three delivery levels; all three work once the setup below is done:
    send-web-push`) and set `verify_jwt = false` for it (dashboard or
    `config.toml`) — the trigger calls it with only the anon `apikey`, the
    same as `postex`.
-3. Set its secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-   (a `mailto:` contact address). A key pair is already generated and wired
-   into `src/lib/webPush.ts` (`VAPID_PUBLIC_KEY`) — set the matching private
-   key as the function secret. To rotate, generate a fresh EC P-256 pair,
-   update both the secret and `VAPID_PUBLIC_KEY` in the frontend, and
-   redeploy; existing subscriptions become invalid and are re-created next
-   time each device grants/renews permission.
+3. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:`
+   contact address) as function secrets, or as rows in
+   `integration_secrets` (same fallback `postex` uses for its API token —
+   the function checks a real secret first). A key pair is already
+   generated and wired into `src/lib/webPush.ts` (`VAPID_PUBLIC_KEY`) — set
+   the matching private key as `VAPID_PRIVATE_KEY`. To rotate, generate a
+   fresh EC P-256 pair, update both the secret and `VAPID_PUBLIC_KEY` in the
+   frontend, and redeploy; existing subscriptions become invalid and are
+   re-created next time each device grants/renews permission.
 4. Deploy the frontend. Nothing else to configure — granting permission via
    the bell now also enables level 3.
 
