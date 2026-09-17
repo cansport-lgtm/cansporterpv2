@@ -18,6 +18,9 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
+import { toast } from "sonner";
+import { shareOrDownloadPdf } from "@/lib/sharePdf";
+import { buildMaterialUsageReportPdf } from "@/lib/materialUsageReportPdf";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -299,6 +302,17 @@ export default function ConsumptionUsageReportPage() {
       .sort((a, b) => b.standard - a.standard);
   }, [chartData, totals]);
 
+  // Rows to include in Print / WhatsApp PDF. Single Day always includes its one row even when
+  // usage is zero; Daily/Monthly skip inactive rows to keep the report readable.
+  const printUsageRows = useMemo(
+    () => (viewMode === "single" ? chartData : chartData.filter((d) => d.actual > 0 || d.standard > 0)),
+    [chartData, viewMode]
+  );
+  const printSummaryRows = useMemo(
+    () => (viewMode === "single" ? chartData : chartData.filter((d) => d.opening > 0 || d.receipts > 0 || d.actual > 0 || d.closingBal > 0)),
+    [chartData, viewMode]
+  );
+
   const usageChartConfig = {
     actual: { label: "Actual", color: "hsl(var(--primary))" },
     standard: { label: "Standard", color: "hsl(var(--muted-foreground))" },
@@ -318,26 +332,77 @@ export default function ConsumptionUsageReportPage() {
   const viewLabel = viewMode === "monthly" ? "Monthly" : viewMode === "single" ? "Single Day" : "Daily";
   const periodColumnLabel = viewMode === "monthly" ? "Month" : "Date";
 
-  const handleShareWhatsApp = () => {
+  const [sharing, setSharing] = useState(false);
+
+  const buildReportPdf = () => {
+    if (!selectedMaterial) return null;
+    const blob = buildMaterialUsageReportPdf({
+      materialCode: selectedMaterial.code,
+      materialName: selectedMaterial.name,
+      unit,
+      periodLabel,
+      viewLabel,
+      periodColumnLabel,
+      generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+      totals,
+      usageRows: printUsageRows.map((d) => ({
+        label: d.fullDate,
+        actual: d.actual,
+        standard: d.standard,
+        variance: d.variance,
+        bomBreakdown: d.bomBreakdown,
+      })),
+      summaryRows: printSummaryRows.map((d) => ({
+        label: d.fullDate,
+        opening: d.opening,
+        receipts: d.receipts,
+        usage: d.actual,
+        closing: d.closingBal,
+      })),
+      departmentUsage,
+    });
+    const fileName = `Material-Usage-Report-${selectedMaterial.code}-${format(selectedDate, "yyyyMMdd")}`
+      .replace(/[^\w-]+/g, "_") + ".pdf";
+    return { blob, fileName };
+  };
+
+  // Share the report as a PDF to WhatsApp (native share sheet on mobile, download
+  // + wa.me summary fallback elsewhere).
+  const handleShareWhatsApp = async () => {
     if (!selectedMaterial) return;
-    const lines = [
-      `*Material Usage Report*`,
-      `${selectedMaterial.code} — ${selectedMaterial.name}`,
-      `Period: ${periodLabel}`,
-      ``,
-      `Total Actual: ${totals.actual.toFixed(2)} ${unit}`,
-      `Total Standard: ${totals.standard.toFixed(2)} ${unit}`,
-      `Variance: ${totals.variance > 0 ? "+" : ""}${totals.variance.toFixed(2)} ${unit} (${totals.variancePct > 0 ? "+" : ""}${totals.variancePct.toFixed(1)}%)`,
-    ];
-    const text = lines.join("\n");
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    try {
+      setSharing(true);
+      const pdf = buildReportPdf();
+      if (!pdf) return;
+      const summary =
+        `*Material Usage Report*\n` +
+        `${selectedMaterial.code} — ${selectedMaterial.name}\n` +
+        `Period: ${periodLabel}\n\n` +
+        `Total Actual: ${totals.actual.toFixed(2)} ${unit}\n` +
+        `Total Standard: ${totals.standard.toFixed(2)} ${unit}\n` +
+        `Variance: ${totals.variance > 0 ? "+" : ""}${totals.variance.toFixed(2)} ${unit} (${totals.variancePct > 0 ? "+" : ""}${totals.variancePct.toFixed(1)}%)`;
+      const result = await shareOrDownloadPdf({
+        blob: pdf.blob,
+        fileName: pdf.fileName,
+        title: `Material Usage Report - ${selectedMaterial.name}`,
+        text: summary,
+      });
+      if (result === "downloaded") {
+        toast.message("Report PDF downloaded", {
+          description: "Attach the downloaded PDF to your WhatsApp chat.",
+        });
+      }
+    } catch (e) {
+      toast.error((e as { message?: string })?.message || "Failed to share report");
+    } finally {
+      setSharing(false);
+    }
   };
 
   const handlePrint = () => {
     if (!selectedMaterial || chartData.length === 0) return;
-    // Single Day always prints its one row even when usage is zero; Daily/Monthly skip inactive rows to keep the report readable.
-    const usageRows = viewMode === "single" ? chartData : chartData.filter(d => d.actual > 0 || d.standard > 0);
-    const summaryRows = viewMode === "single" ? chartData : chartData.filter(d => d.opening > 0 || d.receipts > 0 || d.actual > 0 || d.closingBal > 0);
+    const usageRows = printUsageRows;
+    const summaryRows = printSummaryRows;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
@@ -482,9 +547,10 @@ export default function ConsumptionUsageReportPage() {
                 variant="outline"
                 className="border-green-600 text-green-600 hover:bg-green-50 hover:text-green-700"
                 onClick={handleShareWhatsApp}
+                disabled={sharing}
               >
                 <WhatsAppIcon className="mr-2 h-4 w-4" />
-                Share via WhatsApp
+                {sharing ? "Preparing…" : "Share PDF via WhatsApp"}
               </Button>
               <Button variant="outline" onClick={handlePrint}>
                 <Printer className="mr-2 h-4 w-4" />
