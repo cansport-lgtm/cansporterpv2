@@ -19,8 +19,17 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
 
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+      <path d="M12.001 2C6.478 2 2 6.478 2 12c0 1.87.507 3.622 1.388 5.128L2 22l5.03-1.362A9.943 9.943 0 0 0 12.001 22C17.523 22 22 17.522 22 12S17.523 2 12.001 2zm0 18.062a8.02 8.02 0 0 1-4.088-1.117l-.293-.174-3.02.818.817-2.98-.19-.306A8.024 8.024 0 0 1 3.938 12c0-4.452 3.62-8.062 8.063-8.062 4.451 0 8.062 3.62 8.062 8.062 0 4.452-3.611 8.062-8.062 8.062z" />
+    </svg>
+  );
+}
+
 export default function ConsumptionUsageReportPage() {
-  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "single">("daily");
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -41,7 +50,10 @@ export default function ConsumptionUsageReportPage() {
 
   // Date range based on view mode
   const dateRange = useMemo(() => {
-    if (viewMode === "daily") {
+    if (viewMode === "single") {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      return { start: dateStr, end: dateStr };
+    } else if (viewMode === "daily") {
       const start = startOfMonth(selectedDate);
       const end = endOfMonth(selectedDate);
       return { start: format(start, "yyyy-MM-dd"), end: format(end, "yyyy-MM-dd") };
@@ -124,45 +136,49 @@ export default function ConsumptionUsageReportPage() {
   const chartData = useMemo(() => {
     if (!closingData || !bomData || !productionData) return [];
 
-    if (viewMode === "daily") {
+    const computeDayEntry = (day: Date) => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const closing = closingData.find((c) => c.closing_date === dateStr);
+      const actual = Number(closing?.actual_consumption || 0);
+
+      const dayProduction = productionData.filter((p) => p.entry_date === dateStr);
+      let standard = 0;
+      const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number }[] = [];
+      dayProduction.forEach((p) => {
+        const bom = bomData.find((b) => b.product_id === p.product_id);
+        if (bom) {
+          const subtotal = Number(bom.standard_quantity) * Number(p.quantity_produced);
+          standard += subtotal;
+          bomBreakdown.push({
+            productName: productLookup[p.product_id] || p.product_id,
+            produced: Number(p.quantity_produced),
+            bomRate: Number(bom.standard_quantity),
+            subtotal,
+          });
+        }
+      });
+
+      return {
+        label: format(day, "dd"),
+        fullDate: format(day, "dd MMM yyyy"),
+        actual,
+        standard,
+        variance: actual - standard,
+        opening: Number(closing?.opening_quantity || 0),
+        receipts: Number(closing?.receipt_quantity || 0),
+        closingBal: Number(closing?.closing_quantity || 0),
+        bomBreakdown,
+      };
+    };
+
+    if (viewMode === "single") {
+      return [computeDayEntry(selectedDate)];
+    } else if (viewMode === "daily") {
       const start = startOfMonth(selectedDate);
       const end = endOfMonth(selectedDate);
       const days = eachDayOfInterval({ start, end });
 
-      return days.map((day) => {
-        const dateStr = format(day, "yyyy-MM-dd");
-        const closing = closingData.find((c) => c.closing_date === dateStr);
-        const actual = Number(closing?.actual_consumption || 0);
-
-        const dayProduction = productionData.filter((p) => p.entry_date === dateStr);
-        let standard = 0;
-        const bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number }[] = [];
-        dayProduction.forEach((p) => {
-          const bom = bomData.find((b) => b.product_id === p.product_id);
-          if (bom) {
-            const subtotal = Number(bom.standard_quantity) * Number(p.quantity_produced);
-            standard += subtotal;
-            bomBreakdown.push({
-              productName: productLookup[p.product_id] || p.product_id,
-              produced: Number(p.quantity_produced),
-              bomRate: Number(bom.standard_quantity),
-              subtotal,
-            });
-          }
-        });
-
-        return {
-          label: format(day, "dd"),
-          fullDate: format(day, "MMM dd"),
-          actual,
-          standard,
-          variance: actual - standard,
-          opening: Number(closing?.opening_quantity || 0),
-          receipts: Number(closing?.receipt_quantity || 0),
-          closingBal: Number(closing?.closing_quantity || 0),
-          bomBreakdown,
-        };
-      });
+      return days.map(computeDayEntry);
     } else {
       const end = endOfMonth(selectedDate);
       const start = startOfMonth(subMonths(selectedDate, 11));
@@ -242,6 +258,31 @@ export default function ConsumptionUsageReportPage() {
     variance: { label: "Variance", color: "hsl(var(--destructive))" },
   };
 
+  const periodLabel =
+    viewMode === "monthly"
+      ? `Last 12 Months up to ${format(selectedDate, "MMM yyyy")}`
+      : viewMode === "single"
+      ? format(selectedDate, "dd MMM yyyy")
+      : format(selectedDate, "MMMM yyyy");
+
+  const viewLabel = viewMode === "monthly" ? "Monthly" : viewMode === "single" ? "Single Day" : "Daily";
+  const periodColumnLabel = viewMode === "monthly" ? "Month" : "Date";
+
+  const handleShareWhatsApp = () => {
+    if (!selectedMaterial) return;
+    const lines = [
+      `*Material Usage Report*`,
+      `${selectedMaterial.code} — ${selectedMaterial.name}`,
+      `Period: ${periodLabel}`,
+      ``,
+      `Total Actual: ${totals.actual.toFixed(2)} ${unit}`,
+      `Total Standard: ${totals.standard.toFixed(2)} ${unit}`,
+      `Variance: ${totals.variance > 0 ? "+" : ""}${totals.variance.toFixed(2)} ${unit} (${totals.variancePct > 0 ? "+" : ""}${totals.variancePct.toFixed(1)}%)`,
+    ];
+    const text = lines.join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
   const handlePrint = () => {
     if (!selectedMaterial || chartData.length === 0) return;
     const filteredData = chartData.filter(d => d.actual > 0 || d.standard > 0);
@@ -276,7 +317,7 @@ export default function ConsumptionUsageReportPage() {
       </style>
     </head><body>
       <h1>Material Usage Report — ${selectedMaterial.code} — ${selectedMaterial.name}</h1>
-      <div class="meta">${viewMode === 'daily' ? format(selectedDate, 'MMMM yyyy') : 'Last 12 Months up to ' + format(selectedDate, 'MMM yyyy')} | Unit: ${unit}</div>
+      <div class="meta">${periodLabel} | Unit: ${unit}</div>
       <div class="summary">
         <div><div class="label">Total Actual</div><div class="value">${totals.actual.toFixed(2)} ${unit}</div></div>
         <div><div class="label">Total Standard</div><div class="value">${totals.standard.toFixed(2)} ${unit}</div></div>
@@ -285,7 +326,7 @@ export default function ConsumptionUsageReportPage() {
       </div>
       <table>
         <thead><tr>
-          <th>${viewMode === 'daily' ? 'Date' : 'Month'}</th>
+          <th>${periodColumnLabel}</th>
           <th style="text-align:right">Actual (${unit})</th>
           <th style="text-align:right">Standard (${unit})</th>
           <th style="text-align:right">Variance (${unit})</th>
@@ -317,10 +358,20 @@ export default function ConsumptionUsageReportPage() {
             <p className="page-description">Daily/Monthly usage trends and variance analysis for selected material</p>
           </div>
           {selectedMaterialId && chartData.some(d => d.actual > 0 || d.standard > 0) && (
-            <Button variant="outline" onClick={handlePrint}>
-              <Printer className="mr-2 h-4 w-4" />
-              Print Report
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50 hover:text-green-700"
+                onClick={handleShareWhatsApp}
+              >
+                <WhatsAppIcon className="mr-2 h-4 w-4" />
+                Share via WhatsApp
+              </Button>
+              <Button variant="outline" onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print Report
+              </Button>
+            </div>
           )}
         </div>
 
@@ -349,13 +400,14 @@ export default function ConsumptionUsageReportPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="single">Single Day</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
-                  {viewMode === "daily" ? "Month" : "Up to"}
+                  {viewMode === "daily" ? "Month" : viewMode === "single" ? "Date" : "Up to"}
                 </label>
                 <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                   <PopoverTrigger asChild>
@@ -363,6 +415,8 @@ export default function ConsumptionUsageReportPage() {
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {viewMode === "daily"
                         ? format(selectedDate, "MMMM yyyy")
+                        : viewMode === "single"
+                        ? format(selectedDate, "dd MMM yyyy")
                         : format(selectedDate, "MMM yyyy")}
                     </Button>
                   </PopoverTrigger>
@@ -445,7 +499,7 @@ export default function ConsumptionUsageReportPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    {viewMode === "daily" ? "Daily" : "Monthly"} Usage — {selectedMaterial?.name}
+                    {viewLabel} Usage — {selectedMaterial?.name}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -495,13 +549,13 @@ export default function ConsumptionUsageReportPage() {
             {/* Data Table */}
             <Card>
               <CardHeader>
-                <CardTitle>{viewMode === "daily" ? "Daily" : "Monthly"} Usage Data</CardTitle>
+                <CardTitle>{viewLabel} Usage Data</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{viewMode === "daily" ? "Date" : "Month"}</TableHead>
+                      <TableHead>{periodColumnLabel}</TableHead>
                       <TableHead className="text-right">Actual ({unit})</TableHead>
                       <TableHead className="text-right">Standard ({unit})</TableHead>
                       <TableHead className="text-right">Variance ({unit})</TableHead>
@@ -574,14 +628,14 @@ export default function ConsumptionUsageReportPage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {viewMode === "daily" ? "Daily" : "Monthly"} Summary — Opening, Receipts, Usage & Closing
+                  {viewLabel} Summary — Opening, Receipts, Usage & Closing
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{viewMode === "daily" ? "Date" : "Month"}</TableHead>
+                      <TableHead>{periodColumnLabel}</TableHead>
                       <TableHead className="text-right">Opening ({unit})</TableHead>
                       <TableHead className="text-right">Receipts ({unit})</TableHead>
                       <TableHead className="text-right">Usage ({unit})</TableHead>
