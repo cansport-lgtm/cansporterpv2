@@ -110,8 +110,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // 'sales' keeps the Sales sidebar group visible; 'domestic' satisfies the /domestic/* module
   // check; 'dashboard' for the landing shell. Prices are hidden in-page (see canViewPrices).
   sales_order_manager: ['sales', 'domestic', 'dashboard'],
-  // Production operator: full Production + Production Planning access. Can post and edit
-  // within a 48h window (enforced in the entry/planning pages). No delete/approve.
+  // Production operator: full Production + Production Planning access. Can post/unpost
+  // production entries (approve, granted in hasModulePermission below) and edit within a
+  // 48h window (enforced in the entry/planning pages). No delete; planning has no approve.
   production_operator: ['production', 'planning', 'dashboard'],
   // Closing Data Poster: posts Daily Stock Closing (Production Planning) and Stock Closing
   // (Material Consumption). Module access opens both sidebar groups; route restrictions below
@@ -832,6 +833,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
+    // production_operator can post/unpost the day's production entries (the "Post Day"
+    // button and per-row Post/Unpost actions gate on the 'approve' permission). Delete
+    // still stays reserved for super admin, and this grant is scoped to the production
+    // module only — planning still falls through to grantsWithinScope below, which denies
+    // approve there.
+    if (roles.some(r => r.role === 'production_operator') && module === 'production' && permission === 'approve') {
+      return true;
+    }
+
     // Strict operational roles grant view/create/edit within their own module scope
     // (never delete/approve). These checks are GRANT-ONLY (additive): when the role is
     // out of scope they DO NOT return — they fall through so another strict role the same
@@ -841,7 +851,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // sales_order_manager branch returned false for the production module first).
     //   • dispatch_operator     → sales / domestic (dispatch; no pricing pages)
     //   • sales_order_manager   → sales / domestic (orders + dispatch)
-    //   • production_operator   → production / planning
+    //   • production_operator   → production / planning (production also gets approve, above)
     //   • closing_data_poster   → planning / material_consumption (stock closing)
     // Out-of-scope, delete and approve all fall through to the per-user module_permissions
     // check below, which denies them (strict roles carry no module_permissions rows).
