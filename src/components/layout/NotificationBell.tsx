@@ -15,6 +15,7 @@ import {
   requestDesktopNotifications,
   type SystemNotification,
 } from "@/hooks/useNotifications";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const TYPE_DOT_COLORS: Record<string, string> = {
@@ -26,12 +27,13 @@ const TYPE_DOT_COLORS: Record<string, string> = {
 
 export function NotificationBell() {
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleOpen = (open: boolean) => {
     // First interaction with the bell is the natural moment to ask for
-    // desktop-notification permission.
-    if (open) requestDesktopNotifications();
+    // notification permission (and register this device for Web Push).
+    if (open) requestDesktopNotifications(user?.id);
   };
 
   const handleClick = (n: SystemNotification) => {
