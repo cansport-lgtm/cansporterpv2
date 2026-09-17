@@ -16198,6 +16198,9 @@ export type Database = {
         | "order_management"
         | "floor_incharge"
         | "private_label_distributor"
+        | "private_label_manager"
+        | "private_label_officer"
+        | "private_label_viewer"
         | "pettycash_handler"
         | "store_operator"
         | "project_manager"
@@ -16467,6 +16470,9 @@ export const Constants = {
         "order_management",
         "floor_incharge",
         "private_label_distributor",
+        "private_label_manager",
+        "private_label_officer",
+        "private_label_viewer",
         "pettycash_handler",
         "store_operator",
         "project_manager",
