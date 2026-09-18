@@ -37,6 +37,7 @@ interface SparePartIssue {
   total_cost: number | null;
   issued_by: string | null;
   status: string;
+  usage_type: string;
   created_at: string;
   spare_parts?: { code: string; name: string; current_stock: number; unit_cost: number | null };
   machines?: { code: string; name: string } | null;
@@ -70,6 +71,14 @@ interface WorkOrder {
   title: string;
 }
 
+const USAGE_TYPES = [
+  { value: "maintenance", label: "Maintenance" },
+  { value: "new_machinery_development", label: "New Development" },
+] as const;
+
+const usageTypeLabel = (value: string) =>
+  USAGE_TYPES.find((u) => u.value === value)?.label || value;
+
 export default function SparePartIssuesPage() {
   const { user, hasRole } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
@@ -80,6 +89,7 @@ export default function SparePartIssuesPage() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "maintenance" | "new_machinery_development">("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "today" | "month" | "custom">("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -92,6 +102,7 @@ export default function SparePartIssuesPage() {
     issued_to: "",
     machine_id: "",
     work_order_id: "",
+    usage_type: "maintenance" as string,
     purpose: "",
     remarks: "",
     issue_date: new Date().toISOString().split("T")[0],
@@ -181,6 +192,11 @@ export default function SparePartIssuesPage() {
       return;
     }
 
+    if (!formData.usage_type) {
+      toast.error("Please select a category");
+      return;
+    }
+
     if (selectedPart && formData.quantity_issued > selectedPart.current_stock) {
       toast.error(`Insufficient stock. Available: ${selectedPart.current_stock}`);
       return;
@@ -196,6 +212,7 @@ export default function SparePartIssuesPage() {
         issued_to: formData.issued_to || null,
         machine_id: formData.machine_id || null,
         work_order_id: formData.work_order_id || null,
+        usage_type: formData.usage_type,
         purpose: formData.purpose || null,
         remarks: formData.remarks || null,
         unit_cost: unitCost,
@@ -243,6 +260,7 @@ export default function SparePartIssuesPage() {
       issued_to: "",
       machine_id: "",
       work_order_id: "",
+      usage_type: "maintenance",
       purpose: "",
       remarks: "",
       issue_date: new Date().toISOString().split("T")[0],
@@ -252,11 +270,12 @@ export default function SparePartIssuesPage() {
 
   const filteredIssues = issues.filter(
     (issue) =>
-      issue.issue_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.spare_parts?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.spare_parts?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.machines?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      issue.app_users_issued_to?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      (categoryFilter === "all" || issue.usage_type === categoryFilter) &&
+      (issue.issue_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.spare_parts?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.spare_parts?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.machines?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.app_users_issued_to?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const columns = [
@@ -277,6 +296,15 @@ export default function SparePartIssuesPage() {
       ),
     },
     { key: "quantity_issued", header: "Qty" },
+    {
+      key: "usage_type",
+      header: "Category",
+      render: (row: SparePartIssue) => (
+        <Badge variant={row.usage_type === "maintenance" ? "secondary" : "outline"}>
+          {usageTypeLabel(row.usage_type)}
+        </Badge>
+      ),
+    },
     {
       key: "issued_to",
       header: "Issued To",
@@ -368,6 +396,19 @@ export default function SparePartIssuesPage() {
             className="pl-9"
           />
         </div>
+        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as typeof categoryFilter)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {USAGE_TYPES.map((u) => (
+              <SelectItem key={u.value} value={u.value}>
+                {u.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="flex gap-2 flex-wrap">
           <Button
             variant={viewMode === "all" ? "default" : "outline"}
@@ -499,6 +540,26 @@ export default function SparePartIssuesPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Category */}
+            <div>
+              <Label>Category *</Label>
+              <Select
+                value={formData.usage_type}
+                onValueChange={(v) => setFormData({ ...formData, usage_type: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {USAGE_TYPES.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>
+                      {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Quantity */}
