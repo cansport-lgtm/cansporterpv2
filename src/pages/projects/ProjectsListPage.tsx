@@ -242,7 +242,9 @@ export default function ProjectsListPage() {
                       <td className="p-2">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${p.id}`)}><Eye className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
+                          {isSuperAdmin && (
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
+                          )}
                           {isSuperAdmin && (
                             <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                           )}
