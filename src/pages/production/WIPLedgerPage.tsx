@@ -38,6 +38,27 @@ interface Level {
 
 const fmtNum = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+// Supabase/PostgREST caps a single request at 1000 rows by default. The WIP ledger
+// sums *all* historical rows before a custom "from date" to derive opening balances,
+// so any unpaginated query here silently drops rows once history grows past the cap —
+// producing different (wrong) results depending on which date range happens to cross it.
+const PAGE_SIZE = 1000;
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 export default function WIPLedgerPage() {
   const today = new Date();
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
@@ -69,83 +90,89 @@ export default function WIPLedgerPage() {
 
   const { data: entries = [] } = useQuery({
     queryKey: ["wip-ledger-entries", fromDate, toDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("production_entries")
-        .select("entry_date, department_id, quantity_ok")
-        .gte("entry_date", fromDate)
-        .lte("entry_date", toDate);
-      if (error) throw error;
-      return (data || []) as ProdEntry[];
-    },
+    queryFn: () =>
+      fetchAllRows<ProdEntry>((from, to) =>
+        supabase
+          .from("production_entries")
+          .select("entry_date, department_id, quantity_ok")
+          .gte("entry_date", fromDate)
+          .lte("entry_date", toDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   const { data: openingEntries = [] } = useQuery({
     queryKey: ["wip-ledger-opening-entries", fromDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("production_entries")
-        .select("entry_date, department_id, quantity_ok")
-        .lt("entry_date", fromDate);
-      if (error) throw error;
-      return (data || []) as ProdEntry[];
-    },
+    queryFn: () =>
+      fetchAllRows<ProdEntry>((from, to) =>
+        supabase
+          .from("production_entries")
+          .select("entry_date, department_id, quantity_ok")
+          .lt("entry_date", fromDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   const { data: domesticDispatches = [] } = useQuery({
     queryKey: ["wip-ledger-domestic-dispatches", fromDate, toDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_dispatches")
-        .select("dispatch_date, sales_dispatch_items(quantity_dozens)")
-        .eq("sales_segment", "domestic")
-        .gte("dispatch_date", fromDate)
-        .lte("dispatch_date", toDate);
-      if (error) throw error;
-      return (data || []) as Array<{ dispatch_date: string; sales_dispatch_items: Array<{ quantity_dozens: number }> }>;
-    },
+    queryFn: () =>
+      fetchAllRows<{ dispatch_date: string; sales_dispatch_items: Array<{ quantity_dozens: number }> }>((from, to) =>
+        supabase
+          .from("sales_dispatches")
+          .select("dispatch_date, sales_dispatch_items(quantity_dozens)")
+          .eq("sales_segment", "domestic")
+          .gte("dispatch_date", fromDate)
+          .lte("dispatch_date", toDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   const { data: openingDispatches = [] } = useQuery({
     queryKey: ["wip-ledger-opening-dispatches", fromDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_dispatches")
-        .select("dispatch_date, sales_dispatch_items(quantity_dozens)")
-        .eq("sales_segment", "domestic")
-        .lt("dispatch_date", fromDate);
-      if (error) throw error;
-      return (data || []) as Array<{ dispatch_date: string; sales_dispatch_items: Array<{ quantity_dozens: number }> }>;
-    },
+    queryFn: () =>
+      fetchAllRows<{ dispatch_date: string; sales_dispatch_items: Array<{ quantity_dozens: number }> }>((from, to) =>
+        supabase
+          .from("sales_dispatches")
+          .select("dispatch_date, sales_dispatch_items(quantity_dozens)")
+          .eq("sales_segment", "domestic")
+          .lt("dispatch_date", fromDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   // Domestic sales returns bring finished goods back into stock — they appear at
   // the final (FG) level as an inflow, netting off the dispatched-out quantity.
   const { data: returns = [] } = useQuery({
     queryKey: ["wip-ledger-returns", fromDate, toDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_returns")
-        .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
-        .eq("sales_dispatches.sales_segment", "domestic")
-        .gte("return_date", fromDate)
-        .lte("return_date", toDate);
-      if (error) throw error;
-      return (data || []) as Array<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>;
-    },
+    queryFn: () =>
+      fetchAllRows<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>((from, to) =>
+        supabase
+          .from("sales_returns")
+          .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
+          .eq("sales_dispatches.sales_segment", "domestic")
+          .gte("return_date", fromDate)
+          .lte("return_date", toDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   const { data: openingReturns = [] } = useQuery({
     queryKey: ["wip-ledger-opening-returns", fromDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_returns")
-        .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
-        .eq("sales_dispatches.sales_segment", "domestic")
-        .lt("return_date", fromDate);
-      if (error) throw error;
-      return (data || []) as Array<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>;
-    },
+    queryFn: () =>
+      fetchAllRows<{ return_date: string; sales_return_items: Array<{ quantity_dozens: number }> }>((from, to) =>
+        supabase
+          .from("sales_returns")
+          .select("return_date, sales_dispatches!inner(sales_segment), sales_return_items(quantity_dozens)")
+          .eq("sales_dispatches.sales_segment", "domestic")
+          .lt("return_date", fromDate)
+          .order("id")
+          .range(from, to)
+      ),
   });
 
   // Build ordered levels (group departments by wip_order)
