@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +9,26 @@ import { format, startOfWeek, endOfWeek, subDays } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MATERIAL_VALUE_CATEGORIES, type MaterialValueCategory } from "@/lib/materialValueCategory";
+
+// A raw-material-level value tier filter ("all" or one of the enum values).
+type ValueTierFilter = MaterialValueCategory | "all";
+
+// Shared predicate applied wherever raw-material rows are aggregated, so the
+// Value Tier filter behaves identically across every tab on this page.
+function matchesValueTier(
+  category: MaterialValueCategory | null | undefined,
+  filter: ValueTierFilter
+): boolean {
+  return filter === "all" || category === filter;
+}
 
 export default function ConsumptionEfficiencyDashboard() {
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const [valueTierFilter, setValueTierFilter] = useState<ValueTierFilter>("all");
 
   // Fetch raw materials count
   const { data: rawMaterials } = useQuery({
@@ -40,36 +56,42 @@ export default function ConsumptionEfficiencyDashboard() {
 
   // Fetch today's stock closing
   const { data: todayClosing } = useQuery({
-    queryKey: ["consumption-today-closing"],
+    queryKey: ["consumption-today-closing", format(today, "yyyy-MM-dd"), valueTierFilter],
     queryFn: async () => {
       const { data } = await supabase
         .from("consumption_stock_closing")
         .select(`
           *,
-          raw_material:consumption_raw_materials(name, unit)
+          raw_material:consumption_raw_materials(name, unit, value_category)
         `)
         .eq("closing_date", format(today, "yyyy-MM-dd"));
-      return data || [];
+      return (data || []).filter((item: any) =>
+        matchesValueTier(item.raw_material?.value_category, valueTierFilter)
+      );
     },
   });
 
   // Fetch weekly consumption summary
   const { data: weeklyConsumption } = useQuery({
-    queryKey: ["consumption-weekly-summary", format(weekStart, "yyyy-MM-dd")],
+    queryKey: ["consumption-weekly-summary", format(weekStart, "yyyy-MM-dd"), valueTierFilter],
     queryFn: async () => {
       const { data } = await supabase
         .from("consumption_stock_closing")
         .select(`
           raw_material_id,
           actual_consumption,
-          raw_material:consumption_raw_materials(name, unit)
+          raw_material:consumption_raw_materials(name, unit, value_category)
         `)
         .gte("closing_date", format(weekStart, "yyyy-MM-dd"))
         .lte("closing_date", format(weekEnd, "yyyy-MM-dd"));
 
+      const filtered = (data || []).filter((item: any) =>
+        matchesValueTier(item.raw_material?.value_category, valueTierFilter)
+      );
+
       // Group by material
       const grouped: Record<string, { name: string; unit: string; total: number }> = {};
-      data?.forEach((item: any) => {
+      filtered.forEach((item: any) => {
         const id = item.raw_material_id;
         if (!grouped[id]) {
           grouped[id] = {
@@ -86,7 +108,7 @@ export default function ConsumptionEfficiencyDashboard() {
 
   // Fetch consumption variance data (7 days)
   const { data: varianceData } = useQuery({
-    queryKey: ["consumption-variance", format(today, "yyyy-MM-dd")],
+    queryKey: ["consumption-variance", format(today, "yyyy-MM-dd"), valueTierFilter],
     queryFn: async () => {
       // Get production entries
       const { data: production } = await supabase
@@ -106,14 +128,19 @@ export default function ConsumptionEfficiencyDashboard() {
           product_id,
           raw_material_id,
           standard_quantity,
-          raw_material:consumption_raw_materials(name, unit)
+          raw_material:consumption_raw_materials(name, unit, value_category)
         `)
         .eq("is_active", true);
 
       // Calculate standard consumption
       const standardByMaterial: Record<string, { name: string; unit: string; standard: number }> = {};
       production?.forEach((prod: any) => {
-        const bomItems = bom?.filter((b: any) => b.product_id === prod.product_id) || [];
+        const bomItems =
+          bom?.filter(
+            (b: any) =>
+              b.product_id === prod.product_id &&
+              matchesValueTier(b.raw_material?.value_category, valueTierFilter)
+          ) || [];
         bomItems.forEach((b: any) => {
           const id = b.raw_material_id;
           if (!standardByMaterial[id]) {
@@ -153,20 +180,24 @@ export default function ConsumptionEfficiencyDashboard() {
 
   // Category-wise consumption breakdown
   const { data: categoryBreakdown } = useQuery({
-    queryKey: ["consumption-category-breakdown", format(weekStart, "yyyy-MM-dd")],
+    queryKey: ["consumption-category-breakdown", format(weekStart, "yyyy-MM-dd"), valueTierFilter],
     queryFn: async () => {
       const { data } = await supabase
         .from("consumption_stock_closing")
         .select(`
           actual_consumption,
-          raw_material:consumption_raw_materials(category, unit)
+          raw_material:consumption_raw_materials(category, unit, value_category)
         `)
         .gte("closing_date", format(weekStart, "yyyy-MM-dd"))
         .lte("closing_date", format(weekEnd, "yyyy-MM-dd"));
 
+      const filtered = (data || []).filter((item: any) =>
+        matchesValueTier(item.raw_material?.value_category, valueTierFilter)
+      );
+
       // Group by category
       const grouped: Record<string, { category: string; total: number; unit: string }> = {};
-      data?.forEach((item: any) => {
+      filtered.forEach((item: any) => {
         const category = item.raw_material?.category || "Uncategorized";
         if (!grouped[category]) {
           grouped[category] = {
@@ -199,6 +230,24 @@ export default function ConsumptionEfficiencyDashboard() {
           <div>
             <h1 className="page-title">Consumption Efficiency Dashboard</h1>
             <p className="page-description">Analyze material consumption variance and identify material loss</p>
+          </div>
+          <div className="flex gap-2 items-center">
+            <Select
+              value={valueTierFilter}
+              onValueChange={(v) => setValueTierFilter(v as ValueTierFilter)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All value tiers</SelectItem>
+                {MATERIAL_VALUE_CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

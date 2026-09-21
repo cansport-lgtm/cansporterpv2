@@ -35,8 +35,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
+import { MATERIAL_VALUE_CATEGORIES } from "@/lib/materialValueCategory";
 
 type PurchaseCategory = SupabaseDatabase["public"]["Enums"]["purchase_category"];
+type MaterialValueCategory = SupabaseDatabase["public"]["Enums"]["raw_material_value_category"];
 
 interface Item {
   id: string;
@@ -45,6 +47,7 @@ interface Item {
   description: string | null;
   category: PurchaseCategory | null;
   raw_material_category_id: string | null;
+  raw_material_value_category: MaterialValueCategory | null;
   uom_id: string | null;
   unit_price: number | null;
   min_stock: number | null;
@@ -74,6 +77,7 @@ export default function ItemsPage() {
     description: "",
     category: "" as PurchaseCategory | "",
     raw_material_category_id: "",
+    raw_material_value_category: "" as MaterialValueCategory | "",
     uom_id: "",
     unit_price: 0,
     min_stock: 0,
@@ -150,6 +154,10 @@ export default function ItemsPage() {
           data.category === "raw_material" && data.raw_material_category_id
             ? data.raw_material_category_id
             : null,
+        raw_material_value_category:
+          data.category === "raw_material" && data.raw_material_value_category
+            ? data.raw_material_value_category
+            : null,
         uom_id: data.uom_id || null,
         unit_price: data.unit_price,
         min_stock: data.min_stock,
@@ -224,6 +232,7 @@ export default function ItemsPage() {
       description: "",
       category: "",
       raw_material_category_id: "",
+      raw_material_value_category: "",
       uom_id: "",
       unit_price: 0,
       min_stock: 0,
@@ -245,6 +254,7 @@ export default function ItemsPage() {
       description: item.description || "",
       category: item.category || "",
       raw_material_category_id: item.raw_material_category_id || "",
+      raw_material_value_category: item.raw_material_value_category || "",
       uom_id: item.uom_id || "",
       unit_price: item.unit_price || 0,
       min_stock: item.min_stock || 0,
@@ -280,6 +290,16 @@ export default function ItemsPage() {
         const label = CATEGORIES.find((c) => c.value === item.category)?.label || "-";
         const rmCategory = rmCategories.find((c) => c.id === item.raw_material_category_id)?.name;
         return rmCategory ? `${label} · ${rmCategory}` : label;
+      },
+    },
+    {
+      key: "raw_material_value_category",
+      header: "Value Tier",
+      render: (item: Item) => {
+        const tier = MATERIAL_VALUE_CATEGORIES.find(
+          (c) => c.value === item.raw_material_value_category
+        );
+        return tier ? tier.code : "-";
       },
     },
     {
@@ -450,6 +470,32 @@ export default function ItemsPage() {
                     Used by the consumption module to group this material. Manage
                     categories in Material Consumption → Category Master.
                   </p>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="raw_material_value_category">Value Tier (HP / MP / CM)</Label>
+                    <Select
+                      value={formData.raw_material_value_category}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          raw_material_value_category: value as MaterialValueCategory,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select value tier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MATERIAL_VALUE_CATEGORIES.map((tier) => (
+                          <SelectItem key={tier.value} value={tier.value}>
+                            {tier.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Used to filter consumption reports by material value tier.
+                    </p>
+                  </div>
                   <div className="space-y-2 pt-2">
                     <Label htmlFor="closing_frequency">Stock Closing Frequency</Label>
                     <Select

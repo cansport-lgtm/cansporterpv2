@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, ChevronLeft, ChevronRight, Package } from "lucide-react";
@@ -10,6 +11,7 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
+import { MATERIAL_VALUE_CATEGORIES, MaterialValueCategory } from "@/lib/materialValueCategory";
 
 // Receipts on/after this date come live from approved GRNs (Purchase module);
 // earlier dates keep the manually entered stock-closing history. Must match
@@ -23,6 +25,7 @@ interface MaterialReceipt {
   unit: string;
   category: string | null;
   priority: string | null;
+  value_category: MaterialValueCategory | null;
   total_receipt: number;
   total_value: number;
   days_with_receipt: number;
@@ -34,6 +37,7 @@ export default function MonthlyReceiptViewPage() {
   const isMobile = useIsMobile();
   const isSuperAdmin = hasRole("super_admin");
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [valueTierFilter, setValueTierFilter] = useState<string>("all");
 
   const monthStart = format(startOfMonth(currentMonth), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(currentMonth), "yyyy-MM-dd");
@@ -46,7 +50,7 @@ export default function MonthlyReceiptViewPage() {
       const [materialsRes, manualRes, grnRes, unmappedRes] = await Promise.all([
         supabase
           .from("consumption_raw_materials")
-          .select("id, name, code, unit, cost_value, category, priority"),
+          .select("id, name, code, unit, cost_value, category, priority, value_category"),
         // Manual history strictly before the GRN cutover
         monthStart < GRN_RECEIPT_CUTOVER
           ? supabase
@@ -95,6 +99,7 @@ export default function MonthlyReceiptViewPage() {
             unit: mat?.unit || "",
             category: mat?.category || null,
             priority: mat?.priority || null,
+            value_category: (mat?.value_category as MaterialValueCategory) || null,
             total_receipt: 0,
             total_value: 0,
             days_with_receipt: 0,
@@ -137,7 +142,13 @@ export default function MonthlyReceiptViewPage() {
   const receiptData = data?.rows;
   const unmapped = data?.unmapped || [];
 
-  const totals = receiptData?.reduce(
+  const filteredReceiptData = useMemo(() => {
+    if (!receiptData) return receiptData;
+    if (valueTierFilter === "all") return receiptData;
+    return receiptData.filter((item) => item.value_category === valueTierFilter);
+  }, [receiptData, valueTierFilter]);
+
+  const totals = filteredReceiptData?.reduce(
     (acc, item) => {
       acc.totalReceipt += item.total_receipt;
       acc.totalValue += item.total_value;
@@ -194,25 +205,38 @@ export default function MonthlyReceiptViewPage() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Receipts for {format(currentMonth, "MMMM yyyy")}
-              {receiptData && (
-                <Badge variant="secondary" className="ml-2">{receiptData.length} materials</Badge>
-              )}
-              {monthUsesGRN && (
-                <Badge variant="outline" className="ml-1">from GRN</Badge>
-              )}
-            </CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Receipts for {format(currentMonth, "MMMM yyyy")}
+                {filteredReceiptData && (
+                  <Badge variant="secondary" className="ml-2">{filteredReceiptData.length} materials</Badge>
+                )}
+                {monthUsesGRN && (
+                  <Badge variant="outline" className="ml-1">from GRN</Badge>
+                )}
+              </CardTitle>
+              <Select value={valueTierFilter} onValueChange={setValueTierFilter}>
+                <SelectTrigger className="w-full sm:w-[190px]">
+                  <SelectValue placeholder="All value tiers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All value tiers</SelectItem>
+                  {MATERIAL_VALUE_CATEGORIES.map((tier) => (
+                    <SelectItem key={tier.value} value={tier.value}>{tier.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <p className="text-muted-foreground text-center py-8">Loading...</p>
-            ) : !receiptData?.length ? (
+            ) : !filteredReceiptData?.length ? (
               <p className="text-muted-foreground text-center py-8">No receipts found for this month</p>
             ) : isMobile ? (
               <div className="space-y-3">
-                {receiptData.map((item) => (
+                {filteredReceiptData.map((item) => (
                   <Card key={item.raw_material_id} className="p-3">
                     <div className="flex justify-between items-start mb-2">
                       <div>
@@ -295,7 +319,7 @@ export default function MonthlyReceiptViewPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {receiptData.map((item, index) => (
+                    {filteredReceiptData.map((item, index) => (
                       <TableRow key={item.raw_material_id}>
                         <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                         <TableCell className="font-mono text-xs">{item.code}</TableCell>

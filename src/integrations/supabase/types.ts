@@ -1552,6 +1552,7 @@ export type Database = {
           threshold: number | null
           unit: string | null
           updated_at: string | null
+          value_category: Database["public"]["Enums"]["raw_material_value_category"] | null
         }
         Insert: {
           category?: string | null
@@ -1568,6 +1569,7 @@ export type Database = {
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
+          value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
         }
         Update: {
           category?: string | null
@@ -1584,6 +1586,7 @@ export type Database = {
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
+          value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
         }
         Relationships: [
           {
@@ -6458,6 +6461,7 @@ export type Database = {
           min_stock: number | null
           name: string
           raw_material_category_id: string | null
+          raw_material_value_category: Database["public"]["Enums"]["raw_material_value_category"] | null
           reorder_level: number | null
           unit_price: number | null
           uom_id: string | null
@@ -6476,6 +6480,7 @@ export type Database = {
           min_stock?: number | null
           name: string
           raw_material_category_id?: string | null
+          raw_material_value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
@@ -6494,6 +6499,7 @@ export type Database = {
           min_stock?: number | null
           name?: string
           raw_material_category_id?: string | null
+          raw_material_value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
@@ -16312,6 +16318,10 @@ export type Database = {
         | "general_supplies"
         | "spare_maintenance"
       qa_result: "pass" | "fail" | "hold"
+      raw_material_value_category:
+        | "high_value"
+        | "medium_value"
+        | "customer_provided"
       record_status:
         | "draft"
         | "in_progress"
@@ -16537,6 +16547,11 @@ export const Constants = {
         "spare_maintenance",
       ],
       qa_result: ["pass", "fail", "hold"],
+      raw_material_value_category: [
+        "high_value",
+        "medium_value",
+        "customer_provided",
+      ],
       record_status: [
         "draft",
         "in_progress",
