@@ -9,6 +9,18 @@ import { ExternalLink, Info, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MATERIAL_VALUE_CATEGORIES,
+  materialValueCategoryCode,
+  type MaterialValueCategory,
+} from "@/lib/materialValueCategory";
 
 interface RawMaterial {
   id: string;
@@ -22,6 +34,7 @@ interface RawMaterial {
   cost_value: number | null;
   threshold: number | null;
   closing_frequency: string | null;
+  value_category: MaterialValueCategory | null;
 }
 
 /**
@@ -37,6 +50,7 @@ interface RawMaterial {
 export default function RawMaterialsPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [valueCategoryFilter, setValueCategoryFilter] = useState<MaterialValueCategory | "all">("all");
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["consumption-raw-materials"],
@@ -73,8 +87,11 @@ export default function RawMaterialsPage() {
   // the full list is already loaded, so filtering as you type is instant.
   const filteredMaterials = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
-    if (!needle) return materials;
     return materials?.filter((material) => {
+      if (valueCategoryFilter !== "all" && material.value_category !== valueCategoryFilter) {
+        return false;
+      }
+      if (!needle) return true;
       const linked = linkedItemByRmId[material.id];
       const haystack = [
         material.code,
@@ -86,7 +103,7 @@ export default function RawMaterialsPage() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [materials, linkedItemByRmId, searchTerm]);
+  }, [materials, linkedItemByRmId, searchTerm, valueCategoryFilter]);
 
   return (
     <ERPLayout>
@@ -111,14 +128,32 @@ export default function RawMaterialsPage() {
           </span>
         </div>
 
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by code, name, category or linked item…"
-            className="pl-9"
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by code, name, category or linked item…"
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={valueCategoryFilter}
+            onValueChange={(value) => setValueCategoryFilter(value as MaterialValueCategory | "all")}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Value tier" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All value tiers</SelectItem>
+              {MATERIAL_VALUE_CATEGORIES.map((tier) => (
+                <SelectItem key={tier.value} value={tier.value}>
+                  {tier.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <Card>
@@ -132,6 +167,7 @@ export default function RawMaterialsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>Value Tier</TableHead>
                     <TableHead className="text-right">Cost Value</TableHead>
                     <TableHead>Linked Item</TableHead>
                     <TableHead>Closing</TableHead>
@@ -142,11 +178,11 @@ export default function RawMaterialsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={10} className="text-center">Loading...</TableCell>
                     </TableRow>
                   ) : filteredMaterials?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground">
                         {searchTerm
                           ? `No raw materials match “${searchTerm}”.`
                           : "No raw materials found. Add raw-material items in the Items master."}
@@ -159,6 +195,13 @@ export default function RawMaterialsPage() {
                         <TableCell className="font-medium">{material.name}</TableCell>
                         <TableCell>{material.unit}</TableCell>
                         <TableCell>{material.category || "-"}</TableCell>
+                        <TableCell>
+                          {material.value_category ? (
+                            <Badge variant="outline">{materialValueCategoryCode(material.value_category)}</Badge>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">{(material.cost_value || 0).toFixed(2)}</TableCell>
                         <TableCell className="text-xs">
                           {linkedItemByRmId[material.id]
@@ -220,6 +263,11 @@ export default function RawMaterialsPage() {
                       <Badge variant={material.closing_frequency === "weekly" ? "outline" : "secondary"} className="text-xs">
                         {material.closing_frequency === "weekly" ? "Weekly closing" : "Daily closing"}
                       </Badge>
+                      {material.value_category && (
+                        <Badge variant="outline" className="text-xs">
+                          {materialValueCategoryCode(material.value_category)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 ))

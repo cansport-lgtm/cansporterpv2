@@ -13,11 +13,18 @@
  import { cn } from "@/lib/utils";
  import { Badge } from "@/components/ui/badge";
  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
- 
+ import {
+   MATERIAL_VALUE_CATEGORIES,
+   materialValueCategoryCode,
+   materialValueCategoryLabel,
+   type MaterialValueCategory,
+ } from "@/lib/materialValueCategory";
+
  export default function ConsumptionAnalysisPage() {
    const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("weekly");
    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+   const [valueCategoryFilter, setValueCategoryFilter] = useState<MaterialValueCategory | "all">("all");
  
    const getDateRange = () => {
      switch (period) {
@@ -62,7 +69,7 @@
             product_id,
             raw_material_id,
             standard_quantity,
-            raw_material:consumption_raw_materials(code, name, unit, priority)
+            raw_material:consumption_raw_materials(code, name, unit, priority, value_category)
           `)
           .eq("is_active", true);
         if (error) throw error;
@@ -80,7 +87,7 @@
            raw_material_id,
            actual_consumption,
            closing_date,
-            raw_material:consumption_raw_materials(code, name, unit, priority)
+            raw_material:consumption_raw_materials(code, name, unit, priority, value_category)
           `)
           .gte("closing_date", startStr)
           .lte("closing_date", endStr);
@@ -94,7 +101,7 @@
      if (!productionData || !bomData || !closingData) return [];
  
      // Calculate standard consumption based on production
-      const standardByMaterial: Record<string, { code: string; name: string; unit: string; priority: string; standard: number }> = {};
+      const standardByMaterial: Record<string, { code: string; name: string; unit: string; priority: string; valueCategory: MaterialValueCategory | null; standard: number }> = {};
       productionData.forEach((prod: any) => {
         const bomItems = bomData.filter((b: any) => b.product_id === prod.product_id);
         bomItems.forEach((b: any) => {
@@ -105,6 +112,7 @@
               name: b.raw_material?.name || "Unknown",
               unit: b.raw_material?.unit || "kg",
               priority: b.raw_material?.priority || "medium",
+              valueCategory: b.raw_material?.value_category ?? null,
               standard: 0,
             };
           }
@@ -128,7 +136,7 @@
        const standard = standardData?.standard || 0;
        
        // Get material info from closing data if not in BOM
-        let materialInfo = standardData || { code: "", name: "", unit: "kg", priority: "medium" };
+        let materialInfo = standardData || { code: "", name: "", unit: "kg", priority: "medium", valueCategory: null as MaterialValueCategory | null };
         if (!standardData) {
           const closingItem = closingData.find((c: any) => c.raw_material_id === id);
           if (closingItem?.raw_material) {
@@ -137,6 +145,7 @@
               name: closingItem.raw_material.name,
               unit: closingItem.raw_material.unit,
               priority: closingItem.raw_material.priority || "medium",
+              valueCategory: closingItem.raw_material.value_category ?? null,
               standard: 0,
             };
           }
@@ -151,6 +160,7 @@
           name: materialInfo.name,
           unit: materialInfo.unit,
           priority: materialInfo.priority,
+         valueCategory: materialInfo.valueCategory,
          standard,
          actual,
          variance,
@@ -159,7 +169,12 @@
        });
      });
  
-     return results.sort((a, b) => Math.abs(b.variancePct) - Math.abs(a.variancePct));
+     const filteredResults =
+      valueCategoryFilter === "all"
+        ? results
+        : results.filter((item) => item.valueCategory === valueCategoryFilter);
+
+    return filteredResults.sort((a, b) => Math.abs(b.variancePct) - Math.abs(a.variancePct));
    })();
  
    const totalStandard = analysisData.reduce((sum, item) => sum + item.standard, 0);
@@ -183,6 +198,22 @@
                    <SelectItem value="daily">Daily</SelectItem>
                    <SelectItem value="weekly">Weekly</SelectItem>
                    <SelectItem value="monthly">Monthly</SelectItem>
+                 </SelectContent>
+               </Select>
+               <Select
+                 value={valueCategoryFilter}
+                 onValueChange={(v: MaterialValueCategory | "all") => setValueCategoryFilter(v)}
+               >
+                 <SelectTrigger className="w-[180px]">
+                   <SelectValue placeholder="All value tiers" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">All value tiers</SelectItem>
+                   {MATERIAL_VALUE_CATEGORIES.map((category) => (
+                     <SelectItem key={category.value} value={category.value}>
+                       {category.label}
+                     </SelectItem>
+                   ))}
                  </SelectContent>
                </Select>
                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -260,6 +291,7 @@
                     <TableHead>Code</TableHead>
                     <TableHead>Material</TableHead>
                     <TableHead>Priority</TableHead>
+                    <TableHead>Value Tier</TableHead>
                     <TableHead className="text-right">Standard</TableHead>
                    <TableHead className="text-right">Actual</TableHead>
                    <TableHead className="text-right">Variance</TableHead>
@@ -270,7 +302,7 @@
                <TableBody>
                  {analysisData.length === 0 ? (
                    <TableRow>
-                     <TableCell colSpan={8} className="text-center text-muted-foreground">
+                     <TableCell colSpan={9} className="text-center text-muted-foreground">
                        No data for this period. Ensure production entries and stock closing are recorded.
                      </TableCell>
                    </TableRow>
@@ -282,6 +314,11 @@
                         <TableCell>
                           <Badge variant={item.priority === "high" ? "destructive" : item.priority === "low" ? "outline" : "secondary"}>
                             {(item.priority || "medium").charAt(0).toUpperCase() + (item.priority || "medium").slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" title={materialValueCategoryLabel(item.valueCategory)}>
+                            {materialValueCategoryCode(item.valueCategory)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">{item.standard.toFixed(2)} {item.unit}</TableCell>

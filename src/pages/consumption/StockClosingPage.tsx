@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,18 @@ import { Save, CalendarIcon, ChevronDown, ChevronRight, Search } from "lucide-re
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { format, isLastDayOfMonth, isMonday, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { MATERIAL_VALUE_CATEGORIES, type MaterialValueCategory } from "@/lib/materialValueCategory";
 
 interface StockEntry {
   raw_material_id: string;
@@ -20,6 +28,7 @@ interface StockEntry {
   name: string;
   unit: string;
   category: string;
+  value_category: MaterialValueCategory | null;
   opening_quantity: string;
   receipt_quantity: string;
   closing_quantity: string;
@@ -41,6 +50,7 @@ export default function StockClosingPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [valueCategoryFilter, setValueCategoryFilter] = useState<MaterialValueCategory | "all">("all");
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   // Weekly materials are posted on Mondays (week ending that Monday) and on
@@ -56,7 +66,7 @@ export default function StockClosingPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_raw_materials")
-        .select("id, code, name, unit, category, closing_frequency")
+        .select("id, code, name, unit, category, closing_frequency, value_category")
         .eq("is_active", true)
         .order("category")
         .order("code");
@@ -192,6 +202,7 @@ export default function StockClosingPage() {
               mat.closing_frequency === "weekly"
                 ? WEEKLY_GROUP
                 : mat.category || "Uncategorized",
+            value_category: mat.value_category,
             opening_quantity: existing ? String(existing.opening_quantity) : String(prevClose),
             receipt_quantity: receiptsFromGRN
               ? String(periodReceipt(mat.id))
@@ -281,10 +292,19 @@ export default function StockClosingPage() {
     });
   };
 
+  // Entries scoped to the selected value tier (HP/MP/CM), independent of the
+  // free-form category grouping below. Applied before groups are built so
+  // that entering data / viewing stock closing can be limited to one tier.
+  const valueFilteredEntries = useMemo(() => {
+    return entries
+      .map((entry, idx) => ({ entry, idx }))
+      .filter(({ entry }) => valueCategoryFilter === "all" || entry.value_category === valueCategoryFilter);
+  }, [entries, valueCategoryFilter]);
+
   // Group entries by category, filtered by the search box. Indices always
   // point back into the full `entries` array so edits land on the right row.
   const search = searchTerm.trim().toLowerCase();
-  const groupedEntries = entries.reduce<Record<string, { entries: StockEntry[]; indices: number[] }>>((acc, entry, idx) => {
+  const groupedEntries = valueFilteredEntries.reduce<Record<string, { entries: StockEntry[]; indices: number[] }>>((acc, { entry, idx }) => {
     if (search && !`${entry.code} ${entry.name}`.toLowerCase().includes(search)) return acc;
     const cat = entry.category;
     if (!acc[cat]) acc[cat] = { entries: [], indices: [] };
@@ -349,14 +369,32 @@ export default function StockClosingPage() {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Stock Closing for {format(selectedDate, "MMMM d, yyyy")}</CardTitle>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search material by code or name…"
-                className="pl-9"
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search material by code or name…"
+                  className="pl-9"
+                />
+              </div>
+              <Select
+                value={valueCategoryFilter}
+                onValueChange={(value) => setValueCategoryFilter(value as MaterialValueCategory | "all")}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Value tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All value tiers</SelectItem>
+                  {MATERIAL_VALUE_CATEGORIES.map((tier) => (
+                    <SelectItem key={tier.value} value={tier.value}>
+                      {tier.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent>
@@ -388,7 +426,9 @@ export default function StockClosingPage() {
                 ) : categoryNames.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      No materials match “{searchTerm}”.
+                      {search
+                        ? `No materials match “${searchTerm}”.`
+                        : "No materials match the selected value tier."}
                     </TableCell>
                   </TableRow>
                 ) : (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } fro
 import { toast } from "sonner";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { buildMaterialUsageReportPdf } from "@/lib/materialUsageReportPdf";
+import { MATERIAL_VALUE_CATEGORIES, type MaterialValueCategory } from "@/lib/materialValueCategory";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -36,6 +37,7 @@ export default function ConsumptionUsageReportPage() {
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectedValueCategory, setSelectedValueCategory] = useState<MaterialValueCategory | "all">("all");
 
   // Fetch all active raw materials for dropdown
   const { data: materials } = useQuery({
@@ -43,13 +45,32 @@ export default function ConsumptionUsageReportPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_raw_materials")
-        .select("id, code, name, unit")
+        .select("id, code, name, unit, value_category")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Materials filtered by the selected HP/MP/CM value tier (the "All value tiers"
+  // option keeps the full list). Drives the material dropdown, so picking a tier
+  // scopes the whole report to materials in that tier.
+  const filteredMaterials = useMemo(() => {
+    if (!materials) return materials;
+    if (selectedValueCategory === "all") return materials;
+    return materials.filter((m) => m.value_category === selectedValueCategory);
+  }, [materials, selectedValueCategory]);
+
+  // If the selected material falls outside the newly chosen value tier, clear the
+  // selection so the report doesn't keep showing a material outside the filter.
+  useEffect(() => {
+    if (selectedValueCategory === "all" || !selectedMaterialId || !materials) return;
+    const current = materials.find((m) => m.id === selectedMaterialId);
+    if (current && current.value_category !== selectedValueCategory) {
+      setSelectedMaterialId("");
+    }
+  }, [selectedValueCategory, selectedMaterialId, materials]);
 
   // Date range based on view mode
   const dateRange = useMemo(() => {
@@ -569,13 +590,30 @@ export default function ConsumptionUsageReportPage() {
                 <SearchableSelect
                   value={selectedMaterialId}
                   onValueChange={setSelectedMaterialId}
-                  options={(materials || []).map((m) => ({
+                  options={(filteredMaterials || []).map((m) => ({
                     value: m.id,
                     label: `${m.code} — ${m.name}`,
                   }))}
                   placeholder="Search a raw material…"
                   emptyText="No materials match."
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Value Tier</label>
+                <Select
+                  value={selectedValueCategory}
+                  onValueChange={(v: MaterialValueCategory | "all") => setSelectedValueCategory(v)}
+                >
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All value tiers</SelectItem>
+                    {MATERIAL_VALUE_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">View</label>
