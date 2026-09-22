@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1552,7 +1552,9 @@ export type Database = {
           threshold: number | null
           unit: string | null
           updated_at: string | null
-          value_category: Database["public"]["Enums"]["raw_material_value_category"] | null
+          value_category:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
         }
         Insert: {
           category?: string | null
@@ -1569,7 +1571,9 @@ export type Database = {
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
-          value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
+          value_category?:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
         }
         Update: {
           category?: string | null
@@ -1586,7 +1590,9 @@ export type Database = {
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
-          value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
+          value_category?:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
         }
         Relationships: [
           {
@@ -5739,6 +5745,111 @@ export type Database = {
           },
         ]
       }
+      helpdesk_ticket_comments: {
+        Row: {
+          comment_text: string
+          created_at: string
+          created_by: string
+          id: string
+          ticket_id: string
+        }
+        Insert: {
+          comment_text: string
+          created_at?: string
+          created_by: string
+          id?: string
+          ticket_id: string
+        }
+        Update: {
+          comment_text?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "helpdesk_ticket_comments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "helpdesk_ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "helpdesk_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      helpdesk_tickets: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          page_or_module: string | null
+          priority: Database["public"]["Enums"]["priority_level"]
+          requested_by: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          status: string
+          ticket_number: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          description: string
+          id?: string
+          page_or_module?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          requested_by: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          status?: string
+          ticket_number: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          page_or_module?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          requested_by?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          status?: string
+          ticket_number?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "helpdesk_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "helpdesk_tickets_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hourly_loss_reason_processes: {
         Row: {
           created_at: string
@@ -6461,7 +6572,9 @@ export type Database = {
           min_stock: number | null
           name: string
           raw_material_category_id: string | null
-          raw_material_value_category: Database["public"]["Enums"]["raw_material_value_category"] | null
+          raw_material_value_category:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
           reorder_level: number | null
           unit_price: number | null
           uom_id: string | null
@@ -6480,7 +6593,9 @@ export type Database = {
           min_stock?: number | null
           name: string
           raw_material_category_id?: string | null
-          raw_material_value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
+          raw_material_value_category?:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
@@ -6499,7 +6614,9 @@ export type Database = {
           min_stock?: number | null
           name?: string
           raw_material_category_id?: string | null
-          raw_material_value_category?: Database["public"]["Enums"]["raw_material_value_category"] | null
+          raw_material_value_category?:
+            | Database["public"]["Enums"]["raw_material_value_category"]
+            | null
           reorder_level?: number | null
           unit_price?: number | null
           uom_id?: string | null
@@ -8830,47 +8947,6 @@ export type Database = {
           },
         ]
       }
-      push_subscriptions: {
-        Row: {
-          auth: string
-          created_at: string
-          endpoint: string
-          id: string
-          last_seen_at: string
-          p256dh: string
-          user_agent: string | null
-          user_id: string
-        }
-        Insert: {
-          auth: string
-          created_at?: string
-          endpoint: string
-          id?: string
-          last_seen_at?: string
-          p256dh: string
-          user_agent?: string | null
-          user_id: string
-        }
-        Update: {
-          auth?: string
-          created_at?: string
-          endpoint?: string
-          id?: string
-          last_seen_at?: string
-          p256dh?: string
-          user_agent?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "push_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       online_customers: {
         Row: {
           city: string | null
@@ -10477,7 +10553,10 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          is_cpa_hold: boolean
           name: string
+          parent_planning_item_id: string | null
+          stock_status: string
           threshold_inventory: number | null
           unit: string | null
           updated_at: string | null
@@ -10490,7 +10569,10 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_cpa_hold?: boolean
           name: string
+          parent_planning_item_id?: string | null
+          stock_status?: string
           threshold_inventory?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -10503,7 +10585,10 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_cpa_hold?: boolean
           name?: string
+          parent_planning_item_id?: string | null
+          stock_status?: string
           threshold_inventory?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -10514,6 +10599,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_items_parent_planning_item_id_fkey"
+            columns: ["parent_planning_item_id"]
+            isOneToOne: false
+            referencedRelation: "planning_items"
             referencedColumns: ["id"]
           },
         ]
@@ -11649,6 +11741,9 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           category: Database["public"]["Enums"]["purchase_category"]
+          closed_short_at: string | null
+          closed_short_by: string | null
+          closed_short_reason: string | null
           created_at: string | null
           created_by: string | null
           expected_date: string | null
@@ -11668,6 +11763,9 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           category: Database["public"]["Enums"]["purchase_category"]
+          closed_short_at?: string | null
+          closed_short_by?: string | null
+          closed_short_reason?: string | null
           created_at?: string | null
           created_by?: string | null
           expected_date?: string | null
@@ -11687,6 +11785,9 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           category?: Database["public"]["Enums"]["purchase_category"]
+          closed_short_at?: string | null
+          closed_short_by?: string | null
+          closed_short_reason?: string | null
           created_at?: string | null
           created_by?: string | null
           expected_date?: string | null
@@ -11706,6 +11807,13 @@ export type Database = {
           {
             foreignKeyName: "purchase_orders_approved_by_fkey"
             columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_closed_short_by_fkey"
+            columns: ["closed_short_by"]
             isOneToOne: false
             referencedRelation: "app_users"
             referencedColumns: ["id"]
@@ -12088,6 +12196,47 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
             referencedColumns: ["id"]
           },
         ]
@@ -13013,6 +13162,395 @@ export type Database = {
           },
         ]
       }
+      qs_ball_score_params: {
+        Row: {
+          ball_score_id: string
+          id: string
+          parameter_id: string
+          parameter_name: string
+          score: number
+          weight: number
+        }
+        Insert: {
+          ball_score_id: string
+          id?: string
+          parameter_id: string
+          parameter_name: string
+          score: number
+          weight: number
+        }
+        Update: {
+          ball_score_id?: string
+          id?: string
+          parameter_id?: string
+          parameter_name?: string
+          score?: number
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_ball_score_params_ball_score_id_fkey"
+            columns: ["ball_score_id"]
+            isOneToOne: false
+            referencedRelation: "qs_ball_scores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_ball_score_params_parameter_id_fkey"
+            columns: ["parameter_id"]
+            isOneToOne: false
+            referencedRelation: "qs_parameters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_ball_scores: {
+        Row: {
+          created_at: string
+          entry_id: string
+          id: string
+          inspector_id: string
+          updated_at: string
+          weighted_score: number
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          id?: string
+          inspector_id: string
+          updated_at?: string
+          weighted_score: number
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          id?: string
+          inspector_id?: string
+          updated_at?: string
+          weighted_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_ball_scores_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "qs_score_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_ball_scores_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_parameters: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          scope: string
+          sort_order: number
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          scope: string
+          sort_order?: number
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          scope?: string
+          sort_order?: number
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
+      qs_process_score_params: {
+        Row: {
+          id: string
+          parameter_id: string
+          parameter_name: string
+          process_score_id: string
+          score: number
+          weight: number
+        }
+        Insert: {
+          id?: string
+          parameter_id: string
+          parameter_name: string
+          process_score_id: string
+          score: number
+          weight: number
+        }
+        Update: {
+          id?: string
+          parameter_id?: string
+          parameter_name?: string
+          process_score_id?: string
+          score?: number
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_process_score_params_parameter_id_fkey"
+            columns: ["parameter_id"]
+            isOneToOne: false
+            referencedRelation: "qs_parameters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_process_score_params_process_score_id_fkey"
+            columns: ["process_score_id"]
+            isOneToOne: false
+            referencedRelation: "qs_process_scores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_process_scores: {
+        Row: {
+          created_at: string
+          entry_id: string
+          id: string
+          inspector_id: string
+          mode: string
+          process_id: string | null
+          process_name: string | null
+          score: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          id?: string
+          inspector_id: string
+          mode: string
+          process_id?: string | null
+          process_name?: string | null
+          score: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          id?: string
+          inspector_id?: string
+          mode?: string
+          process_id?: string | null
+          process_name?: string | null
+          score?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_process_scores_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "qs_score_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_process_scores_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_process_scores_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "qs_processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_processes: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_processes_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_score_entries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string
+          entry_date: string
+          grade_id: string | null
+          id: string
+          product_id: string | null
+          remarks: string | null
+          shift: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          entry_date: string
+          grade_id?: string | null
+          id?: string
+          product_id?: string | null
+          remarks?: string | null
+          shift?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          entry_date?: string
+          grade_id?: string | null
+          id?: string
+          product_id?: string | null
+          remarks?: string | null
+          shift?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qs_score_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_score_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_score_entries_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qs_score_entries_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qs_selection_options: {
+        Row: {
+          created_at: string
+          id: string
+          list_type: string
+          ref_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_type: string
+          ref_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_type?: string
+          ref_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      qs_settings: {
+        Row: {
+          ball_inspector_count: number
+          ball_weight: number
+          disagreement_threshold: number
+          id: number
+          process_inspector_count: number
+          process_mode: string
+          process_weight: number
+          updated_at: string
+        }
+        Insert: {
+          ball_inspector_count?: number
+          ball_weight?: number
+          disagreement_threshold?: number
+          id?: number
+          process_inspector_count?: number
+          process_mode?: string
+          process_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          ball_inspector_count?: number
+          ball_weight?: number
+          disagreement_threshold?: number
+          id?: number
+          process_inspector_count?: number
+          process_mode?: string
+          process_weight?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       raw_material_qc_parameters: {
         Row: {
           created_at: string | null
@@ -13323,6 +13861,528 @@ export type Database = {
           },
         ]
       }
+      rw_ball_ledger: {
+        Row: {
+          balance_quantity: number
+          balance_value: number
+          created_at: string
+          defect_grade_id: string
+          department_id: string | null
+          entered_by: string | null
+          grade_id: string
+          id: string
+          location_id: string
+          quantity_in: number
+          quantity_out: number
+          reference_number: string | null
+          remarks: string | null
+          source_id: string | null
+          source_type: string
+          txn_date: string
+          unit: string
+          unit_cost: number
+          value_in: number
+          value_out: number
+        }
+        Insert: {
+          balance_quantity?: number
+          balance_value?: number
+          created_at?: string
+          defect_grade_id: string
+          department_id?: string | null
+          entered_by?: string | null
+          grade_id: string
+          id?: string
+          location_id: string
+          quantity_in?: number
+          quantity_out?: number
+          reference_number?: string | null
+          remarks?: string | null
+          source_id?: string | null
+          source_type: string
+          txn_date?: string
+          unit?: string
+          unit_cost?: number
+          value_in?: number
+          value_out?: number
+        }
+        Update: {
+          balance_quantity?: number
+          balance_value?: number
+          created_at?: string
+          defect_grade_id?: string
+          department_id?: string | null
+          entered_by?: string | null
+          grade_id?: string
+          id?: string
+          location_id?: string
+          quantity_in?: number
+          quantity_out?: number
+          reference_number?: string | null
+          remarks?: string | null
+          source_id?: string | null
+          source_type?: string
+          txn_date?: string
+          unit?: string
+          unit_cost?: number
+          value_in?: number
+          value_out?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_ball_ledger_defect_grade_id_fkey"
+            columns: ["defect_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_ledger_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_ledger_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_ledger_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_ledger_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "rw_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_ball_stock: {
+        Row: {
+          created_at: string
+          defect_grade_id: string
+          first_movement_date: string | null
+          grade_id: string
+          id: string
+          last_counted_date: string | null
+          last_movement_date: string | null
+          location_id: string
+          quantity: number
+          stock_value: number
+          unit: string
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          defect_grade_id: string
+          first_movement_date?: string | null
+          grade_id: string
+          id?: string
+          last_counted_date?: string | null
+          last_movement_date?: string | null
+          location_id: string
+          quantity?: number
+          stock_value?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          defect_grade_id?: string
+          first_movement_date?: string | null
+          grade_id?: string
+          id?: string
+          last_counted_date?: string | null
+          last_movement_date?: string | null
+          location_id?: string
+          quantity?: number
+          stock_value?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_ball_stock_defect_grade_id_fkey"
+            columns: ["defect_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_stock_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_ball_stock_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "rw_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_checker_entries: {
+        Row: {
+          checked_by: string | null
+          created_at: string
+          defect_grade_id: string
+          department_id: string
+          entered_at: string
+          entered_by: string | null
+          entry_date: string
+          grade_id: string
+          id: string
+          location_id: string | null
+          quantity: number
+          reason_id: string | null
+          remarks: string | null
+          shift: string
+          sub_department_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          checked_by?: string | null
+          created_at?: string
+          defect_grade_id: string
+          department_id: string
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          grade_id: string
+          id?: string
+          location_id?: string | null
+          quantity?: number
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string
+          sub_department_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          checked_by?: string | null
+          created_at?: string
+          defect_grade_id?: string
+          department_id?: string
+          entered_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          grade_id?: string
+          id?: string
+          location_id?: string | null
+          quantity?: number
+          reason_id?: string | null
+          remarks?: string | null
+          shift?: string
+          sub_department_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_checker_entries_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_defect_grade_id_fkey"
+            columns: ["defect_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "rw_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_reason_id_fkey"
+            columns: ["reason_id"]
+            isOneToOne: false
+            referencedRelation: "rw_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_checker_entries_sub_department_id_fkey"
+            columns: ["sub_department_id"]
+            isOneToOne: false
+            referencedRelation: "production_sub_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_checker_entry_intervals: {
+        Row: {
+          created_at: string
+          entry_id: string
+          id: string
+          interval_no: number
+          quantity: number
+          remarks: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          id?: string
+          interval_no: number
+          quantity?: number
+          remarks?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          id?: string
+          interval_no?: number
+          quantity?: number
+          remarks?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_checker_entry_intervals_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "rw_checker_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_defect_grades: {
+        Row: {
+          code: string
+          covered_output_grade_id: string | null
+          created_at: string
+          defect_type: string
+          detected_stage: string
+          id: string
+          is_active: boolean
+          is_sellable: boolean
+          name: string
+          name_urdu: string | null
+          onward_route: string
+          output_grade_id: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          covered_output_grade_id?: string | null
+          created_at?: string
+          defect_type: string
+          detected_stage?: string
+          id?: string
+          is_active?: boolean
+          is_sellable?: boolean
+          name: string
+          name_urdu?: string | null
+          onward_route?: string
+          output_grade_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          covered_output_grade_id?: string | null
+          created_at?: string
+          defect_type?: string
+          detected_stage?: string
+          id?: string
+          is_active?: boolean
+          is_sellable?: boolean
+          name?: string
+          name_urdu?: string | null
+          onward_route?: string
+          output_grade_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_defect_grades_covered_output_grade_id_fkey"
+            columns: ["covered_output_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_defect_grades_output_grade_id_fkey"
+            columns: ["output_grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_defect_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          defect_grade_id: string
+          grade_id: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          sale_rate: number
+          standard_cost: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          defect_grade_id: string
+          grade_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          sale_rate?: number
+          standard_cost?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          defect_grade_id?: string
+          grade_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          sale_rate?: number
+          standard_cost?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_defect_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_defect_rates_defect_grade_id_fkey"
+            columns: ["defect_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_defect_rates_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_defect_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_department_defect_grades: {
+        Row: {
+          created_at: string
+          defect_grade_id: string
+          department_id: string
+          id: string
+          is_active: boolean
+          location_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          defect_grade_id: string
+          department_id: string
+          id?: string
+          is_active?: boolean
+          location_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          defect_grade_id?: string
+          department_id?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_department_defect_grades_defect_grade_id_fkey"
+            columns: ["defect_grade_id"]
+            isOneToOne: false
+            referencedRelation: "rw_defect_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_department_defect_grades_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_department_defect_grades_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "rw_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rw_dispositions: {
         Row: {
           created_at: string
@@ -13452,6 +14512,60 @@ export type Database = {
             columns: ["reason_id"]
             isOneToOne: false
             referencedRelation: "rw_reasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rw_locations: {
+        Row: {
+          code: string
+          created_at: string
+          department_id: string | null
+          id: string
+          inventory_location_id: string | null
+          is_active: boolean
+          location_type: string
+          name: string
+          name_urdu: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          department_id?: string | null
+          id?: string
+          inventory_location_id?: string | null
+          is_active?: boolean
+          location_type?: string
+          name: string
+          name_urdu?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          department_id?: string | null
+          id?: string
+          inventory_location_id?: string | null
+          is_active?: boolean
+          location_type?: string
+          name?: string
+          name_urdu?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_locations_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rw_locations_inventory_location_id_fkey"
+            columns: ["inventory_location_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_locations"
             referencedColumns: ["id"]
           },
         ]
@@ -15995,8 +17109,132 @@ export type Database = {
           },
         ]
       }
+      v_rw_defect_vs_production: {
+        Row: {
+          defect_pct: number | null
+          defect_qty: number | null
+          department_id: string | null
+          department_name: string | null
+          entry_date: string | null
+          grade_code: string | null
+          grade_id: string | null
+          leak_qty: number | null
+          produced_qty: number | null
+          reject_qty: number | null
+          shift: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rw_entry_coverage: {
+        Row: {
+          defect_qty: number | null
+          department_id: string | null
+          department_name: string | null
+          entry_count: number | null
+          entry_date: string | null
+          is_missing: boolean | null
+          produced_qty: number | null
+          shift: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rw_leaker_wip_reconciliation: {
+        Row: {
+          bin_check: number | null
+          bin_quantity: number | null
+          cheap_balls_booked: number | null
+          cores_counted: number | null
+          cover_out_posted: number | null
+          department_id: string | null
+          department_name: string | null
+          unreleased_qty: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rw_department_defect_grades_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rw_output_reconciliation: {
+        Row: {
+          booked_qty: number | null
+          booking_started: boolean | null
+          counted_qty: number | null
+          department_id: string | null
+          department_name: string | null
+          entry_date: string | null
+          is_mismatch: boolean | null
+          needs_covering: boolean | null
+          output_grade_id: string | null
+          output_grade_name: string | null
+          shift: string | null
+          variance_qty: number | null
+        }
+        Relationships: []
+      }
+      v_rw_posted_entry_conflicts: {
+        Row: {
+          counted_rejected: number | null
+          department_id: string | null
+          department_name: string | null
+          entry_date: string | null
+          grade_code: string | null
+          grade_id: string | null
+          posted_rejected: number | null
+          posted_rows: number | null
+          shift: string | null
+          variance_qty: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_entries_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "production_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      accounting_inventory_snapshot: {
+        Args: { p_as_of: string }
+        Returns: Json
+      }
       accounting_periodic_cogs_details: {
         Args: { p_from: string; p_to: string }
         Returns: Json
@@ -16023,8 +17261,10 @@ export type Database = {
           unpriced_rm_count: number
         }[]
       }
+      app_user_id: { Args: never; Returns: string }
       backup_list_tables: { Args: never; Returns: string[] }
       backup_schema_sql: { Args: never; Returns: string }
+      can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       consumption_grn_cutover: { Args: never; Returns: string }
       consumption_grn_receipt_qty: {
         Args: { p_date: string; p_material: string }
@@ -16053,6 +17293,17 @@ export type Database = {
         }
         Returns: string
       }
+      exec_fixed_assets_merge: {
+        Args: never
+        Returns: {
+          assets_inserted: number
+          categories_inserted: number
+          items_inserted: number
+          recon_inserted: number
+          status: string
+          valuations_inserted: number
+        }[]
+      }
       floor_inventory_apply_movement: {
         Args: { p_movement_id: string }
         Returns: undefined
@@ -16070,6 +17321,7 @@ export type Database = {
       }
       generate_breakdown_number: { Args: never; Returns: string }
       generate_dev_task_number: { Args: never; Returns: string }
+      generate_helpdesk_ticket_number: { Args: never; Returns: string }
       generate_job_code: { Args: never; Returns: string }
       generate_kpi_code: { Args: never; Returns: string }
       generate_schedule_number: { Args: never; Returns: string }
@@ -16091,30 +17343,30 @@ export type Database = {
       }
       notify_role: {
         Args: {
-          p_roles: Database["public"]["Enums"]["app_role"][]
-          p_title: string
-          p_message?: string
-          p_type?: string
-          p_module?: string
-          p_link?: string
-          p_reference_type?: string
-          p_reference_id?: string
           p_created_by?: string
           p_exclude_user?: string
+          p_link?: string
+          p_message?: string
+          p_module?: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_roles: Database["public"]["Enums"]["app_role"][]
+          p_title: string
+          p_type?: string
         }
         Returns: number
       }
       notify_user: {
         Args: {
-          p_recipient_id: string
-          p_title: string
-          p_message?: string
-          p_type?: string
-          p_module?: string
-          p_link?: string
-          p_reference_type?: string
-          p_reference_id?: string
           p_created_by?: string
+          p_link?: string
+          p_message?: string
+          p_module?: string
+          p_recipient_id: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_title: string
+          p_type?: string
         }
         Returns: string
       }
@@ -16146,6 +17398,24 @@ export type Database = {
           returned_qty: number
         }[]
       }
+      qs_refresh_entry_status: {
+        Args: { p_entry_id: string }
+        Returns: undefined
+      }
+      qs_submit_ball_score: {
+        Args: { p_entry_id: string; p_inspector_id: string; p_scores: Json }
+        Returns: number
+      }
+      qs_submit_process_score: {
+        Args: {
+          p_entry_id: string
+          p_holistic?: number
+          p_inspector_id: string
+          p_process_id?: string
+          p_scores?: Json
+        }
+        Returns: number
+      }
       recent_backup_logs: {
         Args: { p_limit?: number }
         Returns: {
@@ -16158,12 +17428,43 @@ export type Database = {
           total_bytes: number
         }[]
       }
+      request_header: { Args: { p_name: string }; Returns: string }
       reset_user_password: {
         Args: { p_new_password: string; p_user_uuid: string }
         Returns: boolean
       }
       resync_closing_receipt: {
         Args: { p_date: string; p_material: string }
+        Returns: undefined
+      }
+      rw_apportion_production_rejected: {
+        Args: {
+          p_date: string
+          p_department: string
+          p_grade: string
+          p_shift: string
+          p_sub_department: string
+        }
+        Returns: undefined
+      }
+      rw_ball_cutover: { Args: never; Returns: string }
+      rw_defect_qty_for_production: {
+        Args: {
+          p_date: string
+          p_department: string
+          p_grade: string
+          p_shift: string
+          p_sub_department: string
+        }
+        Returns: number
+      }
+      rw_defect_standard_cost: {
+        Args: { p_ball_grade: string; p_defect: string }
+        Returns: number
+      }
+      rw_is_defect_output_grade: { Args: { p_grade: string }; Returns: boolean }
+      rw_rebuild_ball_series: {
+        Args: { p_ball_grade: string; p_defect: string; p_location: string }
         Returns: undefined
       }
       verify_user_password: {
@@ -16204,9 +17505,6 @@ export type Database = {
         | "order_management"
         | "floor_incharge"
         | "private_label_distributor"
-        | "private_label_manager"
-        | "private_label_officer"
-        | "private_label_viewer"
         | "pettycash_handler"
         | "store_operator"
         | "project_manager"
@@ -16285,7 +17583,13 @@ export type Database = {
         | "machine_monitor_manager"
         | "machine_monitor_officer"
         | "machine_monitor_viewer"
+        | "quality_score_manager"
+        | "quality_score_officer"
+        | "quality_score_viewer"
         | "qa_inspector"
+        | "private_label_manager"
+        | "private_label_officer"
+        | "private_label_viewer"
         | "helpdesk_manager"
       asset_category:
         | "office_assets"
@@ -16346,12 +17650,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16375,11 +17679,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16400,11 +17704,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16425,11 +17729,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16442,11 +17746,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16481,9 +17785,6 @@ export const Constants = {
         "order_management",
         "floor_incharge",
         "private_label_distributor",
-        "private_label_manager",
-        "private_label_officer",
-        "private_label_viewer",
         "pettycash_handler",
         "store_operator",
         "project_manager",
@@ -16508,7 +17809,67 @@ export const Constants = {
         "labour_productivity_approver",
         "labour_productivity_poster",
         "labour_productivity_viewer",
+        "export_manager",
+        "export_officer",
+        "export_viewer",
+        "master_data_manager",
+        "master_data_officer",
+        "master_data_viewer",
+        "hr_manager",
+        "hr_officer",
+        "hr_viewer",
+        "wip_manager",
+        "wip_officer",
+        "wip_viewer",
+        "rejections_manager",
+        "rejections_officer",
+        "rejections_viewer",
+        "performance_manager",
+        "performance_officer",
+        "performance_viewer",
+        "floor_inventory_manager",
+        "floor_inventory_officer",
+        "floor_inventory_viewer",
+        "fixed_assets_manager",
+        "fixed_assets_officer",
+        "fixed_assets_viewer",
+        "five_s_manager",
+        "five_s_officer",
+        "five_s_viewer",
+        "hourly_production_manager",
+        "hourly_production_officer",
+        "hourly_production_viewer",
+        "rd_manager",
+        "rd_officer",
+        "rd_viewer",
+        "crm_manager",
+        "crm_officer",
+        "crm_viewer",
+        "marketing_manager",
+        "marketing_officer",
+        "marketing_viewer",
+        "projects_officer",
+        "projects_viewer",
+        "qa_officer",
+        "qa_viewer",
+        "maintenance_officer",
+        "maintenance_viewer",
+        "expenses_manager",
+        "expenses_officer",
+        "expenses_viewer",
+        "material_consumption_manager",
+        "material_consumption_officer",
+        "material_consumption_viewer",
+        "machine_monitor_manager",
+        "machine_monitor_officer",
+        "machine_monitor_viewer",
+        "quality_score_manager",
+        "quality_score_officer",
+        "quality_score_viewer",
         "qa_inspector",
+        "private_label_manager",
+        "private_label_officer",
+        "private_label_viewer",
         "helpdesk_manager",
       ],
       asset_category: [

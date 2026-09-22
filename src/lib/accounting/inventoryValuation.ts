@@ -19,6 +19,7 @@ export interface FGItemMaster {
   threshold_inventory: number | null;
   costing_value: number | null;
   is_active: boolean | null;
+  is_cpa_hold: boolean | null;
 }
 
 export interface DepartmentMaster {
@@ -49,7 +50,7 @@ export interface ClosingWindowRow {
 
 export async function fetchFGMasters(): Promise<{ items: FGItemMaster[]; departments: DepartmentMaster[] }> {
   const [itemsRes, deptsRes] = await Promise.all([
-    sb.from("planning_items").select("id, code, name, unit, department_id, threshold_inventory, costing_value, is_active"),
+    sb.from("planning_items").select("id, code, name, unit, department_id, threshold_inventory, costing_value, is_active, is_cpa_hold"),
     sb.from("production_departments").select("id, code, name, sequence_order"),
   ]);
   if (itemsRes.error) throw itemsRes.error;
