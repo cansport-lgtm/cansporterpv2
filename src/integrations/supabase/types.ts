@@ -10553,9 +10553,9 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
-          is_cpa_hold: boolean
           name: string
           parent_planning_item_id: string | null
+          stock_category: string
           stock_status: string
           threshold_inventory: number | null
           unit: string | null
@@ -10569,9 +10569,9 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
-          is_cpa_hold?: boolean
           name: string
           parent_planning_item_id?: string | null
+          stock_category?: string
           stock_status?: string
           threshold_inventory?: number | null
           unit?: string | null
@@ -10585,9 +10585,9 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
-          is_cpa_hold?: boolean
           name?: string
           parent_planning_item_id?: string | null
+          stock_category?: string
           stock_status?: string
           threshold_inventory?: number | null
           unit?: string | null
