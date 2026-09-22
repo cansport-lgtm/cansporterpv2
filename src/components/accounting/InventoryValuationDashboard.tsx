@@ -90,11 +90,22 @@ function StatusBadges({ r }: { r: ValRow }) {
   return <div className="flex flex-wrap gap-1">{badges}</div>;
 }
 
-export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" }) {
+interface InventoryValuationDashboardProps {
+  variant: "fg" | "rm";
+  /**
+   * Production-planning view: keep only held stock (CPA / leak / rejection)
+   * and hide every standard, sellable item. FG only.
+   */
+  heldOnly?: boolean;
+}
+
+export function InventoryValuationDashboard({ variant, heldOnly = false }: InventoryValuationDashboardProps) {
   const isFG = variant === "fg";
+  const held = isFG && heldOnly;
   const [asOf, setAsOf] = useState(format(new Date(), "yyyy-MM-dd"));
   const [search, setSearch] = useState("");
-  const [includeWip, setIncludeWip] = useState(false);
+  // Held stock also sits in WIP departments, so show every department by default.
+  const [includeWip, setIncludeWip] = useState(held);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const windowFrom = format(subDays(parseISO(asOf), WINDOW_DAYS - 1), "yyyy-MM-dd");
@@ -119,6 +130,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
   });
   const { data: gl } = useQuery({
     queryKey: ["acc-inv-gl", variant, asOf],
+    enabled: !held,
     queryFn: () => fetchInventoryGLBalance(
       isFG ? ["finished_goods_inventory", "wip_inventory"] : ["raw_material_inventory"],
       asOf,
@@ -137,7 +149,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
       ? (isFG ? snapshot.fg : snapshot.rm)
       : latestPerItem(windowRows);
 
-    const rows: ValRow[] = [];
+    const allRows: ValRow[] = [];
     let intermediatesExcluded = 0;
 
     if (isFG && fgMasters) {
@@ -155,7 +167,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         if (s.qty === 0 && !below) return;
         const rate = Number(item.costing_value) || 0;
         const dept = deptById.get(item.department_id);
-        rows.push({
+        allRows.push({
           id: item.id, code: item.code, name: item.name, unit: item.unit || "",
           groupKey: item.department_id, groupName: dept?.name || "Unassigned",
           isWip: !isPacking(item.department_id),
@@ -179,7 +191,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         const below = threshold > 0 && s.qty < threshold && (item.is_active ?? true);
         if (s.qty === 0 && !below) return;
         const rate = Number(item.cost_value) || 0;
-        rows.push({
+        allRows.push({
           id: item.id, code: item.code, name: item.name, unit: item.unit || "",
           groupKey: item.category || "Uncategorized", groupName: item.category || "Uncategorized",
           isWip: false,
@@ -190,6 +202,9 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         });
       });
     }
+
+    // Production planning only cares about CPA / leak / rejection stock.
+    const rows = held ? allRows.filter((r) => r.stockCategory !== "standard") : allRows;
 
     // Grouping
     const groupMap = new Map<string, Group>();
@@ -235,6 +250,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
       if (fgItemById && fgDeptById) {
         const item = fgItemById.get(itemId);
         if (!item) return;
+        if (held && (item.stock_category ?? "standard") === "standard") return;
         rate = Number(item.costing_value) || 0;
         const dept = fgDeptById.get(item.department_id);
         isWip = !(dept && (dept.code === "PACKING" || /pack/i.test(dept.name)));
@@ -261,14 +277,17 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     }));
 
     const fgOnly = groups.filter((g) => !g.isWip);
-    const fgSellable = fgOnly.flatMap((g) => g.rows.filter((r) => r.stockCategory === "standard"));
+    // Held view values every held row across all departments; the standard view
+    // values only sellable finished goods out of Packing.
+    const headlineRows = held ? rows : fgOnly.flatMap((g) => g.rows.filter((r) => r.stockCategory === "standard"));
+    const statRows = held ? rows : fgOnly.flatMap((g) => g.rows);
     const headline = {
-      value: fgSellable.reduce((s, r) => s + r.value, 0),
-      qty: fgSellable.reduce((s, r) => s + r.qty, 0),
-      items: fgSellable.filter((r) => r.qty !== 0).length,
-      below: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.below).length, 0),
-      unpriced: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.unpriced).length, 0),
-      stale: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.staleDays > STALE_AFTER_DAYS).length, 0),
+      value: headlineRows.reduce((s, r) => s + r.value, 0),
+      qty: headlineRows.reduce((s, r) => s + r.qty, 0),
+      items: headlineRows.filter((r) => r.qty !== 0).length,
+      below: statRows.filter((r) => r.below).length,
+      unpriced: statRows.filter((r) => r.unpriced).length,
+      stale: statRows.filter((r) => r.staleDays > STALE_AFTER_DAYS).length,
     };
     const allTotal = groups.reduce((s, g) => s + g.value, 0);
 
@@ -285,7 +304,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     });
 
     return { rows, groups, trend, headline, allTotal, intermediatesExcluded, heldSummaries };
-  }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, asOf]);
+  }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, held, asOf]);
 
   const scopeGroups = useMemo(() => {
     if (!computed) return [];
@@ -334,22 +353,25 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${isFG ? "fg" : "rm"}-inventory-${asOf}.csv`;
+    a.download = `${held ? "held-stock" : isFG ? "fg" : "rm"}-inventory-${asOf}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
-  const title = isFG ? "Finished Goods Inventory" : "Raw Material Inventory";
+  const title = held ? "Held Stock Inventory" : isFG ? "Finished Goods Inventory" : "Raw Material Inventory";
   const groupLabel = isFG ? "department" : "category";
+  const heldLabels = HELD_STOCK_CATEGORIES.map((c) => c.shortLabel).join(" / ");
 
   return (
     <>
       <PageHeader
         title={title}
-        description={isFG
+        description={held
+          ? `${heldLabels} stock only — latest daily stock closing × item costing value. Standard sellable stock is not shown.`
+          : isFG
           ? "Current finished-goods stock with valuation — latest daily stock closing × item costing value"
           : "Current raw-material stock with valuation — latest consumption closing × material cost value (intermediates excluded, already valued in WIP)"}
-        icon={isFG ? Package : FlaskConical}
+        icon={held ? ShieldAlert : isFG ? Package : FlaskConical}
       >
         <Button variant="outline" size="sm" onClick={exportCsv} disabled={!computed}>
           <Download className="h-4 w-4 mr-1" />Export CSV
@@ -358,12 +380,14 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <MetricCard
-          title={isFG ? "Finished Goods Value" : "Raw Material Value"}
+          title={held ? "Held Stock Value" : isFG ? "Finished Goods Value" : "Raw Material Value"}
           value={kpi ? fmtRs(kpi.value) : "—"}
           icon={Banknote}
-          description={isFG ? `Packing dept · as of ${asOf}` : `as of ${asOf} · intermediates excluded`}
+          description={held
+            ? `all departments · as of ${asOf}`
+            : isFG ? `Packing dept · as of ${asOf}` : `as of ${asOf} · intermediates excluded`}
         />
-        {isFG && (
+        {isFG && !held && (
           <MetricCard
             title="FG + WIP Value"
             value={computed ? fmtRs(computed.allTotal) : "—"}
@@ -372,7 +396,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           />
         )}
         <MetricCard
-          title={isFG ? "Quantity On Hand" : "Active Materials"}
+          title={held ? "Held Quantity" : isFG ? "Quantity On Hand" : "Active Materials"}
           value={kpi ? (isFG ? kpi.qty.toLocaleString() : kpi.items.toLocaleString()) : "—"}
           icon={Boxes}
           description={kpi ? (isFG ? `${kpi.items} items with stock` : `across ${computed?.groups.length ?? 0} categories`) : undefined}
@@ -401,7 +425,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
               icon={HELD_ICONS[c.value]}
               iconColor={s && s.value > 0 ? c.iconColor : undefined}
               description={s
-                ? `${s.qty.toLocaleString()} qty · ${s.items} item${s.items === 1 ? "" : "s"} · excluded from FG value`
+                ? `${s.qty.toLocaleString()} qty · ${s.items} item${s.items === 1 ? "" : "s"}${held ? "" : " · excluded from FG value"}`
                 : undefined}
             />
           );
@@ -410,6 +434,21 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
 
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          {held ? (
+            <>
+              <span className="font-semibold text-muted-foreground">Held stock summary</span>
+              <span className="text-muted-foreground">
+                Total held value <strong className="text-foreground">{computed ? fmtRs(glComputed) : "—"}</strong>
+              </span>
+              {computed?.heldSummaries.map((h) => (
+                <span key={h.category} className="text-muted-foreground">
+                  {stockCategoryMeta(h.category).shortLabel}{" "}
+                  <strong className="text-foreground">{h.qty.toLocaleString()}</strong> qty · {fmtRs(h.value)}
+                </span>
+              ))}
+            </>
+          ) : (
+          <>
           <span className="font-semibold text-muted-foreground">GL reconciliation</span>
           <span className="text-muted-foreground">
             Computed {isFG ? "FG + WIP" : "RM"} value <strong className="text-foreground">{computed ? fmtRs(glComputed) : "—"}</strong>
@@ -429,6 +468,8 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
             </>
           ) : (
             <span className="text-xs text-muted-foreground">No default inventory account mapped (see Default Accounts)</span>
+          )}
+          </>
           )}
           {kpi && kpi.stale > 0 && (
             <Badge variant="outline" className="text-muted-foreground">{kpi.stale} item{kpi.stale > 1 ? "s" : ""} with stale closing</Badge>
@@ -604,13 +645,17 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
                     );
                   })}
                   {scopeGroups.length === 0 && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No stock closings found on or before {asOf}.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      {held
+                        ? `No ${heldLabels} stock found on or before ${asOf}.`
+                        : `No stock closings found on or before ${asOf}.`}
+                    </TableCell></TableRow>
                   )}
                   {scopeGroups.length > 0 && (
                     <TableRow className="bg-muted/40 border-t-2">
                       <TableCell />
                       <TableCell colSpan={4} className="text-xs py-2 font-bold">
-                        Total{isFG && includeWip ? " (FG + WIP)" : ""}
+                        Total{held ? " (held stock)" : isFG && includeWip ? " (FG + WIP)" : ""}
                       </TableCell>
                       <TableCell className="text-xs py-2 text-right font-bold">{scopeQty.toLocaleString()}</TableCell>
                       <TableCell />
