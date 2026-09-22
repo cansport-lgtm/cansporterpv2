@@ -40,9 +40,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Package, ShieldAlert } from "lucide-react";
+import { Plus, Pencil, Trash2, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { STOCK_CATEGORIES, stockCategoryMeta, type StockCategory } from "@/lib/stockCategories";
 
 const UNIT_OPTIONS = [
   { value: "sheets", label: "Sheets" },
@@ -61,7 +62,7 @@ interface PlanningItem {
   threshold_inventory: number;
   unit: string;
   costing_value: number;
-  is_cpa_hold: boolean;
+  stock_category: StockCategory;
 }
 
 export default function PlanningItemMasterPage() {
@@ -80,7 +81,7 @@ export default function PlanningItemMasterPage() {
     threshold_inventory: 0,
     unit: "dzns",
     costing_value: 0,
-    is_cpa_hold: false,
+    stock_category: "standard",
   });
 
   // Fetch departments
@@ -128,7 +129,7 @@ export default function PlanningItemMasterPage() {
             threshold_inventory: item.threshold_inventory || 0,
             unit: item.unit || "dzns",
             costing_value: item.costing_value || 0,
-            is_cpa_hold: item.is_cpa_hold,
+            stock_category: item.stock_category,
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingItem.id);
@@ -143,7 +144,7 @@ export default function PlanningItemMasterPage() {
           threshold_inventory: item.threshold_inventory || 0,
           unit: item.unit || "dzns",
           costing_value: item.costing_value || 0,
-          is_cpa_hold: item.is_cpa_hold,
+          stock_category: item.stock_category,
         });
         if (error) throw error;
       }
@@ -184,7 +185,7 @@ export default function PlanningItemMasterPage() {
       threshold_inventory: 0,
       unit: "dzns",
       costing_value: 0,
-      is_cpa_hold: false,
+      stock_category: "standard",
     });
     setIsDialogOpen(true);
   };
@@ -200,7 +201,7 @@ export default function PlanningItemMasterPage() {
       threshold_inventory: item.threshold_inventory || 0,
       unit: item.unit || "dzns",
       costing_value: item.costing_value || 0,
-      is_cpa_hold: item.is_cpa_hold || false,
+      stock_category: item.stock_category || "standard",
     });
     setIsDialogOpen(true);
   };
@@ -311,12 +312,12 @@ export default function PlanningItemMasterPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {item.is_cpa_hold ? (
-                          <Badge variant="outline" className="text-purple-600 border-purple-300 gap-1">
-                            <ShieldAlert className="h-3 w-3" />CPA Hold
+                        {item.stock_category && item.stock_category !== "standard" ? (
+                          <Badge variant="outline" className={stockCategoryMeta(item.stock_category).badgeClass}>
+                            {stockCategoryMeta(item.stock_category).shortLabel}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground text-xs">Normal</span>
+                          <span className="text-muted-foreground text-xs">Standard</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -450,15 +451,26 @@ export default function PlanningItemMasterPage() {
                 <Label>Active</Label>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={formData.is_cpa_hold}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_cpa_hold: v })}
-                />
-                <Label className="flex items-center gap-1">
-                  <ShieldAlert className="h-3.5 w-3.5 text-purple-600" />
-                  CPA / Quality Hold stock
-                </Label>
+              <div className="space-y-2">
+                <Label>Stock Category</Label>
+                <Select
+                  value={formData.stock_category}
+                  onValueChange={(v) => setFormData({ ...formData, stock_category: v as StockCategory })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STOCK_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Non-standard categories are valued separately on the Finished Goods Inventory report.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2">

@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Package, FlaskConical, Banknote, Boxes, AlertTriangle, ChevronRight, ChevronDown,
-  Download, Search, Scale, Layers, ShieldAlert,
+  Download, Search, Scale, Layers, ShieldAlert, Droplets, XCircle,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -23,6 +23,7 @@ import {
   fetchInventoryGLBalance, latestPerItem,
   type ClosingSnapshotRow,
 } from "@/lib/accounting/inventoryValuation";
+import { HELD_STOCK_CATEGORIES, stockCategoryMeta, type StockCategory } from "@/lib/stockCategories";
 
 const fmtRs = (n: number) => `Rs. ${Math.round(n).toLocaleString()}`;
 const fmtRsShort = (n: number) => {
@@ -30,6 +31,13 @@ const fmtRsShort = (n: number) => {
   if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (a >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return `${Math.round(n)}`;
+};
+
+const HELD_ICONS: Record<StockCategory, typeof ShieldAlert> = {
+  standard: Package,
+  cpa: ShieldAlert,
+  leak: Droplets,
+  rejection: XCircle,
 };
 
 const WIP_COLOR = "#f59e0b";
@@ -53,7 +61,7 @@ interface ValRow {
   below: boolean;
   unpriced: boolean;
   staleDays: number;
-  isCpaHold: boolean;
+  stockCategory: StockCategory;
 }
 
 interface Group {
@@ -73,8 +81,10 @@ function StatusBadges({ r }: { r: ValRow }) {
     badges.push(<Badge key="unpriced" variant="outline" className="text-[9px] text-amber-600 border-amber-300">no cost set</Badge>);
   if (r.staleDays > STALE_AFTER_DAYS)
     badges.push(<Badge key="stale" variant="outline" className="text-[9px] text-muted-foreground">{r.staleDays}d old</Badge>);
-  if (r.isCpaHold)
-    badges.push(<Badge key="cpa" variant="outline" className="text-[9px] text-purple-600 border-purple-300">CPA hold</Badge>);
+  if (r.stockCategory !== "standard") {
+    const meta = stockCategoryMeta(r.stockCategory);
+    badges.push(<Badge key="category" variant="outline" className={`text-[9px] ${meta.badgeClass}`}>{meta.shortLabel}</Badge>);
+  }
   if (!badges.length)
     badges.push(<Badge key="ok" variant="outline" className="text-[9px] text-green-600 border-green-300">OK</Badge>);
   return <div className="flex flex-wrap gap-1">{badges}</div>;
@@ -152,7 +162,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           closingDate: s.closing_date, qty: s.qty, rate, value: s.qty * rate,
           below, unpriced: rate === 0 && s.qty !== 0,
           staleDays: differenceInCalendarDays(parseISO(asOf), parseISO(s.closing_date)),
-          isCpaHold: item.is_cpa_hold ?? false,
+          stockCategory: item.stock_category ?? "standard",
         });
       });
     } else if (!isFG && rmMasters) {
@@ -176,7 +186,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           closingDate: s.closing_date, qty: s.qty, rate, value: s.qty * rate,
           below, unpriced: rate === 0 && s.qty !== 0,
           staleDays: differenceInCalendarDays(parseISO(asOf), parseISO(s.closing_date)),
-          isCpaHold: false,
+          stockCategory: "standard",
         });
       });
     }
@@ -251,7 +261,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     }));
 
     const fgOnly = groups.filter((g) => !g.isWip);
-    const fgSellable = fgOnly.flatMap((g) => g.rows.filter((r) => !r.isCpaHold));
+    const fgSellable = fgOnly.flatMap((g) => g.rows.filter((r) => r.stockCategory === "standard"));
     const headline = {
       value: fgSellable.reduce((s, r) => s + r.value, 0),
       qty: fgSellable.reduce((s, r) => s + r.qty, 0),
@@ -262,16 +272,19 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     };
     const allTotal = groups.reduce((s, g) => s + g.value, 0);
 
-    // CPA / quality-hold stock: tracked separately across all departments,
-    // still included in allTotal so the GL reconciliation strip keeps matching.
-    const cpaRows = rows.filter((r) => r.isCpaHold && r.qty !== 0);
-    const cpaSummary = {
-      qty: cpaRows.reduce((s, r) => s + r.qty, 0),
-      value: cpaRows.reduce((s, r) => s + r.value, 0),
-      items: cpaRows.length,
-    };
+    // Held stock (CPA / leak / rejection): tracked per category across all
+    // departments, still inside allTotal so GL reconciliation keeps matching.
+    const heldSummaries = HELD_STOCK_CATEGORIES.map((c) => {
+      const catRows = rows.filter((r) => r.stockCategory === c.value && r.qty !== 0);
+      return {
+        category: c.value,
+        qty: catRows.reduce((s, r) => s + r.qty, 0),
+        value: catRows.reduce((s, r) => s + r.value, 0),
+        items: catRows.length,
+      };
+    });
 
-    return { rows, groups, trend, headline, allTotal, intermediatesExcluded, cpaSummary };
+    return { rows, groups, trend, headline, allTotal, intermediatesExcluded, heldSummaries };
   }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, asOf]);
 
   const scopeGroups = useMemo(() => {
@@ -312,11 +325,11 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
   const matches = (r: ValRow) => !q || `${r.code} ${r.name}`.toLowerCase().includes(q);
 
   const exportCsv = () => {
-    const head = ["Code", isFG ? "Item" : "Material", "Unit", isFG ? "Department" : "Category", "Closing Date", "Qty", "Rate (Rs.)", "Value (Rs.)", "Status"];
+    const head = ["Code", isFG ? "Item" : "Material", "Unit", isFG ? "Department" : "Category", ...(isFG ? ["Stock Category"] : []), "Closing Date", "Qty", "Rate (Rs.)", "Value (Rs.)", "Status"];
     const lines = [head.join(",")];
     scopeGroups.forEach((g) => g.rows.filter(matches).forEach((r) => {
       const status = [r.below && "below threshold", r.unpriced && "no cost set", r.staleDays > STALE_AFTER_DAYS && `${r.staleDays}d old`].filter(Boolean).join("; ") || "OK";
-      lines.push([r.code, `"${r.name.replace(/"/g, '""')}"`, r.unit, `"${g.name.replace(/"/g, '""')}"`, r.closingDate, r.qty, r.rate, Math.round(r.value), `"${status}"`].join(","));
+      lines.push([r.code, `"${r.name.replace(/"/g, '""')}"`, r.unit, `"${g.name.replace(/"/g, '""')}"`, ...(isFG ? [`"${stockCategoryMeta(r.stockCategory).shortLabel}"`] : []), r.closingDate, r.qty, r.rate, Math.round(r.value), `"${status}"`].join(","));
     }));
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -343,7 +356,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         </Button>
       </PageHeader>
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${isFG ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <MetricCard
           title={isFG ? "Finished Goods Value" : "Raw Material Value"}
           value={kpi ? fmtRs(kpi.value) : "—"}
@@ -378,17 +391,21 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           iconColor={kpi && kpi.unpriced > 0 ? "text-amber-500" : undefined}
           description="excluded from value totals"
         />
-        {isFG && (
-          <MetricCard
-            title="CPA / Quality Hold Stock"
-            value={computed ? fmtRs(computed.cpaSummary.value) : "—"}
-            icon={ShieldAlert}
-            iconColor={computed && computed.cpaSummary.value > 0 ? "text-purple-500" : undefined}
-            description={computed
-              ? `${computed.cpaSummary.qty.toLocaleString()} qty · ${computed.cpaSummary.items} item${computed.cpaSummary.items === 1 ? "" : "s"} · excluded from FG value`
-              : undefined}
-          />
-        )}
+        {isFG && HELD_STOCK_CATEGORIES.map((c) => {
+          const s = computed?.heldSummaries.find((h) => h.category === c.value);
+          return (
+            <MetricCard
+              key={c.value}
+              title={`${c.label} Stock`}
+              value={s ? fmtRs(s.value) : "—"}
+              icon={HELD_ICONS[c.value]}
+              iconColor={s && s.value > 0 ? c.iconColor : undefined}
+              description={s
+                ? `${s.qty.toLocaleString()} qty · ${s.items} item${s.items === 1 ? "" : "s"} · excluded from FG value`
+                : undefined}
+            />
+          );
+        })}
       </div>
 
       <Card className="mb-4">
