@@ -40,7 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -61,6 +61,7 @@ interface PlanningItem {
   threshold_inventory: number;
   unit: string;
   costing_value: number;
+  is_cpa_hold: boolean;
 }
 
 export default function PlanningItemMasterPage() {
@@ -79,6 +80,7 @@ export default function PlanningItemMasterPage() {
     threshold_inventory: 0,
     unit: "dzns",
     costing_value: 0,
+    is_cpa_hold: false,
   });
 
   // Fetch departments
@@ -126,6 +128,7 @@ export default function PlanningItemMasterPage() {
             threshold_inventory: item.threshold_inventory || 0,
             unit: item.unit || "dzns",
             costing_value: item.costing_value || 0,
+            is_cpa_hold: item.is_cpa_hold,
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingItem.id);
@@ -140,6 +143,7 @@ export default function PlanningItemMasterPage() {
           threshold_inventory: item.threshold_inventory || 0,
           unit: item.unit || "dzns",
           costing_value: item.costing_value || 0,
+          is_cpa_hold: item.is_cpa_hold,
         });
         if (error) throw error;
       }
@@ -180,6 +184,7 @@ export default function PlanningItemMasterPage() {
       threshold_inventory: 0,
       unit: "dzns",
       costing_value: 0,
+      is_cpa_hold: false,
     });
     setIsDialogOpen(true);
   };
@@ -195,6 +200,7 @@ export default function PlanningItemMasterPage() {
       threshold_inventory: item.threshold_inventory || 0,
       unit: item.unit || "dzns",
       costing_value: item.costing_value || 0,
+      is_cpa_hold: item.is_cpa_hold || false,
     });
     setIsDialogOpen(true);
   };
@@ -272,19 +278,20 @@ export default function PlanningItemMasterPage() {
                   <TableHead>Description</TableHead>
                   <TableHead>Costing Value</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Stock Type</TableHead>
                   <TableHead className="w-24">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                   <TableCell colSpan={7} className="text-center py-8">
+                   <TableCell colSpan={8} className="text-center py-8">
                        Loading...
                      </TableCell>
                   </TableRow>
                 ) : items?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No items found. Add your first planning item.
                     </TableCell>
                   </TableRow>
@@ -302,6 +309,15 @@ export default function PlanningItemMasterPage() {
                         <Badge variant={item.is_active ? "default" : "secondary"}>
                           {item.is_active ? "Active" : "Inactive"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {item.is_cpa_hold ? (
+                          <Badge variant="outline" className="text-purple-600 border-purple-300 gap-1">
+                            <ShieldAlert className="h-3 w-3" />CPA Hold
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Normal</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -432,6 +448,17 @@ export default function PlanningItemMasterPage() {
                   onCheckedChange={(v) => setFormData({ ...formData, is_active: v })}
                 />
                 <Label>Active</Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.is_cpa_hold}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_cpa_hold: v })}
+                />
+                <Label className="flex items-center gap-1">
+                  <ShieldAlert className="h-3.5 w-3.5 text-purple-600" />
+                  CPA / Quality Hold stock
+                </Label>
               </div>
 
               <div className="flex justify-end gap-2">

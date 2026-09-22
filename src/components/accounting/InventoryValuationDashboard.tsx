@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Package, FlaskConical, Banknote, Boxes, AlertTriangle, ChevronRight, ChevronDown,
-  Download, Search, Scale, Layers,
+  Download, Search, Scale, Layers, ShieldAlert,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -53,6 +53,7 @@ interface ValRow {
   below: boolean;
   unpriced: boolean;
   staleDays: number;
+  isCpaHold: boolean;
 }
 
 interface Group {
@@ -72,6 +73,8 @@ function StatusBadges({ r }: { r: ValRow }) {
     badges.push(<Badge key="unpriced" variant="outline" className="text-[9px] text-amber-600 border-amber-300">no cost set</Badge>);
   if (r.staleDays > STALE_AFTER_DAYS)
     badges.push(<Badge key="stale" variant="outline" className="text-[9px] text-muted-foreground">{r.staleDays}d old</Badge>);
+  if (r.isCpaHold)
+    badges.push(<Badge key="cpa" variant="outline" className="text-[9px] text-purple-600 border-purple-300">CPA hold</Badge>);
   if (!badges.length)
     badges.push(<Badge key="ok" variant="outline" className="text-[9px] text-green-600 border-green-300">OK</Badge>);
   return <div className="flex flex-wrap gap-1">{badges}</div>;
@@ -149,6 +152,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           closingDate: s.closing_date, qty: s.qty, rate, value: s.qty * rate,
           below, unpriced: rate === 0 && s.qty !== 0,
           staleDays: differenceInCalendarDays(parseISO(asOf), parseISO(s.closing_date)),
+          isCpaHold: item.is_cpa_hold ?? false,
         });
       });
     } else if (!isFG && rmMasters) {
@@ -172,6 +176,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           closingDate: s.closing_date, qty: s.qty, rate, value: s.qty * rate,
           below, unpriced: rate === 0 && s.qty !== 0,
           staleDays: differenceInCalendarDays(parseISO(asOf), parseISO(s.closing_date)),
+          isCpaHold: false,
         });
       });
     }
@@ -246,17 +251,27 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
     }));
 
     const fgOnly = groups.filter((g) => !g.isWip);
+    const fgSellable = fgOnly.flatMap((g) => g.rows.filter((r) => !r.isCpaHold));
     const headline = {
-      value: fgOnly.reduce((s, g) => s + g.value, 0),
-      qty: fgOnly.reduce((s, g) => s + g.qty, 0),
-      items: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.qty !== 0).length, 0),
+      value: fgSellable.reduce((s, r) => s + r.value, 0),
+      qty: fgSellable.reduce((s, r) => s + r.qty, 0),
+      items: fgSellable.filter((r) => r.qty !== 0).length,
       below: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.below).length, 0),
       unpriced: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.unpriced).length, 0),
       stale: fgOnly.reduce((s, g) => s + g.rows.filter((r) => r.staleDays > STALE_AFTER_DAYS).length, 0),
     };
     const allTotal = groups.reduce((s, g) => s + g.value, 0);
 
-    return { rows, groups, trend, headline, allTotal, intermediatesExcluded };
+    // CPA / quality-hold stock: tracked separately across all departments,
+    // still included in allTotal so the GL reconciliation strip keeps matching.
+    const cpaRows = rows.filter((r) => r.isCpaHold && r.qty !== 0);
+    const cpaSummary = {
+      qty: cpaRows.reduce((s, r) => s + r.qty, 0),
+      value: cpaRows.reduce((s, r) => s + r.value, 0),
+      items: cpaRows.length,
+    };
+
+    return { rows, groups, trend, headline, allTotal, intermediatesExcluded, cpaSummary };
   }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, asOf]);
 
   const scopeGroups = useMemo(() => {
@@ -328,7 +343,7 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
         </Button>
       </PageHeader>
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${isFG ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${isFG ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"}`}>
         <MetricCard
           title={isFG ? "Finished Goods Value" : "Raw Material Value"}
           value={kpi ? fmtRs(kpi.value) : "—"}
@@ -363,6 +378,17 @@ export function InventoryValuationDashboard({ variant }: { variant: "fg" | "rm" 
           iconColor={kpi && kpi.unpriced > 0 ? "text-amber-500" : undefined}
           description="excluded from value totals"
         />
+        {isFG && (
+          <MetricCard
+            title="CPA / Quality Hold Stock"
+            value={computed ? fmtRs(computed.cpaSummary.value) : "—"}
+            icon={ShieldAlert}
+            iconColor={computed && computed.cpaSummary.value > 0 ? "text-purple-500" : undefined}
+            description={computed
+              ? `${computed.cpaSummary.qty.toLocaleString()} qty · ${computed.cpaSummary.items} item${computed.cpaSummary.items === 1 ? "" : "s"} · excluded from FG value`
+              : undefined}
+          />
+        )}
       </div>
 
       <Card className="mb-4">
