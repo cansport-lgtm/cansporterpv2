@@ -377,6 +377,7 @@ import OnlineInventoryPage from "./pages/online-sales/OnlineInventoryPage";
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
 import StoreManagementPage from "./pages/planning/StoreManagementPage";
+import HeldStockInventoryPage from "./pages/planning/HeldStockInventoryPage";
 // Sales fuel/geo + timesheets (v1 top-ups)
 import SalesFuelVehiclesPage from "./pages/sales/SalesFuelVehiclesPage";
 import SalesFuelTripsPage from "./pages/sales/SalesFuelTripsPage";
@@ -736,6 +737,7 @@ const App = () => (
             <Route path="/planning/job-orders" element={<ProtectedRoute><JobOrdersPage /></ProtectedRoute>} />
             <Route path="/planning/job-order-departments" element={<ProtectedRoute><JobOrderDepartmentsPage /></ProtectedRoute>} />
             <Route path="/planning/store-management" element={<ProtectedRoute><StoreManagementPage /></ProtectedRoute>} />
+            <Route path="/planning/held-stock" element={<ProtectedRoute><HeldStockInventoryPage /></ProtectedRoute>} />
             <Route path="/planning/*" element={<ProtectedRoute><ComingSoon title="Production Planning" /></ProtectedRoute>} />
  
             {/* Material Consumption Routes */}
