@@ -567,7 +567,7 @@ export default function RejectionsWastageEntryPage() {
               <div className="text-muted-foreground mt-0.5">
                 From {rwCutover} they are counted on{' '}
                 <Link to="/rejections/checker" className="underline font-medium">Daily Checker Entry</Link>,
-                where they post to the bin and drive the production figure. Pick an earlier date to read
+                where they post to the bin. Pick an earlier date to read
                 the history here.
               </div>
             </div>

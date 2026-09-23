@@ -6,7 +6,19 @@ Design rationale lives in `docs/REJECTION_WASTAGE_INVENTORY_PLAN.md`; what was
 shipped and when in `docs/RW_BALL_INVENTORY_CHANGELOG.md`.
 
 **Live from 1 September 2026.** Entries dated before the cutover are history
-only — they post no stock and touch no production figure.
+only — they post no stock.
+
+> **Isolated from Production since 23 September 2026**
+> (`20260923120000_rw_isolate_from_production`). R&W no longer writes to or
+> reads from production entries. A checker's count posts to the R&W ball
+> ledger and bins and nothing else; *Qty OK* / *Qty Rejected* are typed on
+> Daily Production Entry again for every date. The reconciliation views
+> against production were removed. R&W still *reads* the shared masters
+> (grades, departments, materials, employees) for its dropdowns. Draft
+> production entries whose figures R&W had derived were reset to
+> rejected = 0 / OK = produced for re-entry (old values kept in
+> `production_entries_rw_reset_backup`); posted entries were left as posted.
+> Sections below describe the current behaviour.
 
 ---
 
@@ -17,8 +29,7 @@ cheap. So the checker's daily count now creates **stock in a bin**, and that
 stock has to reconcile with what happens next: leaker cores must come back out
 as *Leak ball* production after covering, and covered leakers and rejects must
 match the cheap-ball production the same department books the same day. A
-number that used to be a bare claim now has physical inventory and a second
-recording it must agree with.
+number that used to be a bare claim now has physical inventory behind it.
 
 **Identity is the production grade** (LB, KB, T, VM…) — the same master the
 production module books against, and the same identity the floor has always
@@ -37,18 +48,11 @@ flowchart TD
         D[Checker counts covered leakers\nand rejects] -->|stock IN| E[(LF-CHEAP / FF-CHEAP /\nPACK-CHEAP bins)]
         D -.->|same balls,\nsame day| F[Production books\nLeak ball / Rejection]
     end
-    D ==>|sums into| G[production_entries\nquantity_rejected — derived]
-    A ==>|sums into| G
     E -->|daily handover\nPhase 2| H[(Cheap ball store)]
-    C & F -->|must match the counts| I{{Reconciliation views}}
 ```
 
-Two numbers are now derived, never typed:
-
-- **`quantity_rejected`** on a production entry = the sum of every defect the
-  checkers counted for that day/shift/department/grade (leakers included — a
-  leaker is equally a ball that was not OK).
-- **`quantity_ok`** = produced − rejected, so the three always add up.
+The checker's count feeds the bins and the ball ledger only. Production's
+*Qty Rejected* / *Qty OK* are recorded separately on Daily Production Entry.
 
 ---
 
@@ -61,17 +65,16 @@ Open **Rejections & Wastages → Daily Checker Entry**.
 1. Pick the date, department, shift, and (optionally) your name as checker.
 2. The grid is already shaped for you: **columns** are the defect grades your
    department counts (Jorr sees only *Leaker — core*; Local/Fancy Final see
-   *Leaker — covered* plus the two rejects; Packing sees the two rejects), and
-   **rows** default to the grades that were actually in production. The
-   destination bin is shown at the top — you never pick a location.
-3. Type the day's quantities per grade. The defect % updates live against
-   produced quantity; above 2% it flags amber for review.
+   *Leaker — covered* plus the two rejects; Packing sees the two rejects).
+   Add a **row** per grade you counted. The destination bin is shown at the
+   top — you never pick a location.
+3. Type the day's quantities per grade.
 4. Optional: expand a cell's chevron to record the interval tally (your
    through-the-day counts). If you use it, the intervals **must add up to the
    day total** — the save refuses otherwise. Leave it empty and the day total
    saves on its own.
 5. **Save day's count.** One save per day; re-opening the same day lets you
-   correct it (the stock and production figures follow automatically).
+   correct it (the bin stock follows automatically).
 
 Things the screen will tell you:
 
@@ -80,25 +83,15 @@ Things the screen will tell you:
 
 ### The production clerk
 
-Nothing new to learn, one thing to unlearn: on **Daily Production Entry**,
-*Qty OK* and *Qty Rejected* are now read-only from the cutover. They fill in
-from the checker's count, and the note on the form links to where to change
-them. Rejection reasons also live with the checker entry now — the old
-per-reason card is gone.
+On **Daily Production Entry**, *Qty OK* and *Qty Rejected* are typed as they
+were before R&W, for every date, with the per-reason rejection card. Draft
+entries from 1 September onward whose figures R&W had filled in were reset to
+rejected = 0 / OK = produced and need their rejected figure re-entered.
 
 Keep booking cheap-ball output as before (or start): production of grade
 **Leak ball** (covered leaker cores, and covered leakers) and grade
 **Rejection** (rejects), booked by the department that found the defect,
-recording the **finished** balls. Those rows are never rewritten by the
-derivation — they are output, not primary production.
-
-### Posting a production day
-
-Posting still freezes an entry, and the R&W side respects it: a checker
-correction after posting does **not** force through the lock. The gap shows
-up on the Floor Bin Stock page instead ("posted entry does not match the
-floor count"); someone with the production approve permission unposts, the
-figure updates by itself, and it can be re-posted.
+recording the **finished** balls.
 
 ---
 
@@ -107,13 +100,10 @@ figure updates by itself, and it can be re-posted.
 All on **Rejections & Wastages → Floor Bin Stock** (plus the Ball Ledger for
 drill-down):
 
-| Signal | Meaning | Action |
-|---|---|---|
-| **Counted vs booked mismatch** | For grades with no covering step, the checker's count and the department's cheap-ball production describe the same balls on the same day — they must match exactly. (Stays quiet per department until that department books the grade at least once.) | Find out which number is wrong — same day, named department |
-| **Leaker cores vs covering output** | Cores counted at Jorr, minus what the ledger has released, should be the bin; `bin_check ≠ 0` means a ledger problem. `unreleased_qty` is covering output whose cores haven't left the bin — until Phase 2 ships the cover transfer, that is every covering run and is *pending work, not a loss* | Watch the trend; Phase 2 turns this into a per-batch check |
-| **Posted entry conflicts** | A posted production day no longer matches the count | Unpost (approve permission), let it update, re-post |
-| **Coverage** (`v_rw_entry_coverage`) | A department produced but posted no checker count — silence is the cheapest way to hide balls | Chase the missing day |
-| **Defect %** (`v_rw_defect_vs_production`) | Live leak/reject rate per department and grade | Out-of-band days deserve a look the same day |
+Bin quantities and value per bin, grade and defect grade, with age of the
+oldest stock. The reconciliations against production entries (counted vs
+booked, leaker WIP vs covering output, posted-entry conflicts, coverage and
+defect %) were removed when R&W was isolated from production.
 
 **Valuation:** every ledger row snapshots the unit cost at posting time from
 **Cheap Ball Rates** (exact grade rate wins, else the defect type's default). Changing
@@ -138,6 +128,10 @@ at zero value — quantities are correct regardless.
 
 ## What Phase 2 adds (designed, not yet built)
 
+> Parked: the parts below that reconcile against production or post into the
+> inventory module conflict with R&W being isolated, and would need a fresh
+> decision before they are built.
+
 - **Cover transfer** — a consumption document releasing leaker cores from the
   Jorr bin when a covering batch runs, reconciled against the *Leak ball*
   production it becomes. Turns `unreleased_qty` into a real per-batch check
@@ -148,6 +142,13 @@ at zero value — quantities are correct regardless.
   zero after receipt.
 - **Store physical count** — periodic count against a frozen book snapshot,
   with segregation of duties and a period lock.
+
+## If the isolation ever has to come out
+
+`supabase/rollbacks/20260923120000_rw_isolate_from_production_down.sql`
+restores the derivation, both triggers and the five views, and re-derives the
+production figures from the checker counts (overwriting any Rejected / OK
+typed since). Revert the matching frontend change with it.
 
 ## If Phase 1 ever has to come out
 

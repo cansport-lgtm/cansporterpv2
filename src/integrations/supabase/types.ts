@@ -14522,7 +14522,6 @@ export type Database = {
           created_at: string
           department_id: string | null
           id: string
-          inventory_location_id: string | null
           is_active: boolean
           location_type: string
           name: string
@@ -14534,7 +14533,6 @@ export type Database = {
           created_at?: string
           department_id?: string | null
           id?: string
-          inventory_location_id?: string | null
           is_active?: boolean
           location_type?: string
           name: string
@@ -14546,7 +14544,6 @@ export type Database = {
           created_at?: string
           department_id?: string | null
           id?: string
-          inventory_location_id?: string | null
           is_active?: boolean
           location_type?: string
           name?: string
@@ -14559,13 +14556,6 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "production_departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rw_locations_inventory_location_id_fkey"
-            columns: ["inventory_location_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_locations"
             referencedColumns: ["id"]
           },
         ]
@@ -17109,126 +17099,6 @@ export type Database = {
           },
         ]
       }
-      v_rw_defect_vs_production: {
-        Row: {
-          defect_pct: number | null
-          defect_qty: number | null
-          department_id: string | null
-          department_name: string | null
-          entry_date: string | null
-          grade_code: string | null
-          grade_id: string | null
-          leak_qty: number | null
-          produced_qty: number | null
-          reject_qty: number | null
-          shift: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "production_entries_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "production_departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_entries_grade_id_fkey"
-            columns: ["grade_id"]
-            isOneToOne: false
-            referencedRelation: "grades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_rw_entry_coverage: {
-        Row: {
-          defect_qty: number | null
-          department_id: string | null
-          department_name: string | null
-          entry_count: number | null
-          entry_date: string | null
-          is_missing: boolean | null
-          produced_qty: number | null
-          shift: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "production_entries_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "production_departments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_rw_leaker_wip_reconciliation: {
-        Row: {
-          bin_check: number | null
-          bin_quantity: number | null
-          cheap_balls_booked: number | null
-          cores_counted: number | null
-          cover_out_posted: number | null
-          department_id: string | null
-          department_name: string | null
-          unreleased_qty: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rw_department_defect_grades_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "production_departments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_rw_output_reconciliation: {
-        Row: {
-          booked_qty: number | null
-          booking_started: boolean | null
-          counted_qty: number | null
-          department_id: string | null
-          department_name: string | null
-          entry_date: string | null
-          is_mismatch: boolean | null
-          needs_covering: boolean | null
-          output_grade_id: string | null
-          output_grade_name: string | null
-          shift: string | null
-          variance_qty: number | null
-        }
-        Relationships: []
-      }
-      v_rw_posted_entry_conflicts: {
-        Row: {
-          counted_rejected: number | null
-          department_id: string | null
-          department_name: string | null
-          entry_date: string | null
-          grade_code: string | null
-          grade_id: string | null
-          posted_rejected: number | null
-          posted_rows: number | null
-          shift: string | null
-          variance_qty: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "production_entries_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "production_departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_entries_grade_id_fkey"
-            columns: ["grade_id"]
-            isOneToOne: false
-            referencedRelation: "grades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       accounting_inventory_snapshot: {
@@ -17437,27 +17307,7 @@ export type Database = {
         Args: { p_date: string; p_material: string }
         Returns: undefined
       }
-      rw_apportion_production_rejected: {
-        Args: {
-          p_date: string
-          p_department: string
-          p_grade: string
-          p_shift: string
-          p_sub_department: string
-        }
-        Returns: undefined
-      }
       rw_ball_cutover: { Args: never; Returns: string }
-      rw_defect_qty_for_production: {
-        Args: {
-          p_date: string
-          p_department: string
-          p_grade: string
-          p_shift: string
-          p_sub_department: string
-        }
-        Returns: number
-      }
       rw_defect_standard_cost: {
         Args: { p_ball_grade: string; p_defect: string }
         Returns: number
