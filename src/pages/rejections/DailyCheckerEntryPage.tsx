@@ -21,9 +21,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// Rejection % above this is flagged for review before the balls are handed over.
-const DEFECT_BAND_PCT = 2;
-
 type Checkpoint = {
   defect_grade_id: string;
   location_id: string;
@@ -144,28 +141,6 @@ export default function DailyCheckerEntryPage() {
     },
   });
 
-  // What the department actually produced — the denominator for the defect rate,
-  // and what decides which models the grid opens with.
-  const { data: produced = [] } = useQuery({
-    queryKey: ["rw-produced", entryDate, shift, departmentId],
-    enabled: !!departmentId && !!entryDate,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("production_entries")
-        .select("grade_id, quantity_produced")
-        .eq("entry_date", entryDate)
-        .eq("shift", shift)
-        .eq("department_id", departmentId);
-      return (data || []) as { grade_id: string; quantity_produced: number }[];
-    },
-  });
-
-  const producedByGrade = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const p of produced) m[p.grade_id] = (m[p.grade_id] || 0) + num(p.quantity_produced);
-    return m;
-  }, [produced]);
-
   // Anything already saved for this day, so the screen reopens where it was left.
   const { data: existing = [], refetch } = useQuery({
     queryKey: ["rw-checker-entries", entryDate, shift, departmentId],
@@ -186,8 +161,8 @@ export default function DailyCheckerEntryPage() {
     [ballGrades],
   );
 
-  // Rebuild the grid whenever the day, shift or department changes: saved rows
-  // first, then the models that were in production and have nothing yet.
+  // Rebuild the grid whenever the day, shift or department changes, reopening
+  // whatever was saved for it.
   useEffect(() => {
     if (!departmentId || !checkpoints.length) return;
 
@@ -208,14 +183,7 @@ export default function DailyCheckerEntryPage() {
       byGrade.set(e.grade_id, row);
     }
 
-    if (!byGrade.size) {
-      for (const gradeId of Object.keys(producedByGrade)) {
-        if (gradeMap[gradeId]) byGrade.set(gradeId, { ...blank(), gradeId });
-      }
-    }
-
     setRows(byGrade.size ? [...byGrade.values()] : [{ gradeId: "", qty: {}, intervals: {}, openGrade: null }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryDate, shift, departmentId, checkpoints.length, existing, ballGrades.length]);
 
   const usedGradeIds = useMemo(
@@ -270,13 +238,6 @@ export default function DailyCheckerEntryPage() {
 
   const rowTotal = (r: Row) =>
     checkpoints.reduce((s, c) => s + num(r.qty[c.defect_grade_id]), 0);
-
-  const rowProduced = (r: Row) => (r.gradeId ? producedByGrade[r.gradeId] || 0 : 0);
-
-  const rowPct = (r: Row) => {
-    const p = rowProduced(r);
-    return p > 0 ? (rowTotal(r) / p) * 100 : null;
-  };
 
   const grandTotal = rows.reduce((s, r) => s + rowTotal(r), 0);
 
@@ -461,7 +422,7 @@ export default function DailyCheckerEntryPage() {
               <div>
                 <div className="font-display text-base font-semibold">Balls counted today</div>
                 <div className="text-xs text-muted-foreground">
-                  One row per grade in production · one saved entry for the day
+                  One row per grade · one saved entry for the day
                 </div>
               </div>
               <Badge variant="soft">{rows.filter((r) => r.gradeId).length} grades</Badge>
@@ -498,13 +459,10 @@ export default function DailyCheckerEntryPage() {
                         </th>
                       ))}
                       <th className="text-right">Day total</th>
-                      <th>Defect %</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r, i) => {
-                      const pct = rowPct(r);
-                      const high = pct !== null && pct > DEFECT_BAND_PCT;
                       const openGrade = r.openGrade;
                       const lines = openGrade ? r.intervals[openGrade] || [] : [];
                       const lineSum = lines.reduce((s, v) => s + num(v), 0);
@@ -543,9 +501,6 @@ export default function DailyCheckerEntryPage() {
                                   </Button>
                                 )}
                               </div>
-                              <div className="text-[11px] text-muted-foreground mt-1">
-                                produced {fmt(rowProduced(r))} pcs
-                              </div>
                             </td>
 
                             {checkpoints.map((c) => (
@@ -577,20 +532,11 @@ export default function DailyCheckerEntryPage() {
                             ))}
 
                             <td className="text-right font-bold tabular-nums">{fmt(rowTotal(r))}</td>
-                            <td>
-                              {pct === null ? (
-                                <span className="text-xs text-muted-foreground">no production</span>
-                              ) : (
-                                <Badge variant={high ? "warning" : "secondary"}>
-                                  {pct.toFixed(2)}%{high ? " · above band" : ""}
-                                </Badge>
-                              )}
-                            </td>
                           </tr>
 
                           {openGrade && (
                             <tr key={`${r.gradeId}-tally`}>
-                              <td colSpan={checkpoints.length + 3} className="bg-muted/40">
+                              <td colSpan={checkpoints.length + 2} className="bg-muted/40">
                                 <div className="pl-10 pr-2 py-3 space-y-2">
                                   <div className="flex items-center justify-between gap-3">
                                     <div>
