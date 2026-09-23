@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
 import { toast } from "sonner";
@@ -170,12 +171,15 @@ export default function DomesticSalesOrdersPage() {
     queryKey: ['all-sales-order-items', 'domestic', allOrderIds.join(',')],
     queryFn: async () => {
       if (allOrderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('sales_order_items')
-        .select(`*, products(code, name)`)
-        .in('order_id', allOrderIds);
-      if (error) throw error;
-      return data;
+      // Page past the ~1000-row API cap — otherwise the newest orders'
+      // items get dropped and their rows show "No items".
+      return fetchAllRows((from, to) =>
+        supabase
+          .from('sales_order_items')
+          .select(`*, products(code, name)`)
+          .in('order_id', allOrderIds)
+          .order('id', { ascending: true })
+          .range(from, to));
     },
     enabled: allOrderIds.length > 0,
   });
