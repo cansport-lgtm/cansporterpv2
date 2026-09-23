@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -118,12 +119,15 @@ export default function SalesOrdersPage() {
     queryKey: ['all-sales-order-items', 'private_label', allOrderIds.join(',')],
     queryFn: async () => {
       if (allOrderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('sales_order_items')
-        .select(`*, products(code, name)`)
-        .in('order_id', allOrderIds);
-      if (error) throw error;
-      return data;
+      // Page past the ~1000-row API cap — otherwise the newest orders'
+      // items get dropped and their rows show "No items".
+      return fetchAllRows((from, to) =>
+        supabase
+          .from('sales_order_items')
+          .select(`*, products(code, name)`)
+          .in('order_id', allOrderIds)
+          .order('id', { ascending: true })
+          .range(from, to));
     },
     enabled: allOrderIds.length > 0,
   });
