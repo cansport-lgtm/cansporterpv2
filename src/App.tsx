@@ -67,6 +67,7 @@ import SparePartsPage from "./pages/maintenance/SparePartsPage";
 import SparePartIssuesPage from "./pages/maintenance/SparePartIssuesPage";
 import SparePartsDashboard from "./pages/maintenance/SparePartsDashboard";
 import MachineSpareConsumptionPage from "./pages/maintenance/MachineSpareConsumptionPage";
+import SparePartsUsageAnalysisPage from "./pages/maintenance/SparePartsUsageAnalysisPage";
 import DevTasksPage from "./pages/maintenance/DevTasksPage";
 import MachinesPage from "./pages/maintenance/MachinesPage";
 
@@ -598,6 +599,7 @@ const App = () => (
             <Route path="/maintenance/spare-part-issues" element={<ProtectedRoute><SparePartIssuesPage /></ProtectedRoute>} />
             <Route path="/maintenance/spare-dashboard" element={<ProtectedRoute><SparePartsDashboard /></ProtectedRoute>} />
             <Route path="/maintenance/spare-consumption" element={<ProtectedRoute><MachineSpareConsumptionPage /></ProtectedRoute>} />
+            <Route path="/maintenance/spare-usage-analysis" element={<ProtectedRoute><SparePartsUsageAnalysisPage /></ProtectedRoute>} />
             <Route path="/maintenance/dev-tasks" element={<ProtectedRoute><DevTasksPage /></ProtectedRoute>} />
             <Route path="/maintenance/*" element={<ProtectedRoute><ComingSoon title="Maintenance Module" /></ProtectedRoute>} />
 

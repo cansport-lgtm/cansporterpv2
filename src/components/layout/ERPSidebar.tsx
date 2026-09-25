@@ -332,6 +332,7 @@ const navigationItems: NavItem[] = [
       { title: "Spare Part Issues", href: "/maintenance/spare-part-issues" },
       { title: "Spare Parts Dashboard", href: "/maintenance/spare-dashboard" },
       { title: "Machine Consumption", href: "/maintenance/spare-consumption" },
+      { title: "Spare Parts Usage Analysis", href: "/maintenance/spare-usage-analysis" },
       { title: "Dev Tasks", href: "/maintenance/dev-tasks" },
     ],
   },
