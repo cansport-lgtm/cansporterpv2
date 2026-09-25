@@ -17441,6 +17441,7 @@ export type Database = {
         | "private_label_officer"
         | "private_label_viewer"
         | "helpdesk_manager"
+        | "projects_super_manager"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17721,6 +17722,7 @@ export const Constants = {
         "private_label_officer",
         "private_label_viewer",
         "helpdesk_manager",
+        "projects_super_manager",
       ],
       asset_category: [
         "office_assets",

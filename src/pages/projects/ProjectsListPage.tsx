@@ -51,6 +51,8 @@ const PRIORITIES = ["low", "medium", "high", "critical"];
 export default function ProjectsListPage() {
   const { user, hasRole } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
+  // super_admin and Projects Super Manager see every project; everyone else only their own
+  const canViewAllProjects = hasRole('projects_super_manager');
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -81,7 +83,7 @@ export default function ProjectsListPage() {
 
   const loadData = async () => {
     let projQuery = supabase.from("projects").select("*").order("created_at", { ascending: false });
-    if (!isSuperAdmin && user) {
+    if (!canViewAllProjects && user) {
       projQuery = projQuery.eq("project_manager_id", user.id);
     }
     const [projRes, deptRes, userRes] = await Promise.all([

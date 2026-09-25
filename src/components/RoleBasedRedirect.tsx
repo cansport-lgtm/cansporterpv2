@@ -111,8 +111,8 @@ export function RoleBasedRedirect() {
     return <Navigate to="/production/daily-entry" replace />;
   }
 
-  // Project Manager goes to Projects Dashboard
-  if (roles.some(r => r.role === 'project_manager')) {
+  // Project Manager / Projects Super Manager go to Projects Dashboard
+  if (roles.some(r => r.role === 'project_manager' || r.role === 'projects_super_manager')) {
     return <Navigate to="/projects" replace />;
   }
 

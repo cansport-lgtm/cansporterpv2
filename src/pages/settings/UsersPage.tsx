@@ -150,6 +150,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   // (project_manager, qa_manager, maintenance_manager) as their manager tier.
   { value: "projects_officer", label: "Project Management — Officer (create & edit)" },
   { value: "projects_viewer", label: "Project Management — Viewer (read-only)" },
+  { value: "projects_super_manager", label: "Project Management — Super Manager (all projects, create, no delete)" },
   { value: "qa_officer", label: "Quality Assurance — Officer (create & edit)" },
   { value: "qa_viewer", label: "Quality Assurance — Viewer (read-only)" },
   { value: "qa_inspector", label: "Quality Assurance — Inspector (inspection form only, create-only)" },
@@ -650,6 +651,7 @@ export default function UsersPage() {
       machine_monitor_officer: "bg-cyan-500/10 text-cyan-500",
       machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400",
       helpdesk_manager: "bg-rose-600/10 text-rose-600",
+      projects_super_manager: "bg-blue-700/10 text-blue-700",
     };
     return colors[role] || "";
   };
