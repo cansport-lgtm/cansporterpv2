@@ -100,12 +100,15 @@ type POLineRow = {
   unit_price: number;
   amount: number;
   qty_received: number;
+  po_unit_price: number;
+  invoiced: boolean;
 };
 
 // Purchase order LINE rows, by PO order_date. Cancelled POs are dropped so the
-// headline spend reflects committed purchasing only. The price/value here is
-// operational (PO-line value), parallel to how the Sales Analysis page reads
-// order-price value rather than the posted ledger.
+// headline spend reflects committed purchasing only. Lines are valued at the
+// supplier invoice rate booked on their GRN lines (weighted across GRNs) rather
+// than the PO price, so a mistyped PO price does not distort spend; lines with
+// no GRN yet fall back to the PO price.
 async function fetchPurchaseLines(fromDate: string, toDate: string, category: string): Promise<POLineRow[]> {
   const rows = await fetchAllRows((from, to) => {
     let q = sb
@@ -113,6 +116,7 @@ async function fetchPurchaseLines(fromDate: string, toDate: string, category: st
       .select(
         "id, quantity, unit_price, amount, quantity_received, item_id, " +
         "items:item_id(code, name), " +
+        "grn_items!grn_items_po_item_id_fkey(quantity_received, amount, grn:goods_receipt_notes!grn_items_grn_id_fkey(status)), " +
         "order:purchase_orders!inner(id, po_number, order_date, expected_date, status, category, supplier_id, suppliers:supplier_id(id, name, code, lead_time_days))"
       )
       .gte("order.order_date", fromDate)
@@ -131,8 +135,17 @@ async function fetchPurchaseLines(fromDate: string, toDate: string, category: st
     const supplier = order.suppliers || {};
     const item = row.items || {};
     const qty = Number(row.quantity || 0);
-    const unitPrice = Number(row.unit_price || 0);
-    const amount = Number(row.amount || qty * unitPrice);
+    const poUnitPrice = Number(row.unit_price || 0);
+    let invQty = 0;
+    let invAmount = 0;
+    (row.grn_items || []).forEach((gi: any) => {
+      if (gi.grn?.status === "cancelled") return;
+      invQty += Number(gi.quantity_received || 0);
+      invAmount += Number(gi.amount || 0);
+    });
+    const invoiced = invQty > 0;
+    const unitPrice = invoiced ? invAmount / invQty : poUnitPrice;
+    const amount = invoiced ? qty * unitPrice : Number(row.amount || qty * poUnitPrice);
     out.push({
       po_id: order.id || "",
       po_number: order.po_number || "",
@@ -151,6 +164,8 @@ async function fetchPurchaseLines(fromDate: string, toDate: string, category: st
       unit_price: unitPrice,
       amount,
       qty_received: Number(row.quantity_received || 0),
+      po_unit_price: poUnitPrice,
+      invoiced,
     });
   });
   return out;
@@ -275,7 +290,7 @@ export default function PurchaseAnalysisPage() {
     }, 0);
   }, [glPurchaseAccounts, glPurchaseLines]);
 
-  // KPIs current period — operational committed spend (sum of PO-line value)
+  // KPIs current period — operational committed spend (PO lines at invoice rate)
   const totalSpend = (lines || []).reduce((s, r) => s + r.amount, 0);
   const totalQty = (lines || []).reduce((s, r) => s + r.qty, 0);
   const poSet = new Set((lines || []).map((r) => r.po_id).filter(Boolean));
@@ -607,7 +622,7 @@ export default function PurchaseAnalysisPage() {
           value={`Rs. ${totalSpend.toLocaleString()}`}
           icon={TrendingUp}
           trend={priorSpend > 0 ? { value: Math.abs(Math.round(spendDelta * 10) / 10), isPositive: spendDelta >= 0 } : undefined}
-          description={`PO-line value · vs Rs. ${priorSpend.toLocaleString()}`}
+          description={`Invoice value (PO if not invoiced) · vs Rs. ${priorSpend.toLocaleString()}`}
         />
         <MetricCard
           title="Goods Received"
@@ -863,7 +878,7 @@ export default function PurchaseAnalysisPage() {
                                       <th className="text-left py-1 pr-3 font-medium">Supplier</th>
                                       <th className="text-left py-1 pr-3 font-medium">Status</th>
                                       <th className="text-right py-1 pr-3 font-medium">Qty</th>
-                                      <th className="text-right py-1 pr-3 font-medium">Unit Price</th>
+                                      <th className="text-right py-1 pr-3 font-medium">Invoice Price</th>
                                       <th className="text-right py-1 pr-3 font-medium">Amount</th>
                                       <th className="text-right py-1 font-medium">Received</th>
                                     </tr>
@@ -881,7 +896,14 @@ export default function PurchaseAnalysisPage() {
                                           </Badge>
                                         </td>
                                         <td className="py-1 pr-3 text-right">{b.qty.toLocaleString()}</td>
-                                        <td className="py-1 pr-3 text-right">Rs. {b.unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                        <td className="py-1 pr-3 text-right">
+                                          Rs. {b.unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                          {!b.invoiced ? (
+                                            <span className="block text-[10px] text-muted-foreground">PO price · not invoiced</span>
+                                          ) : Math.abs(b.po_unit_price - b.unit_price) > 0.005 ? (
+                                            <span className="block text-[10px] text-muted-foreground">PO: Rs. {b.po_unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                          ) : null}
+                                        </td>
                                         <td className="py-1 pr-3 text-right font-medium">Rs. {b.amount.toLocaleString()}</td>
                                         <td className="py-1 text-right">{b.qty_received.toLocaleString()}</td>
                                       </tr>
