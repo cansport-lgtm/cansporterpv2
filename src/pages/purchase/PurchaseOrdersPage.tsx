@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Trash2, Eye, Check, MessageCircle, Pencil, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
@@ -112,6 +112,19 @@ export default function PurchaseOrdersPage() {
   // Deleting a purchase order is destructive (cascades to its line items),
   // so it is reserved exclusively for super admins.
   const canDelete = hasRole('super_admin');
+
+  // The creator of a purchase order may also delete it once it has gone
+  // STALE_PO_DAYS days past its order date without any stock being received.
+  // Orders with a GRN can never be deleted (the GRN foreign key blocks it).
+  const STALE_PO_DAYS = 15;
+  const canDeleteOrder = (order: any) => {
+    if (!order) return false;
+    if (canDelete) return true;
+    if (!user?.id || order.created_by !== user.id) return false;
+    if (order.status === 'received' || order.status === 'partially_received') return false;
+    if (!order.order_date) return false;
+    return differenceInCalendarDays(new Date(), parseISO(order.order_date)) >= STALE_PO_DAYS;
+  };
 
   // Handle navigation state to open new order dialog
   useEffect(() => {
@@ -359,7 +372,8 @@ export default function PurchaseOrdersPage() {
     setRateDrafts({});
   };
 
-  // Delete mutation (super admin only). Line items are removed automatically
+  // Delete mutation (super admin, or the creator of a stale unreceived order —
+  // see canDeleteOrder). Line items are removed automatically
   // via the ON DELETE CASCADE foreign key on purchase_order_items.
   const deleteMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -375,6 +389,10 @@ export default function PurchaseOrdersPage() {
       setViewOrder(null);
     },
     onError: (error: any) => {
+      if (error?.code === '23503') {
+        toast.error('This purchase order has goods receipts against it and cannot be deleted');
+        return;
+      }
       toast.error(error.message || 'Failed to delete purchase order');
     },
   });
@@ -1114,7 +1132,7 @@ export default function PurchaseOrdersPage() {
                   </>
                 ) : (
                   <>
-                    {canDelete && (
+                    {canDeleteOrder(viewOrder) && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
