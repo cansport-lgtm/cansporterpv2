@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, PieChart, Pie, Cell } from "recharts";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, subMonths } from "date-fns";
+import { format, startOfDay, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, subMonths } from "date-fns";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 // HP / MP / CM plus a bucket for materials not yet tagged on the Items master.
 type TierKey = MaterialValueCategory | "unclassified";
+type ViewMode = "single" | "daily" | "monthly";
 
 const TIERS: { key: TierKey; code: string; label: string; color: string }[] = [
   { key: "high_value", code: "HP", label: "HP · High Value", color: "#dc2626" },
@@ -96,7 +97,7 @@ const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default function ValueTierUsageReportPage() {
-  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+  const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState<TierKey | "all">("all");
@@ -105,8 +106,14 @@ export default function ValueTierUsageReportPage() {
   const [expandedTiers, setExpandedTiers] = useState<Set<TierKey>>(new Set(["high_value"]));
   const [sharing, setSharing] = useState(false);
 
-  // Daily = every day of the selected month; Monthly = the 12 months up to it.
+  // Single Day = just the selected date; Daily = every day of the selected
+  // month; Monthly = the 12 months up to it.
   const dateRange = useMemo(() => {
+    if (viewMode === "single") {
+      const day = startOfDay(selectedDate);
+      const dayStr = format(day, "yyyy-MM-dd");
+      return { start: day, end: day, startStr: dayStr, endStr: dayStr };
+    }
     const end = endOfMonth(selectedDate);
     const start = viewMode === "daily" ? startOfMonth(selectedDate) : startOfMonth(subMonths(selectedDate, 11));
     return { start, end, startStr: format(start, "yyyy-MM-dd"), endStr: format(end, "yyyy-MM-dd") };
@@ -201,10 +208,10 @@ export default function ValueTierUsageReportPage() {
     return map;
   }, [bom]);
 
-  const bucketKey = (dateStr: string) => (viewMode === "daily" ? dateStr : dateStr.slice(0, 7));
+  const bucketKey = (dateStr: string) => (viewMode === "monthly" ? dateStr.slice(0, 7) : dateStr);
 
   const buckets = useMemo(() => {
-    if (viewMode === "daily") {
+    if (viewMode !== "monthly") {
       return eachDayOfInterval({ start: dateRange.start, end: dateRange.end }).map((d) => ({
         key: format(d, "yyyy-MM-dd"),
         label: format(d, "dd"),
@@ -334,8 +341,12 @@ export default function ValueTierUsageReportPage() {
     });
 
   const periodLabel =
-    viewMode === "monthly" ? `Last 12 Months up to ${format(selectedDate, "MMM yyyy")}` : format(selectedDate, "MMMM yyyy");
-  const viewLabel = viewMode === "monthly" ? "Monthly" : "Daily";
+    viewMode === "monthly"
+      ? `Last 12 Months up to ${format(selectedDate, "MMM yyyy")}`
+      : viewMode === "single"
+      ? format(selectedDate, "dd MMM yyyy")
+      : format(selectedDate, "MMMM yyyy");
+  const viewLabel = viewMode === "monthly" ? "Monthly" : viewMode === "single" ? "Single Day" : "Daily";
   const trendColumnLabel = viewMode === "monthly" ? "Month" : "Date";
   const filterLabel = [
     tierFilter === "all" ? "All value tiers" : TIERS.find((t) => t.key === tierFilter)?.label,
@@ -345,7 +356,7 @@ export default function ValueTierUsageReportPage() {
     .filter(Boolean)
     .join(" | ");
   const hasData = total.usage > 0 || total.standard > 0 || total.opening > 0 || total.closing > 0;
-  const fileStem = `Value-Tier-Usage-Report-${format(selectedDate, "yyyyMM")}-${viewLabel}`;
+  const fileStem = `Value-Tier-Usage-Report-${format(selectedDate, viewMode === "single" ? "yyyyMMdd" : "yyyyMM")}-${viewLabel.replace(/\s+/g, "-")}`;
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -583,23 +594,24 @@ export default function ValueTierUsageReportPage() {
             <div className="flex flex-wrap gap-4 items-end">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">View</label>
-                <Select value={viewMode} onValueChange={(v: "daily" | "monthly") => setViewMode(v)}>
+                <Select value={viewMode} onValueChange={(v: ViewMode) => setViewMode(v)}>
                   <SelectTrigger className="w-[190px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="single">Single Day</SelectItem>
                     <SelectItem value="daily">Daily (one month)</SelectItem>
                     <SelectItem value="monthly">Monthly (12 months)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">{viewMode === "daily" ? "Month" : "Up to"}</label>
+                <label className="text-sm font-medium mb-1.5 block">{viewMode === "daily" ? "Month" : viewMode === "single" ? "Date" : "Up to"}</label>
                 <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-[180px] justify-start text-left font-normal">
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(selectedDate, viewMode === "daily" ? "MMMM yyyy" : "MMM yyyy")}
+                      {format(selectedDate, viewMode === "daily" ? "MMMM yyyy" : viewMode === "single" ? "dd MMM yyyy" : "MMM yyyy")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -706,28 +718,45 @@ export default function ValueTierUsageReportPage() {
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-2">
                 <CardHeader>
-                  <CardTitle>{viewLabel} Usage Value by Tier</CardTitle>
+                  <CardTitle>{viewMode === "single" ? `Usage Value by Tier — ${periodLabel}` : `${viewLabel} Usage Value by Tier`}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ChartContainer config={chartConfig} className="h-[300px] w-full">
-                    <BarChart data={trendRows}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="label" fontSize={12} />
-                      <YAxis fontSize={12} tickFormatter={(v) => fmtNum(v)} width={80} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Legend />
-                      {tiers.map((t, i) => (
-                        <Bar
-                          key={t.key}
-                          dataKey={t.key}
-                          name={t.code}
-                          stackId="tier"
-                          fill={t.color}
-                          radius={i === tiers.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        />
-                      ))}
-                    </BarChart>
-                  </ChartContainer>
+                  {viewMode === "single" ? (
+                    // One day has a single stacked bar, so show one bar per tier instead.
+                    <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                      <BarChart data={tiers.map((t) => ({ name: t.code, value: t.usage, color: t.color }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" fontSize={12} />
+                        <YAxis fontSize={12} tickFormatter={(v) => fmtNum(v)} width={80} />
+                        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                        <Bar dataKey="value" name="Usage value" radius={[4, 4, 0, 0]}>
+                          {tiers.map((t) => (
+                            <Cell key={t.key} fill={t.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                      <BarChart data={trendRows}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" fontSize={12} />
+                        <YAxis fontSize={12} tickFormatter={(v) => fmtNum(v)} width={80} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Legend />
+                        {tiers.map((t, i) => (
+                          <Bar
+                            key={t.key}
+                            dataKey={t.key}
+                            name={t.code}
+                            stackId="tier"
+                            fill={t.color}
+                            radius={i === tiers.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          />
+                        ))}
+                      </BarChart>
+                    </ChartContainer>
+                  )}
                 </CardContent>
               </Card>
               <Card>
