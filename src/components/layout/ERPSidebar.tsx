@@ -492,6 +492,7 @@ const navigationItems: NavItem[] = [
       { title: "Production Entry", href: "/consumption/production-entry" },
       { title: "Analysis", href: "/consumption/analysis" },
       { title: "Usage Report", href: "/consumption/usage-report" },
+      { title: "Value Tier Usage Report", href: "/consumption/value-tier-report" },
     ],
   },
   {
