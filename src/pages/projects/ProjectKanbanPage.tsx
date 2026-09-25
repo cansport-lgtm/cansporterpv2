@@ -64,7 +64,8 @@ const priorityColor: Record<string, string> = {
 
 export default function ProjectKanbanPage() {
   const { user, hasRole } = useAuth();
-  const isSuperAdmin = hasRole('super_admin');
+  // super_admin and Projects Super Manager see every project; everyone else only their own
+  const canViewAllProjects = hasRole('projects_super_manager');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -90,7 +91,7 @@ export default function ProjectKanbanPage() {
 
   const loadInitial = async () => {
     let projQuery = supabase.from("projects").select("id, project_number, title").order("created_at", { ascending: false });
-    if (!isSuperAdmin && user) {
+    if (!canViewAllProjects && user) {
       projQuery = projQuery.eq("project_manager_id", user.id);
     }
     const [projRes, userRes] = await Promise.all([

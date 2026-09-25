@@ -80,8 +80,12 @@ const priorityColor: Record<string, string> = {
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, hasRole } = useAuth();
+  const { user, roles, hasRole } = useAuth();
   const isSuperAdmin = hasRole('super_admin');
+  // super_admin and Projects Super Manager can open every project
+  const canViewAllProjects = hasRole('projects_super_manager');
+  // Projects Super Manager can view and add, but never delete anything
+  const canDeleteDocs = isSuperAdmin || !roles.some((r) => r.role === 'projects_super_manager');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [project, setProject] = useState<Project | null>(null);
@@ -102,8 +106,8 @@ export default function ProjectDetailPage() {
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
     ]);
     const proj = projRes.data;
-    // Non-super_admin users can only view projects assigned to them
-    if (proj && !isSuperAdmin && user && proj.project_manager_id !== user.id) {
+    // Other users can only view projects assigned to them
+    if (proj && !canViewAllProjects && user && proj.project_manager_id !== user.id) {
       toast.error("You don't have access to this project");
       navigate("/projects/dashboard");
       return;
@@ -356,7 +360,9 @@ export default function ProjectDetailPage() {
                       </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)}><Download className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteDoc(doc.id, doc.file_path)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        {canDeleteDocs && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteDoc(doc.id, doc.file_path)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        )}
                       </div>
                     </div>
                   ))}

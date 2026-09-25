@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager' | 'projects_super_manager';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -100,6 +100,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   pettycash_handler: ['expenses'], // Petty cash handler: petty cash page only
   store_operator: ['material_consumption'], // Store operator: stock closing page only
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
+  // Projects Super Manager: sees every user's projects and their progress, can create
+  // projects/tasks/documents, but can never delete anything (see hasModulePermission).
+  projects_super_manager: ['projects', 'dashboard'],
   online_sales_packing: ['online_sales'], // Online sales packing: online orders page only (scan & weigh)
   // Online Sales access tiers — confined to the Online Sales module (+ dashboard shell).
   //   • online_sales_admin   — full module: every page incl. financials & masters, all actions.
@@ -176,6 +179,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   pettycash_handler: ['/expenses/petty-cash'], // Petty cash handler: petty cash page only
   store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
+  projects_super_manager: ['/projects', '/dashboard'], // Projects Super Manager: whole Project Management module
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
   // Online Sales Admin & Manager: the whole module. The '/online-sales' prefix matches every
   // page under it; the Admin/Manager distinction is purely in action permissions (Manager
@@ -365,6 +369,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'pettycash_handler',
   'store_operator',
   'project_manager',
+  'projects_super_manager',
   'online_sales_packing',
   'online_sales_admin',
   'online_sales_manager',
@@ -425,6 +430,8 @@ const STRICT_LOCKED_ROLES = new Set([
   // Help Desk Manager is a single-purpose ticket-admin role — enforce its
   // lockdown always, even if the user also holds a flexible role.
   'helpdesk_manager',
+  // Projects Super Manager is confined to the Project Management module.
+  'projects_super_manager',
 ]);
 
 // Register every module tier into the four maps/sets above. Doing it in one loop keeps
@@ -953,6 +960,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // GRANT-ONLY (additive) like the strict operational roles above: an out-of-scope tier
     // falls through instead of returning false, so one tier can never veto another tier the
     // same user also holds. Delete always falls through (reserved for super admin).
+    // Projects Super Manager: view / create / edit / approve across all projects, never delete.
+    if (module === 'projects' && permission !== 'delete' && roles.some(r => r.role === 'projects_super_manager')) {
+      return true;
+    }
+
     for (const r of roles) {
       const tier = MODULE_TIER_ROLES[r.role];
       if (!tier || tier.module !== module) continue;

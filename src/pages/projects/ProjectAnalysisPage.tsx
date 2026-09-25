@@ -128,7 +128,8 @@ const chartTooltipStyle = {
 export default function ProjectAnalysisPage() {
   const navigate = useNavigate();
   const { user, hasRole } = useAuth();
-  const isSuperAdmin = hasRole("super_admin");
+  // super_admin and Projects Super Manager see every project; everyone else only their own
+  const canViewAllProjects = hasRole('projects_super_manager');
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -142,7 +143,7 @@ export default function ProjectAnalysisPage() {
 
   const loadAll = async () => {
     let projQuery = supabase.from("projects").select("*").order("created_at", { ascending: false });
-    if (!isSuperAdmin && user) {
+    if (!canViewAllProjects && user) {
       projQuery = projQuery.eq("project_manager_id", user.id);
     }
     const [projRes, userRes, deptRes] = await Promise.all([
