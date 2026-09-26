@@ -38,6 +38,9 @@ import QualityCoordinatorPage from "./pages/qa/QualityCoordinatorPage";
 import WIPSequencePage from "./pages/production/WIPSequencePage";
 import WIPLedgerPage from "./pages/production/WIPLedgerPage";
 import WIPReconciliationPage from "./pages/production/WIPReconciliationPage";
+import GradeLedgerPage from "./pages/production/GradeLedgerPage";
+import GradeLedgerSetupPage from "./pages/production/GradeLedgerSetupPage";
+import RegradePage from "./pages/production/RegradePage";
 import AuditLogPage from "./pages/settings/AuditLogPage";
 import SystemAlertsPage from "./pages/settings/SystemAlertsPage";
 
@@ -538,6 +541,9 @@ const App = () => (
             <Route path="/production/wip-sequence" element={<ProtectedRoute><WIPSequencePage /></ProtectedRoute>} />
             <Route path="/production/wip-ledger" element={<ProtectedRoute><WIPLedgerPage /></ProtectedRoute>} />
             <Route path="/production/wip-reconciliation" element={<ProtectedRoute><WIPReconciliationPage /></ProtectedRoute>} />
+            <Route path="/production/grade-ledger" element={<ProtectedRoute><GradeLedgerPage /></ProtectedRoute>} />
+            <Route path="/production/grade-ledger/setup" element={<ProtectedRoute requiredRole="super_admin"><GradeLedgerSetupPage /></ProtectedRoute>} />
+            <Route path="/production/regrades" element={<ProtectedRoute><RegradePage /></ProtectedRoute>} />
             <Route path="/production/*" element={<ProtectedRoute><ComingSoon title="Production Module" /></ProtectedRoute>} />
 
             {/* QA Floor Display - Public route for production floor devices */}

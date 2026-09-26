@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { CONSUMES_FROM, bucketLabel, fmtQty, type LedgerAvailability } from "@/lib/gradeLedger";
 
 interface RejectionEntry {
   defect_reason_id: string;
@@ -40,7 +41,9 @@ export default function DailyEntryPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [postAllOpen, setPostAllOpen] = useState(false);
   
-  const PRESS_SHEETS_UOM_ID = '417273f3-3f89-41af-ba32-49e5e84ae310';
+  // Press output is counted in bags of Coly, like every later stage, so all
+  // departments now save in Bags. (Older Press entries still carry the former
+  // "Press Sheets" unit; nothing reads uom_id for calculations.)
   const BAGS_UOM_ID = '7b39d4ca-f31c-4a1a-b742-28239101ff91';
   const PRESS_DEPT_CODE = 'PRESS';
 
@@ -57,16 +60,15 @@ export default function DailyEntryPage() {
     remarks: '',
   });
   const [rejections, setRejections] = useState<RejectionEntry[]>([]);
+  // Set when saving would take the grade's input stock below zero during the
+  // warn-only period; the user confirms before the save goes through.
+  const [negativeWarning, setNegativeWarning] = useState<string | null>(null);
 
-  const getUomIdForDepartment = (deptId: string): string => {
-    const dept = departments?.find(d => d.id === deptId);
-    if (dept?.code === PRESS_DEPT_CODE) return PRESS_SHEETS_UOM_ID;
-    return BAGS_UOM_ID;
-  };
+  const getUomIdForDepartment = (_deptId: string): string => BAGS_UOM_ID;
 
   const getUnitLabel = (deptId: string): string => {
     const dept = departments?.find(d => d.id === deptId);
-    if (dept?.code === PRESS_DEPT_CODE) return 'Press Sheets';
+    if (dept?.code === PRESS_DEPT_CODE) return 'Bags (Coly)';
     return 'Bags';
   };
   
@@ -132,6 +134,43 @@ export default function DailyEntryPage() {
       return data;
     },
   });
+
+  // Grade ledger: stock of the same grade in the stage this department consumes
+  // from (Jorr ← Coly, Final / Fancy Final ← Jorr).
+  const selectedDeptCode = departments?.find(d => d.id === formData.department_id)?.code;
+  const consumesFrom = selectedDeptCode ? CONSUMES_FROM[selectedDeptCode] : undefined;
+  const { data: availability } = useQuery({
+    queryKey: ['grade-ledger-available', consumesFrom, formData.grade_id, formData.entry_date, editingEntry?.id ?? null],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('grade_ledger_available', {
+        p_bucket: consumesFrom,
+        p_grade: formData.grade_id,
+        p_as_of: formData.entry_date,
+        p_exclude_entry: editingEntry?.id ?? null,
+      });
+      if (error) throw error;
+      return data as LedgerAvailability;
+    },
+    enabled: isDialogOpen && !!consumesFrom && !!formData.grade_id && !!formData.entry_date,
+  });
+  const quantityUsed = (Number(formData.quantity_ok) || 0) + (Number(formData.quantity_rejected) || 0);
+  const ledgerShort = !!consumesFrom && availability?.enabled === true && quantityUsed > Number(availability.available);
+
+  const saveEntry = () => (editingEntry ? updateMutation.mutate() : createMutation.mutate());
+
+  const handleSave = () => {
+    if (ledgerShort && availability?.enabled) {
+      const gradeCode = grades?.find(g => g.id === formData.grade_id)?.code ?? '';
+      const msg = `This entry uses ${fmtQty(quantityUsed)} bags of ${bucketLabel(consumesFrom!)} ${gradeCode}, but only ${fmtQty(availability.available)} are available on ${formData.entry_date}.`;
+      if (availability.block) {
+        toast({ title: "Not enough stock", description: `${msg} Check the grade and date, or ask a super admin to correct the stock.`, variant: "destructive" });
+        return;
+      }
+      setNegativeWarning(msg);
+      return;
+    }
+    saveEntry();
+  };
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['production-entries', dateFilter, departmentFilter],
@@ -205,6 +244,7 @@ export default function DailyEntryPage() {
     onSuccess: () => {
       toast({ title: "Success", description: "Production entry created successfully" });
       queryClient.invalidateQueries({ queryKey: ['production-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-ledger-available'] });
       setIsDialogOpen(false);
       resetForm();
     },
@@ -382,6 +422,7 @@ export default function DailyEntryPage() {
     onSuccess: () => {
       toast({ title: "Success", description: "Production entry updated successfully" });
       queryClient.invalidateQueries({ queryKey: ['production-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-ledger-available'] });
       setIsDialogOpen(false);
       resetForm();
     },
@@ -541,6 +582,24 @@ export default function DailyEntryPage() {
                     </div>
                   )}
 
+                  {consumesFrom && formData.grade_id && availability?.enabled && (
+                    <div className={`text-sm px-3 py-2 rounded-md ${ledgerShort ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-muted-foreground'}`}>
+                      {bucketLabel(consumesFrom)} available for this grade on {formData.entry_date}:{' '}
+                      <span className="font-medium">{fmtQty(availability.available)} bags</span>
+                      {Number(availability.pending_drafts) > 0 && (
+                        <span> ({fmtQty(availability.posted_balance)} posted − {fmtQty(availability.pending_drafts)} in other draft entries)</span>
+                      )}
+                      {quantityUsed > 0 && <span> · this entry uses {fmtQty(quantityUsed)}</span>}
+                      {ledgerShort && (
+                        <span className="block text-xs mt-1">
+                          {availability.block
+                            ? 'Not enough stock — this entry cannot be saved.'
+                            : `Not enough stock — you can still save during the warning period (until ${availability.block_negative_from}).`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Target Production ({formData.department_id ? getUnitLabel(formData.department_id) : 'units'}) *</Label>
@@ -606,7 +665,7 @@ export default function DailyEntryPage() {
                   <div className="flex justify-end gap-2 pt-4">
                     <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
                     <Button
-                      onClick={() => editingEntry ? updateMutation.mutate() : createMutation.mutate()}
+                      onClick={handleSave}
                       disabled={!formData.department_id || !formData.grade_id || !formData.quantity_produced || createMutation.isPending || updateMutation.isPending}
                     >
                       {(createMutation.isPending || updateMutation.isPending) ? 'Saving...' : (editingEntry ? 'Update Entry' : 'Save Entry')}
@@ -640,6 +699,21 @@ export default function DailyEntryPage() {
             <AlertDialogAction onClick={() => postMutation.mutate(draftEntries.map((e: any) => e.id))} disabled={postMutation.isPending}>
               {postMutation.isPending ? 'Posting...' : 'Post All'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!negativeWarning} onOpenChange={(open) => !open && setNegativeWarning(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stock will go negative</AlertDialogTitle>
+            <AlertDialogDescription>
+              {negativeWarning} Saving now leaves a negative balance in the grade ledger. Save anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setNegativeWarning(null); saveEntry(); }}>Save anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
