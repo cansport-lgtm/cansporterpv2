@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -360,6 +360,11 @@ import HPMaterialAnalysisPage from "./pages/hourly-production/HPMaterialAnalysis
 // Machine Monitor v1 additions
 import MachineMonitorBreakdownLogsPage from "./pages/machine-monitor/MachineMonitorBreakdownLogsPage";
 import MachineMonitorPerformanceLogsPage from "./pages/machine-monitor/MachineMonitorPerformanceLogsPage";
+import GatePassListPage from "./pages/gate-pass/GatePassListPage";
+import GatePassFormPage from "./pages/gate-pass/GatePassFormPage";
+import GatePassDetailPage from "./pages/gate-pass/GatePassDetailPage";
+import GatePassApprovalsPage from "./pages/gate-pass/GatePassApprovalsPage";
+import GateCheckPage from "./pages/gate-pass/GateCheckPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -849,6 +854,14 @@ const App = () => (
             <Route path="/machine-monitor/breakdown-logs" element={<ProtectedRoute><MachineMonitorBreakdownLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
+            {/* Gate Pass (outward) */}
+            <Route path="/gate-pass" element={<Navigate to="/gate-pass/passes" replace />} />
+            <Route path="/gate-pass/passes" element={<ProtectedRoute><GatePassListPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/passes/:id" element={<ProtectedRoute><GatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/new" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/edit/:id" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/approvals" element={<ProtectedRoute><GatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/check" element={<ProtectedRoute><GateCheckPage /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />

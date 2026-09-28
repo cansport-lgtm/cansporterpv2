@@ -166,6 +166,10 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "machine_monitor_officer", label: "Machine Monitor — Officer (create & edit)" },
   { value: "machine_monitor_viewer", label: "Machine Monitor — Viewer (read-only)" },
   { value: "helpdesk_manager", label: "Help Desk — Manager (manages all tickets)" },
+  { value: "gate_pass_manager", label: "Gate Pass — Manager (create, approve, release held passes)" },
+  { value: "gate_pass_officer", label: "Gate Pass — Officer (create & submit passes)" },
+  { value: "gate_pass_viewer", label: "Gate Pass — Viewer (read-only)" },
+  { value: "gate_security", label: "Gate Pass — Gate Security (gate check page only, no prices)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -651,6 +655,10 @@ export default function UsersPage() {
       machine_monitor_officer: "bg-cyan-500/10 text-cyan-500",
       machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400",
       helpdesk_manager: "bg-rose-600/10 text-rose-600",
+      gate_pass_manager: "bg-stone-700/10 text-stone-700",
+      gate_pass_officer: "bg-stone-600/10 text-stone-600",
+      gate_pass_viewer: "bg-stone-500/10 text-stone-500",
+      gate_security: "bg-slate-800/10 text-slate-800",
       projects_super_manager: "bg-blue-700/10 text-blue-700",
     };
     return colors[role] || "";

@@ -66,6 +66,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/qa/operator-inspection" replace />;
   }
 
+  // Gate Security lands directly on the Gate Check page — their only page
+  if (roles.some(r => (r.role as string) === 'gate_security')) {
+    return <Navigate to="/gate-pass/check" replace />;
+  }
+
   // Sales Executive goes to Sales Orders page
   if (roles.some(r => r.role === 'sales_executive')) {
     return <Navigate to="/sales/orders" replace />;

@@ -84,6 +84,8 @@ export function ProtectedRoute({
         return 'six_sigma';
       case 'machine-monitor':
         return 'machine_monitor';
+      case 'gate-pass':
+        return 'gate_pass';
       case 'crm':
         return 'crm';
       case 'marketing':
@@ -194,6 +196,14 @@ export function ProtectedRoute({
     if (roles.some((r) => (r.role as string) === 'qa_inspector')) {
       if (location.pathname !== '/qa/operator-inspection') {
         return <Navigate to="/qa/operator-inspection" replace />;
+      }
+    }
+
+    // For gate security, redirect back to the Gate Check page when accessing
+    // anything outside it.
+    if (roles.some((r) => (r.role as string) === 'gate_security')) {
+      if (location.pathname !== '/gate-pass/check') {
+        return <Navigate to="/gate-pass/check" replace />;
       }
     }
 

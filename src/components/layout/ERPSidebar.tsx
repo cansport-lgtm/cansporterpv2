@@ -33,6 +33,7 @@ import {
   Headphones,
   Workflow,
   LifeBuoy,
+  DoorOpen,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -700,6 +701,18 @@ const navigationItems: NavItem[] = [
       { title: "Machines", href: "/machine-monitor/machines" },
       { title: "Breakdown Logs", href: "/machine-monitor/breakdown-logs" },
       { title: "Performance Issue Logs", href: "/machine-monitor/performance-logs" },
+    ],
+  },
+  {
+    title: "Gate Pass",
+    icon: DoorOpen,
+    color: "text-stone-400",
+    module: "gate_pass",
+    children: [
+      { title: "Gate Passes", href: "/gate-pass/passes" },
+      { title: "New Gate Pass", href: "/gate-pass/new", allowedRoles: ["super_admin", "gate_pass_manager", "gate_pass_officer"] },
+      { title: "Approvals", href: "/gate-pass/approvals", allowedRoles: ["super_admin", "gate_pass_manager"] },
+      { title: "Gate Check", href: "/gate-pass/check", allowedRoles: ["super_admin", "gate_pass_manager", "gate_security"] },
     ],
   },
   {
