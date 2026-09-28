@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { gpDb } from "@/lib/gatePass";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,6 +176,36 @@ export default function WIPLedgerPage() {
       ),
   });
 
+  // Finished-goods samples that left on a gate pass (Gate Pass module) — an FG
+  // outflow next to Sales. Dated by when the vehicle went out. The view is
+  // missing until the gate pass migration is applied; treat that as none.
+  const { data: samples = [] } = useQuery({
+    queryKey: ["wip-ledger-gate-samples", fromDate, toDate],
+    queryFn: () =>
+      fetchAllRows<{ out_date: string; quantity_dozens: number }>((from, to) =>
+        gpDb
+          .from("v_gate_pass_fg_samples")
+          .select("out_date, quantity_dozens")
+          .gte("out_date", fromDate)
+          .lte("out_date", toDate)
+          .order("gate_pass_id")
+          .range(from, to)
+      ).catch(() => []),
+  });
+
+  const { data: openingSamples = [] } = useQuery({
+    queryKey: ["wip-ledger-opening-gate-samples", fromDate],
+    queryFn: () =>
+      fetchAllRows<{ out_date: string; quantity_dozens: number }>((from, to) =>
+        gpDb
+          .from("v_gate_pass_fg_samples")
+          .select("out_date, quantity_dozens")
+          .lt("out_date", fromDate)
+          .order("gate_pass_id")
+          .range(from, to)
+      ).catch(() => []),
+  });
+
   // Build ordered levels (group departments by wip_order)
   const levels: Level[] = useMemo(() => {
     const deptMap = new Map(departments.map(d => [d.id, d]));
@@ -264,6 +295,18 @@ export default function WIPLedgerPage() {
     return total;
   }, [openingReturns]);
 
+  // Gate pass samples per date (in-range) and before fromDate, divided by 25 like sales
+  const samplesMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of samples) m.set(r.out_date, (m.get(r.out_date) || 0) + Number(r.quantity_dozens || 0) / 25);
+    return m;
+  }, [samples]);
+
+  const openingSamplesTotal = useMemo(
+    () => openingSamples.reduce((s, r) => s + Number(r.quantity_dozens || 0) / 25, 0),
+    [openingSamples]
+  );
+
   const dates = useMemo(() => {
     try {
       return eachDayOfInterval({ start: parseISO(fromDate), end: parseISO(toDate) }).map(d => format(d, "yyyy-MM-dd"));
@@ -279,7 +322,7 @@ export default function WIPLedgerPage() {
     // Opening balance = (prior input from previous level) - (prior outflow of this level)
     const openingIn = prev ? sumLevelOpening(prev) : 0;
     // At the final level, returns add FG back, so they net off opening sales-out.
-    const openingOut = isLast ? (openingSalesTotal - openingReturnsTotal) : sumLevelOpening(lvl);
+    const openingOut = isLast ? (openingSalesTotal - openingReturnsTotal + openingSamplesTotal) : sumLevelOpening(lvl);
     const openingBalance = openingIn - openingOut;
 
     let balance = openingBalance;
@@ -290,7 +333,8 @@ export default function WIPLedgerPage() {
       const inQty = prev ? sumLevel(prev, d) : 0;
       const retIn = isLast ? (returnsMap.get(d) || 0) : 0;   // FG returned by customers
       const outQty = isLast ? (salesMap.get(d) || 0) : sumLevel(lvl, d);
-      if (inQty === 0 && outQty === 0 && retIn === 0) continue;
+      const sampleOut = isLast ? (samplesMap.get(d) || 0) : 0;   // FG samples out on a gate pass
+      if (inQty === 0 && outQty === 0 && retIn === 0 && sampleOut === 0) continue;
       if (inQty > 0) {
         balance += inQty;
         rows.push({ date: d, ref: prev ? `From ${prev.label}` : "Input", inQty, outQty: 0, balance });
@@ -302,6 +346,10 @@ export default function WIPLedgerPage() {
       if (outQty > 0) {
         balance -= outQty;
         rows.push({ date: d, ref: isLast ? "Sales" : (next ? `To ${next.label}` : "Produced"), inQty: 0, outQty, balance });
+      }
+      if (sampleOut > 0) {
+        balance -= sampleOut;
+        rows.push({ date: d, ref: "Samples (gate pass)", inQty: 0, outQty: sampleOut, balance });
       }
     }
     const totalIn = rows.reduce((s, r) => s + r.inQty, 0);
