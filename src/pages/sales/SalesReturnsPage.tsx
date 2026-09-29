@@ -279,7 +279,7 @@ export default function SalesReturnsPage() {
         <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" />New Return</Button>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 max-sm:[&>*]:!col-span-full gap-3 mb-4">
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Returns</div><div className="text-lg font-semibold">{totals.count}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Value</div><div className="text-lg font-semibold">Rs. {totals.total.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Posted</div><div className="text-lg font-semibold text-green-600">{totals.posted}</div></CardContent></Card>
@@ -363,7 +363,7 @@ export default function SalesReturnsPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-3">
               <div>
                 <Label>Return Date *</Label>
                 <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />

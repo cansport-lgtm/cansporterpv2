@@ -292,7 +292,7 @@ export default function LabourMPHManagementPage() {
             </div>
 
             {/* Summary */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card><CardContent className="pt-3 pb-2">
                 <p className="text-[10px] text-muted-foreground">Authorized</p>
                 <p className="text-lg font-bold">{dailyTotals.authorized.toFixed(1)}</p>
@@ -419,7 +419,7 @@ export default function LabourMPHManagementPage() {
             </div>
 
             {/* Monthly Summary */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card><CardContent className="pt-3 pb-2">
                 <p className="text-[10px] text-muted-foreground">Total Authorized</p>
                 <p className="text-lg font-bold">{monthlyTotals.authorized.toFixed(1)}</p>

@@ -542,7 +542,7 @@ export default function ProcessMasterPage() {
             
             <div className="space-y-4">
               {parameters.map((param, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-muted/50 rounded-lg items-end">
+                <div key={index} className="grid grid-cols-12 max-md:[&>*]:!col-span-full gap-2 p-3 bg-muted/50 rounded-lg items-end">
                   <div className="col-span-3 space-y-1">
                     <Label className="text-xs">Parameter Name</Label>
                     <Input

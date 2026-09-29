@@ -579,7 +579,7 @@ export default function AccountingBudgetsPage() {
                   placeholder={`FY ${fyLabelFor(createForm.start_year, createForm.start_month, createForm.num_months)} Operating Budget`}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label>Start Month</Label>
                   <Select value={String(createForm.start_month)} onValueChange={(v) => setCreateForm({ ...createForm, start_month: parseInt(v) })}>

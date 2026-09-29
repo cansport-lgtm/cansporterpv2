@@ -455,7 +455,7 @@ export default function GeneralExpensesPage() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Amount (₹) *</Label>
                 <Input
@@ -581,7 +581,7 @@ export default function GeneralExpensesPage() {
                 <p className="font-medium">{selectedExpense.description}</p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Amount:</span>
                   <p className="font-medium">₹{Number(selectedExpense.amount).toLocaleString()}</p>

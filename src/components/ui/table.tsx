@@ -2,9 +2,13 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+// Cell padding is driven by the --cell-px / --cell-py knobs (1rem on desktop,
+// 0.75rem on phones — see index.css). They are plain p-* utilities, so any
+// className a page passes (p-2, py-1, …) still overrides them via tailwind-merge.
+
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full overflow-auto [-webkit-overflow-scrolling:touch]">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
@@ -46,7 +50,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "h-12 px-[var(--cell-px)] text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -57,7 +61,11 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
+    <td
+      ref={ref}
+      className={cn("px-[var(--cell-px)] py-[var(--cell-py)] align-middle [&:has([role=checkbox])]:pr-0", className)}
+      {...props}
+    />
   ),
 );
 TableCell.displayName = "TableCell";

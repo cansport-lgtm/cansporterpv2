@@ -1044,7 +1044,7 @@ export default function SalesOrdersPage() {
             </DialogHeader>
             {viewOrder && (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Customer</div>
                     <div className="font-medium">{viewOrder.customers?.name}</div>

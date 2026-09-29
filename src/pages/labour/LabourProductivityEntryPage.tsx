@@ -1449,7 +1449,7 @@ const LabourProductivityEntryPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 text-sm mb-3 bg-muted/50 p-2 rounded">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 max-sm:[&>*]:!col-span-full gap-2 text-sm mb-3 bg-muted/50 p-2 rounded">
             <div className="text-center">
               <span className="text-muted-foreground text-xs">Std Target</span>
               <p className="font-semibold">{item.target_quantity}</p>

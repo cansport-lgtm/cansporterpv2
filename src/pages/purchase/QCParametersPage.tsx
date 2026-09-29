@@ -346,7 +346,7 @@ export default function QCParametersPage() {
             </div>
 
             {form.parameter_type === "numeric" && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Min</Label>
                   <Input type="number" step="any" value={form.min_value}

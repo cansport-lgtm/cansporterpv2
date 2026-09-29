@@ -133,7 +133,7 @@ export default function CustomerReceiptsPage() {
     <ERPLayout>
       <PageHeader title="Customer Receipts" description="AR aging + record customer payments against open balances" />
 
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 max-sm:[&>*]:!col-span-full gap-3 mb-4">
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Outstanding AR</div><div className="text-lg font-semibold">Rs. {totals.total.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">0-30 days</div><div className="text-lg font-semibold text-green-600">Rs. {totals.b0_30.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">31-60 days</div><div className="text-lg font-semibold text-amber-600">Rs. {totals.b31_60.toLocaleString()}</div></CardContent></Card>

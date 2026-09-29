@@ -295,7 +295,7 @@ export const PayslipDialog = ({ open, onOpenChange, employee, month }: PayslipDi
         </DialogHeader>
 
         <div ref={printRef} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4 p-3 bg-muted rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-3 bg-muted rounded-lg">
             <div>
               <p className="text-xs text-muted-foreground">Code</p>
               <p className="font-medium">{employee.employee_code}</p>

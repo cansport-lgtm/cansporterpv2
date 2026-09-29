@@ -883,6 +883,36 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
     }
   }, [location.pathname]);
 
+  // Mobile drawer behaviour (no-ops on desktop where the sidebar is static):
+  // close after navigating, on Escape, and when the viewport grows into the
+  // desktop layout; lock body scroll while the drawer is open.
+  useEffect(() => {
+    setIsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    if (desktop.matches) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    const onDesktop = (e: MediaQueryListEvent) => {
+      if (e.matches) setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    desktop.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onDesktop);
+    };
+  }, [isOpen, setIsOpen]);
+
   const toggleExpanded = (title: string) => {
     setExpandedItems((prev) =>
       prev.includes(title)
@@ -912,18 +942,20 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        aria-label="Main navigation"
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 flex h-dvh-safe w-64 max-w-[85vw] flex-col bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 pt-safe lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
+        <div className="flex h-16 shrink-0 items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <img
               src={cansportLogo}
@@ -936,13 +968,14 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
             size="icon"
             className="lg:hidden text-sidebar-foreground"
             onClick={() => setIsOpen(false)}
+            aria-label="Close navigation menu"
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)] scrollbar-thin">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 px-3 scrollbar-thin">
           <div className="space-y-0.5">
             {filteredNavigationItems.map((item) => {
               const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
@@ -1077,7 +1110,7 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-3 bg-sidebar/80">
+        <div className="shrink-0 border-t border-sidebar-border p-3 pb-[calc(0.75rem_+_var(--safe-bottom))] bg-sidebar/80">
           <Button
             variant="ghost"
             className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"

@@ -104,6 +104,27 @@
     --status-approved: 152 68% 38%;
     --status-rejected: 0 74% 52%;
     --status-closed: 215 25% 35%;
+
+    /* Responsive spacing knobs.
+       Card, Dialog, Sheet and Table primitives read these instead of hard-coding
+       their padding so mobile can compact spacing globally while every per-page
+       utility override (p-2, py-3, …) keeps winning as before. Desktop values are
+       identical to the previous hard-coded ones. */
+    --card-p: 1.5rem;
+    --dialog-p: 1.5rem;
+    --cell-px: 1rem;
+    --cell-py: 1rem;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  @media (max-width: 639px) {
+    :root {
+      --card-p: 1rem;
+      --dialog-p: 1rem;
+      --cell-px: 0.75rem;
+      --cell-py: 0.75rem;
+    }
   }
 
   .dark {
@@ -271,6 +292,30 @@
     background-origin: border-box;
     background-clip: padding-box, border-box;
     border: 1px solid transparent;
+  }
+  /* Safe-area (notch / home indicator) helpers for standalone PWA mode */
+  .pt-safe {
+    padding-top: var(--safe-top);
+  }
+  .pb-safe {
+    padding-bottom: var(--safe-bottom);
+  }
+  /* Dynamic viewport height with a vh fallback for older engines */
+  .h-dvh-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .min-h-dvh-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* Hide scrollbars on horizontally swipeable rows (tabs, chips) */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
   /* Visually hide while keeping accessible */
   .visually-hidden {
@@ -440,6 +485,130 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Page header action row — buttons/filters grow to fill the row on phones */
+  .page-header-actions {
+    @apply flex flex-wrap items-center gap-2 sm:gap-3;
+  }
+
+  /* ── Mobile compaction (< 640px) ───────────────────────────────────────
+     Tightens the design-system classes above on phones. These live in the
+     components layer, so any Tailwind utility a page adds still wins. */
+  @media (max-width: 639px) {
+    .page-header {
+      @apply mb-4 gap-2;
+    }
+    .page-title {
+      @apply text-xl;
+    }
+    .page-header-actions > * {
+      flex: 1 1 auto;
+    }
+    .metric-card {
+      @apply p-4 rounded-xl;
+    }
+    .metric-value {
+      @apply text-xl;
+    }
+    .module-card {
+      @apply p-4 rounded-xl;
+    }
+    .form-section {
+      @apply p-4 rounded-xl;
+    }
+    .filter-bar {
+      @apply gap-2 p-3 rounded-xl;
+    }
+    .dashboard-grid {
+      @apply gap-3;
+    }
+    .data-table th {
+      @apply px-3 py-2;
+    }
+    .data-table td {
+      @apply px-3 py-2;
+    }
+  }
+
+  /* Touch devices: no hover lift (it would stick after a tap) */
+  @media (hover: none) {
+    .metric-card:hover,
+    .module-card:hover {
+      transform: none;
+    }
+  }
+}
+
+/* ── Mobile layout safety net (< 640px) ──────────────────────────────────
+   Unlayered on purpose so it wins over per-page utilities. Every rule here is
+   phone-only; nothing changes at sm and above. */
+@media (max-width: 639px) {
+  /* iOS Safari zooms the page when focusing a control whose text is < 16px. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea,
+  button[role="combobox"] {
+    font-size: 16px;
+  }
+
+  /* Fixed-width controls (w-[180px] filters, etc.) may never exceed the screen. */
+  main [class^="w-["],
+  main [class*=" w-["],
+  [role="dialog"] [class^="w-["],
+  [role="dialog"] [class*=" w-["],
+  main button[role="combobox"],
+  main input,
+  main textarea {
+    max-width: 100%;
+  }
+
+  /* Horizontal toolbars / filter rows wrap instead of overflowing the screen.
+     Explicit nowrap, column and horizontally-scrolling containers are left alone. */
+  main .flex:not(.flex-col):not(.flex-col-reverse):not(.flex-nowrap):not(.overflow-x-auto):not(.overflow-auto):not(.overflow-x-scroll):not(.overflow-hidden):not(.overflow-x-hidden),
+  [role="dialog"] .flex:not(.flex-col):not(.flex-col-reverse):not(.flex-nowrap):not(.overflow-x-auto):not(.overflow-auto):not(.overflow-x-scroll):not(.overflow-hidden):not(.overflow-x-hidden),
+  [role="alertdialog"] .flex:not(.flex-col):not(.flex-col-reverse):not(.flex-nowrap):not(.overflow-x-auto):not(.overflow-auto):not(.overflow-x-scroll):not(.overflow-hidden):not(.overflow-x-hidden) {
+    flex-wrap: wrap;
+  }
+
+  /* Flex children that are meant to fill the row must be allowed to shrink so
+     wide tables inside them scroll within their own wrapper. */
+  main .flex > .flex-1,
+  main .flex > .grow,
+  [role="dialog"] .flex > .flex-1,
+  [role="dialog"] .flex > .grow {
+    min-width: 0;
+  }
+
+  /* Tab strips become swipeable instead of overflowing. Unsupported engines
+     drop the `safe center` declaration and keep flex-start. */
+  [role="tablist"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    justify-content: safe center;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+  [role="tablist"] > [role="tab"] {
+    flex-shrink: 0;
+  }
+
+  /* Recharts wrappers must be allowed to shrink inside grid/flex parents */
+  .recharts-responsive-container {
+    min-width: 0;
+  }
+
+  /* Long identifiers (order numbers, emails) shouldn't force horizontal scroll */
+  main h1,
+  main h2,
+  main h3 {
+    overflow-wrap: anywhere;
   }
 }
 

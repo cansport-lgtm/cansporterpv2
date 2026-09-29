@@ -531,7 +531,7 @@ export default function UtilityBillsPage() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Meter Readings (Optional)</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Previous Reading</Label>
                   <Input
@@ -564,7 +564,7 @@ export default function UtilityBillsPage() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Amount Details</h4>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Base Amount (₹) *</Label>
                   <Input

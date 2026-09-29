@@ -442,7 +442,7 @@ export default function MachineMonitorMachinesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div id="machine-qr-labels">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {machines.filter((m) => m.is_active).map((m) => (
                   <div key={m.id} className="border rounded-md p-3 flex flex-col items-center">
                     <QRCodeSVG

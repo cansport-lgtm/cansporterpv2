@@ -130,7 +130,7 @@ export default function BankBookPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Opening Balance</div><div className="text-xl font-semibold">Rs. {Number(opening || 0).toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Receipts (Dr)</div><div className="text-xl font-semibold text-green-600">Rs. {totalDr.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Payments (Cr)</div><div className="text-xl font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</div></CardContent></Card>

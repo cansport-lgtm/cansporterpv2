@@ -212,7 +212,7 @@ export default function OnlineReturnsAnalyticsPage() {
         <Card>
           <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" /> In-Transit Aging</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {Object.entries(stats.aging).map(([bucket, count]) => (
                 <div key={bucket} className="text-center p-3 rounded border">
                   <div className={`text-2xl font-bold ${bucket === "15+" ? "text-destructive" : bucket === "8-14" ? "text-amber-600" : ""}`}>{count}</div>

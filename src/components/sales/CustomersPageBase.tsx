@@ -475,7 +475,7 @@ export default function CustomersPageBase({ segment, title }: CustomersPageBaseP
                         <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this shop pays its own bills, choose "Same as this customer".</p>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>GST Number</Label>
                           <Input

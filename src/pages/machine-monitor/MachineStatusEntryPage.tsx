@@ -416,7 +416,7 @@ export default function MachineStatusEntryPage() {
             </div>
             <div>
               <Label>New Status *</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-2 mt-1">
                 {BASE_STATUSES.map((b) => {
                   const active = newBase === b;
                   const tone =

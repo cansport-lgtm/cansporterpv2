@@ -475,7 +475,7 @@ export default function ProductionRequirementsSection({ fromDate, toDate, permis
                   </div>
                   {statusBadge(r.status)}
                 </div>
-                <div className="grid grid-cols-4 gap-1 text-center text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-center text-[11px]">
                   <div className="rounded bg-muted/50 py-1"><div className="text-muted-foreground">Items</div><div className="font-semibold">{its.length}</div></div>
                   <div className="rounded bg-muted/50 py-1"><div className="text-muted-foreground">Days</div><div className="font-semibold">{days}</div></div>
                   <div className="rounded bg-muted/50 py-1"><div className="text-muted-foreground">Qty</div><div className="font-semibold">{totalQ.toLocaleString()}</div></div>

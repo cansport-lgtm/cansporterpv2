@@ -86,7 +86,7 @@ export default function RejectionsWastagesDashboard() {
               <CalendarDays className="h-4 w-4" />
               <span>Period</span>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
               {presets.map((p) => (
                 <Button
                   key={p.key}

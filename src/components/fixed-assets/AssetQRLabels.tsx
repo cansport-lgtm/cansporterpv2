@@ -230,7 +230,7 @@ export function AssetQRLabels({ open, onOpenChange, assets }: AssetQRLabelsProps
             </div>
 
             <div id="qr-labels-print">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {printAssets.map((asset) => (
                   <div key={asset.id} className="border rounded-md p-3 flex flex-col items-center">
                     <QRCodeSVG value={asset.asset_code} size={80} level="M" />

@@ -538,7 +538,7 @@ const EmployeesPage = () => {
               {/* Duty Hours Section */}
               <div className="border-t pt-4">
                 <Label className="text-sm font-semibold text-muted-foreground">Official Duty Hours</Label>
-                <div className="grid grid-cols-3 gap-3 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
                   <div>
                     <Label className="text-xs">Start Time</Label>
                     <Input

@@ -113,7 +113,7 @@ export default function TrialBalancePage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Debit</div><div className="text-2xl font-semibold text-green-600">Rs. {totalDr.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Credit</div><div className="text-2xl font-semibold text-red-600">Rs. {totalCr.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4">

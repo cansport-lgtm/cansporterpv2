@@ -338,7 +338,7 @@ export default function DispatchPage() {
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                       {/* Order Selection */}
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Select Order *</Label>
                           <Select 
@@ -432,7 +432,7 @@ export default function DispatchPage() {
                       )}
 
                       {/* Transport Details */}
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Vehicle Number</Label>
                           <Input
@@ -457,7 +457,7 @@ export default function DispatchPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Transporter</Label>
                           <Input
@@ -482,7 +482,7 @@ export default function DispatchPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Freight Charges (Rs.)</Label>
                           <Input

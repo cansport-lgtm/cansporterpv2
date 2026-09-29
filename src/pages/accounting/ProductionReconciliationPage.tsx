@@ -147,7 +147,7 @@ export default function ProductionReconciliationPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Expected Consumption Cost</div>
           <div className="text-xl font-semibold">Rs. {totalExpected.toLocaleString()}</div>

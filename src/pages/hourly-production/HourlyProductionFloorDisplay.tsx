@@ -327,7 +327,7 @@ export default function HourlyProductionFloorDisplay() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-muted rounded-xl p-4 text-center">
           <p className="text-sm text-muted-foreground">Today's Total</p>
           <p className="text-5xl font-bold">{totalToday.toLocaleString()}</p>

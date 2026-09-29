@@ -134,7 +134,7 @@ export default function PurchaseReconciliationPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         <Card><CardContent className="p-3">
           <div className="text-xs text-muted-foreground">Total GRN Value</div>
           <div className="text-lg font-semibold">Rs. {totalExpected.toLocaleString()}</div>

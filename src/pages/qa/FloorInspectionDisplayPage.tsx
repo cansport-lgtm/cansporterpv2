@@ -162,7 +162,7 @@ export default function FloorInspectionDisplayPage() {
 
       {/* Summary Bar */}
       {selectedIds.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="rounded-xl border-2 border-primary bg-primary/10 p-4 flex flex-col items-center justify-center">
             <Activity className="h-8 w-8 text-primary mb-1" />
             <span className="text-5xl lg:text-6xl font-bold text-primary">{totalInspections}</span>

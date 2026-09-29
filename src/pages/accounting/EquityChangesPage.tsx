@@ -194,7 +194,7 @@ export default function EquityChangesPage() {
       </PageHeader>
 
       <HiddenFigures>
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Briefcase className="h-3 w-3" />Opening Equity</div>
           <div className="text-2xl font-semibold">Rs. {fmt(computed.openingTotal)}</div>

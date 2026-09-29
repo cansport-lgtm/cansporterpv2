@@ -178,7 +178,7 @@ export default function CustomerPricingPage() {
         <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />New Price</Button>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Prices</div><div className="text-lg font-semibold">{stats.count}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Active</div><div className="text-lg font-semibold text-green-600">{stats.active}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Customers Covered</div><div className="text-lg font-semibold">{stats.customers}</div></CardContent></Card>

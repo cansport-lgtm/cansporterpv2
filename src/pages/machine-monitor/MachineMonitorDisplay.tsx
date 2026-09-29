@@ -199,7 +199,7 @@ export default function MachineMonitorDisplay() {
       )}
 
       {/* Summary Bar */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 text-center">
           <div className="text-3xl font-bold">{filteredMachines.length}</div>
           <div className="text-xs text-slate-400 uppercase tracking-wider">Total</div>

@@ -401,7 +401,7 @@ export default function DomesticInvoicesPage() {
         <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" />New Invoice</Button>
       </PageHeader>
 
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Invoices</div><div className="text-lg font-semibold">{totals.count}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total Value</div><div className="text-lg font-semibold">Rs. {totals.total.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Draft</div><div className="text-lg font-semibold text-gray-600">{totals.draft}</div></CardContent></Card>
