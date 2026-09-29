@@ -3,7 +3,7 @@ import { InventoryValuationDashboard } from "@/components/accounting/InventoryVa
 
 /**
  * Production Planning view of the Finished Goods Inventory report, limited to
- * held stock — CPA, Leak and Rejection. Standard sellable stock is hidden.
+ * held stock — CPA, Leak, Rejection and Lot items. Standard sellable stock is hidden.
  */
 export default function HeldStockInventoryPage() {
   return (

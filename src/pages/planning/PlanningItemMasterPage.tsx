@@ -43,7 +43,8 @@ import {
 import { Plus, Pencil, Trash2, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { STOCK_CATEGORIES, stockCategoryMeta, type StockCategory } from "@/lib/stockCategories";
+import { STOCK_CATEGORIES, stockCategoryMeta, type StockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
 
 const UNIT_OPTIONS = [
   { value: "sheets", label: "Sheets" },
@@ -68,6 +69,7 @@ interface PlanningItem {
 export default function PlanningItemMasterPage() {
   const queryClient = useQueryClient();
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PlanningItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function PlanningItemMasterPage() {
 
   // Fetch planning items
   const { data: items, isLoading } = useQuery({
-    queryKey: ["planning-items-master", selectedDepartment],
+    queryKey: ["planning-items-master", selectedDepartment, stockCategory],
     queryFn: async () => {
       let query = supabase
         .from("planning_items")
@@ -108,6 +110,9 @@ export default function PlanningItemMasterPage() {
 
       if (selectedDepartment !== "all") {
         query = query.eq("department_id", selectedDepartment);
+      }
+      if (stockCategory !== "all") {
+        query = query.eq("stock_category", stockCategory);
       }
 
       const { data } = await query;
@@ -248,7 +253,7 @@ export default function PlanningItemMasterPage() {
         {/* Filters */}
         <Card>
           <CardContent className="py-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <Label>Filter by Department:</Label>
               <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
                 <SelectTrigger className="w-64">
@@ -263,6 +268,8 @@ export default function PlanningItemMasterPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Label>Stock Category:</Label>
+              <StockCategoryFilter value={stockCategory} onChange={setStockCategory} className="w-56" />
             </div>
           </CardContent>
         </Card>

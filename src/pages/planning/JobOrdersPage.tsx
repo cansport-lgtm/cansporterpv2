@@ -55,6 +55,8 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 interface JobOrderItem {
   id?: string;
@@ -134,6 +136,8 @@ export default function JobOrdersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
+  const [formStockCategory, setFormStockCategory] = useState<StockCategoryFilterValue>("all");
   const today = new Date();
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
@@ -257,13 +261,19 @@ export default function JobOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     const t = search.trim().toLowerCase();
-    if (!t) return orders;
-    return orders.filter((o: any) =>
-      [o.job_order_number, o.remarks, deptMap[o.department_id]?.name]
-        .filter(Boolean)
-        .some((s: string) => s.toLowerCase().includes(t))
+    return orders.filter(
+      (o: any) =>
+        (!t ||
+          [o.job_order_number, o.remarks, deptMap[o.department_id]?.name]
+            .filter(Boolean)
+            .some((s: string) => s.toLowerCase().includes(t))) &&
+        // A job order matches when any of its line items is in the category.
+        (stockCategory === "all" ||
+          (itemsByOrder[o.id] || []).some((it: any) =>
+            matchesStockCategory(piMap[it.planning_item_id]?.stock_category, stockCategory)
+          ))
     );
-  }, [orders, search, deptMap]);
+  }, [orders, search, deptMap, stockCategory, itemsByOrder, piMap]);
 
   // Same-required-date continuation series: group by required_by_date + department,
   // assign sequence numbers in chronological order (1 = first issued for that required date).
@@ -476,12 +486,15 @@ export default function JobOrdersPage() {
   };
 
   // Filter planning items by selected department
+  // Items already on the form stay listed so their selection still renders.
   const formDeptPlanningItems = useMemo(() => {
-    if (!form.department_id) return planningItems;
+    const selected = new Set(form.items.map((it) => it.planning_item_id));
     return planningItems.filter(
-      (p: any) => p.department_id === form.department_id
+      (p: any) =>
+        (!form.department_id || p.department_id === form.department_id) &&
+        (selected.has(p.id) || matchesStockCategory(p.stock_category, formStockCategory))
     );
-  }, [planningItems, form.department_id]);
+  }, [planningItems, form.department_id, form.items, formStockCategory]);
 
   const handlePrint = (o: any) => {
     setPrintOrder(o);
@@ -537,6 +550,7 @@ export default function JobOrdersPage() {
                 ))}
               </SelectContent>
             </Select>
+            <StockCategoryFilter value={stockCategory} onChange={setStockCategory} className="w-52" />
             <div className="flex flex-col gap-1">
               <Label className="text-xs text-muted-foreground">From Date <span className="text-red-500">*</span></Label>
               <Input
@@ -840,7 +854,16 @@ export default function JobOrdersPage() {
             </div>
 
             <div>
-              <Label className="text-base font-semibold">Line Items</Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="text-base font-semibold">Line Items</Label>
+                {!readOnly && (
+                  <StockCategoryFilter
+                    value={formStockCategory}
+                    onChange={setFormStockCategory}
+                    className="w-52 h-8"
+                  />
+                )}
+              </div>
               <div className="border rounded-md mt-2 overflow-x-auto">
                 <Table>
                   <TableHeader>

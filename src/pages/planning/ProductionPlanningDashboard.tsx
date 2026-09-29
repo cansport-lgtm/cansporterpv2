@@ -30,6 +30,8 @@ import {
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 export default function ProductionPlanningDashboard() {
   const { hasRole } = useAuth();
@@ -37,6 +39,7 @@ export default function ProductionPlanningDashboard() {
   const [selectedWeek, setSelectedWeek] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [stockViewDate, setStockViewDate] = useState<Date>(new Date());
   const [stockViewDepartment, setStockViewDepartment] = useState<string>("all");
+  const [stockViewCategory, setStockViewCategory] = useState<StockCategoryFilterValue>("all");
   const [isStockCalendarOpen, setIsStockCalendarOpen] = useState(false);
   
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
@@ -120,7 +123,7 @@ export default function ProductionPlanningDashboard() {
         .from("daily_stock_closing")
         .select(`
           *,
-          planning_items (code, name, unit, threshold_inventory, department_id, costing_value, production_departments(name))
+          planning_items (code, name, unit, threshold_inventory, department_id, costing_value, stock_category, production_departments(name))
         `)
         .eq("closing_date", format(stockViewDate, "yyyy-MM-dd"));
       
@@ -138,6 +141,7 @@ export default function ProductionPlanningDashboard() {
     const grouped: Record<string, { departmentName: string; items: any[] }> = {};
     
     stockClosingData?.forEach((entry: any) => {
+      if (!matchesStockCategory(entry.planning_items?.stock_category, stockViewCategory)) return;
       const deptId = entry.planning_items?.department_id || "unknown";
       const deptName = entry.planning_items?.production_departments?.name || "Unknown";
       
@@ -148,7 +152,7 @@ export default function ProductionPlanningDashboard() {
     });
     
     return grouped;
-  }, [stockClosingData]);
+  }, [stockClosingData, stockViewCategory]);
 
   // Calculate demand by product
   const demandByProduct = useMemo(() => {
@@ -447,6 +451,10 @@ export default function ProductionPlanningDashboard() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium whitespace-nowrap">Stock Category:</span>
+                    <StockCategoryFilter value={stockViewCategory} onChange={setStockViewCategory} className="w-[200px]" />
                   </div>
                 </div>
               </CardContent>

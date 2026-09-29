@@ -30,6 +30,8 @@ import {
   Factory,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 interface ReportRow {
   planning_item_id: string;
@@ -62,6 +64,7 @@ export default function MonthlyProductionPage() {
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
   // null = departments not loaded yet; defaults to the Store department below
   const [deptFilter, setDeptFilter] = useState<string | null>(null);
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
 
   const fromStr = format(startOfMonth(month), "yyyy-MM-dd");
   const toStr = format(endOfMonth(month), "yyyy-MM-dd");
@@ -92,6 +95,16 @@ export default function MonthlyProductionPage() {
     },
   });
 
+  // The report RPC does not return stock_category, so look it up per item.
+  const { data: itemCategories } = useQuery({
+    queryKey: ["planning-item-stock-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("planning_items").select("id, stock_category");
+      if (error) throw error;
+      return new Map((data || []).map((i) => [i.id, i.stock_category]));
+    },
+  });
+
   useEffect(() => {
     if (deptFilter === null && departments.length > 0) {
       const store = departments.find((d) =>
@@ -114,9 +127,12 @@ export default function MonthlyProductionPage() {
   });
 
   const filteredRows = useMemo(() => {
-    if (!deptFilter || deptFilter === "all") return rows;
-    return rows.filter((r) => r.department_id === deptFilter);
-  }, [rows, deptFilter]);
+    return rows.filter(
+      (r) =>
+        (!deptFilter || deptFilter === "all" || r.department_id === deptFilter) &&
+        matchesStockCategory(itemCategories?.get(r.planning_item_id), stockCategory)
+    );
+  }, [rows, deptFilter, itemCategories, stockCategory]);
 
   const totals = useMemo(() => {
     return filteredRows.reduce(
@@ -251,6 +267,7 @@ export default function MonthlyProductionPage() {
                 ))}
               </SelectContent>
             </Select>
+            <StockCategoryFilter value={stockCategory} onChange={setStockCategory} className="w-[200px]" />
           </div>
           <Button variant="outline" onClick={exportCSV} disabled={filteredRows.length === 0}>
             <Download className="h-4 w-4 mr-2" />
