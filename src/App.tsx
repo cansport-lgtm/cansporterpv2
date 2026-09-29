@@ -365,6 +365,10 @@ import GatePassFormPage from "./pages/gate-pass/GatePassFormPage";
 import GatePassDetailPage from "./pages/gate-pass/GatePassDetailPage";
 import GatePassApprovalsPage from "./pages/gate-pass/GatePassApprovalsPage";
 import GateCheckPage from "./pages/gate-pass/GateCheckPage";
+import GatePassDashboardPage from "./pages/gate-pass/GatePassDashboardPage";
+import GatePassReturnsPage from "./pages/gate-pass/GatePassReturnsPage";
+import ScrapYardPage from "./pages/gate-pass/ScrapYardPage";
+import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -855,7 +859,11 @@ const App = () => (
             <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
             {/* Gate Pass (outward) */}
-            <Route path="/gate-pass" element={<Navigate to="/gate-pass/passes" replace />} />
+            <Route path="/gate-pass" element={<Navigate to="/gate-pass/dashboard" replace />} />
+            <Route path="/gate-pass/dashboard" element={<ProtectedRoute><GatePassDashboardPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/returns" element={<ProtectedRoute><GatePassReturnsPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/scrap-yard" element={<ProtectedRoute><ScrapYardPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/books" element={<ProtectedRoute><PaperBooksPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes" element={<ProtectedRoute><GatePassListPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes/:id" element={<ProtectedRoute><GatePassDetailPage /></ProtectedRoute>} />
             <Route path="/gate-pass/new" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />

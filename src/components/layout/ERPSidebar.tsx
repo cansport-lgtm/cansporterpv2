@@ -709,10 +709,14 @@ const navigationItems: NavItem[] = [
     color: "text-stone-400",
     module: "gate_pass",
     children: [
+      { title: "Dashboard", href: "/gate-pass/dashboard" },
       { title: "Gate Passes", href: "/gate-pass/passes" },
       { title: "New Gate Pass", href: "/gate-pass/new", allowedRoles: ["super_admin", "gate_pass_manager", "gate_pass_officer"] },
       { title: "Approvals", href: "/gate-pass/approvals", allowedRoles: ["super_admin", "gate_pass_manager"] },
       { title: "Gate Check", href: "/gate-pass/check", allowedRoles: ["super_admin", "gate_pass_manager", "gate_security"] },
+      { title: "Returns & Job Work", href: "/gate-pass/returns" },
+      { title: "Scrap Yard", href: "/gate-pass/scrap-yard" },
+      { title: "Paper Books", href: "/gate-pass/books" },
     ],
   },
   {

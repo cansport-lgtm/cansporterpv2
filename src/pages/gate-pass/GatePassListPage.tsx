@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
-import { DoorOpen, Plus, Search } from "lucide-react";
+import { DoorOpen, FileSpreadsheet, Plus, Search } from "lucide-react";
+import * as XLSX from "xlsx";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -24,14 +25,14 @@ import {
 } from "@/lib/gatePass";
 
 const LIST_SELECT =
-  "id, pass_number, pass_type, status, pass_date, party_name, vehicle_number, created_at, gate_out_at, held_at, hold_note," +
+  "id, pass_number, pass_type, status, pass_date, party_name, vehicle_number, created_at, gate_out_at, held_at, hold_note, is_backfill, expected_return_date," +
   "gate_pass_items(quantity, uom)," +
   "gate_pass_dispatches(sales_dispatches(dispatch_number))," +
   "purchase_returns(return_number)";
 
 type ListRow = Pick<GatePass,
   "id" | "pass_number" | "pass_type" | "status" | "pass_date" | "party_name" | "vehicle_number" |
-  "created_at" | "gate_out_at" | "held_at" | "hold_note"> & {
+  "created_at" | "gate_out_at" | "held_at" | "hold_note" | "is_backfill" | "expected_return_date"> & {
   gate_pass_items: { quantity: number; uom: string }[];
   gate_pass_dispatches: { sales_dispatches: { dispatch_number: string } | null }[];
   purchase_returns: { return_number: string | null } | null;
@@ -97,6 +98,27 @@ export default function GatePassListPage() {
   }, [rows, typeFilter, statusFilter, search]);
 
   const today = format(new Date(), "yyyy-MM-dd");
+
+  // Daily gate register as Excel: every pass in the filtered list (no prices).
+  const exportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(filtered.map((r) => ({
+      "GP no.": r.pass_number,
+      Date: r.pass_date,
+      Type: passTypeMeta(r.pass_type).label,
+      Party: r.party_name,
+      Reference: reference(r),
+      Vehicle: r.vehicle_number ?? "",
+      Qty: qtySummary(r),
+      Status: statusMeta(r.status).label,
+      "Out at": r.gate_out_at ? format(new Date(r.gate_out_at), "yyyy-MM-dd HH:mm") : "",
+      "Due back": r.expected_return_date ?? "",
+      Backfill: r.is_backfill ? "Yes" : "",
+      "Hold note": r.hold_note ?? "",
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Gate register");
+    XLSX.writeFile(wb, `Gate-Register-${fromDate}${fromDate === toDate ? "" : `_to_${toDate}`}.xlsx`);
+  };
   const kpis = [
     { label: "Out today", value: rows.filter((r) => r.gate_out_at && format(new Date(r.gate_out_at), "yyyy-MM-dd") === today).length, tone: "" },
     { label: "Waiting at gate (approved)", value: live.filter((r) => r.status === "approved").length, tone: "text-sky-700" },
@@ -112,6 +134,9 @@ export default function GatePassListPage() {
           description="Every outward movement through the gate — one GP number series for all types"
           icon={DoorOpen}
         >
+          <Button variant="outline" onClick={exportExcel} disabled={filtered.length === 0}>
+            <FileSpreadsheet className="h-4 w-4 mr-1" /> Export
+          </Button>
           {canCreate && (
             <Button onClick={() => navigate("/gate-pass/new")}>
               <Plus className="h-4 w-4 mr-1" /> New gate pass
@@ -159,7 +184,7 @@ export default function GatePassListPage() {
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   {Object.entries(STATUS_META)
-                    .filter(([k]) => !["partially_returned", "returned", "closed"].includes(k))
+                    .filter(([k]) => k !== "draft" || canCreate)
                     .map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -208,6 +233,7 @@ export default function GatePassListPage() {
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(r.pass_date), "dd MMM yyyy")}</TableCell>
                       <TableCell>
                         <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap", t.badgeClass)}>{t.label}</span>
+                        {r.is_backfill && <span className="ml-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200">Backfill</span>}
                       </TableCell>
                       <TableCell className="max-w-[240px] truncate" title={r.party_name}>{r.party_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate" title={reference(r)}>{reference(r) || "—"}</TableCell>
