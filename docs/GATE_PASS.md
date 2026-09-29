@@ -44,6 +44,17 @@ has them, otherwise the quantity.
 - Anything differs → **Held**. The pass maker and the gate pass managers are
   notified. The vehicle must not leave.
 
+### Old pass scanned again
+
+If the guard opens a pass that already went out (or was returned, closed,
+cancelled or rejected), Gate Check turns red, sounds a siren for 20 seconds
+(the guard can silence it) and vibrates the phone: **do not let the vehicle
+go**. Every attempt is logged in the pass history (`rescan_attempt`: who, when,
+the pass status). Managers, super admins and the pass maker get a notification,
+at most once per pass every 10 minutes. The Gate Pass list and dashboard show a
+red **Old passes scanned again** card for the last 7 days, and the pass page
+shows a red banner.
+
 ## Releasing a held pass (managers)
 
 - **Short count:** release with the counted quantity (a reason is required).

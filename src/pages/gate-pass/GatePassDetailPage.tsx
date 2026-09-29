@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, DoorOpen, Pencil, Printer, RefreshCw, Send, Unlock, XCircle,
+  Siren,
 } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -52,6 +53,7 @@ const EVENT_LABEL: Record<string, string> = {
   received: "Goods received back",
   closed: "Closed",
   backfilled: "Entered as manual backfill",
+  rescan_attempt: "Old pass scanned again at gate",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel" | "release";
@@ -192,6 +194,16 @@ export default function GatePassDetailPage() {
             )}
           </div>
         </PageHeader>
+
+        {events.some((e) => e.event === "rescan_attempt") && (
+          <div role="alert" className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900 flex items-start gap-2">
+            <Siren className="h-5 w-5 text-red-700 shrink-0" />
+            <div>
+              <b>This pass was scanned again at the gate {events.filter((e) => e.event === "rescan_attempt").length} time(s) after it could no longer be used.</b>{" "}
+              Last: {fmtDT(events.filter((e) => e.event === "rescan_attempt").map((e) => e.created_at).sort().at(-1) ?? null)}. See History below.
+            </div>
+          </div>
+        )}
 
         {pass.status === "held" && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex gap-3">
@@ -361,8 +373,8 @@ export default function GatePassDetailPage() {
               <CardContent>
                 <ol className="space-y-3">
                   {events.map((e) => (
-                    <li key={e.id} className="text-sm">
-                      <div className="font-medium">{EVENT_LABEL[e.event] ?? e.event}</div>
+                    <li key={e.id} className={cn("text-sm", e.event === "rescan_attempt" && "rounded-md bg-red-50 border border-red-200 p-2 text-red-900")}>
+                      <div className={cn("font-medium", e.event === "rescan_attempt" && "font-bold text-red-700")}>{EVENT_LABEL[e.event] ?? e.event}</div>
                       <div className="text-xs text-muted-foreground">{e.actor?.full_name ?? "System"} · {fmtDT(e.created_at)}</div>
                       {e.message && <div className="text-xs mt-0.5">{e.message}</div>}
                     </li>

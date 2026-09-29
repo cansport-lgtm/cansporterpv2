@@ -64,6 +64,10 @@ export const STATUS_META: Record<string, { label: string; variant: "warning" | "
   cancelled: { label: "Cancelled", variant: "secondary" },
 };
 
+// A pass in one of these states must never let a vehicle out again: opening it
+// on Gate Check sounds the alarm and logs a re-scan attempt.
+export const REUSE_ALARM_STATUSES = ["out", "partially_returned", "returned", "closed", "cancelled", "rejected"];
+
 export const statusMeta = (s: string) => STATUS_META[s] ?? { label: s, variant: "secondary" as const };
 
 export type GatePassItem = {
