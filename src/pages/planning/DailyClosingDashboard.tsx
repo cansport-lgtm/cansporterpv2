@@ -55,7 +55,7 @@ export default function DailyClosingDashboard() {
         .from("daily_stock_closing")
         .select(`
           *,
-          planning_items(id, code, name, unit, costing_value, stock_category),
+          planning_items(id, code, name, unit, costing_value, stock_category, is_active),
           production_departments(id, name)
         `)
         .eq("closing_date", dateStr)
@@ -73,7 +73,7 @@ export default function DailyClosingDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_stock_closing")
-        .select("closing_date, closing_quantity, planning_items(costing_value, stock_category), production_departments(name)")
+        .select("closing_date, closing_quantity, planning_items(costing_value, stock_category, is_active), production_departments(name)")
         .gte("closing_date", trendStartStr)
         .lte("closing_date", dateStr);
       if (error) throw error;
@@ -81,12 +81,23 @@ export default function DailyClosingDashboard() {
     },
   });
 
+  // Hide closings for items that have since been deactivated, then apply the category filter
   const closingData = useMemo(
-    () => rawClosingData?.filter((row: any) => matchesStockCategory(row.planning_items?.stock_category, stockCategory)),
+    () =>
+      rawClosingData?.filter(
+        (row: any) =>
+          row.planning_items?.is_active !== false &&
+          matchesStockCategory(row.planning_items?.stock_category, stockCategory),
+      ),
     [rawClosingData, stockCategory],
   );
   const trendData = useMemo(
-    () => rawTrendData?.filter((row: any) => matchesStockCategory(row.planning_items?.stock_category, stockCategory)),
+    () =>
+      rawTrendData?.filter(
+        (row: any) =>
+          row.planning_items?.is_active !== false &&
+          matchesStockCategory(row.planning_items?.stock_category, stockCategory),
+      ),
     [rawTrendData, stockCategory],
   );
 

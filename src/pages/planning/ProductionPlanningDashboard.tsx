@@ -123,7 +123,7 @@ export default function ProductionPlanningDashboard() {
         .from("daily_stock_closing")
         .select(`
           *,
-          planning_items (code, name, unit, threshold_inventory, department_id, costing_value, stock_category, production_departments(name))
+          planning_items (code, name, unit, threshold_inventory, department_id, costing_value, stock_category, is_active, production_departments(name))
         `)
         .eq("closing_date", format(stockViewDate, "yyyy-MM-dd"));
       
@@ -141,6 +141,8 @@ export default function ProductionPlanningDashboard() {
     const grouped: Record<string, { departmentName: string; items: any[] }> = {};
     
     stockClosingData?.forEach((entry: any) => {
+      // Hide closings for items that have since been deactivated
+      if (entry.planning_items?.is_active === false) return;
       if (!matchesStockCategory(entry.planning_items?.stock_category, stockViewCategory)) return;
       const deptId = entry.planning_items?.department_id || "unknown";
       const deptName = entry.planning_items?.production_departments?.name || "Unknown";
