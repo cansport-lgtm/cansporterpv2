@@ -1,5 +1,6 @@
 // Shared definitions for the Gate Pass (outward) module.
-// The rules live in the database: see supabase/migrations/20260928120100_gate_pass.sql.
+// The rules live in the database: see supabase/migrations/20260928120100_gate_pass.sql
+// (Phase 1) and 20260929120000_gate_pass_phase2_3.sql (returnable, job work, scrap, backfill).
 // Every write goes through its gate_pass_* functions; the tables are read-only here.
 
 import { format } from "date-fns";
@@ -27,9 +28,9 @@ export const PASS_TYPES: {
   { value: "sales", label: "Sales", description: "Dispatches of approved sales orders, one vehicle", approval: "Approved automatically", available: true, badgeClass: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
   { value: "sample", label: "Sample", description: "Free samples to customers or distributors", approval: "Needs manager approval", available: true, badgeClass: "bg-teal-50 text-teal-700 ring-teal-200" },
   { value: "supplier_return", label: "Supplier return", description: "Rejected material back on a purchase return", approval: "Approved automatically", available: true, badgeClass: "bg-orange-50 text-orange-700 ring-orange-200" },
-  { value: "returnable", label: "Returnable", description: "Repair or loan, due back by a date", approval: "Coming in phase 2", available: false, badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
-  { value: "job_work", label: "Job work", description: "Sent for processing, comes back processed", approval: "Coming in phase 2", available: false, badgeClass: "bg-violet-50 text-violet-700 ring-violet-200" },
-  { value: "scrap", label: "Scrap", description: "Scrap sold, weighed at the gate", approval: "Coming in phase 3", available: false, badgeClass: "bg-stone-100 text-stone-700 ring-stone-200" },
+  { value: "returnable", label: "Returnable", description: "Repair or loan, due back by a date", approval: "Needs manager approval", available: true, badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
+  { value: "job_work", label: "Job work", description: "Sent for processing, comes back processed", approval: "Needs manager approval", available: true, badgeClass: "bg-violet-50 text-violet-700 ring-violet-200" },
+  { value: "scrap", label: "Scrap", description: "Scrap sold, weighed at the gate", approval: "Needs manager approval", available: true, badgeClass: "bg-stone-100 text-stone-700 ring-stone-200" },
 ];
 
 export const passTypeMeta = (t: string) => PASS_TYPES.find((p) => p.value === t) ?? PASS_TYPES[0];
@@ -65,6 +66,16 @@ export type GatePassItem = {
   counted: number | null;
   counted_at: string | null;
   remarks: string | null;
+  item_id: string | null;
+  machine_id: string | null;
+  fixed_asset_id: string | null;
+  spare_part_id: string | null;
+  scrap_category_id: string | null;
+  estimated_quantity: number | null;
+  expected_output_product_id: string | null;
+  expected_output_item_id: string | null;
+  expected_output_description: string | null;
+  wastage_quantity: number;
 };
 
 export type GatePass = {
@@ -96,6 +107,18 @@ export type GatePass = {
   gate_out_at: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
+  expected_return_date: string | null;
+  process_name: string | null;
+  weighbridge_photo_path: string | null;
+  is_backfill: boolean;
+  book_id: string | null;
+  book_serial: number | null;
+  paper_datetime: string | null;
+  paper_photo_path: string | null;
+  backfill_reason: string | null;
+  closed_at: string | null;
+  close_reason: string | null;
+  gate_pass_books?: { book_number: string } | null;
   creator?: { full_name: string | null } | null;
   approver?: { full_name: string | null } | null;
   holder?: { full_name: string | null } | null;
@@ -118,7 +141,8 @@ export const PASS_SELECT =
   "gate_out_user:app_users!gate_passes_gate_out_by_fkey(full_name)," +
   "gate_pass_items(*)," +
   "gate_pass_dispatches(dispatch_id, sales_dispatches(dispatch_number, dispatch_date, delivery_status))," +
-  "purchase_returns(return_number, status)";
+  "purchase_returns(return_number, status)," +
+  "gate_pass_books(book_number)";
 
 export const fmtQty = (n: number | null | undefined) =>
   Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -146,6 +170,24 @@ export function normalizePassNumber(raw: string): string {
   return digits ? `GP-${digits.padStart(6, "0")}` : text.toUpperCase();
 }
 
+export const PHOTO_BUCKET = "gate-pass-photos";
+
+/** Upload a photo (weighbridge slip, paper pass) and return its storage path. */
+export async function uploadGatePassPhoto(file: File, folder: string): Promise<string> {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${folder}/${format(new Date(), "yyyyMMdd")}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, file, { contentType: file.type || undefined });
+  if (error) throw error;
+  return path;
+}
+
+export const photoUrl = (path: string | null | undefined) =>
+  path ? supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl : null;
+
+/** Today in the factory's time zone as yyyy-MM-dd (the database dates things in Asia/Karachi). */
+export const todayPk = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date());
+
 /** Supabase/PostgREST error → readable message (the gate_pass_* functions raise plain sentences). */
 export const errorMessage = (e: unknown) =>
   (e as { message?: string })?.message ?? "Something went wrong.";
@@ -169,8 +211,8 @@ export function printGatePass(p: GatePass, qrSvg: string) {
     .map(
       (i, n) => `<tr>
         <td>${n + 1}</td>
-        <td>${esc(i.description)}</td>
-        <td class="right">${esc(fmtQty(i.quantity))} ${esc(i.uom)}</td>
+        <td>${esc(i.description)}${i.expected_output_description ? `<div class="xs muted">Comes back as: ${esc(i.expected_output_description)}</div>` : ""}</td>
+        <td class="right">${p.pass_type === "scrap" && p.status !== "out" ? "approx. " : ""}${esc(fmtQty(i.quantity))} ${esc(i.uom)}</td>
         ${hasPackages ? `<td class="right">${i.packages ?? ""}</td>` : ""}
         <td></td>
       </tr>`,
@@ -205,7 +247,10 @@ export function printGatePass(p: GatePass, qrSvg: string) {
       <div style="grid-column: span 2"><span class="muted">Party</span> <b>${esc(p.party_name)}</b></div>
       ${dispatches ? `<div style="grid-column: span 2"><span class="muted">Dispatches</span> <b>${esc(dispatches)}</b></div>` : ""}
       ${p.purchase_returns?.return_number ? `<div style="grid-column: span 2"><span class="muted">Purchase return</span> <b>${esc(p.purchase_returns.return_number)}</b></div>` : ""}
+      ${p.process_name ? `<div><span class="muted">Process</span> <b>${esc(p.process_name)}</b></div>` : ""}
+      ${p.expected_return_date ? `<div><span class="muted">Due back</span> <b>${esc(format(new Date(p.expected_return_date), "dd MMM yyyy"))}</b></div>` : ""}
       ${p.gate_out_at ? `<div style="grid-column: span 2"><span class="muted">Out at gate</span> <b>${esc(fmtDateTime(p.gate_out_at))}</b></div>` : ""}
+      ${p.is_backfill ? `<div style="grid-column: span 2"><b>MANUAL BACKFILL</b> of paper pass ${esc(p.gate_pass_books?.book_number ?? "")} / ${esc(p.book_serial ?? "")}</div>` : ""}
     </div>
     <table>
       <thead><tr><th>#</th><th>Item</th><th class="right">Qty</th>${hasPackages ? `<th class="right">Cartons</th>` : ""}<th>Guard ✓</th></tr></thead>

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
 import {
   PASS_SELECT, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
   sortedItems, statusMeta, type GatePass,
@@ -24,8 +25,9 @@ const normVehicle = (v: string | null | undefined) => (v ?? "").replace(/[^A-Za-
 
 type CheckResult = {
   status: "out" | "held";
-  vehicle_ok: boolean;
-  mismatches: { line_no: number; description: string; expected: number; counted: number }[];
+  vehicle_ok?: boolean;
+  mismatches?: { line_no: number; description: string; expected: number; counted: number }[];
+  problems?: string[]; // scrap weighment
 };
 
 // Guards get a bare full-screen page with just a logout; everyone else the normal layout.
@@ -232,6 +234,7 @@ export default function GateCheckPage() {
                       <AlertTriangle className="h-12 w-12 text-red-700 mx-auto" />
                       <div className="text-xl font-bold text-red-800">Held — do not let the vehicle go</div>
                       <div className="text-sm text-red-900">The office and the manager have been told.</div>
+                      {result.problems?.map((p) => <div key={p} className="text-sm text-red-900 font-medium">{p}</div>)}
                     </>
                   )}
                   <Button className="w-full h-12 mt-2" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check the next pass</Button>
@@ -254,7 +257,9 @@ export default function GateCheckPage() {
               <>
                 {pass.status === "held" && (
                   <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-                    This pass is held{pass.hold_note ? `: ${pass.hold_note}` : ""}. Count again if goods were added or unloaded — or wait for the manager.
+                    This pass is held{pass.hold_note ? `: ${pass.hold_note}` : ""}. {pass.pass_type === "scrap"
+                      ? "Weigh again after unloading the extra — or wait for the manager."
+                      : "Count again if goods were added or unloaded — or wait for the manager."}
                   </div>
                 )}
 
@@ -273,6 +278,15 @@ export default function GateCheckPage() {
                   </CardContent>
                 </Card>
 
+                {pass.pass_type === "scrap" ? (
+                  <ScrapWeighPanel pass={pass} vehicle={vehicle} vehicleOk={vehicleOk} onDone={(r) => {
+                    setResult(r);
+                    queryClient.invalidateQueries({ queryKey: ["gate-check-pass", passNumber] });
+                    queryClient.invalidateQueries({ queryKey: ["gate-passes"] });
+                    queryClient.invalidateQueries({ queryKey: ["gate-pass-approvals"] });
+                  }} />
+                ) : (
+                <>
                 <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground px-1">Count each line</div>
                 {items.map((i) => {
                   const exp = expectedCount(i);
@@ -335,6 +349,8 @@ export default function GateCheckPage() {
                     </p>
                   )}
                 </div>
+                </>
+                )}
               </>
             )}
           </>

@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { BackfillInfo, ReturnsSection, ScrapSection } from "@/components/gate-pass/PassExtraSections";
 import {
   PASS_SELECT, countUnit, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
   sortedItems, statusMeta, type GatePass,
@@ -48,6 +49,9 @@ const EVENT_LABEL: Record<string, string> = {
   out: "Out at gate",
   refreshed: "Refreshed from dispatches",
   dispatch_removed: "Dispatch taken off",
+  received: "Goods received back",
+  closed: "Closed",
+  backfilled: "Entered as manual backfill",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel" | "release";
@@ -126,7 +130,7 @@ export default function GatePassDetailPage() {
   const dispatches = pass.gate_pass_dispatches ?? [];
   const counted = items.some((i) => i.counted !== null);
   const overCount = items.some((i) => i.counted !== null && Number(i.counted) > expectedCount(i) && Number(i.quantity) > 0);
-  const printable = ["approved", "held", "out"].includes(pass.status);
+  const printable = ["approved", "held", "out", "partially_returned", "returned", "closed"].includes(pass.status);
 
   const canCancel =
     ["draft", "pending_approval", "approved", "held"].includes(pass.status) &&
@@ -167,7 +171,7 @@ export default function GatePassDetailPage() {
                 </Button>
               </>
             )}
-            {pass.status === "held" && canApprove && (
+            {pass.status === "held" && canApprove && pass.pass_type !== "scrap" && (
               <Button onClick={() => setDialog("release")}>
                 <Unlock className="h-4 w-4 mr-1" /> Release with counted quantity
               </Button>
@@ -202,7 +206,9 @@ export default function GatePassDetailPage() {
                 <div className="text-red-900">Vehicle at the gate: <b>{pass.gate_vehicle_number}</b> — pass says <b>{pass.vehicle_number}</b>.</div>
               )}
               <div className="text-red-900">
-                {pass.pass_type === "sales"
+                {pass.pass_type === "scrap"
+                  ? "A held scrap vehicle is never released: unload to the approved weight and have the guard weigh again, or cancel the pass."
+                  : pass.pass_type === "sales"
                   ? "Short count: correct the dispatch to what was counted (or take that dispatch off), then release. Extra goods can never be released."
                   : "Short count: a manager can release with the counted quantity. Extra goods can never be released — unload and recount, or cancel."}
               </div>
@@ -266,6 +272,12 @@ export default function GatePassDetailPage() {
               </CardContent>
             </Card>
 
+            {pass.is_backfill && <BackfillInfo pass={pass} />}
+            {(pass.pass_type === "returnable" || pass.pass_type === "job_work") && (
+              <ReturnsSection pass={pass} canReceive={canCreate} canClose={canApprove} />
+            )}
+            {pass.pass_type === "scrap" && <ScrapSection pass={pass} />}
+
             {pass.pass_type === "sales" && (
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base">Dispatches on this vehicle</CardTitle></CardHeader>
@@ -319,11 +331,14 @@ export default function GatePassDetailPage() {
                   ["Vehicle", pass.vehicle_number || "Hand carry / courier"],
                   ["Driver", [pass.driver_name, pass.driver_contact].filter(Boolean).join(" · ") || "—"],
                   ["Transporter", pass.transporter_name || "—"],
+                  ...(pass.process_name ? [["Process", pass.process_name]] : []),
+                  ...(pass.expected_return_date ? [["Due back", format(new Date(pass.expected_return_date), "dd MMM yyyy")]] : []),
                   ...(pass.purchase_returns ? [["Purchase return", `${pass.purchase_returns.return_number ?? ""} (${pass.purchase_returns.status})`]] : []),
                   ["Made by", `${pass.creator?.full_name ?? "—"} · ${fmtDT(pass.created_at)}`],
                   ["Approval", pass.approved_at ? `${pass.approver?.full_name ?? "Automatic"} · ${fmtDT(pass.approved_at)}` : "—"],
                   ...(pass.gate_out_at ? [["Out at gate", `${pass.gate_out_user?.full_name ?? ""} · ${fmtDT(pass.gate_out_at)}`]] : []),
                   ...(pass.released_at ? [["Released", `${pass.releaser?.full_name ?? ""} · ${pass.release_reason ?? ""}`]] : []),
+                  ...(pass.closed_at ? [["Closed", `${fmtDT(pass.closed_at)}${pass.close_reason ? ` · ${pass.close_reason}` : ""}`]] : []),
                   ...(pass.cancelled_at ? [["Cancelled", `${fmtDT(pass.cancelled_at)}${pass.cancel_reason ? ` · ${pass.cancel_reason}` : ""}`]] : []),
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4">
