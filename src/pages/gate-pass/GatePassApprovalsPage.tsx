@@ -17,14 +17,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  PASS_SELECT, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, sortedItems, type GatePass,
+  PASS_SELECT, approvableGatePassTypes, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, sortedItems, type GatePass,
 } from "@/lib/gatePass";
 
 export default function GatePassApprovalsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { hasModulePermission } = useAuth();
-  const canApprove = hasModulePermission("gate_pass", "approve");
+  const { roles, hasModulePermission } = useAuth();
+  // Held vehicles are for the gate pass manager; each pass type is approved by its own manager.
+  const canRelease = hasModulePermission("gate_pass", "approve");
+  const myTypes = approvableGatePassTypes(roles);
   const [reject, setReject] = useState<GatePass | null>(null);
   const [reason, setReason] = useState("");
 
@@ -59,7 +61,8 @@ export default function GatePassApprovalsPage() {
   });
 
   const held = passes.filter((p) => p.status === "held");
-  const pending = passes.filter((p) => p.status === "pending_approval");
+  // A type manager sees only their types; everyone else sees the whole queue read-only.
+  const pending = passes.filter((p) => p.status === "pending_approval" && (canRelease || myTypes.length === 0 || myTypes.includes(p.pass_type)));
 
   const lineSummary = (p: GatePass) =>
     sortedItems(p).map((i) => `${i.description} — ${fmtQty(i.quantity)} ${i.uom}`).join("; ");
@@ -76,10 +79,11 @@ export default function GatePassApprovalsPage() {
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
         <PageHeader
           title="Gate Pass Approvals"
-          description="Passes waiting for a manager, and vehicles the guard held because the count did not match"
+          description="Passes waiting for their type manager, and vehicles the guard held because the count did not match"
           icon={ClipboardCheck}
         />
 
+        {(canRelease || myTypes.length === 0) && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 text-red-700">
@@ -105,6 +109,7 @@ export default function GatePassApprovalsPage() {
             ))}
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-2">
@@ -129,7 +134,7 @@ export default function GatePassApprovalsPage() {
                       {p.remarks ? ` · ${p.remarks}` : ""}
                     </div>
                   </div>
-                  {canApprove && (
+                  {myTypes.includes(p.pass_type) ? (
                     <div className="flex gap-2 shrink-0">
                       <Button size="sm" variant="outline" className="text-destructive" onClick={() => { setReason(""); setReject(p); }}>
                         <XCircle className="h-4 w-4 mr-1" /> Reject
@@ -138,6 +143,8 @@ export default function GatePassApprovalsPage() {
                         <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
                       </Button>
                     </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground shrink-0">Waiting for the {t.label.toLowerCase()} manager</span>
                   )}
                 </div>
               );

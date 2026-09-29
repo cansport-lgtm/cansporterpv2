@@ -17446,6 +17446,10 @@ export type Database = {
         | "gate_pass_officer"
         | "gate_pass_viewer"
         | "gate_security"
+        | "gate_pass_sample_manager"
+        | "gate_pass_returnable_manager"
+        | "gate_pass_jobwork_manager"
+        | "gate_pass_scrap_manager"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17731,6 +17735,10 @@ export const Constants = {
         "gate_pass_officer",
         "gate_pass_viewer",
         "gate_security",
+        "gate_pass_sample_manager",
+        "gate_pass_returnable_manager",
+        "gate_pass_jobwork_manager",
+        "gate_pass_scrap_manager",
       ],
       asset_category: [
         "office_assets",

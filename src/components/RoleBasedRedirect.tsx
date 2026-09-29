@@ -71,6 +71,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/gate-pass/check" replace />;
   }
 
+  // Gate Pass type managers land on the approvals they act on
+  if (roles.some(r => ['gate_pass_sample_manager', 'gate_pass_returnable_manager', 'gate_pass_jobwork_manager', 'gate_pass_scrap_manager'].includes(r.role as string))) {
+    return <Navigate to="/gate-pass/approvals" replace />;
+  }
+
   // Sales Executive goes to Sales Orders page
   if (roles.some(r => r.role === 'sales_executive')) {
     return <Navigate to="/sales/orders" replace />;
