@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Html5Qrcode } from "html5-qrcode";
-import { AlertTriangle, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine } from "lucide-react";
+import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +15,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
-  PASS_SELECT, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
+  PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -67,8 +68,14 @@ export default function GateCheckPage() {
   const [vehicle, setVehicle] = useState("");
   const [note, setNote] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
+  // Each Open / scan is one lookup; the alarm decision is made once per lookup, on the
+  // pass as it stood when it was opened (so marking a pass Out never sets it off).
+  const [lookupId, setLookupId] = useState(0);
+  const decidedRef = useRef(-1);
+  const lookupAtRef = useRef(0);
+  const [alarm, setAlarm] = useState<{ lookup: number; attempts?: number; sounding: boolean } | null>(null);
 
-  const { data: pass, isFetching, isFetched } = useQuery<GatePass | null>({
+  const { data: pass, isFetching, isFetched, dataUpdatedAt } = useQuery<GatePass | null>({
     queryKey: ["gate-check-pass", passNumber],
     enabled: Boolean(passNumber),
     queryFn: async () => {
@@ -89,8 +96,13 @@ export default function GateCheckPage() {
   const lookUp = (raw: string) => {
     const n = normalizePassNumber(raw);
     if (!n) return;
+    primeGateAlarm();
+    stopGateAlarm();
+    setAlarm(null);
     setCode(n);
     setPassNumber(n);
+    lookupAtRef.current = Date.now();
+    setLookupId((x) => x + 1);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
   };
 
@@ -101,6 +113,7 @@ export default function GateCheckPage() {
   };
 
   const startScanner = async () => {
+    primeGateAlarm();
     setScanning(true);
     // Wait a tick so the scanner's container is on the page.
     await new Promise((r) => setTimeout(r, 50));
@@ -122,7 +135,25 @@ export default function GateCheckPage() {
     }
   };
 
-  useEffect(() => () => { scannerRef.current?.stop().catch(() => {}); }, []);
+  useEffect(() => () => { scannerRef.current?.stop().catch(() => {}); stopGateAlarm(); }, []);
+
+  // Old pass opened again: siren + red screen, and log the attempt (managers are notified).
+  useEffect(() => {
+    // Decide only on data fetched after this lookup, never on a cached copy.
+    if (!pass || isFetching || dataUpdatedAt < lookupAtRef.current || decidedRef.current === lookupId) return;
+    decidedRef.current = lookupId;
+    if (!REUSE_ALARM_STATUSES.includes(pass.status)) return;
+    setAlarm({ lookup: lookupId, sounding: true });
+    startGateAlarm();
+    gpDb.rpc("gate_pass_log_rescan", { p_id: pass.id }).then(({ data }: { data: { attempts?: number } | null }) => {
+      setAlarm((a) => (a && a.lookup === lookupId ? { ...a, attempts: data?.attempts } : a));
+    });
+  }, [pass, isFetching, dataUpdatedAt, lookupId]);
+
+  const silence = () => {
+    stopGateAlarm();
+    setAlarm((a) => (a ? { ...a, sounding: false } : a));
+  };
 
   const items = pass ? sortedItems(pass).filter((i) => Number(i.quantity) > 0) : [];
   const lineState = (id: string, expected: number) => {
@@ -158,6 +189,8 @@ export default function GateCheckPage() {
   });
 
   const reset = () => {
+    stopGateAlarm();
+    setAlarm(null);
     setPassNumber(null);
     setCode("");
     setResult(null);
@@ -240,6 +273,29 @@ export default function GateCheckPage() {
                   <Button className="w-full h-12 mt-2" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check the next pass</Button>
                 </CardContent>
               </Card>
+            ) : alarm && alarm.lookup === lookupId ? (
+              <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-600 text-white p-5 text-center space-y-3 animate-pulse motion-reduce:animate-none">
+                <Siren className="h-16 w-16 mx-auto" />
+                <div className="text-2xl font-extrabold uppercase tracking-wide">Old gate pass — do not let the vehicle go</div>
+                <div className="text-base font-semibold">
+                  {pass.status === "cancelled" || pass.status === "rejected"
+                    ? `This pass was ${pass.status}. It is not valid.`
+                    : `This pass was already used${pass.gate_out_at ? ` — went out ${format(new Date(pass.gate_out_at), "dd MMM yyyy, HH:mm")}` : ""}.`}
+                </div>
+                <div className="text-sm">
+                  This attempt is logged{alarm.attempts && alarm.attempts > 1 ? ` (${alarm.attempts} attempts on this pass)` : ""} and the manager has been told. Stop the vehicle and call the office.
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  {alarm.sounding && (
+                    <Button variant="secondary" className="flex-1 h-12 text-base" onClick={silence}>
+                      <BellOff className="h-5 w-5 mr-2" /> Silence alarm
+                    </Button>
+                  )}
+                  <Button variant="outline" className="flex-1 h-12 text-base bg-white text-red-700 hover:bg-red-50" onClick={reset}>
+                    <ScanLine className="h-5 w-5 mr-2" /> Check another pass
+                  </Button>
+                </div>
+              </div>
             ) : !canAct ? (
               <Card className={cn(pass.status === "out" ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50")}>
                 <CardContent className="p-5 text-center space-y-1">

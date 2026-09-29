@@ -19,6 +19,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { RescanAlerts } from "@/components/gate-pass/RescanAlerts";
 import { cn } from "@/lib/utils";
 import {
   PASS_TYPES, STATUS_META, fmtQty, gpDb, passTypeMeta, statusMeta, type GatePass,
@@ -143,6 +144,8 @@ export default function GatePassListPage() {
             </Button>
           )}
         </PageHeader>
+
+        <RescanAlerts />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {kpis.map((k) => (
