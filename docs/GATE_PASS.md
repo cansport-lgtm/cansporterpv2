@@ -5,8 +5,9 @@ number series: `GP-000001`, `GP-000002`, … A number is given only when a pass
 saves successfully, so failed saves never leave gaps.
 
 Database: `supabase/migrations/20260928120000_gate_pass_roles.sql` (roles),
-`20260928120100_gate_pass.sql` (Phase 1) and `20260929120000_gate_pass_phase2_3.sql`
-(returnable, job work, scrap, backfill). Rollbacks in `supabase/rollbacks/`.
+`20260928120100_gate_pass.sql` (Phase 1), `20260929120000_gate_pass_phase2_3.sql`
+(returnable, job work, scrap, backfill) and `20260930120000/120100_gate_pass_type_manager*`
+(approval by type). Rollbacks in `supabase/rollbacks/`.
 
 ## Pass types
 
@@ -14,10 +15,10 @@ Database: `supabase/migrations/20260928120000_gate_pass_roles.sql` (roles),
 |---|---|---|---|
 | Sales | One or more pending dispatches of approved sales orders, on one vehicle | Automatic | None — the dispatch already moved it |
 | Supplier return | A purchase return | Automatic | None — the purchase return already moved it |
-| Sample | Customer, distributor or anyone else; finished goods or free text | Gate pass manager | FG lines are issued when the vehicle goes out |
-| Returnable | Supplier / repairer or anyone; machines, fixed assets, spare parts, store items, products or free text; due-back date | Gate pass manager | Store items / products move to **Out for repair**; spare parts leave `spare_parts.current_stock`; both come back on a receipt |
-| Job work | Vendor, process (printing, cutting…), material sent and what it comes back as; due-back date | Gate pass manager | Material moves to **At job work**; each receipt uses it up there and receives the processed item; the rest is vendor wastage on close |
-| Scrap | Buyer; scrap categories with expected weight and a rate for this sale | Gate pass manager | Out of the **Scrap Yard** by the weight measured at the gate |
+| Sample | Customer, distributor or anyone else; finished goods or free text | Sample manager | FG lines are issued when the vehicle goes out |
+| Returnable | Supplier / repairer or anyone; machines, fixed assets, spare parts, store items, products or free text; due-back date | Returnable manager | Store items / products move to **Out for repair**; spare parts leave `spare_parts.current_stock`; both come back on a receipt |
+| Job work | Vendor, process (printing, cutting…), material sent and what it comes back as; due-back date | Job work manager | Material moves to **At job work**; each receipt uses it up there and receives the processed item; the rest is vendor wastage on close |
+| Scrap | Buyer; scrap categories with expected weight and a rate for this sale | Scrap manager | Out of the **Scrap Yard** by the weight measured at the gate |
 | Manual backfill | Any type above, entered later from a paper pass | Entered by a manager | Same as its type, dated on the paper |
 
 A dispatch or purchase return can be on only one live pass at a time
@@ -105,11 +106,20 @@ the pass.
 
 | Role | Can |
 |---|---|
-| `gate_pass_manager` | Make, approve / reject, release held passes, cancel any pass, take a dispatch off a pass, gate check, close returnable / job-work passes, manual backfill, paper books |
+| `gate_pass_manager` | Make, release held passes, cancel any pass, take a dispatch off a pass, gate check, close returnable / job-work passes, manual backfill, paper books |
+| `gate_pass_sample_manager` | Approve / reject Sample passes only |
+| `gate_pass_returnable_manager` | Approve / reject Returnable passes only |
+| `gate_pass_jobwork_manager` | Approve / reject Job work passes only |
+| `gate_pass_scrap_manager` | Approve / reject Scrap passes only (can read scrap rates) |
 | `gate_pass_officer` | Make and submit passes; cancel own draft / pending pass; receive goods back; Scrap In |
 | `gate_pass_viewer` | Read only |
 | `gate_security` | Gate Check page only (count, or weigh scrap); never sees prices or scrap rates |
 | `super_admin` | Everything, plus scrap categories, Scrap Yard opening balances and settings |
+
+The "needs approval" notice goes only to that type's manager (and super admins).
+The general `gate_pass_manager` does not approve sample, returnable, job-work or
+scrap passes. Type managers see the Gate Pass pages read-only and land on
+Approvals, which shows only their types.
 
 Every write goes through the `gate_pass_*` database functions, which check
 these roles; the tables are read-only to the app.

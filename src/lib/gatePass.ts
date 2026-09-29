@@ -26,12 +26,28 @@ export const PASS_TYPES: {
   badgeClass: string;
 }[] = [
   { value: "sales", label: "Sales", description: "Dispatches of approved sales orders, one vehicle", approval: "Approved automatically", available: true, badgeClass: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
-  { value: "sample", label: "Sample", description: "Free samples to customers or distributors", approval: "Needs manager approval", available: true, badgeClass: "bg-teal-50 text-teal-700 ring-teal-200" },
+  { value: "sample", label: "Sample", description: "Free samples to customers or distributors", approval: "Needs sample manager approval", available: true, badgeClass: "bg-teal-50 text-teal-700 ring-teal-200" },
   { value: "supplier_return", label: "Supplier return", description: "Rejected material back on a purchase return", approval: "Approved automatically", available: true, badgeClass: "bg-orange-50 text-orange-700 ring-orange-200" },
-  { value: "returnable", label: "Returnable", description: "Repair or loan, due back by a date", approval: "Needs manager approval", available: true, badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
-  { value: "job_work", label: "Job work", description: "Sent for processing, comes back processed", approval: "Needs manager approval", available: true, badgeClass: "bg-violet-50 text-violet-700 ring-violet-200" },
-  { value: "scrap", label: "Scrap", description: "Scrap sold, weighed at the gate", approval: "Needs manager approval", available: true, badgeClass: "bg-stone-100 text-stone-700 ring-stone-200" },
+  { value: "returnable", label: "Returnable", description: "Repair or loan, due back by a date", approval: "Needs returnable manager approval", available: true, badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
+  { value: "job_work", label: "Job work", description: "Sent for processing, comes back processed", approval: "Needs job work manager approval", available: true, badgeClass: "bg-violet-50 text-violet-700 ring-violet-200" },
+  { value: "scrap", label: "Scrap", description: "Scrap sold, weighed at the gate", approval: "Needs scrap manager approval", available: true, badgeClass: "bg-stone-100 text-stone-700 ring-stone-200" },
 ];
+
+// Who approves each pass type: its own manager role (or super admin). The general
+// gate_pass_manager does not approve these; sales / supplier returns are automatic.
+export const TYPE_APPROVER_ROLE: Partial<Record<GatePassType, string>> = {
+  sample: "gate_pass_sample_manager",
+  returnable: "gate_pass_returnable_manager",
+  job_work: "gate_pass_jobwork_manager",
+  scrap: "gate_pass_scrap_manager",
+};
+
+export const canApproveGatePassType = (roles: { role: string }[], type: string) =>
+  roles.some((r) => r.role === "super_admin" || r.role === TYPE_APPROVER_ROLE[type as GatePassType]);
+
+// Types this user can approve (empty for everyone but type managers and super admin).
+export const approvableGatePassTypes = (roles: { role: string }[]) =>
+  PASS_TYPES.filter((t) => TYPE_APPROVER_ROLE[t.value] && canApproveGatePassType(roles, t.value)).map((t) => t.value);
 
 export const passTypeMeta = (t: string) => PASS_TYPES.find((p) => p.value === t) ?? PASS_TYPES[0];
 

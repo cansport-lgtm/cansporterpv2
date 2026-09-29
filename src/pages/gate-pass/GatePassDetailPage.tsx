@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { BackfillInfo, ReturnsSection, ScrapSection } from "@/components/gate-pass/PassExtraSections";
 import {
-  PASS_SELECT, countUnit, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
+  PASS_SELECT, canApproveGatePassType, countUnit, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -63,7 +63,7 @@ export default function GatePassDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user, hasModulePermission } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   const canCreate = hasModulePermission("gate_pass", "create");
   const canApprove = hasModulePermission("gate_pass", "approve");
   const qrRef = useRef<HTMLDivElement>(null);
@@ -161,7 +161,7 @@ export default function GatePassDetailPage() {
                 </Button>
               </>
             )}
-            {pass.status === "pending_approval" && canApprove && (
+            {pass.status === "pending_approval" && canApproveGatePassType(roles, pass.pass_type) && (
               <>
                 <Button variant="outline" className="text-destructive" onClick={() => setDialog("reject")}>
                   <XCircle className="h-4 w-4 mr-1" /> Reject
