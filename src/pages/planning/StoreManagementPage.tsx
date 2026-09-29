@@ -14,6 +14,8 @@ import { MetricCard } from "@/components/shared/MetricCard";
 import { Warehouse, PackageCheck, Boxes, ListChecks, Clock, Package, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 const fmtNum = (n: number) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
 const fmtCurrency = (n: number) => "₹" + fmtNum(n);
@@ -315,6 +317,7 @@ function DepartmentSummarySection() {
   const isMobile = useIsMobile();
   const today = format(new Date(), "yyyy-MM-dd");
   const [date, setDate] = useState(today);
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
 
   const toggleDept = (name: string) => {
@@ -331,7 +334,7 @@ function DepartmentSummarySection() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_stock_closing")
-        .select(`*, planning_items(id, code, name, unit, costing_value), production_departments(id, name)`)
+        .select(`*, planning_items(id, code, name, unit, costing_value, stock_category), production_departments(id, name)`)
         .eq("closing_date", date)
         .order("created_at");
       if (error) throw error;
@@ -343,6 +346,7 @@ function DepartmentSummarySection() {
     if (!closingData) return [] as Array<any>;
     const map: Record<string, any> = {};
     closingData.forEach((row: any) => {
+      if (!matchesStockCategory(row.planning_items?.stock_category, stockCategory)) return;
       const deptName = row.production_departments?.name || "Unassigned";
       const qty = Number(row.closing_quantity) || 0;
       const enteredQty = row.entered_quantity != null ? Number(row.entered_quantity) : qty;
@@ -364,7 +368,7 @@ function DepartmentSummarySection() {
       });
     });
     return Object.values(map).sort((a: any, b: any) => b.value - a.value);
-  }, [closingData]);
+  }, [closingData, stockCategory]);
 
   const colSpan = isSuperAdmin ? 6 : 5;
 
@@ -381,6 +385,10 @@ function DepartmentSummarySection() {
           <div>
             <Label className="text-xs">Closing Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9" />
+          </div>
+          <div>
+            <Label className="text-xs">Stock Category</Label>
+            <StockCategoryFilter value={stockCategory} onChange={setStockCategory} className="h-9 w-full" />
           </div>
         </div>
 

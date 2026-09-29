@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Package, FlaskConical, Banknote, Boxes, AlertTriangle, ChevronRight, ChevronDown,
-  Download, Search, Scale, Layers, ShieldAlert, Droplets, XCircle,
+  Download, Search, Scale, Layers, ShieldAlert, Droplets, XCircle, PackageOpen,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
@@ -23,7 +23,11 @@ import {
   fetchInventoryGLBalance, latestPerItem,
   type ClosingSnapshotRow,
 } from "@/lib/accounting/inventoryValuation";
-import { HELD_STOCK_CATEGORIES, stockCategoryMeta, type StockCategory } from "@/lib/stockCategories";
+import {
+  HELD_STOCK_CATEGORIES, matchesStockCategory, stockCategoryMeta,
+  type StockCategory, type StockCategoryFilterValue,
+} from "@/lib/stockCategories";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
 
 const fmtRs = (n: number) => `Rs. ${Math.round(n).toLocaleString()}`;
 const fmtRsShort = (n: number) => {
@@ -38,6 +42,7 @@ const HELD_ICONS: Record<StockCategory, typeof ShieldAlert> = {
   cpa: ShieldAlert,
   leak: Droplets,
   rejection: XCircle,
+  lot: PackageOpen,
 };
 
 const WIP_COLOR = "#f59e0b";
@@ -93,7 +98,7 @@ function StatusBadges({ r }: { r: ValRow }) {
 interface InventoryValuationDashboardProps {
   variant: "fg" | "rm";
   /**
-   * Production-planning view: keep only held stock (CPA / leak / rejection)
+   * Production-planning view: keep only held stock (CPA / leak / rejection / lot)
    * and hide every standard, sellable item. FG only.
    */
   heldOnly?: boolean;
@@ -104,6 +109,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
   const held = isFG && heldOnly;
   const [asOf, setAsOf] = useState(format(new Date(), "yyyy-MM-dd"));
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<StockCategoryFilterValue>("all");
   // Held stock also sits in WIP departments, so show every department by default.
   const [includeWip, setIncludeWip] = useState(held);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -203,8 +209,10 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       });
     }
 
-    // Production planning only cares about CPA / leak / rejection stock.
-    const rows = held ? allRows.filter((r) => r.stockCategory !== "standard") : allRows;
+    // Production planning only cares about held (non-standard) stock.
+    const rows = allRows.filter(
+      (r) => (!held || r.stockCategory !== "standard") && matchesStockCategory(r.stockCategory, categoryFilter),
+    );
 
     // Grouping
     const groupMap = new Map<string, Group>();
@@ -251,6 +259,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
         const item = fgItemById.get(itemId);
         if (!item) return;
         if (held && (item.stock_category ?? "standard") === "standard") return;
+        if (!matchesStockCategory(item.stock_category, categoryFilter)) return;
         rate = Number(item.costing_value) || 0;
         const dept = fgDeptById.get(item.department_id);
         isWip = !(dept && (dept.code === "PACKING" || /pack/i.test(dept.name)));
@@ -291,7 +300,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
     };
     const allTotal = groups.reduce((s, g) => s + g.value, 0);
 
-    // Held stock (CPA / leak / rejection): tracked per category across all
+    // Held stock (CPA / leak / rejection / lot): tracked per category across all
     // departments, still inside allTotal so GL reconciliation keeps matching.
     const heldSummaries = HELD_STOCK_CATEGORIES.map((c) => {
       const catRows = rows.filter((r) => r.stockCategory === c.value && r.qty !== 0);
@@ -304,7 +313,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
     });
 
     return { rows, groups, trend, headline, allTotal, intermediatesExcluded, heldSummaries };
-  }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, held, asOf]);
+  }, [isLoading, windowRows, snapshot, fgMasters, rmMasters, isFG, held, asOf, categoryFilter]);
 
   const scopeGroups = useMemo(() => {
     if (!computed) return [];
@@ -494,6 +503,17 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        {/* Planning view only — the accounting view must keep every category so GL still reconciles. */}
+        {held && (
+          <div>
+            <Label className="text-xs">Stock category</Label>
+            <StockCategoryFilter
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              categories={HELD_STOCK_CATEGORIES.map((c) => c.value)}
+            />
+          </div>
+        )}
         {isFG && (
           <label className="flex items-center gap-2 text-sm pb-2 cursor-pointer">
             <Switch checked={includeWip} onCheckedChange={setIncludeWip} />

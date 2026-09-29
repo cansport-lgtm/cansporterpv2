@@ -15,6 +15,8 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 interface StockEntry {
   planning_item_id: string;
@@ -27,6 +29,7 @@ interface StockEntry {
   multiplier: number;
   remarks: string;
   costing_value: number;
+  stock_category: string;
 }
 
 export default function DailyStockClosingPage() {
@@ -36,6 +39,7 @@ export default function DailyStockClosingPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [stockEntries, setStockEntries] = useState<Record<string, StockEntry>>({});
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
 
   // Fetch planning items with department info
   const { data: planningItems } = useQuery({
@@ -98,6 +102,7 @@ export default function DailyStockClosingPage() {
         multiplier,
         remarks: existing?.remarks || "",
         costing_value: item.costing_value || 0,
+        stock_category: item.stock_category || "standard",
       };
     });
 
@@ -108,7 +113,9 @@ export default function DailyStockClosingPage() {
   const itemsByDepartment = useMemo(() => {
     const grouped: Record<string, { departmentName: string; items: StockEntry[] }> = {};
 
+    // The filter only narrows what is shown; "Save All" still saves every item.
     Object.values(stockEntries).forEach((entry) => {
+      if (!matchesStockCategory(entry.stock_category, stockCategory)) return;
       if (!grouped[entry.department_id]) {
         grouped[entry.department_id] = {
           departmentName: entry.department_name,
@@ -119,7 +126,7 @@ export default function DailyStockClosingPage() {
     });
 
     return grouped;
-  }, [stockEntries]);
+  }, [stockEntries, stockCategory]);
 
   // Update entry
   const handleEntryChange = (
@@ -200,7 +207,7 @@ export default function DailyStockClosingPage() {
         <Card>
           <CardContent className="py-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <Label className="whitespace-nowrap">Closing Date:</Label>
                 <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                   <PopoverTrigger asChild>
@@ -229,6 +236,8 @@ export default function DailyStockClosingPage() {
                     />
                   </PopoverContent>
                 </Popover>
+                <Label className="whitespace-nowrap">Stock Category:</Label>
+                <StockCategoryFilter value={stockCategory} onChange={setStockCategory} />
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
@@ -261,7 +270,11 @@ export default function DailyStockClosingPage() {
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No planning items found. Add items in the Item Master first.</p>
+              <p>
+                {stockCategory === "all"
+                  ? "No planning items found. Add items in the Item Master first."
+                  : "No planning items in this stock category."}
+              </p>
             </CardContent>
           </Card>
         ) : (

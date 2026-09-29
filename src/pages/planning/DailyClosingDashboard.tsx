@@ -12,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar as CalendarIcon, Package, Boxes, Building2, TrendingUp, AlertCircle, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 import {
   Bar,
   BarChart,
@@ -31,6 +33,7 @@ export default function DailyClosingDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
 
   const toggleDept = (name: string) => {
     setExpandedDepts((prev) => {
@@ -45,14 +48,14 @@ export default function DailyClosingDashboard() {
   const trendStartStr = format(subDays(selectedDate, 13), "yyyy-MM-dd");
 
   // Closing data for the selected date
-  const { data: closingData, isLoading } = useQuery({
+  const { data: rawClosingData, isLoading } = useQuery({
     queryKey: ["daily-closing-dashboard", dateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_stock_closing")
         .select(`
           *,
-          planning_items(id, code, name, unit, costing_value),
+          planning_items(id, code, name, unit, costing_value, stock_category),
           production_departments(id, name)
         `)
         .eq("closing_date", dateStr)
@@ -65,18 +68,27 @@ export default function DailyClosingDashboard() {
   const [trendMode, setTrendMode] = useState<"total" | "department">("total");
 
   // 14-day trend data
-  const { data: trendData } = useQuery({
+  const { data: rawTrendData } = useQuery({
     queryKey: ["daily-closing-trend", trendStartStr, dateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_stock_closing")
-        .select("closing_date, closing_quantity, planning_items(costing_value), production_departments(name)")
+        .select("closing_date, closing_quantity, planning_items(costing_value, stock_category), production_departments(name)")
         .gte("closing_date", trendStartStr)
         .lte("closing_date", dateStr);
       if (error) throw error;
       return data || [];
     },
   });
+
+  const closingData = useMemo(
+    () => rawClosingData?.filter((row: any) => matchesStockCategory(row.planning_items?.stock_category, stockCategory)),
+    [rawClosingData, stockCategory],
+  );
+  const trendData = useMemo(
+    () => rawTrendData?.filter((row: any) => matchesStockCategory(row.planning_items?.stock_category, stockCategory)),
+    [rawTrendData, stockCategory],
+  );
 
   // KPIs
   const kpis = useMemo(() => {
@@ -255,6 +267,7 @@ export default function DailyClosingDashboard() {
               />
             </PopoverContent>
           </Popover>
+          <StockCategoryFilter value={stockCategory} onChange={setStockCategory} />
         </PageHeader>
 
         {/* KPI cards */}

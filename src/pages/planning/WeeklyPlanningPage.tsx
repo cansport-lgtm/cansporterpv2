@@ -50,6 +50,8 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 interface PlanItem {
   id?: string;
@@ -95,6 +97,8 @@ export default function WeeklyPlanningPage() {
     remarks: "",
   });
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
+  const [formStockCategory, setFormStockCategory] = useState<StockCategoryFilterValue>("all");
 
   // Fetch departments ordered by sequence
   const { data: departments } = useQuery({
@@ -168,7 +172,7 @@ export default function WeeklyPlanningPage() {
         .select(`
           *,
           grades (code, name),
-          planning_items (code, name, unit)
+          planning_items (code, name, unit, stock_category)
         `)
         .gte("planned_date", format(weekStart, "yyyy-MM-dd"))
         .lte("planned_date", format(weekEnd, "yyyy-MM-dd"))
@@ -176,6 +180,17 @@ export default function WeeklyPlanningPage() {
       return data || [];
     },
   });
+
+  // Plans without an item only show when no stock category is selected.
+  const visibleExistingItems = useMemo(
+    () =>
+      stockCategory === "all"
+        ? existingItems
+        : existingItems?.filter(
+            (item: any) => item.planning_items && matchesStockCategory(item.planning_items.stock_category, stockCategory)
+          ),
+    [existingItems, stockCategory]
+  );
 
   // Filter machines by selected department in form
   const filteredMachines = useMemo(() => {
@@ -185,9 +200,14 @@ export default function WeeklyPlanningPage() {
 
   // Filter planning items by selected department
   const filteredPlanningItems = useMemo(() => {
-    if (!newItem.department_id) return planningItems || [];
-    return planningItems?.filter((p: any) => p.department_id === newItem.department_id) || [];
-  }, [planningItems, newItem.department_id]);
+    return (
+      planningItems?.filter(
+        (p: any) =>
+          (!newItem.department_id || p.department_id === newItem.department_id) &&
+          matchesStockCategory(p.stock_category, formStockCategory)
+      ) || []
+    );
+  }, [planningItems, newItem.department_id, formStockCategory]);
 
   // Get capacity for selected machine
   const getCapacityPerHour = (machineId: string) => {
@@ -211,7 +231,7 @@ export default function WeeklyPlanningPage() {
         grouped[dept.id][format(day, "yyyy-MM-dd")] = [];
       });
     });
-    existingItems?.forEach((item: any) => {
+    visibleExistingItems?.forEach((item: any) => {
       const deptId = item.department_id;
       const dateKey = item.planned_date;
       if (deptId && grouped[deptId]?.[dateKey]) {
@@ -219,7 +239,7 @@ export default function WeeklyPlanningPage() {
       }
     });
     return grouped;
-  }, [existingItems, departments, weekDays]);
+  }, [visibleExistingItems, departments, weekDays]);
 
   // Calculate department totals
   const departmentTotals = useMemo(() => {
@@ -227,14 +247,14 @@ export default function WeeklyPlanningPage() {
     departments?.forEach((dept: any) => {
       totals[dept.id] = { qty: 0, hrs: 0 };
     });
-    existingItems?.forEach((item: any) => {
+    visibleExistingItems?.forEach((item: any) => {
       if (item.department_id && totals[item.department_id]) {
         totals[item.department_id].qty += Number(item.planned_qty_dozens) || 0;
         totals[item.department_id].hrs += Number(item.capacity_required_hrs) || 0;
       }
     });
     return totals;
-  }, [existingItems, departments]);
+  }, [visibleExistingItems, departments]);
 
   const handleAddItem = () => {
     if (!newItem.department_id) {
@@ -432,6 +452,18 @@ export default function WeeklyPlanningPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Stock Category</Label>
+                <StockCategoryFilter
+                  value={formStockCategory}
+                  onChange={(v) => {
+                    setFormStockCategory(v);
+                    setNewItem({ ...newItem, planning_item_id: "" });
+                  }}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Item</Label>
                 <Select
                   value={newItem.planning_item_id || ""}
@@ -451,7 +483,9 @@ export default function WeeklyPlanningPage() {
                 </Select>
                 {newItem.department_id && filteredPlanningItems?.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    No items for this department. Add items in Item Master.
+                    {formStockCategory === "all"
+                      ? "No items for this department. Add items in Item Master."
+                      : "No items for this department in this stock category."}
                   </p>
                 )}
               </div>
@@ -642,6 +676,10 @@ export default function WeeklyPlanningPage() {
                     </div>
                   </PopoverContent>
                 </Popover>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="whitespace-nowrap">Stock Category:</Label>
+                <StockCategoryFilter value={stockCategory} onChange={setStockCategory} className="w-[200px]" />
               </div>
             </div>
           </CardContent>
