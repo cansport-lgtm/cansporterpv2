@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { LabourGatePanel, type LabourLookup } from "@/components/labour/LabourGatePanel";
+import { isLabourPassNumber, normalizeLabourPassNumber } from "@/lib/labourGatePass";
 import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
   PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
@@ -62,6 +64,10 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
+  // Goods passes (GP-…) and worker passes (LGP-…) share this screen. A scanned QR
+  // picks the flow by its prefix; typed input follows the selected mode.
+  const [mode, setMode] = useState<"goods" | "worker">("goods");
+  const [labourLookup, setLabourLookup] = useState<LabourLookup | null>(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
@@ -94,15 +100,30 @@ export default function GateCheckPage() {
   }, [passNumber]);
 
   const lookUp = (raw: string) => {
-    const n = normalizePassNumber(raw);
-    if (!n) return;
+    const text = raw.trim();
+    if (!text) return;
     primeGateAlarm();
     stopGateAlarm();
     setAlarm(null);
-    setCode(n);
-    setPassNumber(n);
     lookupAtRef.current = Date.now();
     setLookupId((x) => x + 1);
+    if (isLabourPassNumber(text) || (mode === "worker" && !/^GP-?\d+$/i.test(text))) {
+      // Worker pass by number, or today's pass by worker code.
+      const n = normalizeLabourPassNumber(text);
+      const lookup: LabourLookup = /^LGP-\d{6}$/.test(n) ? { number: n } : { code: n };
+      setMode("worker");
+      setCode(lookup.number ?? lookup.code ?? "");
+      setPassNumber(null);
+      setLabourLookup(lookup);
+      queryClient.invalidateQueries({ queryKey: ["gate-check-labour-pass"] });
+      return;
+    }
+    const n = normalizePassNumber(text);
+    if (!n) return;
+    setMode("goods");
+    setLabourLookup(null);
+    setCode(n);
+    setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
   };
 
@@ -192,6 +213,7 @@ export default function GateCheckPage() {
     stopGateAlarm();
     setAlarm(null);
     setPassNumber(null);
+    setLabourLookup(null);
     setCode("");
     setResult(null);
   };
@@ -209,9 +231,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods / vehicle"], ["worker", "Worker"]] as const).map(([m, label]) => (
+                <button key={m} type="button" role="tab" aria-selected={mode === m}
+                  className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setLabourLookup(null); }}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">GP number</Label>
-              <Input id="gp-code" value={code} inputMode="text" placeholder="GP number, e.g. 131"
+              <Label htmlFor="gp-code" className="sr-only">{mode === "worker" ? "LGP number or worker code" : "GP number"}</Label>
+              <Input id="gp-code" value={code} inputMode="text"
+                placeholder={mode === "worker" ? "LGP number or worker code" : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -227,6 +259,10 @@ export default function GateCheckPage() {
             )}
           </CardContent>
         </Card>
+
+        {labourLookup && (
+          <LabourGatePanel lookup={labourLookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        )}
 
         {passNumber && isFetching && !pass && (
           <div className="flex justify-center py-8 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>

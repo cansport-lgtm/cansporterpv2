@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Calendar, Printer } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDate, getDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { useGatePassHalfDays } from "@/lib/labourGatePass";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,9 @@ const LabourTimeSheetPage = () => {
     },
   });
 
+  // Dates marked Half day by a worker gate pass this month, keyed "employeeId|date".
+  const gatePassHalfDays = useGatePassHalfDays(format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"));
+
   // Create a map of employee attendance by date
   const attendanceMap = useMemo(() => {
     const map: Record<string, Record<string, { workType: string; totalMph: number; checkIn: string | null; checkOut: string | null }>> = {};
@@ -145,8 +149,18 @@ const LabourTimeSheetPage = () => {
         cell.workType = "Half Day";
       }
     });
+    // A date the worker left on a half-day gate pass (or never came back from a
+    // short leave) is a half day whatever the rows add up to.
+    gatePassHalfDays.forEach((mark, key) => {
+      const [employeeId, dateKey] = key.split("|");
+      if (!map[employeeId]) map[employeeId] = {};
+      const cell = map[employeeId][dateKey] ?? { workType: "half_day", totalMph: 0, checkIn: null, checkOut: null };
+      cell.totalMph = Math.min(cell.totalMph, 6);
+      cell.workType = `Half Day · gate pass ${mark.pass_number}${mark.gate_out_at ? ` out ${format(new Date(mark.gate_out_at), "HH:mm")}` : ""}`;
+      map[employeeId][dateKey] = cell;
+    });
     return map;
-  }, [entries]);
+  }, [entries, gatePassHalfDays]);
 
   // Helper to check if a date is a public holiday
   const isPublicHoliday = (dateKey: string) => !!publicHolidayMap[dateKey];
