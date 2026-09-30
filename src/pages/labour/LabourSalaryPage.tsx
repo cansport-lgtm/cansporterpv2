@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, getDay, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, getDaysInMonth, subMonths } from "date-fns";
 import { Search, Printer, Banknote, CalendarIcon, Clock, Download, Receipt, MapPin, Award, Lock, Unlock, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useGatePassHalfDays } from "@/lib/labourGatePass";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -254,6 +255,10 @@ const LabourSalaryPage = () => {
     },
   });
 
+  // Dates marked Half day by a worker gate pass, keyed "employeeId|date": such a
+  // date pays at most half a day whatever the productivity rows say.
+  const gatePassHalfDays = useGatePassHalfDays(effectiveStartDate, effectiveEndDate);
+
   // Get productivity entries for the selected date range
   const { data: productivityEntries = [], isLoading: isLoadingProductivity, isFetching: isFetchingProductivity } = useQuery({
     queryKey: ["labour-productivity-month", queryStartDate, queryEndDate],
@@ -418,11 +423,18 @@ const LabourSalaryPage = () => {
         halfDaysByDate.set(e.target_date, (halfDaysByDate.get(e.target_date) || 0) + 1);
       }
     });
+    // A half-day gate pass (or a short leave never scanned back in) caps that date at 0.5 day.
+    fullDayDates.forEach((date) => {
+      if (gatePassHalfDays.has(`${emp.id}|${date}`)) {
+        fullDayDates.delete(date);
+        halfDaysByDate.set(date, 1);
+      }
+    });
     let fullDays = fullDayDates.size;
     let halfDays = 0;
     halfDaysByDate.forEach((count, date) => {
       if (fullDayDates.has(date)) return; // already counted as full day
-      if (count >= 2) fullDays += 1;
+      if (count >= 2 && !gatePassHalfDays.has(`${emp.id}|${date}`)) fullDays += 1;
       else halfDays += 1; // single half_day on that date => count as 1 half (= 0.5 day)
     });
     const daysWorked = fullDays + halfDays * 0.5;

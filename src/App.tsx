@@ -193,6 +193,10 @@ import LabourMPHAnalysisPage from "./pages/labour/LabourMPHAnalysisPage";
 import LabourTodaysTargetPage from "./pages/labour/LabourTodaysTargetPage";
 import LabourDeploymentAnalysisPage from "./pages/labour/LabourDeploymentAnalysisPage";
 import LabourProductivityEditRequestsPage from "./pages/labour/LabourProductivityEditRequestsPage";
+import LabourGatePassListPage from "./pages/labour/LabourGatePassListPage";
+import LabourGatePassFormPage from "./pages/labour/LabourGatePassFormPage";
+import LabourGatePassDetailPage from "./pages/labour/LabourGatePassDetailPage";
+import LabourGatePassApprovalsPage from "./pages/labour/LabourGatePassApprovalsPage";
 
 // Fixed Assets pages
 import FixedAssetsDashboard from "./pages/fixed-assets/FixedAssetsDashboard";
@@ -722,6 +726,10 @@ const App = () => (
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRoles={["super_admin", "labour_productivity_approver"]}><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/time-sheet" element={<ProtectedRoute><LabourTimeSheetPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass" element={<ProtectedRoute><LabourGatePassListPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/new" element={<ProtectedRoute><LabourGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/approvals" element={<ProtectedRoute><LabourGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/:id" element={<ProtectedRoute><LabourGatePassDetailPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}

@@ -156,6 +156,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/purchase/qc" replace />;
   }
 
+  // Labour Gate Pass Approver lands on the worker gate pass approvals
+  if (roles.some(r => (r.role as string) === 'labour_gate_pass_approver')) {
+    return <Navigate to="/labour/gate-pass/approvals" replace />;
+  }
+
   // Labour Productivity Approver lands on Labour Dashboard (full access)
   if (roles.some(r => (r.role as string) === 'labour_productivity_approver')) {
     return <Navigate to="/labour/dashboard" replace />;

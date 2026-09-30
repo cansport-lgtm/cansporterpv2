@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { lgpDb } from "@/lib/labourGatePass";
 import { Plus, Search, Pencil, Trash2, UserPlus, CheckCircle, ChevronsUpDown, Check, Printer, Upload, X, Loader2, Download, Clock, FileEdit } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -478,6 +479,30 @@ const LabourProductivityEntryPage = () => {
       reason: requestEditReason.trim(),
     });
   };
+
+  // The worker left on a half-day gate pass (or never came back from a short leave)
+  // on the entry date: the day is a half day, and the database keeps it so.
+  const { data: halfDayPass } = useQuery<{ pass_number: string; gate_out_at: string | null } | null>({
+    queryKey: ["labour-gate-pass-half-day", formData.employee_id, formData.target_date],
+    enabled: Boolean(formData.employee_id && formData.target_date),
+    queryFn: async () => {
+      const { data, error } = await lgpDb
+        .from("v_labour_gate_pass_half_days")
+        .select("pass_number, gate_out_at")
+        .eq("employee_id", formData.employee_id)
+        .eq("pass_date", formData.target_date)
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data ?? null;
+    },
+  });
+  useEffect(() => {
+    if (halfDayPass && formData.work_type !== "half_day") {
+      setFormData((f) => ({ ...f, work_type: "half_day", target_quantity: getProcessTarget(f.process_id, f.department_id, "half_day") || f.target_quantity }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [halfDayPass]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -1834,7 +1859,7 @@ const LabourProductivityEntryPage = () => {
                       const newTarget = getProcessTarget(formData.process_id, formData.department_id, v);
                       setFormData({ ...formData, work_type: v, target_quantity: newTarget || formData.target_quantity });
                     }}
-                    disabled={!!editingEntry && !isSuperAdmin}
+                    disabled={(!!editingEntry && !isSuperAdmin) || !!halfDayPass}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select work type" />
@@ -1844,6 +1869,11 @@ const LabourProductivityEntryPage = () => {
                       <SelectItem value="half_day">Half Day (6 MPH)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {halfDayPass && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Half day: left on gate pass {halfDayPass.pass_number}{halfDayPass.gate_out_at ? ` at ${format(new Date(halfDayPass.gate_out_at), "HH:mm")}` : ""}.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
