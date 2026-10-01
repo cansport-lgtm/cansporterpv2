@@ -17412,6 +17412,7 @@ export type Database = {
         | "master_data_manager"
         | "master_data_officer"
         | "master_data_viewer"
+        | "master_data_admin"
         | "hr_manager"
         | "hr_officer"
         | "hr_viewer"
@@ -17706,6 +17707,7 @@ export const Constants = {
         "master_data_manager",
         "master_data_officer",
         "master_data_viewer",
+        "master_data_admin",
         "hr_manager",
         "hr_officer",
         "hr_viewer",

@@ -52,6 +52,7 @@ const MODULES = [
   { value: "purchase", label: "Purchase" },
   { value: "labour", label: "Labour Productivity" },
   { value: "production", label: "Production" },
+  { value: "master_data", label: "Master Data" },
 ];
 
 const ACTIONS = ["login", "login_failed", "logout", "create", "update", "delete"];

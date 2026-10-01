@@ -738,6 +738,8 @@ const navigationItems: NavItem[] = [
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
+      // Who changed which master, when, and what exactly changed (super admin only).
+      { title: "Change Log", href: "/master/change-log", superAdminOnly: true },
     ],
   },
   {

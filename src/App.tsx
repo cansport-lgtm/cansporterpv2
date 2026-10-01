@@ -384,6 +384,7 @@ import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
 import HourlyLossReasonsPage from "./pages/master/HourlyLossReasonsPage";
+import MasterDataChangeLogPage from "./pages/master/MasterDataChangeLogPage";
 // Online Sales v1 additions
 import OnlineSalesAnalysisPage from "./pages/online-sales/OnlineSalesAnalysisPage";
 import OnlinePnLPage from "./pages/online-sales/OnlinePnLPage";
@@ -720,6 +721,7 @@ const App = () => (
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
             <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
+            <Route path="/master/change-log" element={<ProtectedRoute requiredRole="super_admin"><MasterDataChangeLogPage /></ProtectedRoute>} />
             <Route path="/master/*" element={<ProtectedRoute><ComingSoon title="Master Data" /></ProtectedRoute>} />
 
             {/* Labour Productivity Routes */}

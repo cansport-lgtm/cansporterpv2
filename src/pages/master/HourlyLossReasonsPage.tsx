@@ -48,8 +48,9 @@ interface ReasonProcess {
 
 export default function HourlyLossReasonsPage() {
   const qc = useQueryClient();
-  const { hasRole } = useAuth();
-  const isSuperAdmin = hasRole("super_admin");
+  const { hasModulePermission } = useAuth();
+  // Deleting a loss reason: super admin and the Master Data Administrator only.
+  const canDelete = hasModulePermission("master_data", "delete");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -284,7 +285,7 @@ export default function HourlyLossReasonsPage() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          {isSuperAdmin && (
+          {canDelete && (
             <Button
               variant="ghost"
               size="icon"
