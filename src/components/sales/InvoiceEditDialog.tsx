@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { productsForCustomer } from '@/lib/customerSkus';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
   const { data: products } = useQuery({
     queryKey: ["invoice-edit-products"],
     queryFn: async () => {
-      const { data, error } = await sb.from("products").select("id, code, name").eq("is_active", true).order("name");
+      const { data, error } = await sb.from("products").select("id, code, name, customer_id").eq("is_active", true).order("name");
       if (error) throw error;
       return data || [];
     },
@@ -275,7 +276,7 @@ export function InvoiceEditDialog({ invoiceId, onOpenChange }: InvoiceEditDialog
                           }}>
                             <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="(none)" /></SelectTrigger>
                             <SelectContent className="max-h-[260px]">
-                              {products?.map((p: any) => (
+                              {productsForCustomer(products, invoice?.customer_id).map((p: any) => (
                                 <SelectItem key={p.id} value={p.id}><span className="font-mono text-xs mr-2">{p.code}</span>{p.name}</SelectItem>
                               ))}
                             </SelectContent>
