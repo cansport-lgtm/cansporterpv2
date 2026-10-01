@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { productsForCustomer } from '@/lib/customerSkus';
+import { productsForCustomerParty, partyIdOfCustomer } from '@/lib/customerSkus';
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -116,7 +116,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, name, address, payment_terms, billing_customer')
+        .select('id, code, name, address, payment_terms, billing_customer, accounting_party_id')
         .eq('is_active', true)
         .eq('sales_segment', segment)
         .order('name');
@@ -131,7 +131,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name, standard_selling_price, customer_id')
+        .select('id, code, name, standard_selling_price, customer_party_id')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
@@ -491,7 +491,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                                           <SelectValue placeholder="Select Product" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {productsForCustomer(products, formData.customer_id).map((p) => (
+                                          {productsForCustomerParty(products, partyIdOfCustomer(customers, formData.customer_id)).map((p) => (
                                             <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>
                                           ))}
                                         </SelectContent>
