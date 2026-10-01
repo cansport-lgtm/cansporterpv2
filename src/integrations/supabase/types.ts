@@ -10547,6 +10547,15 @@ export type Database = {
       planning_items: {
         Row: {
           code: string
+          customer_id: string | null
+          felt: string | null
+          grade_id: string | null
+          item_type: string | null
+          logo_image_path: string | null
+          master_packing: string | null
+          packing: string | null
+          sku_code: string | null
+          sku_owner_type: string | null
           costing_value: number | null
           created_at: string | null
           department_id: string
@@ -10563,6 +10572,15 @@ export type Database = {
         }
         Insert: {
           code: string
+          customer_id?: string | null
+          felt?: string | null
+          grade_id?: string | null
+          item_type?: string | null
+          logo_image_path?: string | null
+          master_packing?: string | null
+          packing?: string | null
+          sku_code?: string | null
+          sku_owner_type?: string | null
           costing_value?: number | null
           created_at?: string | null
           department_id: string
@@ -10579,6 +10597,15 @@ export type Database = {
         }
         Update: {
           code?: string
+          customer_id?: string | null
+          felt?: string | null
+          grade_id?: string | null
+          item_type?: string | null
+          logo_image_path?: string | null
+          master_packing?: string | null
+          packing?: string | null
+          sku_code?: string | null
+          sku_owner_type?: string | null
           costing_value?: number | null
           created_at?: string | null
           department_id?: string
@@ -10594,6 +10621,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "planning_items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planning_items_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planning_items_department_id_fkey"
             columns: ["department_id"]

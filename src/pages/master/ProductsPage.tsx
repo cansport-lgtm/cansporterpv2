@@ -111,7 +111,7 @@ export default function ProductsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("planning_items")
-        .select("id, code, name, production_departments(name)")
+        .select("id, code, name, item_type, production_departments(name)")
         .eq("is_active", true)
         .order("code");
       if (error) throw error;
@@ -704,6 +704,7 @@ export default function ProductsPage() {
                         {pi.production_departments?.name
                           ? ` (${pi.production_departments.name})`
                           : ""}
+                        {pi.item_type === "wip" ? " [WIP]" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
