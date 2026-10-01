@@ -11328,7 +11328,7 @@ export type Database = {
           base_product_id: string | null
           code: string
           created_at: string | null
-          customer_id: string | null
+          customer_party_id: string | null
           description: string | null
           grade_id: string | null
           id: string
@@ -11346,7 +11346,7 @@ export type Database = {
           base_product_id?: string | null
           code: string
           created_at?: string | null
-          customer_id?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
@@ -11364,7 +11364,7 @@ export type Database = {
           base_product_id?: string | null
           code?: string
           created_at?: string | null
-          customer_id?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
@@ -11387,10 +11387,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "products_customer_id_fkey"
-            columns: ["customer_id"]
+            foreignKeyName: "products_customer_party_id_fkey"
+            columns: ["customer_party_id"]
             isOneToOne: false
-            referencedRelation: "customers"
+            referencedRelation: "accounting_parties"
             referencedColumns: ["id"]
           },
           {
@@ -17125,7 +17125,7 @@ export type Database = {
     }
     Functions: {
       next_customer_sku_code: {
-        Args: { p_customer_id: string }
+        Args: { p_party_id: string }
         Returns: string
       }
       accounting_inventory_snapshot: {

@@ -50,7 +50,7 @@ interface Product {
   standard_selling_price: number | null;
   planning_item_id: string | null;
   owner_type: ProductOwnerType;
-  customer_id: string | null;
+  customer_party_id: string | null;
   base_product_id: string | null;
   is_active: boolean | null;
   grades?: { name: string } | null;
@@ -58,9 +58,9 @@ interface Product {
   planning_items?: { code: string; name: string } | null;
 }
 
-interface CustomerRef {
+interface PartyRef {
   id: string;
-  code: string;
+  code: string | null;
   name: string;
   is_active: boolean | null;
 }
@@ -69,7 +69,7 @@ type OwnerFilter = "all" | "own" | "customer";
 
 const EMPTY_FORM = {
   owner_type: "own" as ProductOwnerType,
-  customer_id: "",
+  customer_party_id: "",
   base_product_id: "",
   code: "",
   name: "",
@@ -145,15 +145,18 @@ export default function ProductsPage() {
     },
   });
 
+  // Owners of customer SKUs are accounts-receivable customers: accounting
+  // parties of type "customer", not rows of the sales customers master.
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers-for-sku"],
+    queryKey: ["ar-customer-parties-for-sku"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("customers")
+        .from("accounting_parties")
         .select("id, code, name, is_active")
+        .eq("party_type", "customer")
         .order("name");
       if (error) throw error;
-      return data as CustomerRef[];
+      return data as PartyRef[];
     },
   });
 
@@ -175,15 +178,15 @@ export default function ProductsPage() {
 
   // Preview of the code the database will assign to a new customer SKU.
   const { data: nextCode } = useQuery({
-    queryKey: ["next-customer-sku-code", formData.customer_id],
+    queryKey: ["next-customer-sku-code", formData.customer_party_id],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("next_customer_sku_code", {
-        p_customer_id: formData.customer_id,
+        p_party_id: formData.customer_party_id,
       });
       if (error) throw error;
       return data as string | null;
     },
-    enabled: dialogOpen && isCreate && isCustomerSku && !!formData.customer_id,
+    enabled: dialogOpen && isCreate && isCustomerSku && !!formData.customer_party_id,
   });
 
   const ownProducts = useMemo(
@@ -207,8 +210,8 @@ export default function ProductsPage() {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
       const customer = data.owner_type === "customer";
-      if (customer && !data.customer_id) {
-        throw new Error("Pick the customer who owns this SKU");
+      if (customer && !data.customer_party_id) {
+        throw new Error("Pick the accounts-receivable customer who owns this SKU");
       }
       const payload = {
         name: data.name,
@@ -220,7 +223,7 @@ export default function ProductsPage() {
         standard_selling_price: data.standard_selling_price || null,
         planning_item_id: data.planning_item_id || null,
         owner_type: data.owner_type,
-        customer_id: customer ? data.customer_id : null,
+        customer_party_id: customer ? data.customer_party_id : null,
         base_product_id: customer ? data.base_product_id || null : null,
         is_active: data.is_active,
       };
@@ -283,7 +286,7 @@ export default function ProductsPage() {
     setSelectedItem(item);
     setFormData({
       owner_type: item.owner_type === "customer" ? "customer" : "own",
-      customer_id: item.customer_id || "",
+      customer_party_id: item.customer_party_id || "",
       base_product_id: item.base_product_id || "",
       code: item.code,
       name: item.name,
@@ -326,7 +329,7 @@ export default function ProductsPage() {
     setFormData((f) => ({
       ...f,
       owner_type: value,
-      customer_id: value === "customer" ? f.customer_id : "",
+      customer_party_id: value === "customer" ? f.customer_party_id : "",
       base_product_id: value === "customer" ? f.base_product_id : "",
     }));
   };
@@ -346,7 +349,7 @@ export default function ProductsPage() {
         item.owner_type === "customer" ? (
           <div className="flex flex-col gap-0.5">
             <Badge variant="secondary" className="w-fit text-xs">
-              {(item.customer_id && customerById.get(item.customer_id)?.name) ?? "Customer"}
+              {(item.customer_party_id && customerById.get(item.customer_party_id)?.name) ?? "Customer"}
             </Badge>
             {item.base_product_id && productById.get(item.base_product_id) && (
               <span className="text-xs text-muted-foreground">
@@ -503,16 +506,16 @@ export default function ProductsPage() {
                 </div>
                 {isCustomerSku && (
                   <div className="space-y-2">
-                    <Label>Customer</Label>
+                    <Label>Customer (accounts receivable)</Label>
                     <SearchableSelect
-                      value={formData.customer_id}
-                      onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
-                      placeholder="Pick customer"
+                      value={formData.customer_party_id}
+                      onValueChange={(v) => setFormData({ ...formData, customer_party_id: v })}
+                      placeholder="Pick receivables customer"
                       options={activeCustomers.map((c) => ({
                         value: c.id,
                         label: c.name,
-                        secondary: `(${c.code})`,
-                        search: c.code,
+                        secondary: c.code ? `(${c.code})` : "",
+                        search: c.code || c.name,
                       }))}
                     />
                   </div>
@@ -549,11 +552,11 @@ export default function ProductsPage() {
                       <Input
                         id="code"
                         value={nextCode ?? ""}
-                        placeholder={formData.customer_id ? "Generating…" : "Pick a customer first"}
+                        placeholder={formData.customer_party_id ? "Generating…" : "Pick a receivables customer first"}
                         disabled
                       />
                       <p className="text-xs text-muted-foreground">
-                        Auto-generated as customer code + serial.
+                        Auto-generated as the party's code (or first 8 letters of its name) + serial.
                       </p>
                     </>
                   ) : (
