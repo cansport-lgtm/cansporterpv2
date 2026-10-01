@@ -17,7 +17,7 @@ import { esc, printDocument } from "@/lib/printDocument";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ppDb = supabase as any;
 
-export type PassKind = "half_day" | "short_leave";
+export type PassKind = "half_day" | "short_leave" | "official_duty";
 export type PassStatus =
   | "pending_approval" | "approved" | "out" | "returned" | "not_returned" | "expired" | "rejected" | "cancelled";
 
@@ -30,6 +30,13 @@ export type PersonPassVariant = {
   /** "Worker" / "Staff" — used in titles and badges. */
   label: string;
   module: "labour" | "hr";
+  /** Pass kinds this variant offers. Official duty (company work) is staff only. */
+  kinds: PassKind[];
+  /**
+   * Self-service variant: the logged-in staff member raising and viewing their own
+   * passes (official duty only), reached at /my-gate-pass without any HR role.
+   */
+  selfService?: boolean;
   basePath: string;
   table: string;
   eventsTable: string;
@@ -82,6 +89,7 @@ export const WORKER_PASS: PersonPassVariant = {
   noun: "worker",
   label: "Worker",
   module: "labour",
+  kinds: ["half_day", "short_leave"],
   basePath: "/labour/gate-pass",
   table: "labour_gate_passes",
   eventsTable: "labour_gate_pass_events",
@@ -117,6 +125,7 @@ export const STAFF_PASS: PersonPassVariant = {
   noun: "staff member",
   label: "Staff",
   module: "hr",
+  kinds: ["half_day", "short_leave", "official_duty"],
   basePath: "/hr/gate-pass",
   table: "staff_gate_passes",
   eventsTable: "staff_gate_pass_events",
@@ -146,14 +155,39 @@ export const STAFF_PASS: PersonPassVariant = {
   personSubline: (p) => p?.designations?.name ?? "",
 };
 
+/** The staff member's own view: raise and follow official duty passes without an HR role. */
+export const STAFF_SELF_PASS: PersonPassVariant = {
+  ...STAFF_PASS,
+  selfService: true,
+  kinds: ["official_duty"],
+  basePath: "/my-gate-pass",
+  listTitle: "My Gate Passes",
+  listDescription: "Your company work passes: raise one before you go out, show it to the guard going out and coming back",
+  newTitle: "Go out on company work",
+};
+
+/** Variants the Gate Check page recognises by prefix (the self-service view shares the staff prefix). */
 export const PERSON_PASS_VARIANTS: PersonPassVariant[] = [WORKER_PASS, STAFF_PASS];
 
-export const passKinds = (v: PersonPassVariant): { value: PassKind; label: string; description: string; badgeClass: string }[] => [
-  { value: "half_day", label: "Half day", description: `Leaves and does not come back today — the day is marked Half day when the ${v.noun} goes out`, badgeClass: "bg-amber-50 text-amber-800 ring-amber-200" },
-  { value: "short_leave", label: "Short leave", description: "Goes out for a task and comes back — scanned Out and In at the gate", badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
-];
+export const isOfficialDuty = (k: string | null | undefined) => k === "official_duty";
 
-export const passKindMeta = (k: string) => passKinds(WORKER_PASS).find((p) => p.value === k) ?? passKinds(WORKER_PASS)[0];
+/** Did this pass mark a half day? Official duty never does, even when not scanned back in. */
+export const marksHalfDay = (p: Pick<PersonGatePass, "pass_kind" | "status">) =>
+  (p.pass_kind === "half_day" && p.status === "out") || (p.status === "not_returned" && !isOfficialDuty(p.pass_kind));
+
+const KIND_META: Record<PassKind, { label: string; description: (noun: string) => string; badgeClass: string }> = {
+  half_day: { label: "Half day", description: (noun) => `Leaves and does not come back today — the day is marked Half day when the ${noun} goes out`, badgeClass: "bg-amber-50 text-amber-800 ring-amber-200" },
+  short_leave: { label: "Short leave", description: () => "Personal errand — goes out and comes back, scanned Out and In at the gate. Not back by day end → half day", badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
+  official_duty: { label: "Official duty", description: () => "Company work — purchases, bank, site visit. Scanned Out and In at the gate. Attendance is never touched", badgeClass: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
+};
+
+export const passKinds = (v: PersonPassVariant): { value: PassKind; label: string; description: string; badgeClass: string }[] =>
+  v.kinds.map((value) => ({ value, label: KIND_META[value].label, description: KIND_META[value].description(v.noun), badgeClass: KIND_META[value].badgeClass }));
+
+export const passKindMeta = (k: string) => {
+  const m = KIND_META[k as PassKind] ?? KIND_META.half_day;
+  return { value: (KIND_META[k as PassKind] ? k : "half_day") as PassKind, label: m.label, description: m.description("person"), badgeClass: m.badgeClass };
+};
 
 export const STATUS_META: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "secondary" | "info" | "soft" }> = {
   pending_approval: { label: "Pending approval", variant: "warning" },
@@ -166,7 +200,11 @@ export const STATUS_META: Record<string, { label: string; variant: "warning" | "
   cancelled: { label: "Cancelled", variant: "secondary" },
 };
 
-export const statusMeta = (s: string) => STATUS_META[s] ?? { label: s, variant: "secondary" as const };
+/** Status label; an official duty pass that was never scanned back in reads "Not scanned in", not "Not returned". */
+export const statusMeta = (s: string, kind?: string | null) =>
+  s === "not_returned" && isOfficialDuty(kind)
+    ? { label: "Not scanned in", variant: "warning" as const }
+    : STATUS_META[s] ?? { label: s, variant: "secondary" as const };
 
 export const hasAnyRole = (roles: { role: string }[], allowed: string[]) => roles.some((r) => allowed.includes(r.role));
 
@@ -179,6 +217,7 @@ export type PersonGatePass = {
   employee_id: string;
   department_id: string | null;
   reason: string;
+  destination: string | null;
   expected_minutes: number | null;
   leave_time: string | null;
   created_by: string | null;
@@ -234,6 +273,7 @@ export const passKeys = (v: PersonPassVariant) => ({
   rescansCount: `${v.queryPrefix}-rescans-count`,
   picker: `${v.queryPrefix}-picker`,
   gateCheck: `gate-check-${v.key}-pass`,
+  myEmployee: `${v.queryPrefix}-my-employee`,
 });
 
 /** Refresh everything that shows passes of this kind after a write. */
@@ -274,7 +314,7 @@ export const fmtTime = (s: string | null | undefined) => (s ? format(new Date(s)
 
 /** Minutes a short leave is past its expected return (0 when not overdue). */
 export const overdueMinutes = (p: Pick<PersonGatePass, "status" | "pass_kind" | "expected_back_at">, now = Date.now()) =>
-  p.status === "out" && p.pass_kind === "short_leave" && p.expected_back_at
+  p.status === "out" && p.pass_kind !== "half_day" && p.expected_back_at
     ? Math.max(0, Math.ceil((now - new Date(p.expected_back_at).getTime()) / 60000))
     : 0;
 
@@ -362,7 +402,8 @@ export function printPersonGatePass(v: PersonPassVariant, p: PersonGatePass, qrS
       <div><span class="muted">Date</span> <b>${esc(format(new Date(p.pass_date), "dd MMM yyyy"))}</b></div>
       <div><span class="muted">Kind</span> <b>${esc(kind.label)}</b></div>
       <div><span class="muted">Status</span> <b>${esc(statusMeta(p.status).label)}</b></div>
-      ${p.pass_kind === "short_leave" ? `<div><span class="muted">Expected out</span> <b>${esc(p.expected_minutes ?? "")} min</b></div>` : ""}
+      ${p.pass_kind !== "half_day" ? `<div><span class="muted">Expected out</span> <b>${esc(p.expected_minutes ?? "")} min</b></div>` : ""}
+      ${p.destination ? `<div><span class="muted">Destination</span> <b>${esc(p.destination)}</b></div>` : ""}
       ${p.leave_time ? `<div><span class="muted">Leaving at</span> <b>${esc(p.leave_time.slice(0, 5))}</b></div>` : ""}
       <div style="grid-column: span 2"><span class="muted">Reason</span> <b>${esc(p.reason)}</b></div>
       ${p.gate_out_at ? `<div><span class="muted">Out</span> <b>${esc(fmtDT(p.gate_out_at))}</b></div>` : ""}
@@ -370,10 +411,48 @@ export function printPersonGatePass(v: PersonPassVariant, p: PersonGatePass, qrS
     </div>
     <div class="sign">
       <div>${esc(v.applicantLabel)}<br><b>${esc(p.creator?.full_name ?? "")}</b></div>
-      <div>Approved by<br><b>${esc(p.approver?.full_name ?? "")}</b></div>
+      <div>Approved by<br><b>${esc(p.approver?.full_name ?? (p.approved_at && !p.approved_by ? "Auto (field duty)" : ""))}</b></div>
       <div>Security<br>&nbsp;</div>
     </div>
-    <p class="xs muted" style="text-align:center; margin-top:10px">Valid only on ${esc(format(new Date(p.pass_date), "dd MMM yyyy"))}. ${p.pass_kind === "half_day" ? `The day is marked Half day when the ${esc(v.noun)} goes out.` : `The ${esc(v.noun)} must be scanned back in at the gate.`}</p>
+    <p class="xs muted" style="text-align:center; margin-top:10px">Valid only on ${esc(format(new Date(p.pass_date), "dd MMM yyyy"))}. ${p.pass_kind === "half_day" ? `The day is marked Half day when the ${esc(v.noun)} goes out.` : p.pass_kind === "official_duty" ? "Company work — scan back in at the gate on return. Attendance is not affected." : `The ${esc(v.noun)} must be scanned back in at the gate.`}</p>
   </div>`;
   printDocument(p.pass_number, body);
 }
+
+// Self-service: the staff record linked to the current login (employees.app_user_id).
+export type MyEmployee = {
+  id: string;
+  employee_code: string;
+  full_name: string;
+  photo_url: string | null;
+  field_duty_allowed: boolean | null;
+  designations?: { name: string } | null;
+  production_departments?: { name: string } | null;
+};
+
+/** The staff record linked to the logged-in user, or null when the login is not linked. */
+export function useMyEmployee(userId: string | null | undefined) {
+  return useQuery<MyEmployee | null>({
+    queryKey: [passKeys(STAFF_PASS).myEmployee, userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await ppDb
+        .from("employees")
+        .select("id, employee_code, full_name, photo_url, field_duty_allowed, designations(name), production_departments(name)")
+        .eq("app_user_id", userId)
+        .eq("is_active", true)
+        .order("created_at")
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data ?? null;
+    },
+  });
+}
+
+/** Minutes a pass spent (or has spent so far) outside the gate. */
+export const minutesOutside = (p: Pick<PersonGatePass, "status" | "gate_out_at" | "gate_in_at" | "minutes_outside">, now = Date.now()) => {
+  if (p.minutes_outside != null) return p.minutes_outside;
+  if (p.status === "out" && p.gate_out_at) return Math.max(0, Math.ceil((now - new Date(p.gate_out_at).getTime()) / 60000));
+  return 0;
+};

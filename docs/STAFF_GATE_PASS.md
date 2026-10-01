@@ -18,7 +18,28 @@ that carries the tables, roles, routes and wording.
 | Kind | Meaning | What happens |
 |---|---|---|
 | **Half day** | The staff member leaves and does not come back today | When the guard scans them out, the date is marked **Half day** in HR attendance (see below) |
-| **Short leave** | Goes out for a task and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Official duty** | Company work: purchases, bank, site visit. Expected within N minutes (default 180) | Guard scans **Out**, later **In**. A **destination** is recorded with the purpose. **Attendance is never touched.** Late return is information for HR, not a warning. Still out at day end → **Not scanned in**, no half day, HR informed |
+
+Official duty was added in `20261004120000_staff_gate_pass_official_duty.sql`
+(rollback `supabase/rollbacks/20261004120000_staff_gate_pass_official_duty_down.sql`).
+Worker passes do not have it.
+
+### Official duty: who raises it, who approves
+
+- **HR** (`hr_manager`, `hr_officer`) and the approver raise it like any other kind,
+  on New Staff Gate Pass.
+- **The staff member themselves**, when their login is linked to their staff
+  record (**Employees → Login user**). They use **Self Service → My Gate Passes**
+  (`/my-gate-pass`), which needs no HR role: it shows only their own passes and
+  lets them raise an official duty pass (never a half day or short leave). The
+  database checks the link on every write (`employees.app_user_id`).
+- **Field duty allowed** (switch on the Employees page) → the pass is **approved
+  the moment it is raised** and logged as auto-approved; the staff member goes
+  straight to the gate. Otherwise `staff_gate_pass_approver` approves as usual.
+- The person who raised a pass can cancel it before it is scanned Out.
+- Several trips a day are fine: once a trip is scanned In the day is free for
+  the next pass.
 
 ## Flow
 
@@ -58,12 +79,22 @@ check these roles; the tables are read-only to the app.
 | Page | Route | What it shows |
 |---|---|---|
 | Staff Gate Passes | `/hr/gate-pass` | Register (today by default), the four cards, **Outside now** (overdue in red), red **Old staff passes scanned again** card |
-| New Staff Gate Pass | `/hr/gate-pass/new` | Staff picker with photo, kind, date, leaving time, expected minutes, reason |
+| New Staff Gate Pass | `/hr/gate-pass/new` | Staff picker with photo, kind, date, leaving time, expected minutes, reason, destination (official duty) |
+| My Gate Passes | `/my-gate-pass`, `/my-gate-pass/new`, `/my-gate-pass/:id` | Self-service for the linked staff member: own passes, raise an official duty pass, pass page with QR |
 | Pass page | `/hr/gate-pass/:id` | QR, printable slip, photo, timeline, approve / reject / cancel / convert |
 | Gate Pass Approvals | `/hr/gate-pass/approvals` | Queue for the approver, plus short leaves overdue at the gate |
 | Gate Check | `/gate-pass/check` | **Goods / vehicle**, **Worker** and **Staff** modes on the guard's existing page |
 | HR Dashboard | `/hr/dashboard` | The four cards at the top and the rescan alerts |
-| Employees | `/hr/employees` | Photo upload (`employees.photo_url`, bucket `staff-photos`) so the guard can match the person |
+| Employees | `/hr/employees` | Photo upload (`employees.photo_url`, bucket `staff-photos`) so the guard can match the person; **Login user** link and **Field duty allowed** switch |
+
+### Company work report
+
+The register (`/hr/gate-pass`) shows a **Company work** summary for the selected
+dates whenever official duty passes went out: per staff member, trips, time
+outside (still-out trips count up to now), passes not scanned in, and the
+destinations. **Export Excel** writes two sheets, the summary and every trip.
+Pick the month in the From / To filters for the monthly report.
+
 
 ## At the gate
 
@@ -112,7 +143,8 @@ Sheet, Attendance Sheet, Time Sheet and Punctuality Analytics. So:
   half day is an attendance half day, as it is for workers.
 - Attendance Sheet and Time Sheet show the pass number and gate-out time in the
   cell tooltip.
-- The view `v_staff_gate_pass_half_days` lists these dates.
+- The view `v_staff_gate_pass_half_days` lists these dates. An official duty
+  pass never appears in it, even when it was not scanned back in.
 
 There is no override: once the staff member is out on a half-day pass, that
 date is a half day.
@@ -127,6 +159,10 @@ date is a half day.
 | Out / In | Applicant (approvers too when the person is late) |
 | Late back (expected + grace, default 15 min) | Applicant and approvers |
 | Not returned at day end / expired | Applicant and approvers |
+| Official duty: still out past expected, back late, not scanned in at day end | Applicant and HR managers, as **info** (never a warning, never the approver) |
+
+A staff member who raised their own pass gets their notifications with the
+`/my-gate-pass/…` link, which their login can open.
 | Old pass scanned again | Approvers, applicant, gate pass managers |
 
 ## Scheduled job
@@ -142,6 +178,7 @@ run whatever the time.
 | Setting | Default |
 |---|---|
 | Default expected minutes for a short leave | 30 |
+| Default expected minutes for official duty | 180 |
 | Grace minutes before "late back" | 15 |
 | Day-end time (Asia/Karachi), used when the staff member has no duty end time | 18:00 |
 | Mark half day when not returned at day end | on |

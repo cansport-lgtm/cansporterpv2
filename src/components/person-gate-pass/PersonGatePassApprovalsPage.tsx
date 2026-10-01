@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+import { AlertTriangle, Briefcase, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
+  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
   type PersonGatePass, type PersonPassVariant,
 } from "@/lib/personGatePass";
 
@@ -77,7 +77,8 @@ export function PersonGatePassApprovalsPage({ variant }: { variant: PersonPassVa
   });
 
   const pending = passes.filter((p) => p.status === "pending_approval");
-  const overdue = passes.filter((p) => p.status === "out" && overdueMinutes(p) > 0);
+  const overdue = passes.filter((p) => p.status === "out" && !isOfficialDuty(p.pass_kind) && overdueMinutes(p) > 0);
+  const onDuty = passes.filter((p) => p.status === "out" && isOfficialDuty(p.pass_kind));
 
   const PersonLine = ({ p }: { p: PersonGatePass }) => (
     <div className="flex items-center gap-3 min-w-0">
@@ -124,6 +125,27 @@ export function PersonGatePassApprovalsPage({ variant }: { variant: PersonPassVa
           </Card>
         )}
 
+        {onDuty.length > 0 && (
+          <Card className="border-indigo-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2 text-indigo-800"><Briefcase className="h-4 w-4" /> Out on company work · {onDuty.length}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {onDuty.map((p) => {
+                const late = overdueMinutes(p);
+                return (
+                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-indigo-50/40 p-3">
+                    <PersonLine p={p} />
+                    <div className={cn("text-sm", late > 0 ? "text-amber-800 font-semibold" : "text-indigo-900")}>
+                      {p.destination ? `${p.destination} · ` : ""}out {fmtDT(p.gate_out_at)} · due {fmtDT(p.expected_back_at)}{late > 0 ? ` · ${late} min past` : ""}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2"><ClipboardCheck className="h-4 w-4" /> Waiting for approval · {pending.length}</CardTitle>
@@ -141,12 +163,15 @@ export function PersonGatePassApprovalsPage({ variant }: { variant: PersonPassVa
                     <PersonLine p={p} />
                     <div className="flex items-center gap-2">
                       <span className={cn("text-xs font-semibold rounded-full px-2 py-0.5 ring-1 ring-inset whitespace-nowrap", kind.badgeClass)}>
-                        {kind.label}{p.pass_kind === "short_leave" ? ` · ${p.expected_minutes} min` : ""}
+                        {kind.label}{p.pass_kind !== "half_day" ? ` · ${p.expected_minutes} min` : ""}
                       </span>
                       <span className="text-sm font-medium whitespace-nowrap">{format(new Date(p.pass_date), "dd MMM")}{p.leave_time ? ` · ${p.leave_time.slice(0, 5)}` : ""}</span>
                     </div>
                   </div>
-                  <div className="text-sm"><span className="text-muted-foreground">Reason:</span> {p.reason}</div>
+                  <div className="text-sm">
+                    {p.destination && <><span className="text-muted-foreground">Destination:</span> {p.destination} · </>}
+                    <span className="text-muted-foreground">{isOfficialDuty(p.pass_kind) ? "Purpose:" : "Reason:"}</span> {p.reason}
+                  </div>
                   {canApprove && (
                     <div className="flex gap-2 justify-end">
                       <Button size="sm" variant="outline" onClick={() => setTarget({ pass: p, kind: "reject" })}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>

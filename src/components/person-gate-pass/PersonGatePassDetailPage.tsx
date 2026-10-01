@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
+  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, marksHalfDay, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
   printPersonGatePass, statusMeta, type PersonGatePass, type PersonPassVariant,
 } from "@/lib/personGatePass";
 
@@ -106,15 +106,18 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
   if (!pass) return <ERPLayout><div className="p-8 text-center text-muted-foreground">{variant.label} gate pass not found.</div></ERPLayout>;
 
   const kind = passKindMeta(pass.pass_kind);
-  const status = statusMeta(pass.status);
+  const status = statusMeta(pass.status, pass.pass_kind);
+  const official = isOfficialDuty(pass.pass_kind);
   const e = pass.person;
   const sub = variant.personSubline(e);
   const isMaker = pass.created_by === user?.id;
   const late = overdueMinutes(pass);
   const rescans = events.filter((ev) => ev.event === "rescan_attempt").length;
-  const canCancel = ["pending_approval", "approved"].includes(pass.status) && (canApprove || (canApply && isMaker));
+  // The person who raised the pass can always cancel it before Out (HR, or the staff member themselves).
+  const canCancel = ["pending_approval", "approved"].includes(pass.status) && (canApprove || isMaker || (canApply && isMaker));
   const canConvert = canApprove && pass.status === "out" && pass.pass_kind === "short_leave";
-  const halfDayMarked = (pass.pass_kind === "half_day" && pass.status === "out") || pass.status === "not_returned";
+  const halfDayMarked = marksHalfDay(pass);
+  const autoApproved = Boolean(pass.approved_at) && !pass.approved_by;
   const fn = variant.fnPrefix;
 
   const print = () => printPersonGatePass(variant, pass, qrRef.current?.querySelector("svg")?.outerHTML ?? "");
@@ -150,10 +153,20 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
             <div><b>This pass was scanned again at the gate {rescans} time{rescans > 1 ? "s" : ""} after it was used.</b> See the history below.</div>
           </div>
         )}
-        {late > 0 && (
+        {late > 0 && !official && (
           <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900 flex gap-2">
             <AlertTriangle className="h-5 w-5 shrink-0 text-red-700" />
             <div>The {variant.noun} is <b>{late} min</b> past the expected return ({fmtDT(pass.expected_back_at)}). {canApprove ? "If they will not be back, convert the pass to a half day." : "The approver has been told."}</div>
+          </div>
+        )}
+        {late > 0 && official && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            Still out on company work, <b>{late} min</b> past the expected return ({fmtDT(pass.expected_back_at)}). HR has been informed. Attendance is not affected.
+          </div>
+        )}
+        {official && pass.status === "not_returned" && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            Not scanned back in by day end. This was company work, so <b>attendance is not affected</b>.
           </div>
         )}
         {halfDayMarked && (
@@ -178,14 +191,15 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
                 </div>
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Reason</dt><dd className="font-medium">{pass.reason}</dd>
-                {pass.pass_kind === "short_leave" && <><dt className="text-muted-foreground">Expected outside</dt><dd>{pass.expected_minutes} min</dd></>}
+                {pass.destination && <><dt className="text-muted-foreground">Destination</dt><dd className="font-medium">{pass.destination}</dd></>}
+                <dt className="text-muted-foreground">{official ? "Purpose" : "Reason"}</dt><dd className="font-medium">{pass.reason}</dd>
+                {pass.pass_kind !== "half_day" && <><dt className="text-muted-foreground">Expected outside</dt><dd>{pass.expected_minutes} min</dd></>}
                 {pass.leave_time && <><dt className="text-muted-foreground">Leaving at</dt><dd>{pass.leave_time.slice(0, 5)}</dd></>}
                 <dt className="text-muted-foreground">Applied by</dt><dd>{pass.creator?.full_name ?? "—"} · {fmtDT(pass.created_at)}</dd>
                 <dt className="text-muted-foreground">{pass.status === "rejected" ? "Rejected by" : "Approved by"}</dt>
-                <dd>{pass.approver?.full_name ?? "—"}{pass.approved_at ? ` · ${fmtDT(pass.approved_at)}` : ""}{pass.approval_remarks ? ` — ${pass.approval_remarks}` : ""}</dd>
+                <dd>{pass.approver?.full_name ?? (autoApproved ? "Auto-approved (field duty allowed)" : "—")}{pass.approved_at ? ` · ${fmtDT(pass.approved_at)}` : ""}{pass.approval_remarks && !autoApproved ? ` — ${pass.approval_remarks}` : ""}</dd>
                 <dt className="text-muted-foreground">Out at gate</dt><dd>{pass.gate_out_at ? `${fmtDT(pass.gate_out_at)} · ${pass.out_guard?.full_name ?? "guard"}` : "—"}</dd>
-                {pass.pass_kind === "short_leave" && (
+                {pass.pass_kind !== "half_day" && (
                   <>
                     <dt className="text-muted-foreground">Due back</dt><dd>{fmtDT(pass.expected_back_at)}</dd>
                     <dt className="text-muted-foreground">Back at gate</dt>

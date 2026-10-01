@@ -139,7 +139,8 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
   const kind = passKindMeta(pass.pass_kind);
   const late = overdueMinutes(pass);
   const canOut = pass.status === "approved" && pass.pass_date === today;
-  const canIn = pass.status === "out" && pass.pass_kind === "short_leave" && pass.pass_date === today;
+  const canIn = pass.status === "out" && pass.pass_kind !== "half_day" && pass.pass_date === today;
+  const official = pass.pass_kind === "official_duty";
 
   return (
     <>
@@ -157,7 +158,8 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
               <div className="text-xl font-bold leading-tight">{e?.full_name}</div>
               <div className="text-sm text-muted-foreground">{e?.employee_code}{e?.production_departments?.name ? ` · ${e.production_departments.name}` : ""}{sub ? ` · ${sub}` : ""}</div>
               <div className="text-sm mt-1">Pass for <b>{format(new Date(pass.pass_date), "dd MMM")}</b>{pass.leave_time ? ` · leaving ${pass.leave_time.slice(0, 5)}` : ""}</div>
-              <div className="text-xs text-muted-foreground">Approved by {pass.approver?.full_name ?? "—"} · applied by {pass.creator?.full_name ?? "—"}</div>
+              {pass.destination && <div className="text-sm">Going to <b>{pass.destination}</b></div>}
+              <div className="text-xs text-muted-foreground">Approved by {pass.approver?.full_name ?? (pass.approved_at ? "auto (field duty)" : "—")} · applied by {pass.creator?.full_name ?? "—"}</div>
             </div>
           </div>
           {!e?.photo_url && <div className="text-xs text-amber-700">No photo on file — check the {variant.noun}'s code and name.</div>}
@@ -197,7 +199,7 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
                 ? `This pass is for ${format(new Date(pass.pass_date), "dd MMM")}, not today.`
                 : pass.status === "returned"
                   ? `This pass was already used — out ${fmtTime(pass.gate_out_at)}, back ${fmtTime(pass.gate_in_at)}.`
-                  : `This pass was already used — the ${variant.noun} went out ${fmtTime(pass.gate_out_at)}${pass.status === "not_returned" ? " and never came back" : " on a half day"}.`}
+                  : `This pass was already used — the ${variant.noun} went out ${fmtTime(pass.gate_out_at)}${pass.status === "not_returned" ? (official ? " and was not scanned back in that day" : " and never came back") : " on a half day"}.`}
           </div>
           <div className="text-sm">
             This attempt is logged{alarm.attempts && alarm.attempts > 1 ? ` (${alarm.attempts} attempts on this pass)` : ""} and the office has been told. Stop the {variant.noun} and call {variant.applicantLabel === "HR" ? "HR" : "the supervisor"}.
@@ -220,8 +222,8 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
         </div>
       ) : canIn ? (
         <div className="sticky bottom-0 bg-background/95 backdrop-blur py-3 space-y-2">
-          <div className={cn("rounded-xl border p-3 text-sm text-center", late > 0 ? "border-red-300 bg-red-50 text-red-900" : "border-sky-200 bg-sky-50 text-sky-900")}>
-            Went out {fmtTime(pass.gate_out_at)} · due back {fmtTime(pass.expected_back_at)}{late > 0 ? ` · ${late} min late` : ""}
+          <div className={cn("rounded-xl border p-3 text-sm text-center", late > 0 && !official ? "border-red-300 bg-red-50 text-red-900" : official ? "border-indigo-200 bg-indigo-50 text-indigo-900" : "border-sky-200 bg-sky-50 text-sky-900")}>
+            {official ? "Company work · " : ""}Went out {fmtTime(pass.gate_out_at)} · due back {fmtTime(pass.expected_back_at)}{late > 0 ? ` · ${late} min late` : ""}
           </div>
           <Button className="w-full h-14 text-lg font-bold" disabled={markIn.isPending} onClick={() => markIn.mutate()}>
             {markIn.isPending ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <LogIn className="h-5 w-5 mr-2" />}
@@ -233,7 +235,7 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
         <Card className="border-amber-300 bg-amber-50">
           <CardContent className="p-5 text-center space-y-2">
             <AlertTriangle className="h-10 w-10 text-amber-700 mx-auto" />
-            <div className="text-lg font-bold">{statusMeta(pass.status).label}</div>
+            <div className="text-lg font-bold">{statusMeta(pass.status, pass.pass_kind).label}</div>
             <div className="text-sm">
               {pass.status === "pending_approval" ? `Not approved yet. The ${variant.noun} cannot go out on it.` : "This pass cannot be used at the gate."}
             </div>
