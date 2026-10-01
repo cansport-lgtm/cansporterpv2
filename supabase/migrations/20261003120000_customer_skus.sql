@@ -130,7 +130,7 @@ BEGIN
 
   -- Auto-generate the code as <customer code>-<NNN> when left blank on insert.
   IF TG_OP = 'INSERT' AND COALESCE(btrim(NEW.code), '') = '' THEN
-    SELECT code INTO v_cust_code FROM public.customers WHERE id = NEW.customer_id;
+    SELECT NULLIF(btrim(code), '') INTO v_cust_code FROM public.customers WHERE id = NEW.customer_id;
     IF v_cust_code IS NULL THEN
       RAISE EXCEPTION 'Customer % not found for customer SKU', NEW.customer_id;
     END IF;
@@ -167,7 +167,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT c.code || '-' ||
+  SELECT btrim(c.code) || '-' ||
          lpad(((SELECT COUNT(*) FROM public.products p WHERE p.customer_id = c.id) + 1)::text, 3, '0')
     FROM public.customers c
    WHERE c.id = p_customer_id;
