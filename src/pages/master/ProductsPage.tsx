@@ -56,8 +56,13 @@ interface Product {
   grades?: { name: string } | null;
   units_of_measure?: { name: string } | null;
   planning_items?: { code: string; name: string } | null;
-  customer?: { code: string; name: string } | null;
-  base_product?: { code: string; name: string } | null;
+}
+
+interface CustomerRef {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean | null;
 }
 
 type OwnerFilter = "all" | "own" | "customer";
@@ -94,11 +99,7 @@ export default function ProductsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select(
-          "*, grades(name), units_of_measure(name), planning_items(code, name), " +
-            "customer:customers!products_customer_id_fkey(code, name), " +
-            "base_product:products!products_base_product_id_fkey(code, name)",
-        )
+        .select("*, grades(name), units_of_measure(name), planning_items(code, name)")
         .order("code", { ascending: true });
       if (error) throw error;
       return data as unknown as Product[];
@@ -145,17 +146,32 @@ export default function ProductsPage() {
   });
 
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers-active-for-sku"],
+    queryKey: ["customers-for-sku"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, code, name")
-        .eq("is_active", true)
+        .select("id, code, name, is_active")
         .order("name");
       if (error) throw error;
-      return data;
+      return data as CustomerRef[];
     },
   });
+
+  const activeCustomers = useMemo(
+    () => customers.filter((c) => c.is_active !== false),
+    [customers],
+  );
+
+  // Owner details are looked up client-side: embedding customers / a
+  // self-referencing products join in the master query fails in PostgREST.
+  const customerById = useMemo(
+    () => new Map(customers.map((c) => [c.id, c])),
+    [customers],
+  );
+  const productById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
 
   // Preview of the code the database will assign to a new customer SKU.
   const { data: nextCode } = useQuery({
@@ -330,11 +346,11 @@ export default function ProductsPage() {
         item.owner_type === "customer" ? (
           <div className="flex flex-col gap-0.5">
             <Badge variant="secondary" className="w-fit text-xs">
-              {item.customer?.name ?? "Customer"}
+              {(item.customer_id && customerById.get(item.customer_id)?.name) ?? "Customer"}
             </Badge>
-            {item.base_product && (
+            {item.base_product_id && productById.get(item.base_product_id) && (
               <span className="text-xs text-muted-foreground">
-                base: {item.base_product.code}
+                base: {productById.get(item.base_product_id)?.code}
               </span>
             )}
           </div>
@@ -492,7 +508,7 @@ export default function ProductsPage() {
                       value={formData.customer_id}
                       onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
                       placeholder="Pick customer"
-                      options={customers.map((c) => ({
+                      options={activeCustomers.map((c) => ({
                         value: c.id,
                         label: c.name,
                         secondary: `(${c.code})`,
