@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { productsForCustomer } from '@/lib/customerSkus';
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,7 +61,7 @@ export default function CustomerPricingPage() {
   const { data: products } = useQuery({
     queryKey: ["pricing-products"],
     queryFn: async () => {
-      const { data, error } = await sb.from("products").select("id, code, name, is_active").eq("is_active", true).order("name");
+      const { data, error } = await sb.from("products").select("id, code, name, is_active, customer_id").eq("is_active", true).order("name");
       if (error) throw error;
       return data || [];
     },
@@ -295,7 +296,7 @@ export default function CustomerPricingPage() {
                   value={form.product_id}
                   onValueChange={(v) => setForm({ ...form, product_id: v })}
                   placeholder="Pick product"
-                  options={(products || []).map((p: any) => ({
+                  options={productsForCustomer(products, form.customer_id).map((p: any) => ({
                     value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                   }))}
                 />

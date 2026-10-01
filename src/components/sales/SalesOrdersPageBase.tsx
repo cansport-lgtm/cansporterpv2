@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { productsForCustomer } from '@/lib/customerSkus';
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,11 +127,11 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
 
   // Fetch products
   const { data: products } = useQuery({
-    queryKey: ['products-active'],
+    queryKey: ['products-active-sales'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name, standard_selling_price')
+        .select('id, code, name, standard_selling_price, customer_id')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
@@ -490,7 +491,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                                           <SelectValue placeholder="Select Product" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {products?.map((p) => (
+                                          {productsForCustomer(products, formData.customer_id).map((p) => (
                                             <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>
                                           ))}
                                         </SelectContent>

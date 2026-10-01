@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { productsForCustomer } from '@/lib/customerSkus';
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
@@ -214,11 +215,11 @@ export default function DomesticSalesOrdersPage() {
 
   // Fetch products
   const { data: products } = useQuery({
-    queryKey: ['products-active'],
+    queryKey: ['products-active-sales'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name, standard_selling_price')
+        .select('id, code, name, standard_selling_price, customer_id')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
@@ -945,7 +946,7 @@ export default function DomesticSalesOrdersPage() {
                                         onValueChange={(v) => updateItem(index, 'product_id', v)}
                                         placeholder="Select Product"
                                         triggerClassName="w-48"
-                                        options={(products || []).map((p: any) => ({
+                                        options={productsForCustomer(products, formData.customer_id).map((p: any) => ({
                                           value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                         }))}
                                       />
@@ -1528,7 +1529,7 @@ export default function DomesticSalesOrdersPage() {
                                   onValueChange={(v) => updateEditItem(index, 'product_id', v)}
                                   placeholder="Select Product"
                                   triggerClassName="w-48"
-                                  options={(products || []).map((p: any) => ({
+                                  options={productsForCustomer(products, editFormData.customer_id).map((p: any) => ({
                                     value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                   }))}
                                 />
