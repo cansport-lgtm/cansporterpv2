@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'production_manager' | 'production_officer' | 'production_viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'production_manager' | 'production_officer' | 'production_viewer';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -181,6 +181,9 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Labour Gate Pass Approver: approves worker gate passes (half day / short leave).
   // Confined to the worker gate pass pages of the Labour module.
   labour_gate_pass_approver: ['labour', 'dashboard'],
+  // Staff Gate Pass Approver: approves staff gate passes (half day / short leave).
+  // Confined to the staff gate pass pages of the HR module.
+  staff_gate_pass_approver: ['hr', 'dashboard'],
   // Help Desk Manager: a single-purpose role confined to the ticket admin board.
   // 'dashboard' is already always allowed; there's no separate 'helpdesk' module
   // check anywhere (ProtectedRoute doesn't map /helpdesk to a module), so route
@@ -327,6 +330,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   labour_productivity_viewer: ['/labour/dashboard', '/labour/gate-pass'],
   // Labour Gate Pass Approver: the worker gate pass register, approvals and pass pages only.
   labour_gate_pass_approver: ['/labour/gate-pass', '/dashboard'],
+  // Staff Gate Pass Approver: the staff gate pass register, approvals and pass pages only.
+  staff_gate_pass_approver: ['/hr/gate-pass', '/dashboard'],
   // Help Desk Manager: manages all tickets (view/assign/comment/resolve) on the
   // admin ticket board. The submit page ('/helpdesk') is already open to every
   // role via the explicit bypass in canAccessRoute below.
@@ -435,6 +440,7 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'labour_productivity_poster',
   'labour_productivity_viewer',
   'labour_gate_pass_approver',
+  'staff_gate_pass_approver',
   'helpdesk_manager',
 ]);
 
@@ -473,6 +479,8 @@ const STRICT_LOCKED_ROLES = new Set([
   'labour_productivity_viewer',
   // Labour Gate Pass Approver only ever sees the worker gate pass pages.
   'labour_gate_pass_approver',
+  // Staff Gate Pass Approver only ever sees the staff gate pass pages.
+  'staff_gate_pass_approver',
   // Private Label Sales tiers share the 'sales' module with unrelated roles (sales_executive,
   // dispatch_operator, sales_order_manager, accounting_officer, ...) — enforce their explicit
   // route whitelist always so a stray flexible role never widens them past private-label pages.
@@ -1040,6 +1048,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (tier.tier === 'manager' && permission !== 'delete') return true;
       if (tier.tier === 'officer' && (permission === 'view' || permission === 'create' || permission === 'edit')) return true;
       if (tier.tier === 'viewer' && permission === 'view') return true;
+    }
+
+    // Staff Gate Pass Approver: view only in HR; approving staff passes is checked by
+    // role on the gate pass pages and in the database. Grant-only, so an HR tier the
+    // same user also holds keeps its own rights.
+    if (module === 'hr' && permission === 'view' && roles.some(r => r.role === 'staff_gate_pass_approver')) {
+      return true;
     }
 
     const perm = modulePermissions.find(p => p.module_name === module);

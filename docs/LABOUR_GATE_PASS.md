@@ -7,6 +7,11 @@ Database: `supabase/migrations/20261002120000_labour_gate_pass_roles.sql` (role)
 and `20261002120100_labour_gate_pass.sql` (tables, functions, cron). Rollback in
 `supabase/rollbacks/20261002120100_labour_gate_pass_down.sql`.
 
+The screens (register, form, pass page, approvals, the Gate Check panel and the
+dashboard cards) are shared with the staff gate pass (`docs/STAFF_GATE_PASS.md`):
+they live in `src/components/person-gate-pass/` and are driven by the
+`WORKER_PASS` variant in `src/lib/personGatePass.ts`.
+
 ## Pass kinds
 
 | Kind | Meaning | What happens |
