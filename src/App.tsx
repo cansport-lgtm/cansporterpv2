@@ -104,6 +104,9 @@ import StaffGatePassListPage from "./pages/hr/StaffGatePassListPage";
 import StaffGatePassFormPage from "./pages/hr/StaffGatePassFormPage";
 import StaffGatePassDetailPage from "./pages/hr/StaffGatePassDetailPage";
 import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
+import MyGatePassListPage from "./pages/hr/MyGatePassListPage";
+import MyGatePassFormPage from "./pages/hr/MyGatePassFormPage";
+import MyGatePassDetailPage from "./pages/hr/MyGatePassDetailPage";
 
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
@@ -599,6 +602,10 @@ const App = () => (
             <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
+            {/* Self-service: any logged-in staff member raises and follows their own company work passes */}
+            <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/new" element={<ProtectedRoute><MyGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/:id" element={<ProtectedRoute><MyGatePassDetailPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}

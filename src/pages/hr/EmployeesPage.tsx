@@ -39,6 +39,8 @@ interface Employee {
   basic_salary: number | null;
   allowances: number | null;
   photo_url?: string | null;
+  field_duty_allowed?: boolean | null;
+  app_user_id?: string | null;
   production_departments?: { id: string; name: string } | null;
   designations?: { id: string; name: string } | null;
 }
@@ -70,6 +72,8 @@ const EmployeesPage = () => {
     duty_end_time: "18:00",
     duty_hours: "8",
     photo_url: "",
+    field_duty_allowed: false,
+    app_user_id: "",
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +110,19 @@ const EmployeesPage = () => {
       if (photoInputRef.current) photoInputRef.current.value = "";
     }
   };
+
+  // Logins that can be linked to a staff record (self-service gate passes).
+  const { data: appUsers = [] } = useQuery({
+    queryKey: ["app-users-for-employee-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_users")
+        .select("id, full_name, user_id, is_active")
+        .order("full_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["production-departments"],
@@ -177,6 +194,8 @@ const EmployeesPage = () => {
         duty_end_time: data.duty_end_time || "18:00",
         duty_hours: data.duty_hours ? parseFloat(data.duty_hours) : 8,
         photo_url: data.photo_url || null,
+        field_duty_allowed: data.field_duty_allowed,
+        app_user_id: data.app_user_id || null,
       };
 
       if (editingEmployee) {
@@ -276,6 +295,8 @@ const EmployeesPage = () => {
       duty_end_time: "18:00",
       duty_hours: "8",
       photo_url: "",
+      field_duty_allowed: false,
+      app_user_id: "",
     });
   };
 
@@ -299,6 +320,8 @@ const EmployeesPage = () => {
       duty_end_time: (employee as any).duty_end_time || "18:00",
       duty_hours: (employee as any).duty_hours?.toString() || "8",
       photo_url: employee.photo_url || "",
+      field_duty_allowed: Boolean(employee.field_duty_allowed),
+      app_user_id: employee.app_user_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -638,6 +661,40 @@ const EmployeesPage = () => {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground">JPG/PNG, max 2 MB. The guard compares the person with this photo at the gate.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <Label className="text-sm font-semibold text-muted-foreground">Gate pass</Label>
+                <div>
+                  <Label className="text-xs">Login user (for self-service company work passes)</Label>
+                  <Select
+                    value={formData.app_user_id || "none"}
+                    onValueChange={(val) => setFormData({ ...formData, app_user_id: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not linked" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {appUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name} ({u.user_id}){u.is_active === false ? " · inactive" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">With a login linked, this staff member can raise their own Official duty gate pass under My Gate Passes.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={formData.field_duty_allowed}
+                    onCheckedChange={(checked) => setFormData({ ...formData, field_duty_allowed: checked })}
+                  />
+                  <div>
+                    <Label>Field duty allowed</Label>
+                    <p className="text-[11px] text-muted-foreground">Official duty passes are approved the moment they are raised (purchase officers, drivers, …).</p>
                   </div>
                 </div>
               </div>

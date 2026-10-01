@@ -1126,6 +1126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // /helpdesk/manage route's requiredRoles guard (super_admin + helpdesk_manager).
     if (route === '/helpdesk') return true;
 
+    // My Gate Passes: a staff member raising and following their own company work
+    // passes. The pages only ever show the passes of the staff record linked to the
+    // login, so every role may open them (the database checks the link on every write).
+    if (route === '/my-gate-pass' || route.startsWith('/my-gate-pass/')) return true;
+
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (
       roles.some((r) =>
