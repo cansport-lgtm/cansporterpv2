@@ -100,6 +100,10 @@ import SalaryReportPage from "./pages/hr/SalaryReportPage";
 import AttendanceSheetPage from "./pages/hr/AttendanceSheetPage";
 import PublicHolidaysPage from "./pages/hr/PublicHolidaysPage";
 import HRPunctualityAnalyticsPage from "./pages/hr/HRPunctualityAnalyticsPage";
+import StaffGatePassListPage from "./pages/hr/StaffGatePassListPage";
+import StaffGatePassFormPage from "./pages/hr/StaffGatePassFormPage";
+import StaffGatePassDetailPage from "./pages/hr/StaffGatePassDetailPage";
+import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
 
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
@@ -591,6 +595,10 @@ const App = () => (
             <Route path="/hr/public-holidays" element={<ProtectedRoute requiredRole="super_admin"><PublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
             <Route path="/hr/time-sheet" element={<ProtectedRoute><TimeSheetPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass" element={<ProtectedRoute><StaffGatePassListPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}

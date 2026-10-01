@@ -15,8 +15,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
-import { LabourGatePanel, type LabourLookup } from "@/components/labour/LabourGatePanel";
-import { isLabourPassNumber, normalizeLabourPassNumber } from "@/lib/labourGatePass";
+import { PersonGatePanel, type PersonLookup } from "@/components/person-gate-pass/PersonGatePanel";
+import {
+  PERSON_PASS_VARIANTS, STAFF_PASS, WORKER_PASS, detectPersonPassVariant, isFullPassNumber, normalizePersonPassNumber,
+  type PersonPassVariant,
+} from "@/lib/personGatePass";
 import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
   PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
@@ -64,10 +67,12 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
-  // Goods passes (GP-…) and worker passes (LGP-…) share this screen. A scanned QR
-  // picks the flow by its prefix; typed input follows the selected mode.
-  const [mode, setMode] = useState<"goods" | "worker">("goods");
-  const [labourLookup, setLabourLookup] = useState<LabourLookup | null>(null);
+  // Goods passes (GP-…), worker passes (LGP-…) and staff passes (SGP-…) share this
+  // screen. A scanned QR picks the flow by its prefix; typed input follows the
+  // selected mode.
+  const [mode, setMode] = useState<"goods" | "worker" | "staff">("goods");
+  const [personLookup, setPersonLookup] = useState<{ variant: PersonPassVariant; lookup: PersonLookup } | null>(null);
+  const modeVariant = mode === "worker" ? WORKER_PASS : mode === "staff" ? STAFF_PASS : null;
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
@@ -107,21 +112,22 @@ export default function GateCheckPage() {
     setAlarm(null);
     lookupAtRef.current = Date.now();
     setLookupId((x) => x + 1);
-    if (isLabourPassNumber(text) || (mode === "worker" && !/^GP-?\d+$/i.test(text))) {
-      // Worker pass by number, or today's pass by worker code.
-      const n = normalizeLabourPassNumber(text);
-      const lookup: LabourLookup = /^LGP-\d{6}$/.test(n) ? { number: n } : { code: n };
-      setMode("worker");
+    const personVariant = detectPersonPassVariant(text) ?? (modeVariant && !/^GP-?\d+$/i.test(text) ? modeVariant : null);
+    if (personVariant) {
+      // Worker / staff pass by number, or today's pass by employee code.
+      const n = normalizePersonPassNumber(personVariant, text);
+      const lookup: PersonLookup = isFullPassNumber(personVariant, n) ? { number: n } : { code: n };
+      setMode(personVariant.key);
       setCode(lookup.number ?? lookup.code ?? "");
       setPassNumber(null);
-      setLabourLookup(lookup);
-      queryClient.invalidateQueries({ queryKey: ["gate-check-labour-pass"] });
+      setPersonLookup({ variant: personVariant, lookup });
+      PERSON_PASS_VARIANTS.forEach((v) => queryClient.invalidateQueries({ queryKey: [`gate-check-${v.key}-pass`] }));
       return;
     }
     const n = normalizePassNumber(text);
     if (!n) return;
     setMode("goods");
-    setLabourLookup(null);
+    setPersonLookup(null);
     setCode(n);
     setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
@@ -213,7 +219,7 @@ export default function GateCheckPage() {
     stopGateAlarm();
     setAlarm(null);
     setPassNumber(null);
-    setLabourLookup(null);
+    setPersonLookup(null);
     setCode("");
     setResult(null);
   };
@@ -231,19 +237,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
-              {([["goods", "Goods / vehicle"], ["worker", "Worker"]] as const).map(([m, label]) => (
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods / vehicle"], ["worker", "Worker"], ["staff", "Staff"]] as const).map(([m, label]) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m}
                   className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
-                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setLabourLookup(null); }}>
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setPersonLookup(null); }}>
                   {label}
                 </button>
               ))}
             </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">{mode === "worker" ? "LGP number or worker code" : "GP number"}</Label>
+              <Label htmlFor="gp-code" className="sr-only">{modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : "GP number"}</Label>
               <Input id="gp-code" value={code} inputMode="text"
-                placeholder={mode === "worker" ? "LGP number or worker code" : "GP number, e.g. 131"}
+                placeholder={modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -260,8 +266,8 @@ export default function GateCheckPage() {
           </CardContent>
         </Card>
 
-        {labourLookup && (
-          <LabourGatePanel lookup={labourLookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        {personLookup && (
+          <PersonGatePanel key={personLookup.variant.key} variant={personLookup.variant} lookup={personLookup.lookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
         )}
 
         {passNumber && isFetching && !pass && (

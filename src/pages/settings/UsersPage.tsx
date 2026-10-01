@@ -99,6 +99,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "labour_productivity_poster", label: "Labour Productivity Poster (create & post entries)" },
   { value: "labour_productivity_viewer", label: "Labour Productivity Viewer (read-only access)" },
   { value: "labour_gate_pass_approver", label: "Labour Gate Pass Approver (approve worker half-day / short-leave passes)" },
+  { value: "staff_gate_pass_approver", label: "Staff Gate Pass Approver (approve HR staff half-day / short-leave passes)" },
   // Distributor roles are intentionally NOT listed here: they require a distributor_id,
   // which is assigned in the Distributor module's "Manage Users" page (Distributor Orders →
   // Manage Users). Creating them here would leave distributor_id NULL and break isolation.
@@ -605,6 +606,7 @@ export default function UsersPage() {
       labour_productivity_poster: "bg-indigo-500/10 text-indigo-500",
       labour_productivity_viewer: "bg-slate-500/10 text-slate-500",
       labour_gate_pass_approver: "bg-emerald-500/10 text-emerald-600",
+      staff_gate_pass_approver: "bg-purple-500/10 text-purple-600",
       export_manager: "bg-blue-600/10 text-blue-600",
       export_officer: "bg-blue-500/10 text-blue-500",
       export_viewer: "bg-blue-400/10 text-blue-400",

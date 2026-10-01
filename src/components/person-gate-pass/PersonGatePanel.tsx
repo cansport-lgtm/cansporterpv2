@@ -10,48 +10,61 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
-  PASS_SELECT, errorMessage, fmtTime, lgpDb, overdueMinutes, passKindMeta, statusMeta, todayPk, type LabourGatePass,
-} from "@/lib/labourGatePass";
+  errorMessage, fmtTime, invalidatePassQueries, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb, statusMeta, todayPk,
+  type PersonGatePass, type PersonPassVariant,
+} from "@/lib/personGatePass";
 
-export type LabourLookup = { number?: string; code?: string };
+export type PersonLookup = { number?: string; code?: string };
 
 type Result =
   | { action: "out"; pass_kind: string; expected_back_at: string | null; half_day_rows: number | null }
   | { action: "in"; minutes_outside: number; late_minutes: number };
 
-/** A pass in one of these states must never let a worker through again. */
-const invalidAtGate = (p: LabourGatePass, today: string) =>
+/** A pass in one of these states must never let a person through again. */
+const invalidAtGate = (p: PersonGatePass, today: string) =>
   ["returned", "not_returned", "expired", "rejected", "cancelled"].includes(p.status) ||
   (p.status === "out" && p.pass_kind === "half_day") ||
   (["approved", "out"].includes(p.status) && p.pass_date !== today);
 
 /**
- * Worker pass flow on the Gate Check page: shows the worker's photo and pass,
- * marks Out / In, and sounds the alarm when an old pass is opened again.
+ * Worker / staff pass flow on the Gate Check page: shows the person's photo and
+ * pass, marks Out / In, and sounds the alarm when an old pass is opened again.
  * `lookupId` changes on every Open / scan; `lookupAt` is when that lookup started.
  */
-export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { lookup: LabourLookup; lookupId: number; lookupAt: number; onReset: () => void }) {
+export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }: {
+  variant: PersonPassVariant; lookup: PersonLookup; lookupId: number; lookupAt: number; onReset: () => void;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const today = todayPk();
   const decidedRef = useRef(-1);
   const [alarm, setAlarm] = useState<{ lookup: number; attempts?: number; sounding: boolean } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const keys = passKeys(variant);
+  const Noun = variant.noun.charAt(0).toUpperCase() + variant.noun.slice(1);
 
   const key = lookup.number ?? `code:${lookup.code}`;
-  const { data: pass, isFetching, isFetched, dataUpdatedAt } = useQuery<LabourGatePass | null>({
-    queryKey: ["gate-check-labour-pass", key],
+  const { data: pass, isFetching, isFetched, dataUpdatedAt } = useQuery<PersonGatePass | null>({
+    queryKey: [keys.gateCheck, key],
     queryFn: async () => {
       if (lookup.number) {
-        const { data, error } = await lgpDb.from("labour_gate_passes").select(PASS_SELECT).eq("pass_number", lookup.number).maybeSingle();
+        const { data, error } = await ppDb.from(variant.table).select(passSelect(variant)).eq("pass_number", lookup.number).maybeSingle();
         if (error) throw error;
         return data;
       }
-      // Worker code: today's approved or out pass for that worker.
-      const { data, error } = await lgpDb
-        .from("labour_gate_passes")
-        .select(PASS_SELECT.replace("labour_employees(", "labour_employees!inner("))
-        .eq("labour_employees.employee_code", lookup.code)
+      // Employee code: today's approved or out pass for that person.
+      const { data: emp, error: empError } = await ppDb
+        .from(variant.employeeTable)
+        .select("id")
+        .ilike("employee_code", lookup.code ?? "")
+        .limit(1)
+        .maybeSingle();
+      if (empError) throw empError;
+      if (!emp) return null;
+      const { data, error } = await ppDb
+        .from(variant.table)
+        .select(passSelect(variant))
+        .eq("employee_id", emp.id)
         .eq("pass_date", today)
         .in("status", ["approved", "out"])
         .order("created_at", { ascending: false })
@@ -72,24 +85,21 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
     if (!invalidAtGate(pass, today)) return;
     setAlarm({ lookup: lookupId, sounding: true });
     startGateAlarm();
-    lgpDb.rpc("labour_gate_pass_log_rescan", { p_id: pass.id }).then(({ data }: { data: { attempts?: number } | null }) => {
+    ppDb.rpc(`${variant.fnPrefix}_log_rescan`, { p_id: pass.id }).then(({ data }: { data: { attempts?: number } | null }) => {
       setAlarm((a) => (a && a.lookup === lookupId ? { ...a, attempts: data?.attempts } : a));
     });
-  }, [pass, isFetching, dataUpdatedAt, lookupId, lookupAt, today]);
+  }, [pass, isFetching, dataUpdatedAt, lookupId, lookupAt, today, variant.fnPrefix]);
 
   const silence = () => { stopGateAlarm(); setAlarm((a) => (a ? { ...a, sounding: false } : a)); };
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["gate-check-labour-pass", key] });
-    queryClient.invalidateQueries({ queryKey: ["labour-gate-passes"] });
-    queryClient.invalidateQueries({ queryKey: ["labour-gate-passes-live"] });
-    queryClient.invalidateQueries({ queryKey: ["labour-gate-pass-approvals"] });
-    queryClient.invalidateQueries({ queryKey: ["labour-gate-pass-half-days"] });
+    queryClient.invalidateQueries({ queryKey: [keys.gateCheck, key] });
+    invalidatePassQueries(queryClient, variant);
   };
 
   const markOut = useMutation({
     mutationFn: async () => {
-      const { data, error } = await lgpDb.rpc("labour_gate_pass_gate_out", { p_id: pass!.id });
+      const { data, error } = await ppDb.rpc(`${variant.fnPrefix}_gate_out`, { p_id: pass!.id });
       if (error) throw error;
       return data as { pass_kind: string; expected_back_at: string | null; half_day_rows: number | null };
     },
@@ -99,7 +109,7 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
 
   const markIn = useMutation({
     mutationFn: async () => {
-      const { data, error } = await lgpDb.rpc("labour_gate_pass_gate_in", { p_id: pass!.id });
+      const { data, error } = await ppDb.rpc(`${variant.fnPrefix}_gate_in`, { p_id: pass!.id });
       if (error) throw error;
       return data as { minutes_outside: number; late_minutes: number };
     },
@@ -116,7 +126,7 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
     return (
       <Card><CardContent className="p-6 text-center space-y-3">
         <div className="text-muted-foreground">
-          {lookup.number ? `No worker gate pass ${lookup.number}.` : `No approved worker gate pass for code ${lookup.code} today.`}
+          {lookup.number ? `No ${variant.noun} gate pass ${lookup.number}.` : `No approved ${variant.noun} gate pass for code ${lookup.code} today.`}
         </div>
         <Button variant="outline" className="w-full h-11" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check another</Button>
       </CardContent></Card>
@@ -124,7 +134,8 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
   }
   if (!pass) return null;
 
-  const e = pass.labour_employees;
+  const e = pass.person;
+  const sub = variant.personSubline(e);
   const kind = passKindMeta(pass.pass_kind);
   const late = overdueMinutes(pass);
   const canOut = pass.status === "approved" && pass.pass_date === today;
@@ -137,19 +148,19 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
           <div className="flex items-center justify-between gap-2">
             <div className="font-display text-2xl font-bold">{pass.pass_number}</div>
             <span className={cn("text-xs font-semibold rounded-full px-2 py-1 ring-1 ring-inset", kind.badgeClass)}>
-              Worker · {kind.label}{pass.pass_kind === "short_leave" && pass.expected_minutes ? ` · ${pass.expected_minutes} min` : ""}
+              {variant.label} · {kind.label}{pass.pass_kind === "short_leave" && pass.expected_minutes ? ` · ${pass.expected_minutes} min` : ""}
             </span>
           </div>
           <div className="flex items-center gap-4">
             <EmployeeAvatar name={e?.full_name} photoUrl={e?.photo_url} className="h-24 w-24 text-xl" />
             <div className="min-w-0">
               <div className="text-xl font-bold leading-tight">{e?.full_name}</div>
-              <div className="text-sm text-muted-foreground">{e?.employee_code}{e?.production_departments?.name ? ` · ${e.production_departments.name}` : ""}</div>
+              <div className="text-sm text-muted-foreground">{e?.employee_code}{e?.production_departments?.name ? ` · ${e.production_departments.name}` : ""}{sub ? ` · ${sub}` : ""}</div>
               <div className="text-sm mt-1">Pass for <b>{format(new Date(pass.pass_date), "dd MMM")}</b>{pass.leave_time ? ` · leaving ${pass.leave_time.slice(0, 5)}` : ""}</div>
               <div className="text-xs text-muted-foreground">Approved by {pass.approver?.full_name ?? "—"} · applied by {pass.creator?.full_name ?? "—"}</div>
             </div>
           </div>
-          {!e?.photo_url && <div className="text-xs text-amber-700">No photo on file — check the worker's code and name.</div>}
+          {!e?.photo_url && <div className="text-xs text-amber-700">No photo on file — check the {variant.noun}'s code and name.</div>}
         </CardContent>
       </Card>
 
@@ -159,11 +170,11 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
             <CheckCircle2 className={cn("h-12 w-12 mx-auto", result.action === "in" && result.late_minutes > 0 ? "text-amber-700" : "text-emerald-700")} />
             {result.action === "out" ? (
               <>
-                <div className="text-xl font-bold text-emerald-800">Marked OUT — the worker may go</div>
+                <div className="text-xl font-bold text-emerald-800">Marked OUT — the {variant.noun} may go</div>
                 <div className="text-sm">
                   {result.pass_kind === "half_day"
-                    ? `Half day marked for today (${result.half_day_rows ?? 0} productivity entr${result.half_day_rows === 1 ? "y" : "ies"} updated).`
-                    : `Due back at ${fmtTime(result.expected_back_at)}. Scan the pass again when the worker returns.`}
+                    ? variant.halfDayGateText(result.half_day_rows)
+                    : `Due back at ${fmtTime(result.expected_back_at)}. Scan the pass again when the ${variant.noun} returns.`}
                 </div>
               </>
             ) : (
@@ -178,7 +189,7 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
       ) : alarm && alarm.lookup === lookupId ? (
         <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-600 text-white p-5 text-center space-y-3 animate-pulse motion-reduce:animate-none">
           <Siren className="h-16 w-16 mx-auto" />
-          <div className="text-2xl font-extrabold uppercase tracking-wide">Old worker pass — do not let the worker through</div>
+          <div className="text-2xl font-extrabold uppercase tracking-wide">Old {variant.noun} pass — do not let the {variant.noun} through</div>
           <div className="text-base font-semibold">
             {pass.status === "cancelled" || pass.status === "rejected" || pass.status === "expired"
               ? `This pass was ${pass.status}. It is not valid.`
@@ -186,10 +197,10 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
                 ? `This pass is for ${format(new Date(pass.pass_date), "dd MMM")}, not today.`
                 : pass.status === "returned"
                   ? `This pass was already used — out ${fmtTime(pass.gate_out_at)}, back ${fmtTime(pass.gate_in_at)}.`
-                  : `This pass was already used — the worker went out ${fmtTime(pass.gate_out_at)}${pass.status === "not_returned" ? " and never came back" : " on a half day"}.`}
+                  : `This pass was already used — the ${variant.noun} went out ${fmtTime(pass.gate_out_at)}${pass.status === "not_returned" ? " and never came back" : " on a half day"}.`}
           </div>
           <div className="text-sm">
-            This attempt is logged{alarm.attempts && alarm.attempts > 1 ? ` (${alarm.attempts} attempts on this pass)` : ""} and the office has been told. Stop the worker and call the supervisor.
+            This attempt is logged{alarm.attempts && alarm.attempts > 1 ? ` (${alarm.attempts} attempts on this pass)` : ""} and the office has been told. Stop the {variant.noun} and call {variant.applicantLabel === "HR" ? "HR" : "the supervisor"}.
           </div>
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             {alarm.sounding && (
@@ -200,12 +211,12 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
         </div>
       ) : canOut ? (
         <div className="sticky bottom-0 bg-background/95 backdrop-blur py-3 space-y-2">
-          <div className="text-xs text-center text-muted-foreground">Compare the worker with the photo, code and name above.</div>
+          <div className="text-xs text-center text-muted-foreground">Compare the {variant.noun} with the photo, code and name above.</div>
           <Button className="w-full h-14 text-lg font-bold bg-emerald-700 hover:bg-emerald-800" disabled={markOut.isPending} onClick={() => markOut.mutate()}>
             {markOut.isPending ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <LogOut className="h-5 w-5 mr-2" />}
-            Worker matches · Mark OUT
+            {Noun} matches · Mark OUT
           </Button>
-          <Button variant="outline" className="w-full h-11" onClick={reset}>Not this worker · check another</Button>
+          <Button variant="outline" className="w-full h-11" onClick={reset}>Not this {variant.noun} · check another</Button>
         </div>
       ) : canIn ? (
         <div className="sticky bottom-0 bg-background/95 backdrop-blur py-3 space-y-2">
@@ -214,7 +225,7 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
           </div>
           <Button className="w-full h-14 text-lg font-bold" disabled={markIn.isPending} onClick={() => markIn.mutate()}>
             {markIn.isPending ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <LogIn className="h-5 w-5 mr-2" />}
-            Worker is back · Mark IN
+            {Noun} is back · Mark IN
           </Button>
           <Button variant="outline" className="w-full h-11" onClick={reset}>Check another</Button>
         </div>
@@ -224,7 +235,7 @@ export function LabourGatePanel({ lookup, lookupId, lookupAt, onReset }: { looku
             <AlertTriangle className="h-10 w-10 text-amber-700 mx-auto" />
             <div className="text-lg font-bold">{statusMeta(pass.status).label}</div>
             <div className="text-sm">
-              {pass.status === "pending_approval" ? "Not approved yet. The worker cannot go out on it." : "This pass cannot be used at the gate."}
+              {pass.status === "pending_approval" ? `Not approved yet. The ${variant.noun} cannot go out on it.` : "This pass cannot be used at the gate."}
             </div>
             <Button variant="outline" className="w-full h-11" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check another</Button>
           </CardContent>

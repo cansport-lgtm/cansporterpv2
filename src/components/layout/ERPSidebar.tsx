@@ -298,6 +298,9 @@ const navigationItems: NavItem[] = [
       { title: "Public Holidays", href: "/hr/public-holidays", superAdminOnly: true },
       { title: "Punctuality Analytics", href: "/hr/punctuality-analytics" },
       { title: "Time Sheet", href: "/hr/time-sheet" },
+      { title: "Staff Gate Passes", href: "/hr/gate-pass" },
+      { title: "New Staff Gate Pass", href: "/hr/gate-pass/new", allowedRoles: ["super_admin", "staff_gate_pass_approver", "hr_manager", "hr_officer"] },
+      { title: "Gate Pass Approvals", href: "/hr/gate-pass/approvals", allowedRoles: ["super_admin", "staff_gate_pass_approver"] },
     ],
   },
   {
