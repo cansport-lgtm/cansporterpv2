@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -85,6 +86,12 @@ const EMPTY_FORM = {
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -412,12 +419,16 @@ export default function ProductsPage() {
       header: "Actions",
       render: (item: Product) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -437,11 +448,11 @@ export default function ProductsPage() {
           description="Manage our own SKUs and customers' private-label SKUs"
           icon={Database}
           iconColor="bg-purple-500/10 text-purple-500"
-          action={{
+          action={canCreate ? {
             label: "Add Product",
             onClick: () => openCreate(ownerFilter === "customer" ? "customer" : "own"),
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -459,12 +470,14 @@ export default function ProductsPage() {
               </span>
             </Button>
           ))}
-          <div className="ml-auto flex gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => openCreate("customer")}>
-              <Plus className="mr-1 h-4 w-4" />
-              Customer SKU
-            </Button>
-          </div>
+          {canCreate && (
+            <div className="ml-auto flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => openCreate("customer")}>
+                <Plus className="mr-1 h-4 w-4" />
+                Customer SKU
+              </Button>
+            </div>
+          )}
         </div>
 
         <DataTable
