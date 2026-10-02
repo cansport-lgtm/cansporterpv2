@@ -18,22 +18,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { OutsideNowPanel, PersonGatePassCards, PersonRescanAlerts } from "@/components/person-gate-pass/PersonGatePassCards";
 import {
-  STATUS_META, fmtTime, hasAnyRole, isOfficialDuty, marksHalfDay, minutesOutside, overdueMinutes, passKeys, passKindMeta, passKinds,
+  STATUS_META, fmtTime, hasAnyRole, isOfficialDuty, marksAbsent, marksHalfDay, minutesOutside, overdueMinutes, passKeys, passKindMeta, passKinds,
   personSelect, ppDb, statusMeta, todayPk, useMyEmployee, type PersonGatePass, type PersonPassVariant,
 } from "@/lib/personGatePass";
 
 type Row = Pick<PersonGatePass,
   "id" | "pass_number" | "pass_kind" | "status" | "pass_date" | "reason" | "destination" | "expected_minutes" | "gate_out_at" |
-  "expected_back_at" | "gate_in_at" | "minutes_outside" | "half_day_rows" | "created_at" | "employee_id" | "person" | "creator">;
+  "expected_back_at" | "gate_in_at" | "minutes_outside" | "half_day_rows" | "created_at" | "employee_id" | "person" | "creator" |
+  "attendance_effect" | "work_minutes_outside">;
+
+const effectText = (r: Row) =>
+  marksAbsent(r) ? " · ABSENT" : r.pass_kind === "short_leave" && marksHalfDay(r) ? " · ½ day" : "";
 
 const timeline = (r: Row) => {
   if (r.status === "out") {
     const late = overdueMinutes(r);
     if (r.pass_kind === "half_day") return `Out ${fmtTime(r.gate_out_at)}`;
-    return late > 0 ? `Out ${fmtTime(r.gate_out_at)} · ${late} min overdue` : `Out ${fmtTime(r.gate_out_at)} · due ${fmtTime(r.expected_back_at)}`;
+    return (late > 0 ? `Out ${fmtTime(r.gate_out_at)} · ${late} min overdue` : `Out ${fmtTime(r.gate_out_at)} · due ${fmtTime(r.expected_back_at)}`) + effectText(r);
   }
-  if (r.status === "returned") return `Out ${fmtTime(r.gate_out_at)} → In ${fmtTime(r.gate_in_at)} · ${r.minutes_outside ?? 0} min`;
-  if (r.status === "not_returned") return `Out ${fmtTime(r.gate_out_at)} · never scanned in`;
+  if (r.status === "returned") return `Out ${fmtTime(r.gate_out_at)} → In ${fmtTime(r.gate_in_at)} · ${r.minutes_outside ?? 0} min${effectText(r)}`;
+  if (r.status === "not_returned") return `Out ${fmtTime(r.gate_out_at)} · never scanned in${effectText(r)}`;
   return "";
 };
 
@@ -58,6 +62,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
 
   const listSelect =
     "id, pass_number, pass_kind, status, pass_date, reason, expected_minutes, gate_out_at, expected_back_at, gate_in_at, minutes_outside, half_day_rows, created_at, employee_id," +
+    (variant.attendanceEffects ? "attendance_effect, work_minutes_outside," : "") +
     (variant.key === "staff" ? "destination," : "") +
     `${personSelect(variant, false)},` +
     `creator:app_users!${variant.table}_created_by_fkey(full_name)`;
@@ -85,7 +90,9 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (kindFilter !== "all" && r.pass_kind !== kindFilter) return false;
-      if (statusFilter === "half_days") {
+      if (statusFilter === "absent") {
+        if (!marksAbsent(r)) return false;
+      } else if (statusFilter === "half_days") {
         if (!marksHalfDay(r)) return false;
       } else if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!q) return true;
@@ -98,6 +105,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
     const used = (r: Row) => ["out", "returned", "not_returned"].includes(r.status);
     return {
       halfDays: filtered.filter(marksHalfDay).length,
+      absents: filtered.filter(marksAbsent).length,
       shortLeaves: filtered.filter((r) => r.pass_kind === "short_leave" && used(r)).length,
       shortMinutes: filtered.filter((r) => r.pass_kind === "short_leave").reduce((s, r) => s + Number(r.minutes_outside ?? 0), 0),
       official: filtered.filter((r) => isOfficialDuty(r.pass_kind) && used(r)).length,
@@ -198,6 +206,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   {!self && <SelectItem value="half_days">Marked half day</SelectItem>}
+                  {!self && variant.attendanceEffects && <SelectItem value="absent">Marked absent</SelectItem>}
                   {Object.entries(STATUS_META).map(([v, m]) => <SelectItem key={v} value={v}>{m.label}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -217,6 +226,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
             <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground border-b">
               <span><b className="text-foreground">{filtered.length}</b> passes</span>
               {!self && <span><b className="text-foreground">{totals.halfDays}</b> half days</span>}
+              {!self && variant.attendanceEffects && <span><b className="text-foreground">{totals.absents}</b> absent</span>}
               {!self && <span><b className="text-foreground">{totals.shortLeaves}</b> short leaves · <b className="text-foreground">{totals.shortMinutes}</b> min outside</span>}
               {hasOfficial && <span><b className="text-foreground">{totals.official}</b> company work trips · <b className="text-foreground">{fmtHours(totals.officialMinutes)}</b> outside</span>}
             </div>

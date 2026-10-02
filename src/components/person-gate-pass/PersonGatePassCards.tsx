@@ -50,7 +50,7 @@ export function PersonGatePassCards({ variant, compact = false }: { variant: Per
   const cards = [
     { title: "Waiting for approval", value: pending, icon: ClipboardCheck, to: `${base}/approvals`, tone: pending ? "text-amber-700" : "", sub: approvedToday ? `${approvedToday} approved for today` : "" },
     { title: "Outside now", value: outside.length, icon: DoorOpen, to: `${base}?status=out`, tone: overdue ? "text-red-700" : "", sub: overdue ? `${overdue} overdue` : outside.length ? "on short leave / half day" : "" },
-    { title: "Half days by gate pass", value: halfDays, icon: UserMinus, to: `${base}?from=${month.start}&to=${month.end}&status=half_days`, tone: "", sub: "this month" },
+    { title: variant.attendanceEffects ? "Half days / absents by gate pass" : "Half days by gate pass", value: halfDays, icon: UserMinus, to: `${base}?from=${month.start}&to=${month.end}&status=half_days`, tone: "", sub: "this month" },
     { title: "Old passes scanned again", value: rescans, icon: Siren, to: `${base}?rescans=1`, tone: rescans ? "text-red-700" : "", sub: "last 7 days" },
   ];
 

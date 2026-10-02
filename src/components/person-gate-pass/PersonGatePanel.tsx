@@ -18,7 +18,7 @@ export type PersonLookup = { number?: string; code?: string };
 
 type Result =
   | { action: "out"; pass_kind: string; expected_back_at: string | null; half_day_rows: number | null }
-  | { action: "in"; minutes_outside: number; late_minutes: number };
+  | { action: "in"; minutes_outside: number; late_minutes: number; attendance_effect?: "half_day" | "absent" | null; work_minutes_outside?: number | null };
 
 /** A pass in one of these states must never let a person through again. */
 const invalidAtGate = (p: PersonGatePass, today: string) =>
@@ -111,7 +111,7 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
     mutationFn: async () => {
       const { data, error } = await ppDb.rpc(`${variant.fnPrefix}_gate_in`, { p_id: pass!.id });
       if (error) throw error;
-      return data as { minutes_outside: number; late_minutes: number };
+      return data as { minutes_outside: number; late_minutes: number; attendance_effect?: "half_day" | "absent" | null; work_minutes_outside?: number | null };
     },
     onSuccess: (d) => { setResult({ action: "in", ...d }); invalidate(); },
     onError: (e) => toast({ title: "Could not mark In", description: errorMessage(e), variant: "destructive" }),
@@ -183,6 +183,12 @@ export function PersonGatePanel({ variant, lookup, lookupId, lookupAt, onReset }
               <>
                 <div className={cn("text-xl font-bold", result.late_minutes > 0 ? "text-amber-800" : "text-emerald-800")}>Marked IN — welcome back</div>
                 <div className="text-sm">{result.minutes_outside} min outside{result.late_minutes > 0 ? ` · ${result.late_minutes} min late (the office has been told)` : ""}.</div>
+                {result.attendance_effect === "absent" && (
+                  <div className="text-sm font-bold text-red-800">Outside over the limit: the day counts as ABSENT. The office has been told.</div>
+                )}
+                {result.attendance_effect === "half_day" && (
+                  <div className="text-sm font-bold text-amber-800">Outside over 3 hours: the day counts as a half day. The office has been told.</div>
+                )}
               </>
             )}
             <Button className="w-full h-12 mt-2" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check the next pass</Button>
