@@ -153,10 +153,15 @@ const LabourTimeSheetPage = () => {
     // short leave) is a half day whatever the rows add up to.
     gatePassHalfDays.forEach((mark, key) => {
       const [employeeId, dateKey] = key.split("|");
+      if (mark.effect === "absent") {
+        // Outside over 6 h on a short leave: the day is absent whatever was posted.
+        if (map[employeeId]) delete map[employeeId][dateKey];
+        return;
+      }
       if (!map[employeeId]) map[employeeId] = {};
       const cell = map[employeeId][dateKey] ?? { workType: "half_day", totalMph: 0, checkIn: null, checkOut: null };
       cell.totalMph = Math.min(cell.totalMph, 6);
-      cell.workType = `Half Day · gate pass ${mark.pass_number}${mark.gate_out_at ? ` out ${format(new Date(mark.gate_out_at), "HH:mm")}` : ""}`;
+      cell.workType = `Half Day · gate pass ${mark.pass_number}${mark.gate_out_at ? ` out ${format(new Date(mark.gate_out_at), "HH:mm")}` : ""}${mark.work_minutes_outside ? ` · ${mark.work_minutes_outside} min outside` : ""}`;
       map[employeeId][dateKey] = cell;
     });
     return map;
@@ -477,7 +482,9 @@ const LabourTimeSheetPage = () => {
       );
     }
 
-    return renderCell("bg-red-500/10 text-red-500", "A", "-", "-");
+    const absentMark = gatePassHalfDays.get(`${employeeId}|${dateKey}`);
+    return renderCell("bg-red-500/10 text-red-500", "A", "-", "-",
+      absentMark?.effect === "absent" ? `Absent · gate pass ${absentMark.pass_number} · outside ${absentMark.work_minutes_outside ?? "over the limit"} min on short leave` : undefined);
   };
 
 

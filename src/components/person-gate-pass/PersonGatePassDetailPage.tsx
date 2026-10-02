@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, marksHalfDay, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
+  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, marksAbsent, marksHalfDay, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
   printPersonGatePass, statusMeta, type PersonGatePass, type PersonPassVariant,
 } from "@/lib/personGatePass";
 
@@ -117,6 +117,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
   const canCancel = ["pending_approval", "approved"].includes(pass.status) && (canApprove || isMaker || (canApply && isMaker));
   const canConvert = canApprove && pass.status === "out" && pass.pass_kind === "short_leave";
   const halfDayMarked = marksHalfDay(pass);
+  const absentMarked = marksAbsent(pass);
   const autoApproved = Boolean(pass.approved_at) && !pass.approved_by;
   const fn = variant.fnPrefix;
 
@@ -173,6 +174,14 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <b>{format(new Date(pass.pass_date), "dd MMM")} is marked Half day</b> for this {variant.noun}
             {pass.half_day_marked_at ? ` (${fmtDT(pass.half_day_marked_at)})` : ""}: {variant.halfDayMarkedText(pass.half_day_rows)}
+            {pass.pass_kind === "short_leave" && pass.work_minutes_outside ? ` Outside ${pass.work_minutes_outside} min of working time on short leave.` : ""}
+          </div>
+        )}
+        {absentMarked && (
+          <div className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900">
+            <b>{format(new Date(pass.pass_date), "dd MMM")} is marked ABSENT</b> for this {variant.noun}
+            {pass.attendance_marked_at ? ` (${fmtDT(pass.attendance_marked_at)})` : ""}: outside {pass.work_minutes_outside ?? "over the limit"} min of working time on a short leave.
+            The productivity entries for that date were removed (kept in the history below) and no entry can be posted for it.
           </div>
         )}
 

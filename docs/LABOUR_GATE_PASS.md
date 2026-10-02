@@ -17,7 +17,7 @@ they live in `src/components/person-gate-pass/` and are driven by the
 | Kind | Meaning | What happens |
 |---|---|---|
 | **Half day** | The worker leaves and does not come back today | When the guard scans the worker out, the date is marked **Half day** (see below) |
-| **Short leave** | The worker goes out for a task and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies the supervisor and the approvers. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies the supervisor and the approvers. **Over 3 hours outside → Half day; over 6 hours → Absent** (see below). Still out at day end → **Not returned**, with whatever effect the time outside earned |
 | **Official duty** | Company work: purchases, bank, site visit, delivery. Expected within N minutes (default 180) | Guard scans **Out**, later **In**. A **destination** is recorded with the purpose. **Attendance is never touched.** Late return is information for the labour approvers, not a warning. Still out at day end → **Not scanned in**, no half day, labour approvers informed |
 
 Official duty was added in `20261005120000_labour_gate_pass_official_duty.sql`
@@ -104,6 +104,38 @@ managers get a notification, at most once per pass every 10 minutes. The
 register and the Labour Dashboard show a red **Old passes scanned again** card
 for the last 7 days, and the pass page shows a red banner.
 
+## Time-outside thresholds (short leave)
+
+Added in `20261006120000_labour_gate_pass_outside_thresholds.sql` (rollback in
+`supabase/rollbacks/`). Official timing is **08:30 to 19:30**
+(`day_start_time` / `day_end_time` in the settings).
+
+| Time outside, inside official hours | Effect on that date |
+|---|---|
+| up to 3 hours (`half_day_after_minutes`, 180) | nothing |
+| over 3 hours | **Half day** — the same marking as a half-day pass |
+| over 6 hours (`absent_after_minutes`, 360) | **Absent** — the worker's productivity entries for that date are deleted (a snapshot is kept in the pass history, event `absent_marked`) and the trigger refuses any new entry for that worker and date |
+
+- Time counts from the gate-out scan to the gate-in scan or to day end, clipped
+  to 08:30–19:30. A scan-out before 08:30 counts from 08:30.
+- The effect is applied **live** by the five-minute tick the moment the
+  threshold is crossed (while the worker is still outside), or at the gate-in
+  scan, whichever comes first. Scanning in afterwards never undoes it.
+- Still out at day end: the time outside up to 19:30 decides. Under 3 hours
+  means **no effect** (the old automatic half day on "not returned" is gone);
+  the pass still closes as Not returned and the supervisor and approver are told.
+- The effect is stored in `labour_gate_passes.attendance_effect` and shown on
+  the pass page, the register ("½ day" / "ABSENT" in the Gate column, filters
+  "Marked half day" / "Marked absent"), the Gate Check result after scan-in,
+  and the dashboard card "Half days / absents by gate pass".
+- Notifications: crossing 3 hours → supervisor and approver (warning);
+  crossing 6 hours → supervisor and approver (error); approved entries deleted
+  → labour productivity approvers.
+- Half-day passes and official duty are not affected by the thresholds.
+- Salary: an absent date pays zero days and counts as a full-day absence for the
+  attendance allowance. Attendance Sheet and Time Sheet show **A** with the pass
+  in the tooltip. Daily Entry shows the reason and blocks saving.
+
 ## Half day marking
 
 Labour attendance is the `work_type` of the worker's rows in
@@ -140,6 +172,7 @@ a half day.
 | Out / In | Supervisor (approvers too when the worker is late) |
 | Late back (expected + grace, default 15 min) | Supervisor and approvers |
 | Not returned at day end / expired | Supervisor and approvers |
+| Short leave over 3 h outside (half day) / over 6 h (absent) | Supervisor and approvers (warning / error) |
 | Official duty: still out past expected, back late, not scanned in at day end | Supervisor and labour productivity approvers, as **info** (never a warning, never the approver) |
 | Approved productivity entry changed to half day | Labour productivity approvers |
 | Old pass scanned again | Approvers, supervisor, gate pass managers |
@@ -152,12 +185,15 @@ day-end time, closes the day (unused passes → `expired`, short leaves still
 out → `not_returned` + half day). Passes for past dates are closed on the next
 run whatever the time.
 
-## Settings (`labour_gate_pass_settings`, super admin via `labour_gate_pass_settings_save`)
+## Settings (`labour_gate_pass_settings`, super admin via `labour_gate_pass_settings_update(jsonb)`)
 
 | Setting | Default |
 |---|---|
+| Official start (`day_start_time`) | 08:30 |
+| Half day after minutes outside (short leave) | 180 |
+| Absent after minutes outside (short leave) | 360 |
 | Default expected minutes for a short leave | 30 |
 | Grace minutes before "late back" | 15 |
-| Day-end time (Asia/Karachi) | 18:00 |
-| Mark half day when not returned at day end | on |
+| Day-end time (`day_end_time`, Asia/Karachi) | 19:30 |
+| Mark half day when not returned at day end | no longer used: the thresholds decide |
 | Default expected minutes for official duty | 180 |
