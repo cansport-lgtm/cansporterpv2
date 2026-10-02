@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Siren, XCircle } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { EmergencyPanel } from "@/components/gate-pass/EmergencyPanel";
 import {
   PASS_SELECT, approvableGatePassTypes, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, sortedItems, type GatePass,
 } from "@/lib/gatePass";
@@ -43,6 +44,20 @@ export default function GatePassApprovalsPage() {
     },
   });
 
+  // After-hours requests wait for a super admin, whatever the pass status.
+  const { data: emergencies = [] } = useQuery<GatePass[]>({
+    queryKey: ["gate-pass-approvals", "emergency"],
+    queryFn: async () => {
+      const { data, error } = await gpDb
+        .from("gate_passes")
+        .select(PASS_SELECT)
+        .eq("emergency_status", "requested")
+        .order("emergency_requested_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const review = useMutation({
     mutationFn: async ({ id, approve, remarks }: { id: string; approve: boolean; remarks?: string }) => {
       const { error } = await gpDb.rpc("gate_pass_review", { p_id: id, p_approve: approve, p_remarks: remarks ?? null });
@@ -62,7 +77,7 @@ export default function GatePassApprovalsPage() {
 
   const held = passes.filter((p) => p.status === "held");
   // A type manager sees only their types; everyone else sees the whole queue read-only.
-  const pending = passes.filter((p) => p.status === "pending_approval" && (canRelease || myTypes.length === 0 || myTypes.includes(p.pass_type)));
+  const pending = passes.filter((p) => p.status === "pending_approval" && p.emergency_status !== "requested" && (canRelease || myTypes.length === 0 || myTypes.includes(p.pass_type)));
 
   const lineSummary = (p: GatePass) =>
     sortedItems(p).map((i) => `${i.description} — ${fmtQty(i.quantity)} ${i.uom}`).join("; ");
@@ -82,6 +97,29 @@ export default function GatePassApprovalsPage() {
           description="Passes waiting for their type manager, and vehicles the guard held because the count did not match"
           icon={ClipboardCheck}
         />
+
+        {emergencies.length > 0 && (
+          <Card className="border-red-300">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2 text-red-700">
+                <Siren className="h-4 w-4" /> After hours — emergency requests · {emergencies.length}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {emergencies.map((p) => (
+                <div key={p.id} className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <Link to={`/gate-pass/passes/${p.id}`} className="font-semibold text-primary hover:underline">{p.pass_number}</Link>
+                    <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset", passTypeMeta(p.pass_type).badgeClass)}>{passTypeMeta(p.pass_type).label}</span>
+                    <span>{p.party_name}</span>
+                    <span className="text-xs text-muted-foreground">· {lineSummary(p)}</span>
+                  </div>
+                  <EmergencyPanel pass={p} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {(canRelease || myTypes.length === 0) && (
         <Card>

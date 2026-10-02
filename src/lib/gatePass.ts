@@ -64,6 +64,52 @@ export const STATUS_META: Record<string, { label: string; variant: "warning" | "
   cancelled: { label: "Cancelled", variant: "secondary" },
 };
 
+// Gate hours, decided on the server clock (Pakistan time). Each *_create / *_gate
+// value is null while open, else the reason it is closed.
+export type GateHours = {
+  now: string;
+  sales_create: string | null;
+  sales_gate: string | null;
+  other_create: string | null;
+  other_gate: string | null;
+  sales_create_until: string;
+  sales_gate_until: string;
+  other_create_until: string;
+  other_gate_until: string;
+  closed_weekdays: number[];
+};
+
+export function useGateHours() {
+  return useQuery<GateHours | null>({
+    queryKey: ["gate-pass-hours"],
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await gpDb.rpc("gate_pass_hours");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/** Why passes of this type can't be made (stage "create") or leave (stage "gate") now, or null. */
+export const hoursClosed = (h: GateHours | null | undefined, type: string, stage: "create" | "gate") =>
+  !h ? null : type === "sales" ? (stage === "create" ? h.sales_create : h.sales_gate) : (stage === "create" ? h.other_create : h.other_gate);
+
+/** An emergency approval the gate can still use. */
+export const emergencyValid = (p: Pick<GatePass, "emergency_status" | "emergency_valid_until">) =>
+  p.emergency_status === "approved" && !!p.emergency_valid_until && new Date(p.emergency_valid_until).getTime() >= Date.now();
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const closedDaysText = (h: GateHours | null | undefined) =>
+  h && h.closed_weekdays.length ? `Closed on ${h.closed_weekdays.map((d) => WEEKDAYS[d]).join(", ")}.` : "";
+
+/** "16:30" → "4:30 pm" */
+export const fmtClock = (hhmm: string | null | undefined) => {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+};
+
 // A pass in one of these states must never let a vehicle out again: opening it
 // on Gate Check sounds the alarm and logs a re-scan attempt.
 export const REUSE_ALARM_STATUSES = ["out", "partially_returned", "returned", "closed", "cancelled", "rejected"];
@@ -138,6 +184,14 @@ export type GatePass = {
   backfill_reason: string | null;
   closed_at: string | null;
   close_reason: string | null;
+  emergency_status: "requested" | "approved" | "rejected" | null;
+  emergency_reason: string | null;
+  emergency_requested_at: string | null;
+  emergency_decided_at: string | null;
+  emergency_valid_until: string | null;
+  emergency_remarks: string | null;
+  emergency_requester?: { full_name: string | null } | null;
+  emergency_decider?: { full_name: string | null } | null;
   gate_pass_books?: { book_number: string } | null;
   creator?: { full_name: string | null } | null;
   approver?: { full_name: string | null } | null;
@@ -159,6 +213,8 @@ export const PASS_SELECT =
   "holder:app_users!gate_passes_held_by_fkey(full_name)," +
   "releaser:app_users!gate_passes_released_by_fkey(full_name)," +
   "gate_out_user:app_users!gate_passes_gate_out_by_fkey(full_name)," +
+  "emergency_requester:app_users!gate_passes_emergency_requested_by_fkey(full_name)," +
+  "emergency_decider:app_users!gate_passes_emergency_decided_by_fkey(full_name)," +
   "gate_pass_items(*)," +
   "gate_pass_dispatches(dispatch_id, sales_dispatches(dispatch_number, dispatch_date, delivery_status))," +
   "purchase_returns(return_number, status)," +
@@ -270,6 +326,7 @@ export function printGatePass(p: GatePass, qrSvg: string) {
       ${p.process_name ? `<div><span class="muted">Process</span> <b>${esc(p.process_name)}</b></div>` : ""}
       ${p.expected_return_date ? `<div><span class="muted">Due back</span> <b>${esc(format(new Date(p.expected_return_date), "dd MMM yyyy"))}</b></div>` : ""}
       ${p.gate_out_at ? `<div style="grid-column: span 2"><span class="muted">Out at gate</span> <b>${esc(fmtDateTime(p.gate_out_at))}</b></div>` : ""}
+      ${p.emergency_status === "approved" ? `<div style="grid-column: span 2; color:#b42318; border:2px solid #b42318; padding:4px 8px; font-weight:700">EMERGENCY — AFTER HOURS · approved by ${esc(p.emergency_decider?.full_name ?? "super admin")}${p.emergency_valid_until ? ` · valid until ${esc(fmtDateTime(p.emergency_valid_until))}` : ""}</div>` : ""}
       ${p.is_backfill ? `<div style="grid-column: span 2"><b>MANUAL BACKFILL</b> of paper pass ${esc(p.gate_pass_books?.book_number ?? "")} / ${esc(p.book_serial ?? "")}</div>` : ""}
     </div>
     <table>

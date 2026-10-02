@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,13 +28,15 @@ import {
 
 const LIST_SELECT =
   "id, pass_number, pass_type, status, pass_date, party_name, vehicle_number, created_at, gate_out_at, held_at, hold_note, is_backfill, expected_return_date," +
+  "emergency_status, emergency_valid_until," +
   "gate_pass_items(quantity, uom)," +
   "gate_pass_dispatches(sales_dispatches(dispatch_number))," +
   "purchase_returns(return_number)";
 
 type ListRow = Pick<GatePass,
   "id" | "pass_number" | "pass_type" | "status" | "pass_date" | "party_name" | "vehicle_number" |
-  "created_at" | "gate_out_at" | "held_at" | "hold_note" | "is_backfill" | "expected_return_date"> & {
+  "created_at" | "gate_out_at" | "held_at" | "hold_note" | "is_backfill" | "expected_return_date" |
+  "emergency_status" | "emergency_valid_until"> & {
   gate_pass_items: { quantity: number; uom: string }[];
   gate_pass_dispatches: { sales_dispatches: { dispatch_number: string } | null }[];
   purchase_returns: { return_number: string | null } | null;
@@ -60,6 +63,7 @@ export default function GatePassListPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [afterHoursOnly, setAfterHoursOnly] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery<ListRow[]>({
     queryKey: ["gate-passes", fromDate, toDate],
@@ -94,9 +98,10 @@ export default function GatePassListPage() {
     return rows.filter((r) =>
       (typeFilter === "all" || r.pass_type === typeFilter) &&
       (statusFilter === "all" || r.status === statusFilter) &&
+      (!afterHoursOnly || r.emergency_status !== null) &&
       (!q || [r.pass_number, r.party_name, r.vehicle_number ?? "", reference(r)].some((v) => v.toLowerCase().includes(q))),
     );
-  }, [rows, typeFilter, statusFilter, search]);
+  }, [rows, typeFilter, statusFilter, search, afterHoursOnly]);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -114,6 +119,7 @@ export default function GatePassListPage() {
       "Out at": r.gate_out_at ? format(new Date(r.gate_out_at), "yyyy-MM-dd HH:mm") : "",
       "Due back": r.expected_return_date ?? "",
       Backfill: r.is_backfill ? "Yes" : "",
+      "After hours": r.emergency_status ?? "",
       "Hold note": r.hold_note ?? "",
     })));
     const wb = XLSX.utils.book_new();
@@ -192,6 +198,10 @@ export default function GatePassListPage() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-center gap-2 text-sm h-10">
+              <Checkbox checked={afterHoursOnly} onCheckedChange={(c) => setAfterHoursOnly(c === true)} />
+              After hours only
+            </label>
             <div className="flex-1 min-w-[200px]">
               <Label className="text-xs" htmlFor="gp-search">Search</Label>
               <div className="relative">
@@ -237,6 +247,7 @@ export default function GatePassListPage() {
                       <TableCell>
                         <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap", t.badgeClass)}>{t.label}</span>
                         {r.is_backfill && <span className="ml-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200">Backfill</span>}
+                        {r.emergency_status && <span className="ml-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">After hours</span>}
                       </TableCell>
                       <TableCell className="max-w-[240px] truncate" title={r.party_name}>{r.party_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate" title={reference(r)}>{reference(r) || "—"}</TableCell>

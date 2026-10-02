@@ -33,6 +33,32 @@ cancel: any time before out · reject: while pending approval
 returnable / job work:  out → partly returned → returned   (or closed by a manager)
 ```
 
+## Gate hours and emergency (after-hours) passes
+
+Pakistan time, every day; closed days (default Sunday) have no passes at all.
+
+| Type | New pass / submit until | Leaves the gate until |
+|---|---|---|
+| Sales | 4:00 pm | 4:30 pm |
+| Sample, returnable, job work, scrap, supplier return | 5:00 pm | 5:30 pm |
+
+- After the "make" time a gate pass officer can still fill in the pass, but it
+  is sent as an **emergency request** with a reason (a draft from earlier is
+  sent the same way). Super admins are notified; type managers cannot decide it.
+- A pass that missed the gate time (approved or held) can also be sent as an
+  emergency request from the pass page.
+- A **super admin** approves (choosing *may leave until*, at most 24 hours
+  ahead) or rejects with a reason, on the pass page or under **After hours —
+  emergency requests** on Approvals. An approved emergency pass prints with a red
+  EMERGENCY stamp.
+- At the gate after the gate time, a pass without a live emergency approval
+  shows a red **After hours — do not let the dispatch go** screen; the guard
+  holds it and the managers are told. Releasing a held pass after hours also
+  needs the emergency approval. An expired approval is held again.
+- Times and closed days: **Gate hours** card on the Gate Pass dashboard
+  (super admin). The list has an **After hours** badge and filter.
+- Manual backfill is not affected.
+
 ## At the gate
 
 The guard opens the pass (scan the QR on the printout, or type the number),

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Html5Qrcode } from "html5-qrcode";
-import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine, Siren } from "lucide-react";
+import { AlertTriangle, BellOff, Camera, CheckCircle2, Clock, Loader2, LogOut, QrCode, ScanLine, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import {
 } from "@/lib/personGatePass";
 import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
-  PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
+  PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, emergencyValid, errorMessage, hoursClosed, useGateHours, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -131,6 +131,7 @@ export default function GateCheckPage() {
     setCode(n);
     setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
+    void refetchHours();
   };
 
   const stopScanner = () => {
@@ -193,6 +194,24 @@ export default function GateCheckPage() {
   const vehicleOk = !pass?.vehicle_number || normVehicle(vehicle) === normVehicle(pass.vehicle_number);
   const goesOut = allMatch && vehicleOk;
   const canAct = pass && ["approved", "held"].includes(pass.status);
+  // Past the gate cut-off: only a pass with a live super admin emergency approval may be checked.
+  const { data: hours, refetch: refetchHours } = useGateHours();
+  const gateClosed = pass ? hoursClosed(hours, pass.pass_type, "gate") : null;
+  const afterHoursBlocked = Boolean(canAct && gateClosed && !emergencyValid(pass!));
+  const holdAfterHours = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await gpDb.rpc("gate_pass_after_hours_hold", { p_id: pass!.id });
+      if (error) throw error;
+      return data as CheckResult | null;
+    },
+    onSuccess: (r) => {
+      if (r) setResult(r);
+      queryClient.invalidateQueries({ queryKey: ["gate-check-pass", passNumber] });
+      queryClient.invalidateQueries({ queryKey: ["gate-passes"] });
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-approvals"] });
+    },
+    onError: (e) => toast({ title: "Could not hold the vehicle", description: errorMessage(e), variant: "destructive" }),
+  });
 
   const check = useMutation({
     mutationFn: async () => {
@@ -338,6 +357,30 @@ export default function GateCheckPage() {
                   </Button>
                 </div>
               </div>
+            ) : afterHoursBlocked ? (
+              <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-600 text-white p-5 text-center space-y-3">
+                <Clock className="h-14 w-14 mx-auto" />
+                <div className="text-2xl font-extrabold uppercase tracking-wide">
+                  {pass.pass_type === "sales" ? "After hours — do not let the dispatch go" : "After hours — do not let the vehicle go"}
+                </div>
+                <div className="text-base font-semibold">{gateClosed}</div>
+                <div className="text-sm">
+                  {pass.emergency_status === "requested" ? "An emergency approval has been asked for — wait for the super admin."
+                    : pass.emergency_status === "approved" ? "The emergency approval on this pass has expired."
+                    : "It can only leave with a super admin's emergency approval."}
+                </div>
+                {pass.status === "approved" ? (
+                  <Button variant="secondary" className="w-full h-12 text-base font-bold" disabled={holdAfterHours.isPending} onClick={() => holdAfterHours.mutate()}>
+                    {holdAfterHours.isPending && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
+                    Hold vehicle and notify
+                  </Button>
+                ) : (
+                  <div className="text-sm font-semibold">The vehicle is held. The managers have been told.</div>
+                )}
+                <Button variant="outline" className="w-full h-12 text-base bg-white text-red-700 hover:bg-red-50" onClick={reset}>
+                  <ScanLine className="h-5 w-5 mr-2" /> Check another pass
+                </Button>
+              </div>
             ) : !canAct ? (
               <Card className={cn(pass.status === "out" ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50")}>
                 <CardContent className="p-5 text-center space-y-1">
@@ -353,6 +396,15 @@ export default function GateCheckPage() {
               </Card>
             ) : (
               <>
+                {gateClosed && emergencyValid(pass) && (
+                  <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
+                    <Siren className="h-5 w-5 shrink-0 text-amber-700" />
+                    <div>
+                      <b>After-hours pass</b> — emergency approval by {pass.emergency_decider?.full_name ?? "super admin"},
+                      valid until {format(new Date(pass.emergency_valid_until!), "dd MMM, HH:mm")}. Check it as normal.
+                    </div>
+                  </div>
+                )}
                 {pass.status === "held" && (
                   <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900">
                     This pass is held{pass.hold_note ? `: ${pass.hold_note}` : ""}. {pass.pass_type === "scrap"

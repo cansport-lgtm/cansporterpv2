@@ -24,9 +24,10 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { EmergencyBadge, EmergencyPanel } from "@/components/gate-pass/EmergencyPanel";
 import { BackfillInfo, ReturnsSection, ScrapSection } from "@/components/gate-pass/PassExtraSections";
 import {
-  PASS_SELECT, canApproveGatePassType, countUnit, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
+  PASS_SELECT, canApproveGatePassType, countUnit, errorMessage, hoursClosed, useGateHours, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -54,6 +55,9 @@ const EVENT_LABEL: Record<string, string> = {
   closed: "Closed",
   backfilled: "Entered as manual backfill",
   rescan_attempt: "Old pass scanned again at gate",
+  emergency_requested: "Emergency (after hours) requested",
+  emergency_approved: "Emergency approved by super admin",
+  emergency_rejected: "Emergency rejected",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel" | "release";
@@ -69,6 +73,7 @@ export default function GatePassDetailPage() {
   const canCreate = hasModulePermission("gate_pass", "create");
   const canApprove = hasModulePermission("gate_pass", "approve");
   const qrRef = useRef<HTMLDivElement>(null);
+  const { data: hours } = useGateHours();
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [remarks, setRemarks] = useState("");
 
@@ -126,6 +131,7 @@ export default function GatePassDetailPage() {
   }
 
   const items = sortedItems(pass);
+  const submitClosed = pass.status === "draft" && !!hoursClosed(hours, pass.pass_type, "create");
   const type = passTypeMeta(pass.pass_type);
   const status = statusMeta(pass.status);
   const isMaker = pass.created_by === user?.id;
@@ -158,12 +164,14 @@ export default function GatePassDetailPage() {
                 <Button variant="outline" onClick={() => navigate(`/gate-pass/edit/${pass.id}`)}>
                   <Pencil className="h-4 w-4 mr-1" /> Edit
                 </Button>
-                <Button disabled={action.isPending} onClick={() => run("gate_pass_submit", { p_id: pass.id }, "Submitted")}>
-                  <Send className="h-4 w-4 mr-1" /> Submit
-                </Button>
+                {!submitClosed && (
+                  <Button disabled={action.isPending} onClick={() => run("gate_pass_submit", { p_id: pass.id }, "Submitted")}>
+                    <Send className="h-4 w-4 mr-1" /> Submit
+                  </Button>
+                )}
               </>
             )}
-            {pass.status === "pending_approval" && canApproveGatePassType(roles, pass.pass_type) && (
+            {pass.status === "pending_approval" && pass.emergency_status !== "requested" && canApproveGatePassType(roles, pass.pass_type) && (
               <>
                 <Button variant="outline" className="text-destructive" onClick={() => setDialog("reject")}>
                   <XCircle className="h-4 w-4 mr-1" /> Reject
@@ -194,6 +202,8 @@ export default function GatePassDetailPage() {
             )}
           </div>
         </PageHeader>
+
+        <EmergencyPanel pass={pass} />
 
         {events.some((e) => e.event === "rescan_attempt") && (
           <div role="alert" className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900 flex items-start gap-2">
@@ -233,7 +243,10 @@ export default function GatePassDetailPage() {
             <Card>
               <CardHeader className="pb-2 flex flex-row items-center justify-between">
                 <CardTitle className="text-base">Lines</CardTitle>
-                <Badge variant={status.variant}>{status.label}</Badge>
+                <div className="flex flex-wrap items-center justify-end gap-1">
+                  <EmergencyBadge pass={pass} />
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </div>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table className="min-w-[720px]">

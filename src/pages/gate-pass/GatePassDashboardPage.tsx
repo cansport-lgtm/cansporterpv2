@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RescanAlerts } from "@/components/gate-pass/RescanAlerts";
+import { GateHoursCard } from "@/components/gate-pass/GateHoursCard";
 import { fmtQty, gpDb, passTypeMeta, statusMeta, todayPk } from "@/lib/gatePass";
 
 type PassRow = {
@@ -87,6 +88,8 @@ export default function GatePassDashboardPage() {
         <PageHeader title="Gate Pass Dashboard" description="What is at the gate, waiting, held and outside the factory" icon={LayoutDashboard} />
 
         <RescanAlerts />
+
+        <GateHoursCard />
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
           {kpis.map((k) => (

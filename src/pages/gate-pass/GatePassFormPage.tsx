@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { CheckCircle2, DoorOpen, FileClock, Loader2, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, DoorOpen, FileClock, Loader2, Plus, Siren, Trash2 } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -29,7 +29,8 @@ import {
   type BackfillState, type GoodsKind, type GoodsLine, type ScrapLine,
 } from "@/lib/gatePassForms";
 import {
-  PASS_SELECT, PASS_TYPES, errorMessage, fmtQty, gpDb, sortedItems, type GatePass, type GatePassType,
+  PASS_SELECT, PASS_TYPES, closedDaysText, errorMessage, fmtClock, fmtQty, gpDb, hoursClosed, sortedItems, useGateHours,
+  type GatePass, type GatePassType,
 } from "@/lib/gatePass";
 
 type OrderRef = { order_number: string; status: string; customers: { name: string } | null } | null;
@@ -98,6 +99,7 @@ export default function GatePassFormPage() {
   const [driverContact, setDriverContact] = useState("");
   const [transporter, setTransporter] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [emergencyReason, setEmergencyReason] = useState("");
   const [dispatchIds, setDispatchIds] = useState<string[]>([]);
   const [returnId, setReturnId] = useState("");
   const [partyKind, setPartyKind] = useState("customer");
@@ -307,6 +309,9 @@ export default function GatePassFormPage() {
 
   const selectedReturn = returns.find((r) => r.id === returnId);
   const typeMeta = PASS_TYPES.find((t) => t.value === passType)!;
+  // After the cut-off (or on a holiday) a pass can only be made as an emergency request.
+  const { data: hours } = useGateHours();
+  const createClosed = backfillOn && canBackfill ? null : hoursClosed(hours, passType, "create");
 
   const save = useMutation({
     mutationFn: async (submit: boolean) => {
@@ -333,6 +338,7 @@ export default function GatePassFormPage() {
       }
       if (passType === "scrap") data.lines = scrapLinesPayload(scrapLines);
       if (backfillOn && canBackfill) data.backfill = backfillPayload(backfill);
+      if (createClosed) data.emergency_reason = emergencyReason;
       if (passType === "sample") {
         data.lines = lines
           .filter((l) => l.product_id || l.description.trim() || l.quantity)
@@ -353,9 +359,10 @@ export default function GatePassFormPage() {
       queryClient.invalidateQueries({ queryKey: ["gate-pass", id] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-gate-pass"] });
       toast({
-        title: backfillOn && canBackfill ? "Backfill saved" : submit ? "Gate pass created" : "Draft saved",
+        title: backfillOn && canBackfill ? "Backfill saved" : createClosed && submit ? "Emergency request sent" : submit ? "Gate pass created" : "Draft saved",
         description: backfillOn && canBackfill
           ? "Recorded as out on the paper date."
+          : createClosed && submit ? "A super admin must approve it before it can leave."
           : submit
             ? typeMeta.approval === "Approved automatically" ? "Approved automatically — ready to print." : "Sent to a manager for approval."
             : undefined,
@@ -390,6 +397,21 @@ export default function GatePassFormPage() {
           description="Goods leaving the factory. The GP number is given when you save."
           icon={DoorOpen}
         />
+
+        {createClosed && (
+          <div role="alert" className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900 flex gap-2">
+            <Clock className="h-5 w-5 text-red-700 shrink-0" />
+            <div>
+              <b>{createClosed}</b> You can still fill in the pass and send it as an emergency request — a super admin decides.
+            </div>
+          </div>
+        )}
+        {!createClosed && hours && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Gate hours: sales passes until {fmtClock(hours.sales_create_until)} (gate {fmtClock(hours.sales_gate_until)}),
+            other passes until {fmtClock(hours.other_create_until)} (gate {fmtClock(hours.other_gate_until)}). {closedDaysText(hours)}
+          </p>
+        )}
 
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">1. What is leaving?</CardTitle></CardHeader>
@@ -791,6 +813,22 @@ export default function GatePassFormPage() {
               <Textarea id="gp-remarks" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
             </div>
 
+            {createClosed ? (
+              <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-red-800"><Siren className="h-4 w-4" /> Emergency (after hours)</div>
+                <Label htmlFor="gp-emergency">Why must this go now? *</Label>
+                <Textarea id="gp-emergency" rows={3} value={emergencyReason} placeholder="e.g. Customer truck already loaded, export cut-off tonight"
+                  onChange={(e) => setEmergencyReason(e.target.value)} />
+                <Button variant="destructive" className="w-full" disabled={save.isPending || !emergencyReason.trim()} onClick={() => save.mutate(true)}>
+                  {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  Request emergency approval
+                </Button>
+                {editId && (
+                  <Button variant="outline" className="w-full" disabled={save.isPending} onClick={() => save.mutate(false)}>Save as draft</Button>
+                )}
+                <p className="text-xs text-red-900">Only a super admin can approve it, and sets until when it may leave.</p>
+              </div>
+            ) : (
             <div className="flex flex-col gap-2">
               <Button disabled={save.isPending} onClick={() => save.mutate(true)}>
                 {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
@@ -801,6 +839,7 @@ export default function GatePassFormPage() {
                 <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate(false)}>Save as draft</Button>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
