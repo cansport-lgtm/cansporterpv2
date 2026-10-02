@@ -30,7 +30,7 @@ export type PersonPassVariant = {
   /** "Worker" / "Staff" — used in titles and badges. */
   label: string;
   module: "labour" | "hr";
-  /** Pass kinds this variant offers. Official duty (company work) is staff only. */
+  /** Pass kinds this variant offers. */
   kinds: PassKind[];
   /**
    * Self-service variant: the logged-in staff member raising and viewing their own
@@ -89,7 +89,7 @@ export const WORKER_PASS: PersonPassVariant = {
   noun: "worker",
   label: "Worker",
   module: "labour",
-  kinds: ["half_day", "short_leave"],
+  kinds: ["half_day", "short_leave", "official_duty"],
   basePath: "/labour/gate-pass",
   table: "labour_gate_passes",
   eventsTable: "labour_gate_pass_events",
@@ -109,10 +109,10 @@ export const WORKER_PASS: PersonPassVariant = {
   accentButton: "bg-emerald-700 hover:bg-emerald-800",
   accentSelected: "border-emerald-600 bg-emerald-50",
   listTitle: "Worker Gate Passes",
-  listDescription: "Half days and short leaves through the gate, applied by supervisors and approved by the labour gate pass approver",
+  listDescription: "Half days, short leaves and company work through the gate, applied by supervisors and approved by the labour gate pass approver",
   newTitle: "New Worker Gate Pass",
   approvalsTitle: "Worker Gate Pass Approvals",
-  approvalsDescription: "Passes waiting for the labour gate pass approver, and short leaves overdue at the gate",
+  approvalsDescription: "Passes waiting for the labour gate pass approver, and short leaves overdue at the gate (company work is never overdue)",
   halfDayEffect: "When the guard scans the worker out, the day is marked Half day: every productivity entry for that date becomes a half day, and any entry added later for that date stays a half day.",
   halfDayMarkedText: (rows) => `${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} set to half day. Any entry added later for that date stays a half day.`,
   halfDayGateText: (rows) => `Half day marked for today (${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} updated).`,

@@ -23,7 +23,7 @@ that carries the tables, roles, routes and wording.
 
 Official duty was added in `20261004120000_staff_gate_pass_official_duty.sql`
 (rollback `supabase/rollbacks/20261004120000_staff_gate_pass_official_duty_down.sql`).
-Worker passes do not have it.
+Worker passes have the same kind (`docs/LABOUR_GATE_PASS.md`).
 
 ### Official duty: who raises it, who approves
 

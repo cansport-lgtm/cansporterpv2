@@ -114,14 +114,14 @@ export function PersonGatePassFormPage({ variant }: { variant: PersonPassVariant
         p_expected_minutes: kind === "half_day" ? null : Number(minutes || defaultMinutes),
         p_leave_time: leaveTime || null,
         p_pass_date: passDate,
-        ...(variant.key === "staff" ? { p_destination: official ? destination : null } : {}),
+        p_destination: official ? destination : null,
       });
       if (error) throw error;
       return data as string;
     },
     onSuccess: (id) => {
       toast(autoApproved
-        ? { title: "Pass approved", description: "Field duty is allowed for this staff member. Show the pass to the guard going out and coming back." }
+        ? { title: "Pass approved", description: `Field duty is allowed for this ${variant.noun}. Show the pass to the guard going out and coming back.` }
         : { title: "Sent for approval", description: `${variant.approverText.charAt(0).toUpperCase()}${variant.approverText.slice(1)} has been notified.` });
       invalidatePassQueries(queryClient, variant);
       navigate(`${variant.basePath}/${id}`);

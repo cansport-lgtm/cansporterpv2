@@ -286,7 +286,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
             </CardHeader>
             <CardContent className="p-0">
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground border-b">
-                <span><b className="text-foreground">{officialSummary.length}</b> staff</span>
+                <span><b className="text-foreground">{officialSummary.length}</b> {variant.noun}s</span>
                 <span><b className="text-foreground">{officialSummary.reduce((s, e) => s + e.trips, 0)}</b> trips</span>
                 <span><b className="text-foreground">{fmtHours(officialSummary.reduce((s, e) => s + e.minutes, 0))}</b> outside in total</span>
               </div>

@@ -18,6 +18,24 @@ they live in `src/components/person-gate-pass/` and are driven by the
 |---|---|---|
 | **Half day** | The worker leaves and does not come back today | When the guard scans the worker out, the date is marked **Half day** (see below) |
 | **Short leave** | The worker goes out for a task and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies the supervisor and the approvers. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Official duty** | Company work: purchases, bank, site visit, delivery. Expected within N minutes (default 180) | Guard scans **Out**, later **In**. A **destination** is recorded with the purpose. **Attendance is never touched.** Late return is information for the labour approvers, not a warning. Still out at day end → **Not scanned in**, no half day, labour approvers informed |
+
+Official duty was added in `20261005120000_labour_gate_pass_official_duty.sql`
+(rollback `supabase/rollbacks/20261005120000_labour_gate_pass_official_duty_down.sql`),
+the same as the staff version.
+
+### Official duty: approval
+
+- Supervisors raise it like any other kind (workers have no login, so there is
+  no self-service).
+- **Field duty allowed** (switch on the Employee Center form) → the pass is
+  **approved the moment it is raised** and logged as auto-approved; the worker
+  goes straight to the gate. Otherwise `labour_gate_pass_approver` approves as usual.
+- The supervisor who raised a pass can cancel it before it is scanned Out.
+- Several trips a day are fine: once a trip is scanned In the day is free for
+  the next pass.
+- The register shows a **Company work** summary (trips, time outside, not
+  scanned in, destinations) per worker for the selected dates, with Excel export.
 
 ## Flow
 
@@ -122,6 +140,7 @@ a half day.
 | Out / In | Supervisor (approvers too when the worker is late) |
 | Late back (expected + grace, default 15 min) | Supervisor and approvers |
 | Not returned at day end / expired | Supervisor and approvers |
+| Official duty: still out past expected, back late, not scanned in at day end | Supervisor and labour productivity approvers, as **info** (never a warning, never the approver) |
 | Approved productivity entry changed to half day | Labour productivity approvers |
 | Old pass scanned again | Approvers, supervisor, gate pass managers |
 
@@ -141,3 +160,4 @@ run whatever the time.
 | Grace minutes before "late back" | 15 |
 | Day-end time (Asia/Karachi) | 18:00 |
 | Mark half day when not returned at day end | on |
+| Default expected minutes for official duty | 180 |
