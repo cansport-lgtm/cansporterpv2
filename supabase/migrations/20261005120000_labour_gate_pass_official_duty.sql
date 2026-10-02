@@ -20,6 +20,15 @@
 --     auto-approved.
 --   • otherwise the labour gate pass approver approves as usual.
 --
+-- Written without DROP INDEX / DROP FUNCTION (the hosted migration runner does
+-- not accept them): the apply and settings_save functions gain an overload with
+-- one more argument that has NO default, so a call naming the extra argument
+-- resolves to the new function and a call without it to the old one, which now
+-- delegates; the half-day index gets a new name and the old one may be dropped
+-- by hand later; the labour-approver information notices use a new helper,
+-- labour_gate_pass_inform, instead of a new notify signature.
+--
+-- Applied to the live project in three parts (…_1_schema, …_2_half_day, …_3_functions).
 -- Builds on 20261002120100_labour_gate_pass.sql.
 -- Rollback: supabase/rollbacks/20261005120000_labour_gate_pass_official_duty_down.sql
 -- ============================================================================
@@ -39,10 +48,13 @@ ALTER TABLE public.labour_gate_pass_settings
   ADD COLUMN IF NOT EXISTS official_default_expected_minutes integer NOT NULL DEFAULT 180
     CHECK (official_default_expected_minutes BETWEEN 5 AND 720);
 
+-- 2. Half-day marks exclude official duty ----------------------------------------
+
 -- A not-returned official duty pass is NOT a half day: exclude it everywhere
 -- the half-day marks are read (view, trigger predicate, salary and sheets).
-DROP INDEX IF EXISTS public.labour_gate_passes_half_day_idx;
-CREATE INDEX IF NOT EXISTS labour_gate_passes_half_day_idx
+-- The old labour_gate_passes_half_day_idx (without the exclusion) is left in
+-- place and can be dropped by hand.
+CREATE INDEX IF NOT EXISTS labour_gate_passes_half_day_v2_idx
   ON public.labour_gate_passes (employee_id, pass_date)
   WHERE (pass_kind = 'half_day' AND status = 'out') OR (pass_kind <> 'official_duty' AND status = 'not_returned');
 
@@ -63,34 +75,25 @@ AS $$
        AND ((g.pass_kind = 'half_day' AND g.status = 'out') OR (g.pass_kind <> 'official_duty' AND g.status = 'not_returned')));
 $$;
 
--- 2. Helpers -----------------------------------------------------------------
+-- 3. Functions -----------------------------------------------------------------
 
--- Notify the supervisor who applied, the approvers, the gate pass managers
--- and / or the labour productivity approvers; never the actor.
-DROP FUNCTION IF EXISTS public.labour_gate_pass_notify(public.labour_gate_passes, text, text, text, boolean, boolean, boolean);
-CREATE OR REPLACE FUNCTION public.labour_gate_pass_notify(
-  p_pass public.labour_gate_passes, p_title text, p_message text, p_type text DEFAULT 'info',
-  p_to_maker boolean DEFAULT true, p_to_approvers boolean DEFAULT true, p_to_gate_managers boolean DEFAULT false,
-  p_to_labour boolean DEFAULT false
-) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+-- Information notice about company work: the supervisor who applied and the
+-- labour productivity approvers (and super admins), never the actor, never the
+-- gate pass approver. Always 'info'.
+CREATE OR REPLACE FUNCTION public.labour_gate_pass_inform(p_pass public.labour_gate_passes, p_title text, p_message text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_uid uuid := public.app_user_id();
   v_link text := '/labour/gate-pass/' || p_pass.id::text;
-  v_roles text[] := ARRAY['super_admin'];
+  v_roles text[] := ARRAY['super_admin','labour_productivity_approver'];
 BEGIN
-  IF p_to_approvers THEN v_roles := v_roles || ARRAY['labour_gate_pass_approver']; END IF;
-  IF p_to_gate_managers THEN v_roles := v_roles || ARRAY['gate_pass_manager']; END IF;
-  IF p_to_labour THEN v_roles := v_roles || ARRAY['labour_productivity_approver']; END IF;
-  IF p_to_approvers OR p_to_gate_managers OR p_to_labour THEN
-    PERFORM public.notify_role(v_roles::app_role[], p_title, p_message, p_type,
-      'labour', v_link, 'labour_gate_pass', p_pass.id, v_uid, v_uid);
-  END IF;
-  IF p_to_maker AND p_pass.created_by IS NOT NULL AND p_pass.created_by IS DISTINCT FROM v_uid
-     AND NOT ((p_to_approvers OR p_to_gate_managers OR p_to_labour) AND EXISTS (
-       SELECT 1 FROM public.user_roles
-        WHERE user_id = p_pass.created_by AND role::text = ANY (v_roles))) THEN
-    PERFORM public.notify_user(p_pass.created_by, p_title, p_message, p_type,
+  PERFORM public.notify_role(v_roles::app_role[], p_title, p_message, 'info',
+    'labour', v_link, 'labour_gate_pass', p_pass.id, v_uid, v_uid);
+  IF p_pass.created_by IS NOT NULL AND p_pass.created_by IS DISTINCT FROM v_uid
+     AND NOT EXISTS (SELECT 1 FROM public.user_roles
+                      WHERE user_id = p_pass.created_by AND role::text = ANY (v_roles)) THEN
+    PERFORM public.notify_user(p_pass.created_by, p_title, p_message, 'info',
       'labour', v_link, 'labour_gate_pass', p_pass.id, v_uid);
   END IF;
 END;
@@ -107,8 +110,7 @@ AS $$
   END;
 $$;
 
--- 3. Half day marking never applies to official duty ----------------------------
-
+-- Half day marking never applies to official duty.
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_mark_half_day(p_id uuid)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -160,13 +162,12 @@ BEGIN
 END;
 $$;
 
--- 4. Apply ----------------------------------------------------------------------
-
-DROP FUNCTION IF EXISTS public.labour_gate_pass_apply(uuid, text, text, integer, time, date);
+-- Apply. The 7-argument form takes the destination (no default, so a call that
+-- names p_destination resolves here and a call without it to the 6-argument
+-- form below, which delegates).
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_apply(
   p_employee_id uuid, p_kind text, p_reason text,
-  p_expected_minutes integer DEFAULT NULL, p_leave_time time DEFAULT NULL, p_pass_date date DEFAULT NULL,
-  p_destination text DEFAULT NULL
+  p_expected_minutes integer, p_leave_time time, p_pass_date date, p_destination text
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
@@ -245,8 +246,16 @@ BEGIN
 END;
 $$;
 
--- 5. Cancel: the supervisor who raised the pass may always cancel it before Out --
+-- The original 6-argument apply now delegates (no destination).
+CREATE OR REPLACE FUNCTION public.labour_gate_pass_apply(
+  p_employee_id uuid, p_kind text, p_reason text,
+  p_expected_minutes integer DEFAULT NULL, p_leave_time time DEFAULT NULL, p_pass_date date DEFAULT NULL
+) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT public.labour_gate_pass_apply(p_employee_id, p_kind, p_reason, p_expected_minutes, p_leave_time, p_pass_date, NULL::text);
+$$;
 
+-- Cancel: the supervisor who raised the pass may always cancel it before Out.
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_cancel(p_id uuid, p_reason text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -281,8 +290,7 @@ BEGIN
 END;
 $$;
 
--- 6. At the gate ----------------------------------------------------------------
-
+-- At the gate.
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_gate_out(p_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -353,7 +361,6 @@ DECLARE
   v_uid uuid := public.app_user_id();
   v_minutes integer;
   v_late integer;
-  v_official boolean;
 BEGIN
   IF NOT public.labour_gate_pass_can('gate') THEN
     RAISE EXCEPTION 'Only gate security or a gate pass manager can use Gate Check.';
@@ -372,7 +379,6 @@ BEGIN
   IF g.status <> 'out' THEN
     RAISE EXCEPTION 'Gate pass % is % — there is nothing to scan in.', g.pass_number, replace(g.status, '_', ' ');
   END IF;
-  v_official := g.pass_kind = 'official_duty';
 
   v_minutes := CEIL(EXTRACT(EPOCH FROM (now() - g.gate_out_at)) / 60)::integer;
   v_late := GREATEST(0, CEIL(EXTRACT(EPOCH FROM (now() - g.expected_back_at)) / 60))::integer;
@@ -383,11 +389,17 @@ BEGIN
   PERFORM public.labour_gate_pass_log(p_id, 'in',
     'Back at gate after ' || v_minutes || ' min' || CASE WHEN v_late > 0 THEN ' (' || v_late || ' min late)' ELSE '' END,
     jsonb_build_object('minutes_outside', v_minutes, 'late_minutes', v_late));
-  IF v_official THEN
-    PERFORM public.labour_gate_pass_notify(g, 'Worker back from company work',
-      public.labour_gate_pass_label(g) || ' came back at ' || public.labour_gate_pass_fmt(g.gate_in_at)
-        || ' after ' || v_minutes || ' min' || COALESCE(' (' || g.destination || ')', '') || '.',
-      'info', true, false, false, v_late > 0);
+  IF g.pass_kind = 'official_duty' THEN
+    IF v_late > 0 THEN
+      PERFORM public.labour_gate_pass_inform(g, 'Worker back from company work',
+        public.labour_gate_pass_label(g) || ' came back at ' || public.labour_gate_pass_fmt(g.gate_in_at)
+          || ' after ' || v_minutes || ' min' || COALESCE(' (' || g.destination || ')', '') || '.');
+    ELSE
+      PERFORM public.labour_gate_pass_notify(g, 'Worker back from company work',
+        public.labour_gate_pass_label(g) || ' came back at ' || public.labour_gate_pass_fmt(g.gate_in_at)
+          || ' after ' || v_minutes || ' min' || COALESCE(' (' || g.destination || ')', '') || '.',
+        'info', true, false);
+    END IF;
   ELSE
     PERFORM public.labour_gate_pass_notify(g, 'Worker back from short leave',
       public.labour_gate_pass_label(g) || ' came back at ' || public.labour_gate_pass_fmt(g.gate_in_at)
@@ -400,8 +412,7 @@ BEGIN
 END;
 $$;
 
--- 7. Scheduled: official duty is informed, never alarmed, never a half day -------
-
+-- Scheduled: official duty is informed, never alarmed, never a half day.
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_tick()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -427,10 +438,9 @@ BEGIN
     UPDATE public.labour_gate_passes SET overdue_notified_at = now(), updated_at = now() WHERE id = g.id;
     PERFORM public.labour_gate_pass_log(g.id, 'overdue', 'Not back ' || v_late || ' min after the expected return');
     IF g.pass_kind = 'official_duty' THEN
-      PERFORM public.labour_gate_pass_notify(g, 'Worker still out on company work',
+      PERFORM public.labour_gate_pass_inform(g, 'Worker still out on company work',
         public.labour_gate_pass_label(g) || ' went out at ' || public.labour_gate_pass_fmt(g.gate_out_at)
-          || COALESCE(' for ' || g.destination, '') || ' and is ' || v_late || ' min past the expected return.',
-        'info', true, false, false, true);
+          || COALESCE(' for ' || g.destination, '') || ' and is ' || v_late || ' min past the expected return.');
     ELSE
       PERFORM public.labour_gate_pass_notify(g, 'Worker late back from short leave',
         public.labour_gate_pass_label(g) || ' went out at ' || public.labour_gate_pass_fmt(g.gate_out_at)
@@ -463,10 +473,9 @@ BEGIN
          SET status = 'not_returned', closed_at = now(), close_note = 'Not scanned in by day end — company work', updated_at = now()
        WHERE id = g.id RETURNING * INTO g;
       PERFORM public.labour_gate_pass_log(g.id, 'not_returned', 'Not scanned in by day end — company work, attendance not affected');
-      PERFORM public.labour_gate_pass_notify(g, 'Worker not scanned back in from company work',
+      PERFORM public.labour_gate_pass_inform(g, 'Worker not scanned back in from company work',
         public.labour_gate_pass_label(g) || ' went out at ' || public.labour_gate_pass_fmt(g.gate_out_at)
-          || COALESCE(' for ' || g.destination, '') || ' and was not scanned back in by day end. Attendance is not affected.',
-        'info', true, false, false, true);
+          || COALESCE(' for ' || g.destination, '') || ' and was not scanned back in by day end. Attendance is not affected.');
       v_not_returned := v_not_returned + 1;
     ELSE
       UPDATE public.labour_gate_passes
@@ -490,12 +499,11 @@ BEGIN
 END;
 $$;
 
--- 8. Settings ------------------------------------------------------------------
-
-DROP FUNCTION IF EXISTS public.labour_gate_pass_settings_save(integer, integer, time, boolean);
+-- Settings: the 5-argument form (no default on the new argument) and the
+-- original 4-argument form, which delegates.
 CREATE OR REPLACE FUNCTION public.labour_gate_pass_settings_save(
   p_default_expected_minutes integer, p_grace_minutes integer, p_day_end_time time, p_auto_half_day boolean,
-  p_official_default_expected_minutes integer DEFAULT NULL
+  p_official_default_expected_minutes integer
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
@@ -513,18 +521,24 @@ BEGIN
 END;
 $$;
 
--- 9. Grants ----------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.labour_gate_pass_settings_save(
+  p_default_expected_minutes integer, p_grace_minutes integer, p_day_end_time time, p_auto_half_day boolean
+) RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT public.labour_gate_pass_settings_save(p_default_expected_minutes, p_grace_minutes, p_day_end_time, p_auto_half_day, NULL::integer);
+$$;
 
+-- Grants.
 GRANT EXECUTE ON FUNCTION
   public.labour_gate_pass_apply(uuid, text, text, integer, time, date, text),
   public.labour_gate_pass_settings_save(integer, integer, time, boolean, integer)
   TO anon, authenticated, service_role;
 
 REVOKE ALL ON FUNCTION
-  public.labour_gate_pass_notify(public.labour_gate_passes, text, text, text, boolean, boolean, boolean, boolean),
+  public.labour_gate_pass_inform(public.labour_gate_passes, text, text),
   public.labour_gate_pass_kind_text(public.labour_gate_passes)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION
-  public.labour_gate_pass_notify(public.labour_gate_passes, text, text, text, boolean, boolean, boolean, boolean),
+  public.labour_gate_pass_inform(public.labour_gate_passes, text, text),
   public.labour_gate_pass_kind_text(public.labour_gate_passes)
   TO service_role;
