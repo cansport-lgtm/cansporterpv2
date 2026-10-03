@@ -1,4 +1,9 @@
-# Store Pass — plan (for approval)
+# Store Pass — plan (approved 3 Oct 2026)
+
+Decisions taken: one store pass per **vehicle** covering several dispatches
+(like the sales gate pass); no approval step; gate behaviour `warn` first,
+`block` via the setting; **domestic sales dispatches only** for now; the daily
+20:30 discrepancy notification is included. Mock: the "Store Pass Mock" canvas.
 
 A **store pass** records finished goods physically handed over by the
 finished-goods store for dispatch, *before* the vehicle reaches the gate. Today
@@ -30,9 +35,9 @@ functions, an event log per pass, rollback script, and a doc in `docs/`.
 |---|---|
 | Number | `SP-000001`, `SP-000002`, … (one series, given only on a successful save) |
 | Made by | The store keeper (`store_pass_officer`), on desk or phone |
-| Against | **One dispatch (DC)** of an approved sales order — domestic, export or private label (`sales_dispatches`). A dispatch can have only one live store pass; cancelled passes free it again |
-| Lines | Copied from the dispatch items: product, packing type, dozens, cartons. The store keeper confirms or corrects the **issued** figures; the dispatch figures are kept beside them as a snapshot |
-| Also records | Issue date/time, store keeper, who received the goods (loader / driver name), vehicle number seen at loading (optional), store location (optional), remarks, optional photo of the loaded stack |
+| Against | **One vehicle**, carrying one or more pending **domestic** dispatches (DC) of approved sales orders (`sales_dispatches`, `sales_segment = domestic`), exactly like the sales gate pass. A dispatch can be on only one live store pass; cancelled passes free it again |
+| Lines | Copied from the dispatch items, grouped by dispatch: product, packing type, dozens, cartons. The store keeper confirms or corrects the **issued** figures; the dispatch figures are kept beside them as a snapshot |
+| Also records | Vehicle number, driver name / contact, issue date/time, store keeper, who received the goods (loader / driver), loading bay / store location (optional), remarks, optional photo of the loaded stack |
 | Approval | None. It is the store keeper's time-stamped record, like a gate guard's count |
 | Stock | **None.** The dispatch already moves finished goods (WIP ledger FG level, COGS). The store pass is a control document only |
 | Prices | Never stored or shown |
@@ -43,7 +48,7 @@ functions, an event log per pass, rollback script, and a doc in `docs/`.
 draft → issued → (cancelled)
 ```
 
-- **Draft**: store keeper can edit lines, refresh from the dispatch, cancel.
+- **Draft**: store keeper can edit lines, add or remove dispatches, refresh from the dispatches, cancel.
 - **Issued**: goods have left the store. Lines are frozen. Only a store pass
   manager (or super admin) can cancel it, with a reason; the store keeper then
   makes a new one. The original stays in the pass history.
@@ -87,7 +92,7 @@ signatures. Printed from the detail page and from the list.
 |---|---|---|
 | Dashboard | `/store-pass/dashboard` | Today: dispatches made, store passes issued, gone out; issued-but-not-out (with hours waiting); open discrepancies (7 days); recent passes |
 | Store Passes | `/store-pass/passes` | Register with search, date range, status and segment filters; print |
-| New Store Pass | `/store-pass/new` | Pick a pending dispatch (no live store pass, not delivered; today's first) → lines auto-filled → confirm issued cartons / dozens → receiver, vehicle, remarks, photo → **Issue** (or save draft) |
+| New Store Pass | `/store-pass/new` | Vehicle and driver → tick the pending domestic dispatches going on it (no live store pass, not delivered; today's first) → lines auto-filled per dispatch → confirm issued cartons / dozens → receiver, bay, remarks, photo → **Issue** (or save draft) |
 | Store Pass detail | `/store-pass/passes/:id` | Pass, lines with dispatch vs issued, linked gate pass and its gate status, event history, print, cancel |
 | Dispatch Tracking | `/store-pass/tracking` | One row per dispatch: DC → SP → GP → Out → Delivered as a stage strip, with hours between stages. Filters: stage (no store pass / issued, no gate pass / on gate pass, waiting / held / out / delivered), segment, customer, date range. Links to DC, SP, GP |
 | Daily Reconciliation | `/store-pass/reconciliation` | See §4 |
@@ -100,7 +105,8 @@ the same reconciliation page, for gate pass managers.
 ## 4. Daily Reconciliation
 
 Pick a day (Pakistan time; a range is also allowed). Three sources are lined up
-per dispatch:
+per dispatch (a store pass covers a vehicle, but every line belongs to one
+dispatch item, so the comparison stays one-to-one per dispatch):
 
 | Source | Date used | Figures |
 |---|---|---|
@@ -160,11 +166,14 @@ migration, then the module migration), and registered in `AuthContext`
 
 New (all read-only to clients, writes via functions):
 
-- `store_passes` — pass header: `pass_number`, `dispatch_id`, `sales_segment`,
-  `status`, `pass_date`, `issued_at`, `issued_by`, `received_by_name`,
-  `vehicle_number`, `store_location`, `photo_url`, `remarks`, cancel fields,
-  `created_by`, timestamps. Partial unique index: one live pass per dispatch.
-- `store_pass_items` — `line_no`, `product_id`, `dispatch_item_id`,
+- `store_passes` — pass header: `pass_number`, `status`, `pass_date`,
+  `vehicle_number`, `driver_name`, `driver_contact`, `party_name` (customers),
+  `issued_at`, `issued_by`, `received_by_name`, `store_location`, `photo_url`,
+  `remarks`, cancel fields, `created_by`, timestamps.
+- `store_pass_dispatches` — which dispatches travel on the pass (one vehicle,
+  many dispatches), mirroring `gate_pass_dispatches`. A dispatch can be on
+  only one live pass (checked in the build function).
+- `store_pass_items` — `line_no`, `product_id`, `dispatch_id`, `dispatch_item_id`,
   `description`, `packing_type`, `uom`, `dispatch_quantity`,
   `dispatch_packages` (snapshot), `quantity` (issued), `packages` (issued),
   `lot_no`, `remarks`.
@@ -221,21 +230,17 @@ the SQL applied by the usual migration path.
 
 ---
 
-## 9. Decisions to confirm
+## 9. Decisions (confirmed)
 
-Defaults I will build with unless told otherwise:
-
-1. **One store pass per dispatch (DC).** Alternative: one pass per vehicle
-   covering several DCs, like the sales gate pass. Per-DC keeps the
-   reconciliation one-to-one and the pass simple to issue; a three-DC vehicle
-   is three quick passes.
-2. **No approval step** on the store pass. Alternative: a store manager
-   confirms each pass before the gate pass can be made.
-3. **Gate behaviour without a store pass: warn** (not block) at first, with
-   the switch to `block` available to the super admin.
+1. **One store pass per vehicle**, covering several dispatches, like the
+   sales gate pass. Lines stay per dispatch item, so reconciliation is still
+   per dispatch.
+2. **No approval step** on the store pass; tracking only.
+3. **Gate behaviour without a store pass: warn** first, `block` later via the
+   super-admin setting.
 4. **Short issue allowed with a remark; over-issue blocked.**
-5. **Scope: sales dispatches only** (domestic, export, private label).
-   Distributor dispatches and gate-pass samples can be added later as
-   further pass sources.
+5. **Scope: domestic sales dispatches only** (Sales module, `sales_segment =
+   domestic`). Export, private label, distributor dispatches and samples can
+   be added later.
 6. **Daily discrepancy notification at 20:30 Pakistan time** to store pass
-   managers and gate pass managers (can be left out).
+   managers and gate pass managers.

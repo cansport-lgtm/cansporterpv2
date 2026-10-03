@@ -86,6 +86,8 @@ export function ProtectedRoute({
         return 'machine_monitor';
       case 'gate-pass':
         return 'gate_pass';
+      case 'store-pass':
+        return 'store_pass';
       case 'crm':
         return 'crm';
       case 'marketing':

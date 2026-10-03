@@ -62,6 +62,9 @@ const roleDescriptions: Record<AppRole, string> = {
   gate_pass_officer: "Gate Pass – make and submit passes (no approve)",
   gate_pass_viewer: "Gate Pass – read-only access to passes and the register",
   gate_security: "Gate Pass – gate guard: Gate Check page only; counts each line, marks the vehicle Out or holds it (never sees prices)",
+  store_pass_manager: "Store Pass – make and issue store passes, cancel an issued pass (with a reason), explain store ↔ gate discrepancies",
+  store_pass_officer: "Store Pass – store keeper: make, issue and print store passes; edit / cancel own drafts",
+  store_pass_viewer: "Store Pass – read-only access to passes, dispatch tracking and reconciliation",
   helpdesk_manager: "Help Desk – manages all support tickets (assign, comment, change status/priority, resolve) on the ticket admin board",
   export_manager: "Export Sales – full access including approve (delete reserved for super admin)",
   export_officer: "Export Sales – create and edit entries (no approve, no delete)",
@@ -233,6 +236,9 @@ const roleColors: Record<AppRole, string> = {
   gate_pass_jobwork_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
   gate_pass_scrap_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
   gate_security: "bg-slate-800/10 text-slate-800 border-slate-800/20",
+  store_pass_manager: "bg-indigo-700/10 text-indigo-700 border-indigo-700/20",
+  store_pass_officer: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
+  store_pass_viewer: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
   projects_super_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
 };
 
@@ -347,6 +353,9 @@ export default function RolesPage() {
     gate_pass_jobwork_manager: 0,
     gate_pass_scrap_manager: 0,
     gate_security: 0,
+    store_pass_manager: 0,
+    store_pass_officer: 0,
+    store_pass_viewer: 0,
     projects_super_manager: 0,
   });
 
@@ -364,7 +373,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
