@@ -724,6 +724,7 @@ const navigationItems: NavItem[] = [
       { title: "Scrap Yard", href: "/gate-pass/scrap-yard" },
       { title: "Paper Books", href: "/gate-pass/books" },
       { title: "Dispatch Tracking", href: "/store-pass/tracking", allowedRoles: ["super_admin", "gate_pass_manager"] },
+      { title: "Store ↔ Gate Reconciliation", href: "/store-pass/reconciliation", allowedRoles: ["super_admin", "gate_pass_manager"] },
     ],
   },
   {
@@ -734,9 +735,11 @@ const navigationItems: NavItem[] = [
     color: "text-indigo-400",
     module: "store_pass",
     children: [
+      { title: "Dashboard", href: "/store-pass/dashboard" },
       { title: "Store Passes", href: "/store-pass/passes" },
       { title: "New Store Pass", href: "/store-pass/new", allowedRoles: ["super_admin", "store_pass_manager", "store_pass_officer"] },
       { title: "Dispatch Tracking", href: "/store-pass/tracking" },
+      { title: "Daily Reconciliation", href: "/store-pass/reconciliation" },
     ],
   },
   {

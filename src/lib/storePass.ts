@@ -283,3 +283,98 @@ export function hoursBetween(from: string | null | undefined, to: string | null 
   if (h >= 48) return `${Math.round(h / 24)} d`;
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
+
+// ---------------------------------------------------------------------------
+// Daily store ↔ gate reconciliation (store_pass_reconcile, step 2)
+
+export type DiscrepancyCode =
+  | "OUT_NO_SP" | "SP_NOT_OUT" | "SP_VS_GP" | "SP_VS_DC" | "DC_CHANGED"
+  | "SP_CANCELLED_AFTER_ISSUE" | "CROSS_DAY" | "DC_PENDING";
+
+export type Severity = "high" | "medium" | "info";
+
+export const DISCREPANCY_META: Record<DiscrepancyCode, { label: string; severity: Severity; help: string }> = {
+  OUT_NO_SP: { label: "Out without store pass", severity: "high", help: "The vehicle left the gate and the store never issued a store pass for this dispatch." },
+  SP_NOT_OUT: { label: "Issued, not out", severity: "high", help: "The store handed the goods over but they have not left the gate." },
+  SP_VS_GP: { label: "Store ≠ gate", severity: "high", help: "What the store issued differs from what the guard counted at the gate." },
+  SP_VS_DC: { label: "Store ≠ DC", severity: "medium", help: "What the store issued differs from the dispatch as it is now. The office corrects the dispatch, or the store explains." },
+  DC_CHANGED: { label: "DC changed after issue", severity: "medium", help: "The office edited the dispatch after the store pass was issued." },
+  SP_CANCELLED_AFTER_ISSUE: { label: "Issued pass cancelled", severity: "info", help: "An issued store pass for this dispatch was cancelled by a manager." },
+  CROSS_DAY: { label: "Cross-day", severity: "info", help: "Issued by the store on one day, out of the gate on another." },
+  DC_PENDING: { label: "Pending", severity: "info", help: "Dispatch made; nothing issued or out yet." },
+};
+export const discrepancyMeta = (c: string) =>
+  DISCREPANCY_META[c as DiscrepancyCode] ?? { label: c, severity: "info" as Severity, help: "" };
+
+export const SEVERITY_TONE: Record<Severity, string> = {
+  high: "bg-red-50 text-red-800 ring-red-200",
+  medium: "bg-amber-50 text-amber-800 ring-amber-200",
+  info: "bg-slate-100 text-slate-700 ring-slate-200",
+};
+
+export type ReconExplained = { code: string; note: string; by: string | null; at: string };
+
+export type ReconRow = {
+  dispatch_id: string;
+  dispatch_number: string;
+  dispatch_date: string;
+  dispatch_created_at: string;
+  delivery_status: string;
+  customer_name: string | null;
+  order_numbers: string | null;
+  dc_quantity: number;
+  dc_packages: number;
+  store_pass_id: string | null;
+  sp_number: string | null;
+  sp_status: string | null;
+  sp_issued_at: string | null;
+  sp_date: string | null;
+  sp_quantity: number | null;
+  sp_packages: number | null;
+  sp_dispatch_quantity: number | null;
+  sp_dispatch_packages: number | null;
+  gate_pass_id: string | null;
+  gp_number: string | null;
+  gp_status: string | null;
+  gp_held_at: string | null;
+  gate_out_at: string | null;
+  out_date: string | null;
+  gp_quantity: number | null;
+  gp_packages: number | null;
+  gp_counted_packages: number | null;
+  gp_counted_quantity: number | null;
+  stage: TrackingStage;
+  cancelled_sp_number: string | null;
+  cancelled_sp_reason: string | null;
+  cancelled_sp_at: string | null;
+  codes: string[];
+  high_codes: number;
+  open_high: number;
+  open_medium: number;
+  explained: ReconExplained[];
+};
+
+export type ReconProductRow = {
+  product_id: string | null;
+  product_code: string | null;
+  product_name: string | null;
+  dc_quantity: number;
+  dc_packages: number;
+  sp_quantity: number;
+  sp_packages: number;
+  gp_quantity: number;
+  gp_packages: number;
+  gp_counted_packages: number | null;
+  gp_counted_quantity: number | null;
+};
+
+/** What the gate counted for a dispatch: cartons when the lines had them, else dozens; printed figures when nothing was counted (manager release). */
+export const gateFigure = (r: Pick<ReconRow, "gp_counted_packages" | "gp_counted_quantity" | "gp_packages" | "gp_quantity">) => {
+  if (r.gp_counted_packages !== null && r.gp_counted_packages !== undefined) return { value: Number(r.gp_counted_packages), unit: "ctn" as const, counted: true };
+  if (r.gp_counted_quantity !== null && r.gp_counted_quantity !== undefined) return { value: Number(r.gp_counted_quantity), unit: "dz" as const, counted: true };
+  if (r.gp_packages !== null && r.gp_packages !== undefined) return { value: Number(r.gp_packages), unit: "ctn" as const, counted: false };
+  if (r.gp_quantity !== null && r.gp_quantity !== undefined) return { value: Number(r.gp_quantity), unit: "dz" as const, counted: false };
+  return null;
+};
+
+export type GateStoreStatus = { mode: "off" | "warn" | "block"; missing: string[] };

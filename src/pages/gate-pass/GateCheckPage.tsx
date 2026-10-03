@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { StorePassGateNotice } from "@/components/store-pass/StorePassGateNotice";
 import { PersonGatePanel, type PersonLookup } from "@/components/person-gate-pass/PersonGatePanel";
 import {
   PERSON_PASS_VARIANTS, STAFF_PASS, WORKER_PASS, detectPersonPassVariant, isFullPassNumber, normalizePersonPassNumber,
@@ -34,6 +35,7 @@ type CheckResult = {
   vehicle_ok?: boolean;
   mismatches?: { line_no: number; description: string; expected: number; counted: number }[];
   problems?: string[]; // scrap weighment
+  missing_store_pass?: string[]; // sales pass that went out with no store pass (warn mode)
 };
 
 // Guards get a bare full-screen page with just a logout; everyone else the normal layout.
@@ -79,6 +81,8 @@ export default function GateCheckPage() {
   const [vehicle, setVehicle] = useState("");
   const [note, setNote] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
+  // Sales pass with a dispatch that has no store pass while the setting is "block".
+  const [spBlocked, setSpBlocked] = useState(false);
   // Each Open / scan is one lookup; the alarm decision is made once per lookup, on the
   // pass as it stood when it was opened (so marking a pass Out never sets it off).
   const [lookupId, setLookupId] = useState(0);
@@ -102,6 +106,7 @@ export default function GateCheckPage() {
     setVehicle("");
     setNote("");
     setResult(null);
+    setSpBlocked(false);
   }, [passNumber]);
 
   const lookUp = (raw: string) => {
@@ -303,6 +308,9 @@ export default function GateCheckPage() {
                     <>
                       <CheckCircle2 className="h-12 w-12 text-emerald-700 mx-auto" />
                       <div className="text-xl font-bold text-emerald-800">Marked Out — the vehicle may go</div>
+                      {result.missing_store_pass?.length ? (
+                        <div className="text-sm text-amber-800">No store pass for {result.missing_store_pass.join(", ")} — logged, the store managers have been told.</div>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -385,6 +393,7 @@ export default function GateCheckPage() {
                   }} />
                 ) : (
                 <>
+                {pass.pass_type === "sales" && <StorePassGateNotice pass={pass} onStatus={setSpBlocked} />}
                 <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground px-1">Count each line</div>
                 {items.map((i) => {
                   const exp = expectedCount(i);
@@ -435,11 +444,11 @@ export default function GateCheckPage() {
                   <Button
                     className={cn("w-full h-14 text-lg font-bold", goesOut ? "bg-emerald-700 hover:bg-emerald-800" : "")}
                     variant={allCounted && !goesOut ? "destructive" : "default"}
-                    disabled={!allCounted || check.isPending}
+                    disabled={!allCounted || check.isPending || (spBlocked && goesOut)}
                     onClick={() => check.mutate()}
                   >
                     {check.isPending && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-                    {!allCounted ? "Count every line first" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
+                    {!allCounted ? "Count every line first" : spBlocked && goesOut ? "No store pass · vehicle cannot leave" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
                   </Button>
                   {!allCounted && (
                     <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
