@@ -453,7 +453,17 @@ import DistributorOrderAnalysisPage from "./pages/distributor/DistributorOrderAn
 import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
 import DistributorDispatchPage from "./pages/distributor/DistributorDispatchPage";
 
-const queryClient = new QueryClient();
+// Data is considered fresh for a short while so navigating between pages or
+// switching browser tabs does not refire every query (and re-render every
+// list). Mutations still invalidate their own keys, so writes show up at once.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Wraps the routed content so a render error shows a recoverable message
 // instead of a blank white screen, and clears itself when the route changes.
