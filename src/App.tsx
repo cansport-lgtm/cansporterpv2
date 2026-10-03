@@ -381,6 +381,12 @@ import GatePassDashboardPage from "./pages/gate-pass/GatePassDashboardPage";
 import GatePassReturnsPage from "./pages/gate-pass/GatePassReturnsPage";
 import ScrapYardPage from "./pages/gate-pass/ScrapYardPage";
 import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
+import StorePassListPage from "./pages/store-pass/StorePassListPage";
+import StorePassFormPage from "./pages/store-pass/StorePassFormPage";
+import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
+import DispatchTrackingPage from "./pages/store-pass/DispatchTrackingPage";
+import StorePassDashboardPage from "./pages/store-pass/StorePassDashboardPage";
+import StoreGateReconciliationPage from "./pages/store-pass/StoreGateReconciliationPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -905,6 +911,14 @@ const App = () => (
             <Route path="/gate-pass/edit/:id" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/approvals" element={<ProtectedRoute><GatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/gate-pass/check" element={<ProtectedRoute><GateCheckPage /></ProtectedRoute>} />
+            <Route path="/store-pass" element={<Navigate to="/store-pass/dashboard" replace />} />
+            <Route path="/store-pass/dashboard" element={<ProtectedRoute><StorePassDashboardPage /></ProtectedRoute>} />
+            <Route path="/store-pass/reconciliation" element={<ProtectedRoute><StoreGateReconciliationPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes" element={<ProtectedRoute><StorePassListPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes/:id" element={<ProtectedRoute><StorePassDetailPage /></ProtectedRoute>} />
+            <Route path="/store-pass/new" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/edit/:id" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/tracking" element={<ProtectedRoute><DispatchTrackingPage /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />

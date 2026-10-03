@@ -180,6 +180,9 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "gate_pass_officer", label: "Gate Pass — Officer (create & submit passes)" },
   { value: "gate_pass_viewer", label: "Gate Pass — Viewer (read-only)" },
   { value: "gate_security", label: "Gate Pass — Gate Security (gate check page only, no prices)" },
+  { value: "store_pass_manager", label: "Store Pass — Manager (issue, cancel issued passes, explain discrepancies)" },
+  { value: "store_pass_officer", label: "Store Pass — Officer / store keeper (make, issue & print passes)" },
+  { value: "store_pass_viewer", label: "Store Pass — Viewer (read-only)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -679,6 +682,9 @@ export default function UsersPage() {
       gate_pass_jobwork_manager: "bg-stone-700/10 text-stone-700",
       gate_pass_scrap_manager: "bg-stone-700/10 text-stone-700",
       gate_security: "bg-slate-800/10 text-slate-800",
+      store_pass_manager: "bg-indigo-700/10 text-indigo-700",
+      store_pass_officer: "bg-indigo-600/10 text-indigo-600",
+      store_pass_viewer: "bg-indigo-500/10 text-indigo-500",
       projects_super_manager: "bg-blue-700/10 text-blue-700",
     };
     return colors[role] || "";
