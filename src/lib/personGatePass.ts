@@ -68,6 +68,14 @@ export type PersonPassVariant = {
   halfDayEffect: string;
   /** Detail-page banner once the day is marked. */
   halfDayMarkedText: (rows: number | null) => string;
+  /**
+   * The pass table carries attendance_effect ('half_day' | 'absent') and the
+   * half-day view an `effect` column: short leaves past the time-outside
+   * thresholds mark a half day or an absence (workers only).
+   */
+  attendanceEffects?: boolean;
+  /** Sentence added to the Short leave kind description. */
+  shortLeaveRule?: string;
   /** Gate Check result line after a half-day Out. */
   halfDayGateText: (rows: number | null) => string;
   /** Second line under the name: category (workers) or designation (staff). */
@@ -117,6 +125,8 @@ export const WORKER_PASS: PersonPassVariant = {
   halfDayMarkedText: (rows) => `${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} set to half day. Any entry added later for that date stays a half day.`,
   halfDayGateText: (rows) => `Half day marked for today (${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} updated).`,
   personSubline: (p) => p?.category ?? "",
+  attendanceEffects: true,
+  shortLeaveRule: "Over 3 h outside in working hours (08:30–19:30) → half day; over 6 h → absent, and that day's productivity entries are removed. Not back by day end → the same rule on the time outside.",
 };
 
 export const STAFF_PASS: PersonPassVariant = {
@@ -171,18 +181,36 @@ export const PERSON_PASS_VARIANTS: PersonPassVariant[] = [WORKER_PASS, STAFF_PAS
 
 export const isOfficialDuty = (k: string | null | undefined) => k === "official_duty";
 
+/**
+ * The attendance effect of a pass: 'half_day', 'absent' or null. Worker passes
+ * carry it in attendance_effect; staff passes still derive it (a half-day pass
+ * out, or a non-official pass not returned). Official duty never has one.
+ */
+export const attendanceEffect = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }): "half_day" | "absent" | null => {
+  if (p.attendance_effect !== undefined) return (p.attendance_effect as "half_day" | "absent" | null) ?? null;
+  return (p.pass_kind === "half_day" && p.status === "out") || (p.status === "not_returned" && !isOfficialDuty(p.pass_kind)) ? "half_day" : null;
+};
+
 /** Did this pass mark a half day? Official duty never does, even when not scanned back in. */
-export const marksHalfDay = (p: Pick<PersonGatePass, "pass_kind" | "status">) =>
-  (p.pass_kind === "half_day" && p.status === "out") || (p.status === "not_returned" && !isOfficialDuty(p.pass_kind));
+export const marksHalfDay = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }) =>
+  attendanceEffect(p) === "half_day";
+
+/** Did this pass mark the worker absent (short leave outside over the limit)? */
+export const marksAbsent = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }) =>
+  attendanceEffect(p) === "absent";
 
 const KIND_META: Record<PassKind, { label: string; description: (noun: string) => string; badgeClass: string }> = {
   half_day: { label: "Half day", description: (noun) => `Leaves and does not come back today — the day is marked Half day when the ${noun} goes out`, badgeClass: "bg-amber-50 text-amber-800 ring-amber-200" },
-  short_leave: { label: "Short leave", description: () => "Personal errand — goes out and comes back, scanned Out and In at the gate. Not back by day end → half day", badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
+  short_leave: { label: "Short leave", description: () => "Personal errand — goes out and comes back, scanned Out and In at the gate.", badgeClass: "bg-sky-50 text-sky-700 ring-sky-200" },
   official_duty: { label: "Official duty", description: () => "Company work — purchases, bank, site visit. Scanned Out and In at the gate. Attendance is never touched", badgeClass: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
 };
 
 export const passKinds = (v: PersonPassVariant): { value: PassKind; label: string; description: string; badgeClass: string }[] =>
-  v.kinds.map((value) => ({ value, label: KIND_META[value].label, description: KIND_META[value].description(v.noun), badgeClass: KIND_META[value].badgeClass }));
+  v.kinds.map((value) => ({
+    value, label: KIND_META[value].label, badgeClass: KIND_META[value].badgeClass,
+    description: KIND_META[value].description(v.noun)
+      + (value === "short_leave" ? ` ${v.shortLeaveRule ?? "Not back by day end → half day"}` : ""),
+  }));
 
 export const passKindMeta = (k: string) => {
   const m = KIND_META[k as PassKind] ?? KIND_META.half_day;
@@ -232,6 +260,11 @@ export type PersonGatePass = {
   overdue_notified_at: string | null;
   half_day_marked_at: string | null;
   half_day_rows: number | null;
+  /** Workers only: 'half_day' | 'absent' once a threshold or a half-day pass applied. */
+  attendance_effect?: "half_day" | "absent" | null;
+  attendance_marked_at?: string | null;
+  /** Workers only: minutes outside inside the official hours. */
+  work_minutes_outside?: number | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
   closed_at: string | null;
@@ -339,8 +372,15 @@ export function useLivePersonPasses(v: PersonPassVariant) {
   });
 }
 
-// Dates marked Half day by a gate pass, for the sheets and the salary.
-export type HalfDayMark = { employee_id: string; pass_date: string; pass_number: string; pass_kind: string; status: string; gate_out_at: string | null };
+// Dates marked Half day (or, for workers, Absent) by a gate pass, for the sheets and the salary.
+export type HalfDayMark = {
+  employee_id: string; pass_date: string; pass_number: string; pass_kind: string; status: string; gate_out_at: string | null;
+  /** Workers only; staff marks are always half days. */
+  effect?: "half_day" | "absent" | null;
+  work_minutes_outside?: number | null;
+};
+
+export const isAbsentMark = (m: HalfDayMark | undefined) => m?.effect === "absent";
 
 /** Half-day gate pass marks between two dates (yyyy-MM-dd), keyed "employeeId|date". */
 export function usePersonPassHalfDays(v: PersonPassVariant, start: string, end: string) {
@@ -350,7 +390,7 @@ export function usePersonPassHalfDays(v: PersonPassVariant, start: string, end: 
       const map = new Map<string, HalfDayMark>();
       const { data: rows, error } = await ppDb
         .from(v.halfDayView)
-        .select("employee_id, pass_date, pass_number, pass_kind, status, gate_out_at")
+        .select("employee_id, pass_date, pass_number, pass_kind, status, gate_out_at" + (v.attendanceEffects ? ", effect, work_minutes_outside" : ""))
         .gte("pass_date", start)
         .lte("pass_date", end);
       // The view is missing until the migration is applied — the sheets still work without it.
@@ -364,7 +404,7 @@ export function usePersonPassHalfDays(v: PersonPassVariant, start: string, end: 
 
 /** Tooltip text for a sheet cell on a date marked half day by a pass. */
 export const halfDayMarkTitle = (mark: HalfDayMark) =>
-  `Half Day · gate pass ${mark.pass_number}${mark.gate_out_at ? ` out ${format(new Date(mark.gate_out_at), "HH:mm")}` : ""}`;
+  `${isAbsentMark(mark) ? "Absent" : "Half Day"} · gate pass ${mark.pass_number}${mark.gate_out_at ? ` out ${format(new Date(mark.gate_out_at), "HH:mm")}` : ""}${mark.work_minutes_outside ? ` · ${mark.work_minutes_outside} min outside` : ""}`;
 
 /** Print the small pass slip with its QR. `qrSvg` is the QR's outerHTML. */
 export function printPersonGatePass(v: PersonPassVariant, p: PersonGatePass, qrSvg: string) {

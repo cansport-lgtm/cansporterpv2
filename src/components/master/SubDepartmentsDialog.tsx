@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
@@ -49,6 +50,12 @@ interface SubDepartmentsDialogProps {
 
 export default function SubDepartmentsDialog({ open, onOpenChange, department }: SubDepartmentsDialogProps) {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SubDepartment | null>(null);
@@ -130,16 +137,20 @@ export default function SubDepartmentsDialog({ open, onOpenChange, department }:
             <DialogTitle>Sub-Departments — {department.name}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex justify-end mb-2">
-            <Button size="sm" onClick={() => { resetForm(); setEditDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Add Sub-Department
-            </Button>
-          </div>
+          {canCreate && (
+            <div className="flex justify-end mb-2">
+              <Button size="sm" onClick={() => { resetForm(); setEditDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1" /> Add Sub-Department
+              </Button>
+            </div>
+          )}
 
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : subDepartments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No sub-departments yet. Click "Add Sub-Department" to create one.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {canCreate ? 'No sub-departments yet. Click "Add Sub-Department" to create one.' : "No sub-departments yet."}
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -164,12 +175,16 @@ export default function SubDepartmentsDialog({ open, onOpenChange, department }:
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(sub)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedItem(sub); setDeleteDialogOpen(true); }}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(sub)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedItem(sub); setDeleteDialogOpen(true); }}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

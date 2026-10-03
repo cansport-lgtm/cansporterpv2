@@ -527,13 +527,13 @@ const LabourProductivityEntryPage = () => {
 
   // The worker left on a half-day gate pass (or never came back from a short leave)
   // on the entry date: the day is a half day, and the database keeps it so.
-  const { data: halfDayPass } = useQuery<{ pass_number: string; gate_out_at: string | null } | null>({
+  const { data: halfDayPass } = useQuery<{ pass_number: string; gate_out_at: string | null; effect: "half_day" | "absent" | null } | null>({
     queryKey: ["labour-gate-pass-half-day", formData.employee_id, formData.target_date],
     enabled: Boolean(formData.employee_id && formData.target_date),
     queryFn: async () => {
       const { data, error } = await lgpDb
         .from("v_labour_gate_pass_half_days")
-        .select("pass_number, gate_out_at")
+        .select("pass_number, gate_out_at, effect")
         .eq("employee_id", formData.employee_id)
         .eq("pass_date", formData.target_date)
         .limit(1)
@@ -543,7 +543,7 @@ const LabourProductivityEntryPage = () => {
     },
   });
   useEffect(() => {
-    if (halfDayPass && formData.work_type !== "half_day") {
+    if (halfDayPass && halfDayPass.effect !== "absent" && formData.work_type !== "half_day") {
       setFormData((f) => ({ ...f, work_type: "half_day", target_quantity: getProcessTarget(f.process_id, f.department_id, "half_day") || f.target_quantity }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1940,9 +1940,14 @@ const LabourProductivityEntryPage = () => {
                       <SelectItem value="half_day">Half Day (6 MPH)</SelectItem>
                     </SelectContent>
                   </Select>
-                  {halfDayPass && (
+                  {halfDayPass && halfDayPass.effect !== "absent" && (
                     <p className="text-xs text-amber-700 mt-1">
                       Half day: left on gate pass {halfDayPass.pass_number}{halfDayPass.gate_out_at ? ` at ${format(new Date(halfDayPass.gate_out_at), "HH:mm")}` : ""}.
+                    </p>
+                  )}
+                  {halfDayPass?.effect === "absent" && (
+                    <p className="text-xs font-semibold text-red-700 mt-1">
+                      Absent on this date: outside over the limit on short leave (gate pass {halfDayPass.pass_number}). No entry can be posted.
                     </p>
                   )}
                 </div>
@@ -2008,7 +2013,7 @@ const LabourProductivityEntryPage = () => {
               <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button type="submit" disabled={saveMutation.isPending} className="w-full sm:w-auto">
+              <Button type="submit" disabled={saveMutation.isPending || halfDayPass?.effect === "absent"} className="w-full sm:w-auto">
                 {saveMutation.isPending ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>

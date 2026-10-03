@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,12 @@ interface Grade {
 
 export default function GradesPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Grade | null>(null);
@@ -154,12 +161,16 @@ export default function GradesPage() {
       header: "Actions",
       render: (item: Grade) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -173,14 +184,14 @@ export default function GradesPage() {
           description="Manage product grades"
           icon={Database}
           iconColor="bg-green-500/10 text-green-500"
-          action={{
+          action={canCreate ? {
             label: "Add Grade",
             onClick: () => {
               resetForm();
               setDialogOpen(true);
             },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <DataTable
