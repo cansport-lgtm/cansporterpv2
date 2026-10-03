@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -16,7 +16,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { productsForCustomerParty, partyIdOfCustomer } from '@/lib/customerSkus';
-import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
+import { useSalesOrdersList, SALES_ORDER_PERIOD_OPTIONS, type SalesOrderPeriod, type SalesOrderLine } from "@/hooks/useSalesOrdersList";
+import { SalesOrdersListFooter } from "@/components/sales/SalesOrdersListFooter";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
 import { toast } from "sonner";
@@ -48,6 +50,8 @@ export default function DomesticSalesOrdersPage() {
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [editCustomerPopoverOpen, setEditCustomerPopoverOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [period, setPeriod] = useState<SalesOrderPeriod>('90');
+  const isMobile = useIsMobile();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<any>(null);
   const [editOrder, setEditOrder] = useState<any>(null);
@@ -103,24 +107,17 @@ export default function DomesticSalesOrdersPage() {
     }
   }, [location.state, canCreate]);
 
-  // Fetch orders for domestic segment
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['sales-orders', 'domestic'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select(`
-          *,
-          customers(name, code, logo_url, billing_customer),
-          created_by_user:app_users!sales_orders_created_by_fkey(full_name)
-        `)
-        .eq('sales_segment', 'domestic')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Orders for the current window (search / status / period), with their
+  // lines embedded. Filtering and paging happen server-side.
+  const {
+    orders,
+    total: totalOrders,
+    isLoading,
+    isFetching,
+    hasMore,
+    loadMore,
+    isSearching,
+  } = useSalesOrdersList({ segment: 'domestic', search: searchTerm, status: statusFilter, period });
 
   // Fetch order items for viewing
   const { data: orderItems } = useQuery({
@@ -166,25 +163,6 @@ export default function DomesticSalesOrdersPage() {
     return Number(candidates[0].price_per_dozen) || 0;
   };
 
-  // Fetch ALL order items for inline list view
-  const allOrderIds = orders?.map(o => o.id) || [];
-  const { data: allOrderItems } = useQuery({
-    queryKey: ['all-sales-order-items', 'domestic', allOrderIds.join(',')],
-    queryFn: async () => {
-      if (allOrderIds.length === 0) return [];
-      // Page past the ~1000-row API cap — otherwise the newest orders'
-      // items get dropped and their rows show "No items".
-      return fetchAllRows((from, to) =>
-        supabase
-          .from('sales_order_items')
-          .select(`*, products(code, name)`)
-          .in('order_id', allOrderIds)
-          .order('id', { ascending: true })
-          .range(from, to));
-    },
-    enabled: allOrderIds.length > 0,
-  });
-
   const toggleExpand = (orderId: string) => {
     setExpandedOrders(prev => {
       const next = new Set(prev);
@@ -194,9 +172,14 @@ export default function DomesticSalesOrdersPage() {
     });
   };
 
-  const getOrderItems = (orderId: string) => {
-    return allOrderItems?.filter((item: any) => item.order_id === orderId) || [];
-  };
+  // Lines come embedded on each order row; index them once per result set.
+  const itemsByOrder = useMemo(() => {
+    const map = new Map<string, SalesOrderLine[]>();
+    for (const order of orders) map.set(order.id, order.sales_order_items || []);
+    return map;
+  }, [orders]);
+
+  const getOrderItems = (orderId: string): SalesOrderLine[] => itemsByOrder.get(orderId) || [];
 
   // Fetch customers for domestic segment
   const { data: customers } = useQuery({
@@ -497,7 +480,7 @@ export default function DomesticSalesOrdersPage() {
   });
 
   const handleOpenEdit = async (order: any) => {
-    // Load existing order items from allOrderItems
+    // Load the existing lines embedded on the order row
     const existingItems = getOrderItems(order.id);
     const editItems = existingItems.map((item: any) => {
       const packingDozens = dozensForLabel(item.packing_type, packingTypes);
@@ -786,13 +769,8 @@ export default function DomesticSalesOrdersPage() {
     return formData.items.reduce((sum, item) => sum + (parseFloat(item.quantity_dozens) || 0), 0);
   };
 
-  const filteredOrders = orders?.filter(o => {
-    const matchesSearch = 
-      o.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customers?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Search, status and period are applied by the query itself.
+  const filteredOrders = orders;
 
   return (
     <ERPLayout>
@@ -828,6 +806,16 @@ export default function DomesticSalesOrdersPage() {
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={period} onValueChange={(v) => setPeriod(v as SalesOrderPeriod)} disabled={isSearching}>
+                <SelectTrigger className="w-full sm:w-40" title={isSearching ? 'Search looks across all time' : undefined}>
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALES_ORDER_PERIOD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {canCreate && (
@@ -1056,8 +1044,9 @@ export default function DomesticSalesOrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Desktop Table View */}
-            <div className="hidden md:block border rounded-lg overflow-hidden">
+            {/* Desktop Table View — only one of the two views is rendered */}
+            {!isMobile && (
+            <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1227,9 +1216,11 @@ export default function DomesticSalesOrdersPage() {
                 </TableBody>
               </Table>
             </div>
+            )}
 
             {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
+            {isMobile && (
+            <div className="space-y-3">
               {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : filteredOrders?.length === 0 ? (
@@ -1347,6 +1338,16 @@ export default function DomesticSalesOrdersPage() {
                 })
               )}
             </div>
+            )}
+
+            <SalesOrdersListFooter
+              shown={orders.length}
+              total={totalOrders}
+              hasMore={hasMore}
+              isFetching={isFetching}
+              isSearching={isSearching}
+              onLoadMore={loadMore}
+            />
           </CardContent>
         </Card>
 
