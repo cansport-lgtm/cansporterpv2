@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { lgpDb } from "@/lib/labourGatePass";
-import { Plus, Search, Pencil, Trash2, UserPlus, CheckCircle, ChevronsUpDown, Check, Printer, Upload, X, Loader2, Download, Clock, FileEdit } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, UserPlus, CheckCircle, ChevronsUpDown, Check, Printer, Upload, X, Loader2, Download, Clock, FileEdit, FileX2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -24,6 +24,15 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
+import {
+  PENDING_MAP_KEY as DELETE_PENDING_MAP_KEY,
+  REQUESTS_KEY as DELETE_REQUESTS_KEY,
+  LOG_KEY as DELETE_LOG_KEY,
+  submitAttendanceDeleteRequest,
+  useAttendanceDeleteAccess,
+  usePendingAttendanceDeleteMap,
+  workTypeLabel,
+} from "@/lib/labourAttendanceDelete";
 
 interface Column<T> {
   key: string;
@@ -86,6 +95,10 @@ const LabourProductivityEntryPage = () => {
     mph: number;
   }>({ target_quantity: 0, process_id: "", department_id: "", mph: 12 });
   const [requestEditReason, setRequestEditReason] = useState<string>("");
+  // Attendance delete request (a supervisor cannot delete an entry; they ask with a reason)
+  const [requestDeleteEntry, setRequestDeleteEntry] = useState<ProductivityEntry | null>(null);
+  const [requestDeleteReason, setRequestDeleteReason] = useState<string>("");
+  const { canRequest: canRequestDelete } = useAttendanceDeleteAccess();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [filterCreatedBy, setFilterCreatedBy] = useState("all");
@@ -385,6 +398,38 @@ const LabourProductivityEntryPage = () => {
       return map;
     },
   });
+
+  // Map of entry_id -> pending attendance DELETE request number (for the "Delete request pending" badge)
+  const { data: pendingDeleteByEntry = {} } = usePendingAttendanceDeleteMap(entryIdsForRequests);
+
+  const submitDeleteRequestMutation = useMutation({
+    mutationFn: async (payload: { entry: ProductivityEntry; reason: string }) =>
+      submitAttendanceDeleteRequest(payload.entry.id, payload.reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [DELETE_PENDING_MAP_KEY] });
+      queryClient.invalidateQueries({ queryKey: [DELETE_REQUESTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: [DELETE_LOG_KEY] });
+      toast.success("Delete request submitted for approval");
+      setRequestDeleteEntry(null);
+      setRequestDeleteReason("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const openRequestDeleteDialog = (entry: ProductivityEntry) => {
+    setRequestDeleteEntry(entry);
+    setRequestDeleteReason("");
+  };
+
+  const handleSubmitDeleteRequest = () => {
+    if (!requestDeleteEntry) return;
+    const reason = requestDeleteReason.trim();
+    if (reason.length < 5) {
+      toast.error("Please give the reason for deleting this attendance (at least 5 characters)");
+      return;
+    }
+    submitDeleteRequestMutation.mutate({ entry: requestDeleteEntry, reason });
+  };
 
   const submitEditRequestMutation = useMutation({
     mutationFn: async (payload: {
@@ -1375,6 +1420,9 @@ const LabourProductivityEntryPage = () => {
         const canDelete = isSuperAdminLocal;
         const canApprove = isDraft && (isSuperAdminLocal || isApprover || (!isFloorIncharge && hasModulePermission("labour", "approve")));
         const hasPendingRequest = !!(pendingRequestsByEntry as Record<string, string>)[item.id];
+        const pendingDeleteNumber = (pendingDeleteByEntry as Record<string, string>)[item.id];
+        // Supervisors ask for a delete instead of deleting; approved (locked) entries can be asked about too.
+        const canAskDelete = !isSuperAdminLocal && canRequestDelete;
         
         return (
           <div className="flex gap-1">
@@ -1412,7 +1460,17 @@ const LabourProductivityEntryPage = () => {
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
-            {!canEdit && !canDelete && (
+            {canAskDelete && !pendingDeleteNumber && (
+              <Button variant="ghost" size="icon" onClick={() => openRequestDeleteDialog(item)} title="Request Delete (attendance marked by mistake)">
+                <FileX2 className="h-4 w-4 text-destructive" />
+              </Button>
+            )}
+            {canAskDelete && pendingDeleteNumber && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive" title={pendingDeleteNumber}>
+                Delete request pending
+              </Badge>
+            )}
+            {!canEdit && !canDelete && !canAskDelete && (
               <span className="text-xs text-muted-foreground px-2">Approved – locked</span>
             )}
           </div>
@@ -1430,6 +1488,8 @@ const LabourProductivityEntryPage = () => {
     const canDelete = isSuperAdminLocal;
     const canApprove = isDraft && (isSuperAdminLocal || !isFloorIncharge);
     const hasPendingRequest = !!(pendingRequestsByEntry as Record<string, string>)[item.id];
+    const pendingDeleteNumber = (pendingDeleteByEntry as Record<string, string>)[item.id];
+    const canAskDelete = !isSuperAdminLocal && canRequestDelete;
 
     return (
       <Card key={item.id} className="mb-3">
@@ -1559,7 +1619,18 @@ const LabourProductivityEntryPage = () => {
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
-            {!canEdit && !canDelete && (
+            {canAskDelete && !pendingDeleteNumber && (
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => openRequestDeleteDialog(item)}>
+                <FileX2 className="h-4 w-4 mr-1 text-destructive" />
+                Request Delete
+              </Button>
+            )}
+            {canAskDelete && pendingDeleteNumber && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive flex-1 justify-center py-1.5">
+                Delete request pending
+              </Badge>
+            )}
+            {!canEdit && !canDelete && !canAskDelete && (
               <span className="text-xs text-muted-foreground">Approved – locked</span>
             )}
           </div>
@@ -2354,6 +2425,63 @@ const LabourProductivityEntryPage = () => {
               </Button>
               <Button onClick={handleSubmitEditRequest} disabled={submitEditRequestMutation.isPending}>
                 {submitEditRequestMutation.isPending ? "Submitting…" : "Submit Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Delete (attendance marked by mistake) */}
+      <Dialog open={!!requestDeleteEntry} onOpenChange={(open) => { if (!open) { setRequestDeleteEntry(null); setRequestDeleteReason(""); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Request Attendance Delete</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground">
+              Use this when a worker was marked <strong>present by mistake</strong> (the worker was absent).
+              Nothing is deleted now: the request goes to the <strong>Attendance Delete Approver</strong>, and the
+              entry is removed only when they approve it. Every request and decision is kept on the log sheet.
+            </div>
+
+            <div className="rounded border bg-muted/40 p-3 text-xs space-y-1">
+              <p className="font-semibold">Attendance entry to delete</p>
+              <p>Worker: <span className="font-medium">{requestDeleteEntry?.labour_employees?.full_name || "-"}</span>
+                {requestDeleteEntry?.labour_employees?.employee_code && (
+                  <span className="text-muted-foreground"> ({requestDeleteEntry.labour_employees.employee_code})</span>
+                )}
+              </p>
+              <p>Date: <span className="font-medium">{requestDeleteEntry?.target_date ? format(new Date(requestDeleteEntry.target_date), "dd MMM yyyy") : "-"}</span></p>
+              <p>Department: <span className="font-medium">{requestDeleteEntry?.production_departments?.name || "-"}</span></p>
+              <p>Process: <span className="font-medium">{requestDeleteEntry?.qa_processes?.name || "-"}</span></p>
+              <p>Attendance: <span className="font-medium">{workTypeLabel(requestDeleteEntry?.work_type)} · MPH {requestDeleteEntry?.mph ?? 0}</span>
+                {(requestDeleteEntry?.check_in || requestDeleteEntry?.check_out) && (
+                  <span className="text-muted-foreground"> · {formatTime(requestDeleteEntry?.check_in) || "--:--"} → {formatTime(requestDeleteEntry?.check_out) || "--:--"}</span>
+                )}
+              </p>
+              <p>Status: <span className="font-medium">{requestDeleteEntry?.status === "approved" ? "Approved" : "Draft"}</span>
+                {requestDeleteEntry?.created_by_user?.full_name && (
+                  <span className="text-muted-foreground"> · marked by {requestDeleteEntry.created_by_user.full_name}</span>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Reason for deleting this attendance <span className="text-destructive">*</span></Label>
+              <Textarea
+                value={requestDeleteReason}
+                onChange={(e) => setRequestDeleteReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Worker was absent on this date; attendance was marked by mistake (required)"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setRequestDeleteEntry(null); setRequestDeleteReason(""); }}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleSubmitDeleteRequest} disabled={submitDeleteRequestMutation.isPending}>
+                {submitDeleteRequestMutation.isPending ? "Submitting…" : "Submit Delete Request"}
               </Button>
             </div>
           </div>

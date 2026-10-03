@@ -204,6 +204,7 @@ import LabourGatePassListPage from "./pages/labour/LabourGatePassListPage";
 import LabourGatePassFormPage from "./pages/labour/LabourGatePassFormPage";
 import LabourGatePassDetailPage from "./pages/labour/LabourGatePassDetailPage";
 import LabourGatePassApprovalsPage from "./pages/labour/LabourGatePassApprovalsPage";
+import LabourAttendanceDeleteRequestsPage from "./pages/labour/LabourAttendanceDeleteRequestsPage";
 
 // Fixed Assets pages
 import FixedAssetsDashboard from "./pages/fixed-assets/FixedAssetsDashboard";
@@ -761,6 +762,7 @@ const App = () => (
             <Route path="/labour/gate-pass/new" element={<ProtectedRoute><LabourGatePassFormPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/approvals" element={<ProtectedRoute><LabourGatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/:id" element={<ProtectedRoute><LabourGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/labour/attendance-delete-requests" element={<ProtectedRoute requiredRoles={["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"]}><LabourAttendanceDeleteRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}

@@ -17479,6 +17479,7 @@ export type Database = {
         | "gate_pass_scrap_manager"
         | "labour_gate_pass_approver"
         | "staff_gate_pass_approver"
+        | "labour_attendance_delete_approver"
         | "production_manager"
         | "production_officer"
         | "production_viewer"
@@ -17775,6 +17776,7 @@ export const Constants = {
         "gate_pass_jobwork_manager",
         "gate_pass_scrap_manager",
         "labour_gate_pass_approver",
+        "labour_attendance_delete_approver",
         "production_manager",
         "production_officer",
         "production_viewer",
