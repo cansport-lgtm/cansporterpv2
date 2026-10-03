@@ -521,6 +521,7 @@ const navigationItems: NavItem[] = [
       { title: "Worker Gate Passes", href: "/labour/gate-pass" },
       { title: "New Worker Gate Pass", href: "/labour/gate-pass/new", allowedRoles: ["super_admin", "labour_gate_pass_approver", "labour_productivity_approver", "labour_productivity_poster", "floor_incharge"] },
       { title: "Gate Pass Approvals", href: "/labour/gate-pass/approvals", allowedRoles: ["super_admin", "labour_gate_pass_approver"] },
+      { title: "Attendance Delete Requests", href: "/labour/attendance-delete-requests", allowedRoles: ["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"] },
       { title: "Process Dashboard", href: "/labour/process-dashboard" },
       { title: "Category Dashboard", href: "/labour/category-dashboard" },
       { title: "Individual Performance", href: "/labour/individual-performance" },
