@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { fmtQty, gpDb, passTypeMeta, statusMeta } from "@/lib/gatePass";
+import { giDb } from "@/lib/gateInward";
 
 // Returnable and job-work goods outside the factory, and job-work reconciliation.
 
@@ -54,6 +55,22 @@ export default function GatePassReturnsPage() {
       return data ?? [];
     },
   });
+
+  // Passes with a vehicle recorded at the gate and not yet received (Gate Inward).
+  const { data: atGate = [] } = useQuery<{ gate_pass_id: string; entry_number: string; vehicle_number: string }[]>({
+    queryKey: ["gate-inward", "at-gate-passes"],
+    queryFn: async () => {
+      const { data, error } = await giDb.from("gate_inward_entries").select("gate_pass_id, entry_number, vehicle_number")
+        .eq("status", "at_gate").not("gate_pass_id", "is", null);
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+  const atGateByPass = useMemo(() => {
+    const m = new Map<string, string[]>();
+    atGate.forEach((e) => m.set(e.gate_pass_id, [...(m.get(e.gate_pass_id) ?? []), `${e.entry_number} (${e.vehicle_number})`]));
+    return m;
+  }, [atGate]);
 
   const outside = rows.filter((r) => Number(r.balance) > 0 && ["out", "partially_returned"].includes(r.status));
   const byPass = useMemo(() => {
@@ -120,6 +137,9 @@ export default function GatePassReturnsPage() {
                       <span className="text-sm font-normal">{h.party_name}</span>
                     </CardTitle>
                     <div className="flex items-center gap-2 text-sm">
+                      {atGateByPass.has(h.gate_pass_id) && (
+                        <Badge variant="warning" title={atGateByPass.get(h.gate_pass_id)!.join(", ")}>At gate — receive</Badge>
+                      )}
                       <Badge variant={statusMeta(h.status).variant}>{statusMeta(h.status).label}</Badge>
                       {h.expected_return_date && (
                         <span className={cn(h.is_overdue ? "text-red-700 font-semibold" : "text-muted-foreground")}>

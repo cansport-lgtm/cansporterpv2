@@ -17,6 +17,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { errorMessage, fmtQty, gpDb, photoUrl, todayPk, type GatePass } from "@/lib/gatePass";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { fmtInAt, giDb, type InwardEntry } from "@/lib/gateInward";
 
 // Detail-page sections for Phase 2/3 pass types.
 
@@ -70,6 +74,19 @@ export function ReturnsSection({ pass, canReceive, canClose }: { pass: GatePass;
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [entry, setEntry] = useState<Record<string, { settled: string; output: string; rejected: string }>>({});
+  const [inwardId, setInwardId] = useState<string>("");
+
+  // Gate inward entries recorded for this pass and not yet received: the receipt names one.
+  const { data: inwardEntries = [] } = useQuery<InwardEntry[]>({
+    queryKey: ["gate-inward", "for-pass", pass.id],
+    queryFn: async () => {
+      const { data, error } = await giDb
+        .from("v_gate_inward_register").select("*")
+        .eq("gate_pass_id", pass.id).eq("status", "at_gate").order("in_at");
+      if (error) return [];
+      return data ?? [];
+    },
+  });
 
   const { data: lines = [] } = useQuery<OpenLine[]>({
     queryKey: ["gate-pass-open-lines", pass.id],
@@ -103,13 +120,18 @@ export function ReturnsSection({ pass, canReceive, canClose }: { pass: GatePass;
         output_quantity: entry[l.gate_pass_item_id]?.output || 0,
         rejected_quantity: entry[l.gate_pass_item_id]?.rejected || 0,
       }));
-      const { error } = await gpDb.rpc("gate_pass_receive", { p_id: pass.id, p_date: date, p_lines: payload, p_remarks: note });
+      const { data: receiptId, error } = await gpDb.rpc("gate_pass_receive", { p_id: pass.id, p_date: date, p_lines: payload, p_remarks: note });
       if (error) throw error;
+      if (inwardId && receiptId) {
+        const { error: linkErr } = await giDb.rpc("gate_inward_attach_receipt", { p_entry_id: inwardId, p_receipt_id: receiptId });
+        if (linkErr) throw new Error(`Receipt saved, but the gate inward entry could not be linked: ${linkErr.message}`);
+      }
     },
     onSuccess: () => {
       toast({ title: "Receipt saved" });
-      setReceiving(false); setEntry({}); setNote("");
+      setReceiving(false); setEntry({}); setNote(""); setInwardId("");
       invalidateAll(qc, pass.id);
+      qc.invalidateQueries({ queryKey: ["gate-inward"] });
     },
     onError: (e) => toast({ title: "Could not save the receipt", description: errorMessage(e), variant: "destructive" }),
   });
@@ -144,7 +166,12 @@ export function ReturnsSection({ pass, canReceive, canClose }: { pass: GatePass;
           </CardTitle>
           <div className="flex gap-2">
             {open && canReceive && (
-              <Button size="sm" onClick={() => { setDate(todayPk()); setReceiving(true); }}>
+              <Button size="sm" onClick={() => {
+                const latest = inwardEntries[inwardEntries.length - 1];
+                setInwardId(latest?.id ?? "");
+                setDate(latest?.entry_date ?? todayPk());
+                setReceiving(true);
+              }}>
                 <PackageCheck className="h-4 w-4 mr-1" /> Receive goods
               </Button>
             )}
@@ -156,6 +183,13 @@ export function ReturnsSection({ pass, canReceive, canClose }: { pass: GatePass;
           </div>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
+          {inwardEntries.length > 0 && (
+            <div className="m-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <b>Vehicle arrived at the gate, not yet received:</b>{" "}
+              {inwardEntries.map((e) => `${e.entry_number} (${e.vehicle_number}, in ${fmtInAt(e.in_at)})`).join(" · ")}.
+              {open && canReceive ? " Use Receive goods to record what came back." : ""}
+            </div>
+          )}
           {lines.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Shown once the vehicle has gone out.</p>
           ) : (
@@ -254,6 +288,24 @@ export function ReturnsSection({ pass, canReceive, canClose }: { pass: GatePass;
               </div>
             ))}
           </div>
+          {inwardEntries.length > 0 && (
+            <div>
+              <Label htmlFor="rc-inward">Came in on gate entry</Label>
+              <Select value={inwardId || "none"} onValueChange={(v) => {
+                setInwardId(v === "none" ? "" : v);
+                const e = inwardEntries.find((x) => x.id === v);
+                if (e) setDate(e.entry_date);
+              }}>
+                <SelectTrigger id="rc-inward"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not recorded at the gate</SelectItem>
+                  {inwardEntries.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.entry_number} · {e.vehicle_number} · in {fmtInAt(e.in_at)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3">
             <div>
               <Label htmlFor="rc-date">Date received</Label>

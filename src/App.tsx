@@ -381,6 +381,9 @@ import GatePassDashboardPage from "./pages/gate-pass/GatePassDashboardPage";
 import GatePassReturnsPage from "./pages/gate-pass/GatePassReturnsPage";
 import ScrapYardPage from "./pages/gate-pass/ScrapYardPage";
 import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
+import GateInwardFormPage from "./pages/gate-pass/GateInwardFormPage";
+import GateInwardDetailPage from "./pages/gate-pass/GateInwardDetailPage";
+import GateInwardRegisterPage from "./pages/purchase/GateInwardRegisterPage";
 import StorePassListPage from "./pages/store-pass/StorePassListPage";
 import StorePassFormPage from "./pages/store-pass/StorePassFormPage";
 import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
@@ -713,6 +716,8 @@ const App = () => (
             <Route path="/purchase/qc" element={<ProtectedRoute><PurchaseInspectionsPage /></ProtectedRoute>} />
             <Route path="/purchase/qc-parameters" element={<ProtectedRoute><QCParametersPage /></ProtectedRoute>} />
             <Route path="/purchase/grn" element={<ProtectedRoute><GoodsReceiptPage /></ProtectedRoute>} />
+            <Route path="/purchase/gate-inward" element={<ProtectedRoute><GateInwardRegisterPage /></ProtectedRoute>} />
+            <Route path="/purchase/gate-inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
             <Route path="/purchase/invoices" element={<ProtectedRoute><PurchaseInvoicesPage /></ProtectedRoute>} />
             <Route path="/purchase/returns" element={<ProtectedRoute><PurchaseReturnsPage /></ProtectedRoute>} />
             <Route path="/purchase/*" element={<ProtectedRoute><ComingSoon title="Purchase Module" /></ProtectedRoute>} />
@@ -918,6 +923,10 @@ const App = () => (
             <Route path="/gate-pass/edit/:id" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/approvals" element={<ProtectedRoute><GatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/gate-pass/check" element={<ProtectedRoute><GateCheckPage /></ProtectedRoute>} />
+            {/* Gate Inward (vehicles bringing goods in) — guard side */}
+            <Route path="/gate-pass/inward/new" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/inward/edit/:id" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
             <Route path="/store-pass" element={<Navigate to="/store-pass/dashboard" replace />} />
             <Route path="/store-pass/dashboard" element={<ProtectedRoute><StorePassDashboardPage /></ProtectedRoute>} />
             <Route path="/store-pass/reconciliation" element={<ProtectedRoute><StoreGateReconciliationPage /></ProtectedRoute>} />
