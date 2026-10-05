@@ -62,6 +62,9 @@ const EMPTY: Form = {
 };
 
 const VEHICLE_FIELDS: (keyof Form)[] = ["vehicle_number", "driver_name", "driver_contact", "transporter_name", "vehicle_photo_path"];
+// The gate guard only records goods coming back on an old pass: scan it, take a
+// photo, save. Purchase and the other types are recorded by the office.
+const GUARD_KINDS: InwardKind[] = ["returnable_return", "job_work_return"];
 
 export default function GateInwardFormPage() {
   const { id } = useParams();
@@ -77,6 +80,7 @@ export default function GateInwardFormPage() {
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [saved, setSaved] = useState<{ id: string; number: string } | null>(null);
+  const [showMore, setShowMore] = useState(false);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -210,7 +214,14 @@ export default function GateInwardFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [passes]);
 
-  const enabledKinds = INWARD_KINDS.filter((k) => settings.enabled_kinds.includes(k.value));
+  const enabledKinds = INWARD_KINDS.filter((k) =>
+    settings.enabled_kinds.includes(k.value) && (!guardOnly || GUARD_KINDS.includes(k.value)));
+
+  // A pass was chosen: start from the vehicle it went out on (the guard changes it if different).
+  useEffect(() => {
+    if (chosenPass && !form.vehicle_number) set("vehicle_number", (chosenPass.vehicle_number ?? "").toUpperCase() || "HAND CARRY");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosenPass?.id]);
 
   const save = useMutation({
     mutationFn: async (mode: "done" | "another") => {
@@ -289,8 +300,8 @@ export default function GateInwardFormPage() {
 
         {/* 1. Type */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">What is coming in?</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <CardHeader className="pb-2"><CardTitle className="text-base">{guardOnly ? "What is coming back?" : "What is coming in?"}</CardTitle></CardHeader>
+          <CardContent className={cn("grid grid-cols-1 gap-2", guardOnly ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
             {enabledKinds.map((k) => (
               <button key={k.value} type="button" disabled={Boolean(id)}
                 aria-pressed={kind === k.value}
@@ -302,6 +313,7 @@ export default function GateInwardFormPage() {
               </button>
             ))}
             {enabledKinds.length === 0 && <div className="text-sm text-muted-foreground">No inward types are enabled. Ask a super admin.</div>}
+            {guardOnly && <div className="sm:col-span-2 text-xs text-muted-foreground">Supplier deliveries (purchase) are recorded by the purchase office.</div>}
           </CardContent>
         </Card>
 
@@ -431,16 +443,26 @@ export default function GateInwardFormPage() {
         {/* 3. Vehicle and documents */}
         {kind && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Vehicle and papers</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">{guardOnly ? "Vehicle and photo" : "Vehicle and papers"}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {chosenPass?.vehicle_number && (
-                <div className="text-xs text-muted-foreground">Went out on <b>{chosenPass.vehicle_number}</b>{chosenPass.driver_name ? ` · driver ${chosenPass.driver_name}` : ""}. Type what you see now.</div>
+                <div className="text-xs text-muted-foreground">Went out on <b>{chosenPass.vehicle_number}</b>{chosenPass.driver_name ? ` · driver ${chosenPass.driver_name}` : ""}. Change it if a different vehicle came.</div>
               )}
               <div className="space-y-1">
                 <Label htmlFor="gi-vehicle" className="font-semibold">Vehicle number *</Label>
                 <Input id="gi-vehicle" value={form.vehicle_number} className="h-12 text-lg uppercase" placeholder="Number plate"
                   onChange={(e) => set("vehicle_number", e.target.value.toUpperCase())} />
               </div>
+              {guardOnly && (
+                <div className="space-y-1">
+                  <Label>Photo of the old pass and the goods</Label>
+                  <PhotoInput id="gi-guard-photo" label="Take a photo" folder="inward-challan" value={form.challan_photo_path} onChange={(p) => set("challan_photo_path", p)} />
+                </div>
+              )}
+              {guardOnly && !showMore && (
+                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setShowMore(true)}>More details (driver, packages, second photo)…</Button>
+              )}
+              {(!guardOnly || showMore) && (<>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="gi-driver">Driver</Label>
@@ -472,10 +494,12 @@ export default function GateInwardFormPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Photo of the challan</Label>
-                  <PhotoInput id="gi-challan-photo" label="Photograph the challan" folder="inward-challan" value={form.challan_photo_path} onChange={(p) => set("challan_photo_path", p)} />
-                </div>
+                {!guardOnly && (
+                  <div className="space-y-1">
+                    <Label>Photo of the challan</Label>
+                    <PhotoInput id="gi-challan-photo" label="Photograph the challan" folder="inward-challan" value={form.challan_photo_path} onChange={(p) => set("challan_photo_path", p)} />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <Label>Photo of the vehicle</Label>
                   <PhotoInput id="gi-vehicle-photo" label="Photograph the vehicle" folder="inward-vehicle" value={form.vehicle_photo_path} onChange={(p) => set("vehicle_photo_path", p)} />
@@ -485,6 +509,7 @@ export default function GateInwardFormPage() {
                 <Label htmlFor="gi-remarks">Remarks</Label>
                 <Textarea id="gi-remarks" rows={2} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} />
               </div>
+              </>)}
             </CardContent>
           </Card>
         )}
@@ -493,9 +518,9 @@ export default function GateInwardFormPage() {
           <div className="sticky bottom-0 bg-background/95 backdrop-blur py-3 space-y-2">
             <Button className="w-full h-14 text-lg font-bold" disabled={!canSave} onClick={() => save.mutate("done")}>
               {save.isPending && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-              {id ? "Save changes" : "Save & print slip"}
+              {id ? "Save changes" : guardOnly ? "Save entry" : "Save & print slip"}
             </Button>
-            {!id && (
+            {!id && !guardOnly && (
               <Button variant="outline" className="w-full h-11" disabled={!canSave} onClick={() => save.mutate("another")}>
                 Save & add another entry for the same vehicle
               </Button>

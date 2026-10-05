@@ -21,7 +21,7 @@ today: the GRN (purchase) and the `GPR-` receipt (returnable / job work).
 
 | Type | Arrives against | Guard enters | Closed by → status | Enabled |
 |---|---|---|---|---|
-| **Purchase** | One approved / ordered / partially received PO of the supplier, in the categories allowed by the settings (raw material by default) | Supplier, PO, vehicle, driver, challan no. and photo, packages | The GRN for that PO names the entry → `grn_made` | Yes |
+| **Purchase** | One approved / ordered / partially received PO of the supplier, in the categories allowed by the settings (raw material by default) | **Office only** (not the guard): supplier, PO, vehicle, driver, challan no. and photo, packages | The GRN for that PO names the entry → `grn_made` | Yes |
 | **Returnable back** | A Returnable gate pass (`GP-`) that is out / partly returned | The pass (scan the old slip or type its number), vehicle, driver | "Receive goods" on the pass (`GPR-`) names the entry → `received` | Yes |
 | **Job work back** | A Job work pass that is out | Same | Same | Yes |
 | Sales return | Customer, optional dispatch | — | Office closes with a note for now (the sales-return link is Phase 2) | Off |
@@ -53,7 +53,7 @@ Vehicle left: the guard taps it when the empty truck goes out (any status).
 | Page | Route | Who |
 |---|---|---|
 | Gate Check → **Inward** tab | `/gate-pass/check` | Guard. Scan or type a `GIN-` number to open an entry and tap **Vehicle left**; or **New inward entry** |
-| New Inward Entry | `/gate-pass/inward/new` | Guard, gate pass manager, purchase office. Type first, then supplier → PO (or the `GP-` pass), then vehicle, driver, transporter, challan, packages, photos. **Save & print slip**, or **Save & add another for the same vehicle** (a truck with two POs gets two entries) |
+| New Inward Entry | `/gate-pass/inward/new` | **Guard:** only Returnable back and Job work back. Scan the old `GP-` slip (or type its number), confirm the vehicle (pre-filled from the pass), take one photo, **Save entry**. Driver, packages and a second photo sit behind "More details". **Office (gate pass manager, purchase):** every enabled type, including Purchase: supplier → PO, vehicle, driver, transporter, challan, packages, photos; **Save & print slip** or **Save & add another for the same vehicle** |
 | Inward Entry | `/gate-pass/inward/:id` (guard) · `/purchase/gate-inward/:id` (office) | Slip with QR, photos, history; Vehicle left, Edit (while at gate), Make GRN, Receive goods, Reject, Cancel, Close |
 | Gate Inward Register | `/purchase/gate-inward` | Purchase officers and managers, admins, store operator (read). Cards (at gate today, awaiting receipt with stale in red, received today, rejected 7 days), the **At the gate now** list, filters, Excel export, printable day register, and the settings (super admin) |
 | Goods Receipt | `/purchase/grn` | **Gate inward entry** picker after the PO: the vehicles at the gate for that PO. Choosing one pre-fills the receipt date and the challan number; the store still enters every quantity. Required when the setting is on. **Make GRN** on an entry opens this with the entry chosen |
@@ -66,7 +66,7 @@ The guard's pages use the dark guard shell; `gate_security` is confined to
 
 | Role | Can |
 |---|---|
-| `gate_security` | New inward entry, open an entry, Vehicle left, edit / cancel own entry while at gate. Never sees prices or quantities: the PO and pass pickers are database functions that return headers only |
+| `gate_security` | New inward entry for goods coming back on a returnable / job-work pass only (scan the old slip, photo, save); open an entry, Vehicle left, edit / cancel own entry while at gate. Purchase deliveries are recorded by the office. Never sees prices or quantities |
 | `gate_pass_manager` | As the guard, plus reject / cancel / close any entry |
 | `purchase_officer`, `purchase_manager`, `admin` | Register, entry page, Make GRN, reject / cancel / close |
 | `store_operator` | Register read-only (what is at the gate) |
