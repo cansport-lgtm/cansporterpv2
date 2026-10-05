@@ -161,6 +161,16 @@ export function RoleBasedRedirect() {
     return <Navigate to="/labour/gate-pass/approvals" replace />;
   }
 
+  // Labour Attendance Delete Approver lands on the attendance delete requests
+  if (roles.some(r => (r.role as string) === 'labour_attendance_delete_approver')) {
+    return <Navigate to="/labour/attendance-delete-requests" replace />;
+  }
+
+  // Staff Gate Pass Approver lands on the staff gate pass approvals
+  if (roles.some(r => (r.role as string) === 'staff_gate_pass_approver')) {
+    return <Navigate to="/hr/gate-pass/approvals" replace />;
+  }
+
   // Labour Productivity Approver lands on Labour Dashboard (full access)
   if (roles.some(r => (r.role as string) === 'labour_productivity_approver')) {
     return <Navigate to="/labour/dashboard" replace />;

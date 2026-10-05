@@ -298,6 +298,9 @@ const navigationItems: NavItem[] = [
       { title: "Public Holidays", href: "/hr/public-holidays", superAdminOnly: true },
       { title: "Punctuality Analytics", href: "/hr/punctuality-analytics" },
       { title: "Time Sheet", href: "/hr/time-sheet" },
+      { title: "Staff Gate Passes", href: "/hr/gate-pass" },
+      { title: "New Staff Gate Pass", href: "/hr/gate-pass/new", allowedRoles: ["super_admin", "staff_gate_pass_approver", "hr_manager", "hr_officer"] },
+      { title: "Gate Pass Approvals", href: "/hr/gate-pass/approvals", allowedRoles: ["super_admin", "staff_gate_pass_approver"] },
     ],
   },
   {
@@ -519,6 +522,7 @@ const navigationItems: NavItem[] = [
       { title: "Worker Gate Passes", href: "/labour/gate-pass" },
       { title: "New Worker Gate Pass", href: "/labour/gate-pass/new", allowedRoles: ["super_admin", "labour_gate_pass_approver", "labour_productivity_approver", "labour_productivity_poster", "floor_incharge"] },
       { title: "Gate Pass Approvals", href: "/labour/gate-pass/approvals", allowedRoles: ["super_admin", "labour_gate_pass_approver"] },
+      { title: "Attendance Delete Requests", href: "/labour/attendance-delete-requests", allowedRoles: ["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"] },
       { title: "Process Dashboard", href: "/labour/process-dashboard" },
       { title: "Category Dashboard", href: "/labour/category-dashboard" },
       { title: "Individual Performance", href: "/labour/individual-performance" },
@@ -722,6 +726,23 @@ const navigationItems: NavItem[] = [
       { title: "Returns & Job Work", href: "/gate-pass/returns" },
       { title: "Scrap Yard", href: "/gate-pass/scrap-yard" },
       { title: "Paper Books", href: "/gate-pass/books" },
+      { title: "Dispatch Tracking", href: "/store-pass/tracking", allowedRoles: ["super_admin", "gate_pass_manager"] },
+      { title: "Store ↔ Gate Reconciliation", href: "/store-pass/reconciliation", allowedRoles: ["super_admin", "gate_pass_manager"] },
+    ],
+  },
+  {
+    // Finished goods handed over by the store for dispatch, one pass per vehicle,
+    // reconciled against the gate passes. See docs/STORE_PASS.md.
+    title: "Store Pass",
+    icon: Warehouse,
+    color: "text-indigo-400",
+    module: "store_pass",
+    children: [
+      { title: "Dashboard", href: "/store-pass/dashboard" },
+      { title: "Store Passes", href: "/store-pass/passes" },
+      { title: "New Store Pass", href: "/store-pass/new", allowedRoles: ["super_admin", "store_pass_manager", "store_pass_officer"] },
+      { title: "Dispatch Tracking", href: "/store-pass/tracking" },
+      { title: "Daily Reconciliation", href: "/store-pass/reconciliation" },
     ],
   },
   {
@@ -737,6 +758,15 @@ const navigationItems: NavItem[] = [
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
+    ],
+  },
+  {
+    // No `module` key: every logged-in staff member can raise their own company
+    // work gate pass (the page itself needs the login linked to a staff record).
+    title: "Self Service",
+    icon: DoorOpen,
+    children: [
+      { title: "My Gate Passes", href: "/my-gate-pass" },
     ],
   },
   {

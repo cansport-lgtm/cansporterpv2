@@ -423,12 +423,17 @@ const LabourSalaryPage = () => {
         halfDaysByDate.set(e.target_date, (halfDaysByDate.get(e.target_date) || 0) + 1);
       }
     });
-    // A half-day gate pass (or a short leave never scanned back in) caps that date at 0.5 day.
+    // A half-day gate pass (or a short leave outside over 3 h) caps that date at 0.5 day;
+    // a short leave outside over 6 h makes the date absent (0 days) whatever the rows say.
     fullDayDates.forEach((date) => {
-      if (gatePassHalfDays.has(`${emp.id}|${date}`)) {
-        fullDayDates.delete(date);
-        halfDaysByDate.set(date, 1);
-      }
+      const mark = gatePassHalfDays.get(`${emp.id}|${date}`);
+      if (!mark) return;
+      fullDayDates.delete(date);
+      if (mark.effect === "absent") halfDaysByDate.delete(date);
+      else halfDaysByDate.set(date, 1);
+    });
+    halfDaysByDate.forEach((_count, date) => {
+      if (gatePassHalfDays.get(`${emp.id}|${date}`)?.effect === "absent") halfDaysByDate.delete(date);
     });
     let fullDays = fullDayDates.size;
     let halfDays = 0;

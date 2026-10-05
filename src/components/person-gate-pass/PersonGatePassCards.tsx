@@ -5,18 +5,19 @@ import { AlertTriangle, ClipboardCheck, DoorOpen, Siren, UserMinus } from "lucid
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { fmtTime, lgpDb, overdueMinutes, todayPk, useLiveLabourPasses } from "@/lib/labourGatePass";
+import { fmtTime, overdueMinutes, passKeys, ppDb, todayPk, useLivePersonPasses, type PersonPassVariant } from "@/lib/personGatePass";
 
 /** The four summary cards: approvals waiting, outside now, half days this month, old passes scanned again. */
-export function LabourGatePassCards({ compact = false }: { compact?: boolean }) {
-  const { data: live = [] } = useLiveLabourPasses();
+export function PersonGatePassCards({ variant, compact = false }: { variant: PersonPassVariant; compact?: boolean }) {
+  const keys = passKeys(variant);
+  const { data: live = [] } = useLivePersonPasses(variant);
   const month = { start: format(startOfMonth(new Date()), "yyyy-MM-dd"), end: format(endOfMonth(new Date()), "yyyy-MM-dd") };
 
   const { data: halfDays = 0 } = useQuery<number>({
-    queryKey: ["labour-gate-pass-half-days-count", month.start],
+    queryKey: [keys.halfDaysCount, month.start],
     queryFn: async () => {
-      const { count, error } = await lgpDb
-        .from("v_labour_gate_pass_half_days")
+      const { count, error } = await ppDb
+        .from(variant.halfDayView)
         .select("pass_id", { count: "exact", head: true })
         .gte("pass_date", month.start)
         .lte("pass_date", month.end);
@@ -26,11 +27,11 @@ export function LabourGatePassCards({ compact = false }: { compact?: boolean }) 
   });
 
   const { data: rescans = 0 } = useQuery<number>({
-    queryKey: ["labour-gate-pass-rescans-count"],
+    queryKey: [keys.rescansCount],
     refetchInterval: 60_000,
     queryFn: async () => {
-      const { count, error } = await lgpDb
-        .from("labour_gate_pass_events")
+      const { count, error } = await ppDb
+        .from(variant.eventsTable)
         .select("id", { count: "exact", head: true })
         .eq("event", "rescan_attempt")
         .gte("created_at", subDays(new Date(), 7).toISOString());
@@ -44,12 +45,13 @@ export function LabourGatePassCards({ compact = false }: { compact?: boolean }) 
   const overdue = outside.filter((p) => overdueMinutes(p) > 0).length;
   const today = todayPk();
   const approvedToday = live.filter((p) => p.status === "approved" && p.pass_date === today).length;
+  const base = variant.basePath;
 
   const cards = [
-    { title: "Waiting for approval", value: pending, icon: ClipboardCheck, to: "/labour/gate-pass/approvals", tone: pending ? "text-amber-700" : "", sub: approvedToday ? `${approvedToday} approved for today` : "" },
-    { title: "Outside now", value: outside.length, icon: DoorOpen, to: "/labour/gate-pass?status=out", tone: overdue ? "text-red-700" : "", sub: overdue ? `${overdue} overdue` : outside.length ? "on short leave / half day" : "" },
-    { title: "Half days by gate pass", value: halfDays, icon: UserMinus, to: `/labour/gate-pass?from=${month.start}&to=${month.end}&status=half_days`, tone: "", sub: "this month" },
-    { title: "Old passes scanned again", value: rescans, icon: Siren, to: "/labour/gate-pass?rescans=1", tone: rescans ? "text-red-700" : "", sub: "last 7 days" },
+    { title: "Waiting for approval", value: pending, icon: ClipboardCheck, to: `${base}/approvals`, tone: pending ? "text-amber-700" : "", sub: approvedToday ? `${approvedToday} approved for today` : "" },
+    { title: "Outside now", value: outside.length, icon: DoorOpen, to: `${base}?status=out`, tone: overdue ? "text-red-700" : "", sub: overdue ? `${overdue} overdue` : outside.length ? "on short leave / half day" : "" },
+    { title: variant.attendanceEffects ? "Half days / absents by gate pass" : "Half days by gate pass", value: halfDays, icon: UserMinus, to: `${base}?from=${month.start}&to=${month.end}&status=half_days`, tone: "", sub: "this month" },
+    { title: "Old passes scanned again", value: rescans, icon: Siren, to: `${base}?rescans=1`, tone: rescans ? "text-red-700" : "", sub: "last 7 days" },
   ];
 
   return (
@@ -73,9 +75,9 @@ export function LabourGatePassCards({ compact = false }: { compact?: boolean }) 
   );
 }
 
-/** Workers outside right now, overdue first. Hidden when nobody is out. */
-export function OutsideNowPanel() {
-  const { data: live = [] } = useLiveLabourPasses();
+/** People outside right now, overdue first. Hidden when nobody is out. */
+export function OutsideNowPanel({ variant }: { variant: PersonPassVariant }) {
+  const { data: live = [] } = useLivePersonPasses(variant);
   const out = live
     .filter((p) => p.status === "out")
     .map((p) => ({ ...p, late: overdueMinutes(p) }))
@@ -90,11 +92,11 @@ export function OutsideNowPanel() {
       </CardHeader>
       <CardContent className="space-y-1">
         {out.map((p) => (
-          <Link key={p.id} to={`/labour/gate-pass/${p.id}`}
+          <Link key={p.id} to={`${variant.basePath}/${p.id}`}
             className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50",
               p.late > 0 && "border-red-300 bg-red-50/60")}>
             <div className="min-w-0">
-              <span className="font-semibold">{p.labour_employees?.employee_code} · {p.labour_employees?.full_name}</span>
+              <span className="font-semibold">{p.person?.employee_code} · {p.person?.full_name}</span>
               <span className="text-muted-foreground"> · {p.pass_number}</span>
             </div>
             <div className={cn("text-xs flex items-center gap-1", p.late > 0 ? "text-red-700 font-semibold" : "text-muted-foreground")}>
@@ -115,18 +117,18 @@ type RescanRow = {
   message: string | null;
   created_at: string;
   actor: { full_name: string | null } | null;
-  labour_gate_passes: { id: string; pass_number: string; labour_employees: { employee_code: string; full_name: string } | null } | null;
+  pass: { id: string; pass_number: string; person: { employee_code: string; full_name: string } | null } | null;
 };
 
-/** Old worker passes scanned again at the gate in the last `days` days. Hidden when there are none. */
-export function LabourRescanAlerts({ days = 7 }: { days?: number }) {
+/** Old passes scanned again at the gate in the last `days` days. Hidden when there are none. */
+export function PersonRescanAlerts({ variant, days = 7 }: { variant: PersonPassVariant; days?: number }) {
   const { data: rows = [] } = useQuery<RescanRow[]>({
-    queryKey: ["labour-gate-pass-rescans", days],
+    queryKey: [passKeys(variant).rescans, days],
     refetchInterval: 60_000,
     queryFn: async () => {
-      const { data, error } = await lgpDb
-        .from("labour_gate_pass_events")
-        .select("id, message, created_at, actor:app_users!labour_gate_pass_events_created_by_fkey(full_name), labour_gate_passes(id, pass_number, labour_employees(employee_code, full_name))")
+      const { data, error } = await ppDb
+        .from(variant.eventsTable)
+        .select(`id, message, created_at, actor:app_users!${variant.eventsTable}_created_by_fkey(full_name), pass:${variant.table}(id, pass_number, person:${variant.employeeTable}(employee_code, full_name))`)
         .eq("event", "rescan_attempt")
         .gte("created_at", subDays(new Date(), days).toISOString())
         .order("created_at", { ascending: false })
@@ -140,16 +142,16 @@ export function LabourRescanAlerts({ days = 7 }: { days?: number }) {
     <Card className="border-red-300 bg-red-50/70">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2 text-red-700">
-          <Siren className="h-4 w-4" /> Old worker passes scanned again at the gate · last {days} days · {rows.length}
+          <Siren className="h-4 w-4" /> Old {variant.noun} passes scanned again at the gate · last {days} days · {rows.length}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
         {rows.map((r) => (
           <div key={r.id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
             <span className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(r.created_at), "dd MMM HH:mm")}</span>
-            {r.labour_gate_passes ? (
-              <Link to={`/labour/gate-pass/${r.labour_gate_passes.id}`} className="font-semibold text-red-800 hover:underline">
-                {r.labour_gate_passes.pass_number} · {r.labour_gate_passes.labour_employees?.employee_code} {r.labour_gate_passes.labour_employees?.full_name}
+            {r.pass ? (
+              <Link to={`${variant.basePath}/${r.pass.id}`} className="font-semibold text-red-800 hover:underline">
+                {r.pass.pass_number} · {r.pass.person?.employee_code} {r.pass.person?.full_name}
               </Link>
             ) : null}
             <span className="text-red-900">{r.message}</span>

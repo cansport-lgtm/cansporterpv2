@@ -11325,13 +11325,16 @@ export type Database = {
       }
       products: {
         Row: {
+          base_product_id: string | null
           code: string
           created_at: string | null
+          customer_party_id: string | null
           description: string | null
           grade_id: string | null
           id: string
           is_active: boolean | null
           name: string
+          owner_type: string
           planning_item_id: string | null
           standard_cost: number | null
           standard_output_rate: number | null
@@ -11340,13 +11343,16 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          base_product_id?: string | null
           code: string
           created_at?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          owner_type?: string
           planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
@@ -11355,13 +11361,16 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          base_product_id?: string | null
           code?: string
           created_at?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          owner_type?: string
           planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
@@ -11370,6 +11379,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_base_product_id_fkey"
+            columns: ["base_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_customer_party_id_fkey"
+            columns: ["customer_party_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_parties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_grade_id_fkey"
             columns: ["grade_id"]
@@ -17101,6 +17124,10 @@ export type Database = {
       }
     }
     Functions: {
+      next_customer_sku_code: {
+        Args: { p_party_id: string }
+        Returns: string
+      }
       accounting_inventory_snapshot: {
         Args: { p_as_of: string }
         Returns: Json
@@ -17451,6 +17478,14 @@ export type Database = {
         | "gate_pass_jobwork_manager"
         | "gate_pass_scrap_manager"
         | "labour_gate_pass_approver"
+        | "staff_gate_pass_approver"
+        | "labour_attendance_delete_approver"
+        | "production_manager"
+        | "production_officer"
+        | "production_viewer"
+        | "store_pass_manager"
+        | "store_pass_officer"
+        | "store_pass_viewer"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17741,6 +17776,13 @@ export const Constants = {
         "gate_pass_jobwork_manager",
         "gate_pass_scrap_manager",
         "labour_gate_pass_approver",
+        "labour_attendance_delete_approver",
+        "production_manager",
+        "production_officer",
+        "production_viewer",
+        "store_pass_manager",
+        "store_pass_officer",
+        "store_pass_viewer",
       ],
       asset_category: [
         "office_assets",

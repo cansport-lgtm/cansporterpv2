@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { STAFF_PASS, halfDayMarkTitle, usePersonPassHalfDays } from "@/lib/personGatePass";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -118,6 +119,9 @@ const TimeSheetPage = () => {
     });
     return map;
   }, [attendanceRecords]);
+
+  // Dates marked Half day by a staff gate pass this month, keyed "employeeId|date".
+  const gatePassHalfDays = usePersonPassHalfDays(STAFF_PASS, format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"));
 
   const getRecordForCell = (employeeId: string, dateKey: string) =>
     recordMap[employeeId]?.[dateKey] || null;
@@ -285,14 +289,16 @@ const TimeSheetPage = () => {
       );
     }
 
-    const rec = getRecordForCell(employeeId, format(date, "yyyy-MM-dd"));
+    const dateKey = format(date, "yyyy-MM-dd");
+    const rec = getRecordForCell(employeeId, dateKey);
     const status = rec?.status || "absent";
     const cfg = getStatusConfig(status);
+    const mark = gatePassHalfDays.get(`${employeeId}|${dateKey}`);
 
     return (
       <div
         className={cn("w-16 h-14 flex flex-col items-center justify-center rounded text-[10px] font-medium leading-tight px-1", cfg.bg, cfg.text, isToday && "ring-2 ring-primary")}
-        title={cfg.label}
+        title={mark ? halfDayMarkTitle(mark) : cfg.label}
       >
         <span className="text-xs font-semibold">{cfg.short}</span>
         <span className="text-[9px] opacity-80">{fmtTime(rec?.check_in)}</span>

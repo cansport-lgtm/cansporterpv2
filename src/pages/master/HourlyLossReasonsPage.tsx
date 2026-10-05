@@ -48,8 +48,12 @@ interface ReasonProcess {
 
 export default function HourlyLossReasonsPage() {
   const qc = useQueryClient();
-  const { hasRole } = useAuth();
+  const { hasRole, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // Master Data tiers: manager/officer create + edit, viewer read-only.
+  // Delete on this page was already reserved for super admin and stays that way.
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -276,14 +280,16 @@ export default function HourlyLossReasonsPage() {
       header: "Actions",
       render: (i: LossReason) => (
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleEdit(i)}
-            title="Edit"
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleEdit(i)}
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           {isSuperAdmin && (
             <Button
               variant="ghost"
@@ -309,11 +315,11 @@ export default function HourlyLossReasonsPage() {
         description="Manage reasons for hourly production losses, mapped per process"
         icon={AlertTriangle}
         iconColor="bg-amber-600 text-white"
-        action={{
+        action={canCreate ? {
           label: "Add Reason",
           onClick: () => setDialogOpen(true),
           icon: Plus,
-        }}
+        } : undefined}
       />
 
       <div className="flex flex-wrap gap-4 mb-6">

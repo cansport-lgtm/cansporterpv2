@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -54,6 +55,12 @@ interface DowntimeReason {
 
 export default function ReasonsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [activeTab, setActiveTab] = useState("defect");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -248,19 +255,23 @@ export default function ReasonsPage() {
       header: "Actions",
       render: (item: DefectReason) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEditDefect(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setSelectedDefect(item);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEditDefect(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedDefect(item);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -293,19 +304,23 @@ export default function ReasonsPage() {
       header: "Actions",
       render: (item: DowntimeReason) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEditDowntime(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setSelectedDowntime(item);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEditDowntime(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedDowntime(item);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -319,7 +334,7 @@ export default function ReasonsPage() {
           description="Manage defect and downtime reasons"
           icon={Database}
           iconColor="bg-amber-500/10 text-amber-500"
-          action={{
+          action={canCreate ? {
             label: activeTab === "defect" ? "Add Defect Reason" : "Add Downtime Reason",
             onClick: () => {
               if (activeTab === "defect") resetDefectForm();
@@ -327,7 +342,7 @@ export default function ReasonsPage() {
               setDialogOpen(true);
             },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>

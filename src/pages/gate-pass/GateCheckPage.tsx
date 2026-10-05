@@ -17,8 +17,12 @@ import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
 import { GuardShell } from "@/components/gate-pass/GuardShell";
 import { InwardGatePanel } from "@/components/gate-pass/InwardGatePanel";
 import { isInwardNumber, normalizeInwardNumber } from "@/lib/gateInward";
-import { LabourGatePanel, type LabourLookup } from "@/components/labour/LabourGatePanel";
-import { isLabourPassNumber, normalizeLabourPassNumber } from "@/lib/labourGatePass";
+import { StorePassGateNotice } from "@/components/store-pass/StorePassGateNotice";
+import { PersonGatePanel, type PersonLookup } from "@/components/person-gate-pass/PersonGatePanel";
+import {
+  PERSON_PASS_VARIANTS, STAFF_PASS, WORKER_PASS, detectPersonPassVariant, isFullPassNumber, normalizePersonPassNumber,
+  type PersonPassVariant,
+} from "@/lib/personGatePass";
 import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
 import {
   PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
@@ -33,6 +37,7 @@ type CheckResult = {
   vehicle_ok?: boolean;
   mismatches?: { line_no: number; description: string; expected: number; counted: number }[];
   problems?: string[]; // scrap weighment
+  missing_store_pass?: string[]; // sales pass that went out with no store pass (warn mode)
 };
 
 export default function GateCheckPage() {
@@ -44,17 +49,21 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
-  // Goods passes (GP-…), worker passes (LGP-…) and inward entries (GIN-…) share this
-  // screen. A scanned QR picks the flow by its prefix; typed input follows the selected mode.
-  const [mode, setMode] = useState<"goods" | "worker" | "inward">("goods");
-  const [labourLookup, setLabourLookup] = useState<LabourLookup | null>(null);
+  // Goods passes (GP-…), worker passes (LGP-…), staff passes (SGP-…) and inward
+  // entries (GIN-…) share this screen. A scanned QR picks the flow by its prefix;
+  // typed input follows the selected mode.
+  const [mode, setMode] = useState<"goods" | "worker" | "staff" | "inward">("goods");
+  const [personLookup, setPersonLookup] = useState<{ variant: PersonPassVariant; lookup: PersonLookup } | null>(null);
   const [inwardNumber, setInwardNumber] = useState<string | null>(null);
+  const modeVariant = mode === "worker" ? WORKER_PASS : mode === "staff" ? STAFF_PASS : null;
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [vehicle, setVehicle] = useState("");
   const [note, setNote] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
+  // Sales pass with a dispatch that has no store pass while the setting is "block".
+  const [spBlocked, setSpBlocked] = useState(false);
   // Each Open / scan is one lookup; the alarm decision is made once per lookup, on the
   // pass as it stood when it was opened (so marking a pass Out never sets it off).
   const [lookupId, setLookupId] = useState(0);
@@ -78,6 +87,7 @@ export default function GateCheckPage() {
     setVehicle("");
     setNote("");
     setResult(null);
+    setSpBlocked(false);
   }, [passNumber]);
 
   const lookUp = (raw: string) => {
@@ -88,32 +98,33 @@ export default function GateCheckPage() {
     setAlarm(null);
     lookupAtRef.current = Date.now();
     setLookupId((x) => x + 1);
-    if (isInwardNumber(text) || (mode === "inward" && !/^(GP|LGP)-?\d+$/i.test(text))) {
+    if (isInwardNumber(text) || (mode === "inward" && !/^(GP|LGP|SGP)-?\d+$/i.test(text))) {
       const n = normalizeInwardNumber(text);
       setMode("inward");
       setCode(n);
       setPassNumber(null);
-      setLabourLookup(null);
+      setPersonLookup(null);
       setInwardNumber(n);
       queryClient.invalidateQueries({ queryKey: ["gate-check-inward", n] });
       return;
     }
-    if (isLabourPassNumber(text) || (mode === "worker" && !/^GP-?\d+$/i.test(text))) {
-      // Worker pass by number, or today's pass by worker code.
-      const n = normalizeLabourPassNumber(text);
-      const lookup: LabourLookup = /^LGP-\d{6}$/.test(n) ? { number: n } : { code: n };
-      setMode("worker");
+    const personVariant = detectPersonPassVariant(text) ?? (modeVariant && !/^GP-?\d+$/i.test(text) ? modeVariant : null);
+    if (personVariant) {
+      // Worker / staff pass by number, or today's pass by employee code.
+      const n = normalizePersonPassNumber(personVariant, text);
+      const lookup: PersonLookup = isFullPassNumber(personVariant, n) ? { number: n } : { code: n };
+      setMode(personVariant.key);
       setCode(lookup.number ?? lookup.code ?? "");
       setPassNumber(null);
       setInwardNumber(null);
-      setLabourLookup(lookup);
-      queryClient.invalidateQueries({ queryKey: ["gate-check-labour-pass"] });
+      setPersonLookup({ variant: personVariant, lookup });
+      PERSON_PASS_VARIANTS.forEach((v) => queryClient.invalidateQueries({ queryKey: [`gate-check-${v.key}-pass`] }));
       return;
     }
     const n = normalizePassNumber(text);
     if (!n) return;
     setMode("goods");
-    setLabourLookup(null);
+    setPersonLookup(null);
     setInwardNumber(null);
     setCode(n);
     setPassNumber(n);
@@ -206,7 +217,7 @@ export default function GateCheckPage() {
     stopGateAlarm();
     setAlarm(null);
     setPassNumber(null);
-    setLabourLookup(null);
+    setPersonLookup(null);
     setInwardNumber(null);
     setCode("");
     setResult(null);
@@ -225,19 +236,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
-            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
-              {([["goods", "Goods out"], ["worker", "Worker"], ["inward", "Inward"]] as const).map(([m, label]) => (
+            <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods out"], ["worker", "Worker"], ["staff", "Staff"], ["inward", "Inward"]] as const).map(([m, label]) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m}
                   className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
-                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setLabourLookup(null); setInwardNumber(null); }}>
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setPersonLookup(null); setInwardNumber(null); }}>
                   {label}
                 </button>
               ))}
             </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">{mode === "worker" ? "LGP number or worker code" : mode === "inward" ? "GIN number" : "GP number"}</Label>
+              <Label htmlFor="gp-code" className="sr-only">{modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number" : "GP number"}</Label>
               <Input id="gp-code" value={code} inputMode="text"
-                placeholder={mode === "worker" ? "LGP number or worker code" : mode === "inward" ? "GIN number, e.g. 12" : "GP number, e.g. 131"}
+                placeholder={modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number, e.g. 12" : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -254,8 +265,8 @@ export default function GateCheckPage() {
           </CardContent>
         </Card>
 
-        {labourLookup && (
-          <LabourGatePanel lookup={labourLookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        {personLookup && (
+          <PersonGatePanel key={personLookup.variant.key} variant={personLookup.variant} lookup={personLookup.lookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
         )}
         {mode === "inward" && (
           <InwardGatePanel number={inwardNumber} lookupId={lookupId} onReset={reset} />
@@ -294,6 +305,9 @@ export default function GateCheckPage() {
                     <>
                       <CheckCircle2 className="h-12 w-12 text-emerald-700 mx-auto" />
                       <div className="text-xl font-bold text-emerald-800">Marked Out — the vehicle may go</div>
+                      {result.missing_store_pass?.length ? (
+                        <div className="text-sm text-amber-800">No store pass for {result.missing_store_pass.join(", ")} — logged, the store managers have been told.</div>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -376,6 +390,7 @@ export default function GateCheckPage() {
                   }} />
                 ) : (
                 <>
+                {pass.pass_type === "sales" && <StorePassGateNotice pass={pass} onStatus={setSpBlocked} />}
                 <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground px-1">Count each line</div>
                 {items.map((i) => {
                   const exp = expectedCount(i);
@@ -426,11 +441,11 @@ export default function GateCheckPage() {
                   <Button
                     className={cn("w-full h-14 text-lg font-bold", goesOut ? "bg-emerald-700 hover:bg-emerald-800" : "")}
                     variant={allCounted && !goesOut ? "destructive" : "default"}
-                    disabled={!allCounted || check.isPending}
+                    disabled={!allCounted || check.isPending || (spBlocked && goesOut)}
                     onClick={() => check.mutate()}
                   >
                     {check.isPending && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-                    {!allCounted ? "Count every line first" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
+                    {!allCounted ? "Count every line first" : spBlocked && goesOut ? "No store pass · vehicle cannot leave" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
                   </Button>
                   {!allCounted && (
                     <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">

@@ -25,6 +25,8 @@ import { postCOGSForDispatch } from "@/lib/accounting/postCOGSForDispatch";
 import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
 import { GateOutCell, GatePassNoCell } from "@/components/gate-pass/DispatchGatePass";
 import { useDispatchGatePasses } from "@/lib/gatePass";
+import { StorePassNoCell } from "@/components/store-pass/DispatchStorePass";
+import { useDispatchStorePasses } from "@/lib/storePass";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -110,6 +112,7 @@ export default function DomesticDispatchPage() {
 
   // Gate pass no. / gate-out time of each dispatch (extra columns only).
   const gatePasses = useDispatchGatePasses((dispatches ?? []).map((d) => d.id));
+  const storePasses = useDispatchStorePasses((dispatches ?? []).map((d) => d.id));
 
   // Fetch dispatch items for viewing
   const { data: dispatchItems } = useQuery({
@@ -1084,6 +1087,7 @@ export default function DomesticDispatchPage() {
                     <TableHead>Date</TableHead>
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Store pass</TableHead>
                     <TableHead>Gate pass</TableHead>
                     <TableHead>Gate out</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -1092,11 +1096,11 @@ export default function DomesticDispatchPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
+                      <TableCell colSpan={10} className="text-center py-8">Loading...</TableCell>
                     </TableRow>
                   ) : filteredDispatches?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No dispatches found
                       </TableCell>
                     </TableRow>
@@ -1141,6 +1145,7 @@ export default function DomesticDispatchPage() {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell><StorePassNoCell sp={storePasses.get(dispatch.id)} /></TableCell>
                         <TableCell><GatePassNoCell gp={gatePasses.get(dispatch.id)} /></TableCell>
                         <TableCell><GateOutCell gp={gatePasses.get(dispatch.id)} /></TableCell>
                         <TableCell className="text-right space-x-1">

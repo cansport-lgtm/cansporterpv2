@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Upload, X, Loader2 } from "lucide-react";
+import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -37,6 +38,9 @@ interface Employee {
   is_active: boolean;
   basic_salary: number | null;
   allowances: number | null;
+  photo_url?: string | null;
+  field_duty_allowed?: boolean | null;
+  app_user_id?: string | null;
   production_departments?: { id: string; name: string } | null;
   designations?: { id: string; name: string } | null;
 }
@@ -67,6 +71,57 @@ const EmployeesPage = () => {
     duty_start_time: "09:00",
     duty_end_time: "18:00",
     duty_hours: "8",
+    photo_url: "",
+    field_duty_allowed: false,
+    app_user_id: "",
+  });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Staff photo: shown to the guard on Gate Check so they can match the person with the pass.
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2 MB");
+      return;
+    }
+    try {
+      setUploadingPhoto(true);
+      const ext = file.name.split(".").pop() || "jpg";
+      const codePart = (formData.employee_code || "emp").replace(/[^a-zA-Z0-9_-]/g, "");
+      const path = `${codePart}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("staff-photos")
+        .upload(path, file, { cacheControl: "3600", upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from("staff-photos").getPublicUrl(path);
+      setFormData((p) => ({ ...p, photo_url: data.publicUrl }));
+      toast.success("Photo uploaded");
+    } catch (err) {
+      const message = (err as { message?: string })?.message || "unknown error";
+      toast.error(`Photo upload failed: ${message}. The photo will NOT be saved with this employee.`, { duration: 8000 });
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  // Logins that can be linked to a staff record (self-service gate passes).
+  const { data: appUsers = [] } = useQuery({
+    queryKey: ["app-users-for-employee-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_users")
+        .select("id, full_name, user_id, is_active")
+        .order("full_name");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: departments = [] } = useQuery({
@@ -138,6 +193,9 @@ const EmployeesPage = () => {
         duty_start_time: data.duty_start_time || "09:00",
         duty_end_time: data.duty_end_time || "18:00",
         duty_hours: data.duty_hours ? parseFloat(data.duty_hours) : 8,
+        photo_url: data.photo_url || null,
+        field_duty_allowed: data.field_duty_allowed,
+        app_user_id: data.app_user_id || null,
       };
 
       if (editingEmployee) {
@@ -236,6 +294,9 @@ const EmployeesPage = () => {
       duty_start_time: "09:00",
       duty_end_time: "18:00",
       duty_hours: "8",
+      photo_url: "",
+      field_duty_allowed: false,
+      app_user_id: "",
     });
   };
 
@@ -258,6 +319,9 @@ const EmployeesPage = () => {
       duty_start_time: (employee as any).duty_start_time || "09:00",
       duty_end_time: (employee as any).duty_end_time || "18:00",
       duty_hours: (employee as any).duty_hours?.toString() || "8",
+      photo_url: employee.photo_url || "",
+      field_duty_allowed: Boolean(employee.field_duty_allowed),
+      app_user_id: employee.app_user_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -282,6 +346,12 @@ const EmployeesPage = () => {
   );
 
   const columns: Column<Employee>[] = [
+    {
+      key: "photo",
+      header: "",
+      className: "w-12",
+      render: (item) => <EmployeeAvatar name={item.full_name} photoUrl={item.photo_url} />,
+    },
     {
       key: "employee_code",
       header: "Code",
@@ -566,6 +636,65 @@ const EmployeesPage = () => {
                       max="24"
                       step="0.5"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-dashed bg-muted/30 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <EmployeeAvatar name={formData.full_name} photoUrl={formData.photo_url} className="h-20 w-20 text-base" />
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-sm font-medium">Photo</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                      <Button type="button" variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
+                        {uploadingPhoto ? (
+                          <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Uploading...</>
+                        ) : (
+                          <><Upload className="mr-1.5 h-3.5 w-3.5" /> {formData.photo_url ? "Change" : "Upload"} Photo</>
+                        )}
+                      </Button>
+                      {formData.photo_url && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({ ...formData, photo_url: "" })}>
+                          <X className="mr-1.5 h-3.5 w-3.5" /> Remove
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">JPG/PNG, max 2 MB. The guard compares the person with this photo at the gate.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <Label className="text-sm font-semibold text-muted-foreground">Gate pass</Label>
+                <div>
+                  <Label className="text-xs">Login user (for self-service company work passes)</Label>
+                  <Select
+                    value={formData.app_user_id || "none"}
+                    onValueChange={(val) => setFormData({ ...formData, app_user_id: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not linked" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {appUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name} ({u.user_id}){u.is_active === false ? " · inactive" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">With a login linked, this staff member can raise their own Official duty gate pass under My Gate Passes.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={formData.field_duty_allowed}
+                    onCheckedChange={(checked) => setFormData({ ...formData, field_duty_allowed: checked })}
+                  />
+                  <div>
+                    <Label>Field duty allowed</Label>
+                    <p className="text-[11px] text-muted-foreground">Official duty passes are approved the moment they are raised (purchase officers, drivers, …).</p>
                   </div>
                 </div>
               </div>

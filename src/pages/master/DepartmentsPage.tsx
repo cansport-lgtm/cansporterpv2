@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,12 @@ interface Department {
 
 export default function DepartmentsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Department | null>(null);
@@ -145,12 +152,16 @@ export default function DepartmentsPage() {
           <Button variant="ghost" size="icon" onClick={() => handleSubDepartments(item)} title="Sub-Departments">
             <Layers className="h-4 w-4 text-blue-500" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -164,11 +175,11 @@ export default function DepartmentsPage() {
           description="Manage production departments"
           icon={Database}
           iconColor="bg-blue-500/10 text-blue-500"
-          action={{
+          action={canCreate ? {
             label: "Add Department",
             onClick: () => { resetForm(); setDialogOpen(true); },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <DataTable columns={columns} data={departments} emptyMessage={isLoading ? "Loading..." : "No departments found"} />

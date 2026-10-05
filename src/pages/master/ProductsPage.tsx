@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Database, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { ProductOwnerType } from "@/lib/customerSkus";
 
 interface Product {
   id: string;
@@ -46,29 +50,56 @@ interface Product {
   standard_cost: number | null;
   standard_selling_price: number | null;
   planning_item_id: string | null;
+  owner_type: ProductOwnerType;
+  customer_party_id: string | null;
+  base_product_id: string | null;
   is_active: boolean | null;
   grades?: { name: string } | null;
   units_of_measure?: { name: string } | null;
   planning_items?: { code: string; name: string } | null;
 }
 
+interface PartyRef {
+  id: string;
+  code: string | null;
+  name: string;
+  is_active: boolean | null;
+}
+
+type OwnerFilter = "all" | "own" | "customer";
+
+const EMPTY_FORM = {
+  owner_type: "own" as ProductOwnerType,
+  customer_party_id: "",
+  base_product_id: "",
+  code: "",
+  name: "",
+  description: "",
+  grade_id: "",
+  uom_id: "",
+  standard_output_rate: 0,
+  standard_cost: 0,
+  standard_selling_price: 0,
+  planning_item_id: "",
+  is_active: true,
+};
+
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
-  const [formData, setFormData] = useState({
-    code: "",
-    name: "",
-    description: "",
-    grade_id: "",
-    uom_id: "",
-    standard_output_rate: 0,
-    standard_cost: 0,
-    standard_selling_price: 0,
-    planning_item_id: "",
-    is_active: true,
-  });
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
+  const [formData, setFormData] = useState({ ...EMPTY_FORM });
+
+  const isCustomerSku = formData.owner_type === "customer";
+  const isCreate = !selectedItem;
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -78,7 +109,7 @@ export default function ProductsPage() {
         .select("*, grades(name), units_of_measure(name), planning_items(code, name)")
         .order("code", { ascending: true });
       if (error) throw error;
-      return data as Product[];
+      return data as unknown as Product[];
     },
   });
 
@@ -121,43 +152,107 @@ export default function ProductsPage() {
     },
   });
 
+  // Owners of customer SKUs are accounts-receivable customers: accounting
+  // parties of type "customer", not rows of the sales customers master.
+  const { data: customers = [] } = useQuery({
+    queryKey: ["ar-customer-parties-for-sku"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("accounting_parties")
+        .select("id, code, name, is_active")
+        .eq("party_type", "customer")
+        .order("name");
+      if (error) throw error;
+      return data as PartyRef[];
+    },
+  });
+
+  const activeCustomers = useMemo(
+    () => customers.filter((c) => c.is_active !== false),
+    [customers],
+  );
+
+  // Owner details are looked up client-side: embedding customers / a
+  // self-referencing products join in the master query fails in PostgREST.
+  const customerById = useMemo(
+    () => new Map(customers.map((c) => [c.id, c])),
+    [customers],
+  );
+  const productById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
+
+  // Preview of the code the database will assign to a new customer SKU.
+  const { data: nextCode } = useQuery({
+    queryKey: ["next-customer-sku-code", formData.customer_party_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("next_customer_sku_code", {
+        p_party_id: formData.customer_party_id,
+      });
+      if (error) throw error;
+      return data as string | null;
+    },
+    enabled: dialogOpen && isCreate && isCustomerSku && !!formData.customer_party_id,
+  });
+
+  const ownProducts = useMemo(
+    () => products.filter((p) => p.owner_type !== "customer"),
+    [products],
+  );
+
+  const visibleProducts = useMemo(() => {
+    if (ownerFilter === "own") return ownProducts;
+    if (ownerFilter === "customer")
+      return products.filter((p) => p.owner_type === "customer");
+    return products;
+  }, [products, ownProducts, ownerFilter]);
+
+  const counts = {
+    all: products.length,
+    own: ownProducts.length,
+    customer: products.length - ownProducts.length,
+  };
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
+      const customer = data.owner_type === "customer";
+      if (customer && !data.customer_party_id) {
+        throw new Error("Pick the accounts-receivable customer who owns this SKU");
+      }
+      const payload = {
+        name: data.name,
+        description: data.description || null,
+        grade_id: data.grade_id || null,
+        uom_id: data.uom_id || null,
+        standard_output_rate: data.standard_output_rate || null,
+        standard_cost: data.standard_cost || null,
+        standard_selling_price: data.standard_selling_price || null,
+        planning_item_id: data.planning_item_id || null,
+        owner_type: data.owner_type,
+        customer_party_id: customer ? data.customer_party_id : null,
+        base_product_id: customer ? data.base_product_id || null : null,
+        is_active: data.is_active,
+      };
       if (data.id) {
         const { error } = await supabase
           .from("products")
-          .update({
-            code: data.code,
-            name: data.name,
-            description: data.description || null,
-            grade_id: data.grade_id || null,
-            uom_id: data.uom_id || null,
-            standard_output_rate: data.standard_output_rate || null,
-            standard_cost: data.standard_cost || null,
-            standard_selling_price: data.standard_selling_price || null,
-            planning_item_id: data.planning_item_id || null,
-            is_active: data.is_active,
-          })
+          .update({ ...payload, code: data.code })
           .eq("id", data.id);
         if (error) throw error;
       } else {
+        // Customer SKU codes are generated by the database trigger
+        // (<customer code>-NNN) when the code is left blank.
         const { error } = await supabase.from("products").insert({
-          code: data.code,
-          name: data.name,
-          description: data.description || null,
-          grade_id: data.grade_id || null,
-          uom_id: data.uom_id || null,
-          standard_output_rate: data.standard_output_rate || null,
-          standard_cost: data.standard_cost || null,
-          standard_selling_price: data.standard_selling_price || null,
-          planning_item_id: data.planning_item_id || null,
-          is_active: data.is_active,
+          ...payload,
+          code: customer ? "" : data.code,
         });
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["next-customer-sku-code"] });
       toast.success(selectedItem ? "Product updated" : "Product created");
       resetForm();
     },
@@ -183,25 +278,23 @@ export default function ProductsPage() {
   });
 
   const resetForm = () => {
-    setFormData({
-      code: "",
-      name: "",
-      description: "",
-      grade_id: "",
-      uom_id: "",
-      standard_output_rate: 0,
-      standard_cost: 0,
-      standard_selling_price: 0,
-      planning_item_id: "",
-      is_active: true,
-    });
+    setFormData({ ...EMPTY_FORM });
     setSelectedItem(null);
     setDialogOpen(false);
+  };
+
+  const openCreate = (ownerType: ProductOwnerType) => {
+    setSelectedItem(null);
+    setFormData({ ...EMPTY_FORM, owner_type: ownerType });
+    setDialogOpen(true);
   };
 
   const handleEdit = (item: Product) => {
     setSelectedItem(item);
     setFormData({
+      owner_type: item.owner_type === "customer" ? "customer" : "own",
+      customer_party_id: item.customer_party_id || "",
+      base_product_id: item.base_product_id || "",
       code: item.code,
       name: item.name,
       description: item.description || "",
@@ -221,6 +314,33 @@ export default function ProductsPage() {
     setDeleteDialogOpen(true);
   };
 
+  // Picking a base product pre-fills every blank spec field from it so the
+  // customer SKU shares the planning item / cost of the product we make.
+  // Anything already typed is left alone.
+  const handleBaseProductChange = (baseId: string) => {
+    const base = ownProducts.find((p) => p.id === baseId);
+    setFormData((f) => ({
+      ...f,
+      base_product_id: baseId,
+      grade_id: f.grade_id || base?.grade_id || "",
+      uom_id: f.uom_id || base?.uom_id || "",
+      standard_output_rate: f.standard_output_rate || base?.standard_output_rate || 0,
+      planning_item_id: f.planning_item_id || base?.planning_item_id || "",
+      standard_cost: f.standard_cost || base?.standard_cost || 0,
+      standard_selling_price:
+        f.standard_selling_price || base?.standard_selling_price || 0,
+    }));
+  };
+
+  const handleOwnerTypeChange = (value: ProductOwnerType) => {
+    setFormData((f) => ({
+      ...f,
+      owner_type: value,
+      customer_party_id: value === "customer" ? f.customer_party_id : "",
+      base_product_id: value === "customer" ? f.base_product_id : "",
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     saveMutation.mutate({ ...formData, id: selectedItem?.id });
@@ -229,6 +349,27 @@ export default function ProductsPage() {
   const columns = [
     { key: "code", header: "Code" },
     { key: "name", header: "Name" },
+    {
+      key: "owner",
+      header: "Owner",
+      render: (item: Product) =>
+        item.owner_type === "customer" ? (
+          <div className="flex flex-col gap-0.5">
+            <Badge variant="secondary" className="w-fit text-xs">
+              {(item.customer_party_id && customerById.get(item.customer_party_id)?.name) ?? "Customer"}
+            </Badge>
+            {item.base_product_id && productById.get(item.base_product_id) && (
+              <span className="text-xs text-muted-foreground">
+                base: {productById.get(item.base_product_id)?.code}
+              </span>
+            )}
+          </div>
+        ) : (
+          <Badge variant="outline" className="w-fit text-xs">
+            Own
+          </Badge>
+        ),
+    },
     {
       key: "grades.name",
       header: "Grade",
@@ -278,15 +419,25 @@ export default function ProductsPage() {
       header: "Actions",
       render: (item: Product) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
+  ];
+
+  const filterTabs: { key: OwnerFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "own", label: "Own SKUs" },
+    { key: "customer", label: "Customer SKUs" },
   ];
 
   return (
@@ -294,44 +445,143 @@ export default function ProductsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Products / SKUs"
-          description="Manage products and stock keeping units"
+          description="Manage our own SKUs and customers' private-label SKUs"
           icon={Database}
           iconColor="bg-purple-500/10 text-purple-500"
-          action={{
+          action={canCreate ? {
             label: "Add Product",
-            onClick: () => {
-              resetForm();
-              setDialogOpen(true);
-            },
+            onClick: () => openCreate(ownerFilter === "customer" ? "customer" : "own"),
             icon: Plus,
-          }}
+          } : undefined}
         />
+
+        <div className="flex flex-wrap items-center gap-2">
+          {filterTabs.map((tab) => (
+            <Button
+              key={tab.key}
+              type="button"
+              size="sm"
+              variant={ownerFilter === tab.key ? "default" : "outline"}
+              onClick={() => setOwnerFilter(tab.key)}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-background/20 px-1.5 text-xs">
+                {counts[tab.key]}
+              </span>
+            </Button>
+          ))}
+          {canCreate && (
+            <div className="ml-auto flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => openCreate("customer")}>
+                <Plus className="mr-1 h-4 w-4" />
+                Customer SKU
+              </Button>
+            </div>
+          )}
+        </div>
 
         <DataTable
           columns={columns}
-          data={products}
+          data={visibleProducts}
           emptyMessage={isLoading ? "Loading..." : "No products found"}
         />
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {selectedItem ? "Edit Product" : "Add Product"}
+                {selectedItem
+                  ? isCustomerSku ? "Edit Customer SKU" : "Edit Product"
+                  : isCustomerSku ? "Add Customer SKU" : "Add Product"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
+                  <Label htmlFor="owner_type">SKU Owner</Label>
+                  <Select
+                    value={formData.owner_type}
+                    onValueChange={(v) => handleOwnerTypeChange(v as ProductOwnerType)}
+                  >
+                    <SelectTrigger id="owner_type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="own">Own (company SKU)</SelectItem>
+                      <SelectItem value="customer">Customer (private label)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {isCustomerSku
+                      ? "Customer's own brand & packaging. Sold only to that customer."
+                      : "Our brand. Can be sold to any customer."}
+                  </p>
+                </div>
+                {isCustomerSku && (
+                  <div className="space-y-2">
+                    <Label>Customer (accounts receivable)</Label>
+                    <SearchableSelect
+                      value={formData.customer_party_id}
+                      onValueChange={(v) => setFormData({ ...formData, customer_party_id: v })}
+                      placeholder="Pick receivables customer"
+                      options={activeCustomers.map((c) => ({
+                        value: c.id,
+                        label: c.name,
+                        secondary: c.code ? `(${c.code})` : "",
+                        search: c.code || c.name,
+                      }))}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {isCustomerSku && (
+                <div className="space-y-2">
+                  <Label>Base Product (our SKU it is made from)</Label>
+                  <SearchableSelect
+                    value={formData.base_product_id}
+                    onValueChange={handleBaseProductChange}
+                    placeholder="Optional — pick our equivalent SKU"
+                    options={ownProducts
+                      .filter((p) => p.is_active)
+                      .map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        secondary: `(${p.code})`,
+                        search: p.code,
+                      }))}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Grade, UOM, output, planning item and costs left blank below are filled from the base product.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="code">Code</Label>
+                  {isCustomerSku && isCreate ? (
+                    <>
+                      <Input
+                        id="code"
+                        value={nextCode ?? ""}
+                        placeholder={formData.customer_party_id ? "Generating…" : "Pick a receivables customer first"}
+                        disabled
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Auto-generated as the party's code (or first 8 letters of its name) + serial.
+                      </p>
+                    </>
+                  ) : (
+                    <Input
+                      id="code"
+                      value={formData.code}
+                      onChange={(e) =>
+                        setFormData({ ...formData, code: e.target.value })
+                      }
+                      required
+                    />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>

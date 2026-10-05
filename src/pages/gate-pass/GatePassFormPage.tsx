@@ -31,6 +31,7 @@ import {
 import {
   PASS_SELECT, PASS_TYPES, errorMessage, fmtQty, gpDb, sortedItems, type GatePass, type GatePassType,
 } from "@/lib/gatePass";
+import { useDispatchStorePasses } from "@/lib/storePass";
 
 type OrderRef = { order_number: string; status: string; customers: { name: string } | null } | null;
 type DispatchRow = {
@@ -282,6 +283,10 @@ export default function GatePassFormPage() {
     return m;
   }, [taken, editId]);
 
+  // Store pass of each candidate dispatch (Store Pass module): shown so the office
+  // sees whether the store has handed the goods over yet. Informational only.
+  const storePasses = useDispatchStorePasses(passType === "sales" ? dispatches.map((d) => d.id) : []);
+
   const selectedDispatches = dispatches.filter((d) => dispatchIds.includes(d.id));
   const salesLines = selectedDispatches.flatMap((d) =>
     d.sales_dispatch_items
@@ -466,14 +471,15 @@ export default function GatePassFormPage() {
                           <TableHead>Orders</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead className="text-right">Qty (dz)</TableHead>
+                          <TableHead>Store pass</TableHead>
                           <TableHead>Note</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {dispatchesLoading ? (
-                          <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Loading…</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Loading…</TableCell></TableRow>
                         ) : dispatches.length === 0 ? (
-                          <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No pending dispatches.</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No pending dispatches.</TableCell></TableRow>
                         ) : dispatches.map((d) => {
                           const orders = dispatchOrders(d);
                           const unapproved = orders.filter((o) => NOT_APPROVED.includes(o.status));
@@ -498,6 +504,13 @@ export default function GatePassFormPage() {
                                 {[...new Set(orders.map((o) => o.customers?.name).filter(Boolean))].join("; ")}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">{fmtQty(qty)}</TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">
+                                {(() => {
+                                  const sp = storePasses.get(d.id);
+                                  if (!sp) return <span className="text-amber-700 font-medium">No store pass</span>;
+                                  return <span className={cn("font-mono", sp.status === "issued" ? "text-emerald-700" : "text-muted-foreground")}>{sp.pass_number}{sp.status === "issued" && sp.issued_at ? ` · ${format(new Date(sp.issued_at), "HH:mm")}` : " · draft"}</span>;
+                                })()}
+                              </TableCell>
                               <TableCell className="text-xs">
                                 {onPass ? <span className="text-red-700 font-medium">On {onPass}</span>
                                   : unapproved.length ? <span className="text-red-700 font-medium">Order not approved</span>
@@ -781,6 +794,7 @@ export default function GatePassFormPage() {
                   {passType === "sales" ? "The sales orders are already approved, so the pass goes straight to the gate."
                     : passType === "supplier_return" ? "The purchase return is the approval, so the pass goes straight to the gate."
                     : backfillOn && canBackfill ? "Entered by a manager, so it is approved and recorded as out straight away."
+                    : passType === "sample" ? "A sample manager must approve before the guard can let it out. Whoever raises the pass cannot approve it themselves."
                     : "A gate pass manager must approve before the guard can let it out."}
                 </div>
               </div>

@@ -100,6 +100,13 @@ import SalaryReportPage from "./pages/hr/SalaryReportPage";
 import AttendanceSheetPage from "./pages/hr/AttendanceSheetPage";
 import PublicHolidaysPage from "./pages/hr/PublicHolidaysPage";
 import HRPunctualityAnalyticsPage from "./pages/hr/HRPunctualityAnalyticsPage";
+import StaffGatePassListPage from "./pages/hr/StaffGatePassListPage";
+import StaffGatePassFormPage from "./pages/hr/StaffGatePassFormPage";
+import StaffGatePassDetailPage from "./pages/hr/StaffGatePassDetailPage";
+import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
+import MyGatePassListPage from "./pages/hr/MyGatePassListPage";
+import MyGatePassFormPage from "./pages/hr/MyGatePassFormPage";
+import MyGatePassDetailPage from "./pages/hr/MyGatePassDetailPage";
 
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
@@ -197,6 +204,7 @@ import LabourGatePassListPage from "./pages/labour/LabourGatePassListPage";
 import LabourGatePassFormPage from "./pages/labour/LabourGatePassFormPage";
 import LabourGatePassDetailPage from "./pages/labour/LabourGatePassDetailPage";
 import LabourGatePassApprovalsPage from "./pages/labour/LabourGatePassApprovalsPage";
+import LabourAttendanceDeleteRequestsPage from "./pages/labour/LabourAttendanceDeleteRequestsPage";
 
 // Fixed Assets pages
 import FixedAssetsDashboard from "./pages/fixed-assets/FixedAssetsDashboard";
@@ -376,6 +384,12 @@ import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
 import GateInwardFormPage from "./pages/gate-pass/GateInwardFormPage";
 import GateInwardDetailPage from "./pages/gate-pass/GateInwardDetailPage";
 import GateInwardRegisterPage from "./pages/purchase/GateInwardRegisterPage";
+import StorePassListPage from "./pages/store-pass/StorePassListPage";
+import StorePassFormPage from "./pages/store-pass/StorePassFormPage";
+import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
+import DispatchTrackingPage from "./pages/store-pass/DispatchTrackingPage";
+import StorePassDashboardPage from "./pages/store-pass/StorePassDashboardPage";
+import StoreGateReconciliationPage from "./pages/store-pass/StoreGateReconciliationPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -449,7 +463,17 @@ import DistributorOrderAnalysisPage from "./pages/distributor/DistributorOrderAn
 import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
 import DistributorDispatchPage from "./pages/distributor/DistributorDispatchPage";
 
-const queryClient = new QueryClient();
+// Data is considered fresh for a short while so navigating between pages or
+// switching browser tabs does not refire every query (and re-render every
+// list). Mutations still invalidate their own keys, so writes show up at once.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Wraps the routed content so a render error shows a recoverable message
 // instead of a blank white screen, and clears itself when the route changes.
@@ -594,6 +618,14 @@ const App = () => (
             <Route path="/hr/public-holidays" element={<ProtectedRoute requiredRole="super_admin"><PublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
             <Route path="/hr/time-sheet" element={<ProtectedRoute><TimeSheetPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass" element={<ProtectedRoute><StaffGatePassListPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
+            {/* Self-service: any logged-in staff member raises and follows their own company work passes */}
+            <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/new" element={<ProtectedRoute><MyGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/:id" element={<ProtectedRoute><MyGatePassDetailPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}
@@ -735,6 +767,7 @@ const App = () => (
             <Route path="/labour/gate-pass/new" element={<ProtectedRoute><LabourGatePassFormPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/approvals" element={<ProtectedRoute><LabourGatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/:id" element={<ProtectedRoute><LabourGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/labour/attendance-delete-requests" element={<ProtectedRoute requiredRoles={["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"]}><LabourAttendanceDeleteRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}
@@ -887,6 +920,14 @@ const App = () => (
             <Route path="/gate-pass/inward/new" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/inward/edit/:id" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
+            <Route path="/store-pass" element={<Navigate to="/store-pass/dashboard" replace />} />
+            <Route path="/store-pass/dashboard" element={<ProtectedRoute><StorePassDashboardPage /></ProtectedRoute>} />
+            <Route path="/store-pass/reconciliation" element={<ProtectedRoute><StoreGateReconciliationPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes" element={<ProtectedRoute><StorePassListPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes/:id" element={<ProtectedRoute><StorePassDetailPage /></ProtectedRoute>} />
+            <Route path="/store-pass/new" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/edit/:id" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/tracking" element={<ProtectedRoute><DispatchTrackingPage /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />

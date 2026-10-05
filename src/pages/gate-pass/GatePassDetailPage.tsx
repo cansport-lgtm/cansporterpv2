@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { BackfillInfo, ReturnsSection, ScrapSection } from "@/components/gate-pass/PassExtraSections";
 import {
-  PASS_SELECT, canApproveGatePassType, countUnit, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
+  PASS_SELECT, canReviewGatePass, countUnit, isOwnPassBlocked, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -163,7 +163,7 @@ export default function GatePassDetailPage() {
                 </Button>
               </>
             )}
-            {pass.status === "pending_approval" && canApproveGatePassType(roles, pass.pass_type) && (
+            {pass.status === "pending_approval" && canReviewGatePass(roles, pass, user?.id) && (
               <>
                 <Button variant="outline" className="text-destructive" onClick={() => setDialog("reject")}>
                   <XCircle className="h-4 w-4 mr-1" /> Reject
@@ -194,6 +194,12 @@ export default function GatePassDetailPage() {
             )}
           </div>
         </PageHeader>
+
+        {pass.status === "pending_approval" && isOwnPassBlocked(roles, pass, user?.id) && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            You raised this {type.label.toLowerCase()} pass, so another {type.label.toLowerCase()} manager must approve or reject it.
+          </div>
+        )}
 
         {events.some((e) => e.event === "rescan_attempt") && (
           <div role="alert" className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900 flex items-start gap-2">

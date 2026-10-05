@@ -39,6 +39,7 @@ interface LabourEmployee {
   joining_date: string | null;
   attendance_allowance: number | null;
   photo_url: string | null;
+  field_duty_allowed?: boolean | null;
   production_departments?: { id: string; name: string } | null;
 }
 
@@ -76,6 +77,7 @@ const LabourEmployeesPage = () => {
     joining_date: "",
     attendance_allowance: 0,
     photo_url: "" as string,
+    field_duty_allowed: false,
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -186,6 +188,7 @@ const LabourEmployeesPage = () => {
         joining_date: data.joining_date || null,
         attendance_allowance: data.attendance_allowance || 0,
         photo_url: data.photo_url || null,
+        field_duty_allowed: Boolean(data.field_duty_allowed),
       };
 
       if (editingEmployee) {
@@ -270,6 +273,7 @@ const LabourEmployeesPage = () => {
       joining_date: "",
       attendance_allowance: 0,
       photo_url: "",
+      field_duty_allowed: false,
     });
   };
 
@@ -288,6 +292,7 @@ const LabourEmployeesPage = () => {
       joining_date: employee.joining_date || "",
       attendance_allowance: employee.attendance_allowance || 0,
       photo_url: employee.photo_url || "",
+      field_duty_allowed: Boolean(employee.field_duty_allowed),
     });
     setIsDialogOpen(true);
   };
@@ -607,6 +612,16 @@ const LabourEmployeesPage = () => {
                   onChange={(e) => setFormData({ ...formData, attendance_allowance: parseFloat(e.target.value) || 0 })}
                   placeholder="Enter attendance allowance"
                 />
+              </div>
+              <div className="flex items-center gap-3 sm:col-span-2">
+                <Switch
+                  checked={formData.field_duty_allowed}
+                  onCheckedChange={(checked) => setFormData({ ...formData, field_duty_allowed: checked })}
+                />
+                <div>
+                  <Label>Field duty allowed</Label>
+                  <p className="text-[11px] text-muted-foreground">Official duty gate passes for this worker are approved the moment they are raised (drivers, loaders, purchase helpers).</p>
+                </div>
               </div>
               <div className="flex items-center gap-3 sm:col-span-2">
                 <Switch
