@@ -849,7 +849,6 @@ export default function DomesticDispatchPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_transit">In Transit</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="returned">Returned</SelectItem>
                 </SelectContent>
@@ -1135,7 +1134,6 @@ export default function DomesticDispatchPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="in_transit">In Transit</SelectItem>
                                 <SelectItem value="delivered">Delivered</SelectItem>
                                 <SelectItem value="returned">Returned</SelectItem>
                                 <SelectItem value="acknowledged">Acknowledged</SelectItem>

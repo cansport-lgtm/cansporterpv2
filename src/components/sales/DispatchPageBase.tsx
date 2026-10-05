@@ -318,7 +318,6 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_transit">In Transit</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="returned">Returned</SelectItem>
                 </SelectContent>
@@ -519,7 +518,6 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="in_transit">In Transit</SelectItem>
                                 <SelectItem value="delivered">Delivered</SelectItem>
                                 <SelectItem value="returned">Returned</SelectItem>
                               </SelectContent>
