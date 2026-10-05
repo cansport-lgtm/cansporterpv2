@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   SEVERITY_TONE, addDaysIso, daysFromToday, dayTotals, dpDb, fetchSettings, fetchSuggest, fetchVehicles, flagMeta,
-  fmtDay, fmtQty, groupLoads, statusMeta, sum, todayPk,
+  fmtDay, fmtQty, groupLoads, statusMeta, suggestErrorHint, sum, todayPk,
   type PlannerVersion, type SuggestRow,
 } from "@/lib/dispatchPlanner";
 
@@ -19,10 +19,11 @@ export default function DispatchPlannerDashboardPage() {
   const horizon = settings?.horizon_days ?? 14;
   const to = addDaysIso(today, horizon);
 
-  const { data: rows = [], isLoading } = useQuery<SuggestRow[]>({
+  const { data: rows = [], isLoading, isError, error } = useQuery<SuggestRow[]>({
     queryKey: ["dp-suggest", today, to],
     queryFn: () => fetchSuggest(today, to),
     enabled: !!settings,
+    retry: false,
   });
   const { data: vehicles = [] } = useQuery({ queryKey: ["dp-vehicles", "active"], queryFn: () => fetchVehicles(true) });
   const { data: lastVersion } = useQuery<PlannerVersion | null>({
@@ -84,6 +85,10 @@ export default function DispatchPlannerDashboardPage() {
           description={`Suggestions only — nothing here is dispatched, reserved or booked. Horizon: today to ${fmtDay(to, "dd MMM")}.`}
           icon={LayoutDashboard}
         />
+
+        {isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{suggestErrorHint(error)}</div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
           {kpis.map((k) => (

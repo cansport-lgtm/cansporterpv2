@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import {
   SEVERITY_TONE, STATUS_META, addDaysIso, dayTotals, dpDb, errorMessage, fetchSettings, fetchSuggest, fetchVehicles,
-  fetchWorkingDays, flagMeta, fmtDay, fmtQty, groupByDay, groupLoads, printLoadingSuggestions, statusMeta, sum, todayPk,
+  fetchWorkingDays, flagMeta, fmtDay, fmtQty, groupByDay, groupLoads, printLoadingSuggestions, statusMeta, suggestErrorHint, sum, todayPk,
   type SuggestRow,
 } from "@/lib/dispatchPlanner";
 
@@ -45,9 +45,10 @@ export default function DispatchPlannerBoardPage() {
   const { data: settings } = useQuery({ queryKey: ["dp-settings"], queryFn: fetchSettings });
   const { data: vehicles = [] } = useQuery({ queryKey: ["dp-vehicles", "active"], queryFn: () => fetchVehicles(true) });
   const { data: calendar = [] } = useQuery({ queryKey: ["dp-working-days", from, to], queryFn: () => fetchWorkingDays(from, to) });
-  const { data: rows = [], isLoading, isFetching, refetch } = useQuery<SuggestRow[]>({
+  const { data: rows = [], isLoading, isFetching, isError, error, refetch } = useQuery<SuggestRow[]>({
     queryKey: ["dp-suggest", from, to],
     queryFn: () => fetchSuggest(from, to),
+    retry: false,
   });
 
   const fleet = sum(vehicles.map((v) => v.carton_capacity));
@@ -181,7 +182,9 @@ export default function DispatchPlannerBoardPage() {
           </CardContent>
         </Card>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{suggestErrorHint(error)}</div>
+        ) : isLoading ? (
           <p className="text-sm text-muted-foreground">Working out the suggestion…</p>
         ) : rows.length === 0 ? (
           <Card><CardContent className="p-6 text-center text-muted-foreground">No pending domestic order lines. Nothing to plan.</CardContent></Card>

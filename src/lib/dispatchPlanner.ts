@@ -186,6 +186,16 @@ export const daysFromToday = (iso: string | null | undefined) => {
 export const errorMessage = (e: unknown) =>
   (e as { message?: string })?.message ?? "Something went wrong.";
 
+/** What to tell the user when the suggestion call fails. A missing function means the
+ *  module's SQL migration has not been run on the project yet. */
+export const suggestErrorHint = (e: unknown) => {
+  const m = errorMessage(e);
+  if (/does not exist|could not find the function|PGRST202/i.test(m)) {
+    return `The planner's database functions are missing (${m}). Run supabase/migrations/20261010120100_dispatch_planner.sql on the Supabase project, then reload.`;
+  }
+  return `The suggestion could not be computed: ${m}`;
+};
+
 export const sum = (xs: (number | null | undefined)[]) => xs.reduce((s, x) => s + Number(x ?? 0), 0);
 
 // --- Reads -----------------------------------------------------------------------

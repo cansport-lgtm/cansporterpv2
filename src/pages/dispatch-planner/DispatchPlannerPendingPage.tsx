@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import {
   FLAG_META, SEVERITY_TONE, STATUS_META, addDaysIso, fetchSettings, fetchSuggest, flagMeta, fmtDay, fmtQty, statusMeta,
-  sum, toExportRows, todayPk, type SuggestRow,
+  suggestErrorHint, sum, toExportRows, todayPk, type SuggestRow,
 } from "@/lib/dispatchPlanner";
 
 export default function DispatchPlannerPendingPage() {
@@ -22,10 +22,11 @@ export default function DispatchPlannerPendingPage() {
   const today = todayPk();
   const { data: settings } = useQuery({ queryKey: ["dp-settings"], queryFn: fetchSettings });
   const to = addDaysIso(today, settings?.horizon_days ?? 14);
-  const { data: rows = [], isLoading } = useQuery<SuggestRow[]>({
+  const { data: rows = [], isLoading, isError, error } = useQuery<SuggestRow[]>({
     queryKey: ["dp-suggest", today, to],
     queryFn: () => fetchSuggest(today, to),
     enabled: !!settings,
+    retry: false,
   });
 
   const [search, setSearch] = useState("");
@@ -55,6 +56,10 @@ export default function DispatchPlannerPendingPage() {
         <PageHeader title="Pending Lines" description="Every pending domestic order line with its stock position and suggested dispatch day. The working list for the sales order manager." icon={ListChecks}>
           <Button variant="outline" size="sm" onClick={exportXlsx} disabled={filtered.length === 0}><FileSpreadsheet className="h-4 w-4 mr-1" /> Export</Button>
         </PageHeader>
+
+        {isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{suggestErrorHint(error)}</div>
+        )}
 
         <Card>
           <CardContent className="p-3 flex flex-wrap items-center gap-2">
