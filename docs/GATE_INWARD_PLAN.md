@@ -45,11 +45,11 @@ already exists for it, so the gate never duplicates stores or accounts work.
 
 | Type | Linked to | Guard enters | Closed by (status) | Phase |
 |---|---|---|---|---|
-| **Purchase** | One approved / ordered / partially received PO of the supplier | PO lines: quantity as per challan, packages; challan no. / date | The GRN for that PO names this entry → `grn_made` | 1 |
-| **Returnable back** | A Returnable gate pass (`GP-`) that is out / partly returned | The pass number (scan the original slip); which lines came back, how many | "Receive goods" on the pass (`GPR-`) names this entry → `received` | 1 |
-| **Job work back** | A Job work gate pass that is out | The pass number; processed goods received, packages | `GPR-` receipt on the pass → `received` | 1 |
-| **Sales return** | Customer (and the dispatch if the driver has the invoice / dispatch number) | Products and cartons as per the return note | A sales return (`sales_returns`) names this entry → `received` | 2 |
-| **Sample / free supply** | Supplier or anyone; no PO | Free-text lines, packages | Office closes with a note ("received by …") → `closed` | 2 |
+| **Purchase** | One approved / ordered / partially received **raw material** PO of the supplier (categories are a setting) | Supplier, PO, vehicle, driver, challan no. and photo, packages (optional). **No quantities** | The GRN for that PO names this entry → `grn_made` | 1 |
+| **Returnable back** | A Returnable gate pass (`GP-`) that is out / partly returned | The pass number (scan the original slip), vehicle, driver. No quantities | "Receive goods" on the pass (`GPR-`) names this entry → `received` | 1 |
+| **Job work back** | A Job work gate pass that is out | The pass number, vehicle, driver. No quantities | `GPR-` receipt on the pass → `received` | 1 |
+| **Sales return** | Customer (and the dispatch if the driver has the invoice / dispatch number) | Customer, optional dispatch, cartons (optional) | A sales return (`sales_returns`) names this entry → `received` | 2 |
+| **Sample / free supply** | Supplier or anyone; no PO | What it is, in one line; packages | Office closes with a note ("received by …") → `closed` | 2 |
 | **Empty vehicle for loading** | Transporter / customer vehicle arriving empty to load a dispatch or scrap | Vehicle, driver, who it came for | Automatically when an outward pass goes **Out** on that vehicle the same day → `loaded_out`; this gives the register an in-time for every vehicle that leaves on a `GP-`. Super admin sets whether it is **off**, **optional** or **compulsory** (see §5) | 2 |
 | **Other** | Courier, documents, contractor material, anything else | Free text | Office closes with a note → `closed` | 2 |
 | **Manual backfill** | Any type above, entered later from the paper inward register | Paper book and serial, date and time on paper, photo of the page | Same as its type, dated on paper | 3 |
@@ -65,14 +65,16 @@ Rules of thumb:
   entries (the form offers "another entry for the same vehicle", copying the
   vehicle, driver and challan fields). This matches the GRN, which is also
   against one PO, so the link entry ↔ GRN stays one-to-one.
-- **The guard records what the challan says**, not what the store counts.
-  Per PO line: quantity as per challan and number of packages. The store's
-  count is the GRN, as today.
+- **The guard records the movement, not the goods.** Who came, on what
+  vehicle, against which PO or pass, when, with a photo of the challan.
+  Quantities are the store's job: the GRN (purchase) or the `GPR-` receipt
+  (returnable / job work) carry them, as today. So there is no line table at
+  the gate and nothing for the guard to count.
 - **Gate Inward never moves stock or money.** It does not insert GRNs, does
   not touch `quantity_received`, does not post vouchers. QC and GRN stay
   exactly as they are; they just start from a gate entry.
-- **The guard never sees prices.** PO lines are served by a function that
-  returns item, description, UOM, ordered and still-open quantity only.
+- **The guard never sees prices or quantities.** The PO picker is served by
+  a function that returns PO number, date and supplier only.
 
 ## 3. Flow
 
@@ -93,9 +95,6 @@ vehicle_out_at: the guard taps "Vehicle left" when the empty truck goes out (any
 - A PO can have many entries over time (partial deliveries). An entry that has
   no GRN after N days (setting, default 3) is **stale**: shown in red on the
   register and notified every morning.
-- Quantity on the challan above the PO's open quantity is allowed at the gate
-  (the truck is already here) but flagged `has_excess` and notified to the
-  purchase managers; over-receipt is still blocked at GRN as today.
 
 ## 4. Data model
 
@@ -136,7 +135,6 @@ CREATE TABLE gate_inward_entries (
   challan_photo_path text,                         -- gate-pass-photos/inward-challan/…
   vehicle_photo_path text,                         -- gate-pass-photos/inward-vehicle/…
   remarks           text,
-  has_excess        boolean NOT NULL DEFAULT false,
   -- lifecycle
   created_by        uuid NOT NULL REFERENCES app_users(id),   -- the guard
   vehicle_out_at    timestamptz,
@@ -155,21 +153,7 @@ CREATE TABLE gate_inward_entries (
   CHECK (entry_kind NOT IN ('returnable_return','job_work_return') OR gate_pass_id IS NOT NULL)
 );
 
-CREATE TABLE gate_inward_items (
-  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  entry_id          uuid NOT NULL REFERENCES gate_inward_entries(id) ON DELETE CASCADE,
-  po_item_id        uuid REFERENCES purchase_order_items(id),   -- purchase
-  gate_pass_item_id uuid REFERENCES gate_pass_items(id),        -- returnable / job work back
-  product_id        uuid REFERENCES products(id),               -- sales return
-  item_id           uuid REFERENCES items(id),
-  description       text NOT NULL,
-  uom               text,
-  ordered_quantity  numeric,                       -- snapshot at the gate
-  open_quantity     numeric,                       -- ordered − received − at gate, snapshot
-  challan_quantity  numeric NOT NULL CHECK (challan_quantity > 0),
-  packages          integer,
-  remarks           text
-);
+-- No line table: the gate records the movement only (decision 3 in §12).
 
 CREATE TABLE gate_inward_events (                 -- audit log, same shape as gate_pass_events
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -184,6 +168,7 @@ CREATE TABLE gate_inward_settings (               -- single row
   require_for_grn boolean NOT NULL DEFAULT false,  -- Phase 2 switches this on
   require_for_categories purchase_category[] NOT NULL DEFAULT '{raw_material}',
   stale_days integer NOT NULL DEFAULT 3,
+  purchase_categories purchase_category[] NOT NULL DEFAULT '{raw_material}',  -- POs the guard can pick
   enabled_kinds text[] NOT NULL DEFAULT '{purchase,returnable_return,job_work_return}',  -- types the guard can pick
   loading_vehicle_mode text NOT NULL DEFAULT 'optional'
     CHECK (loading_vehicle_mode IN ('off','optional','required'))  -- see §5
@@ -200,21 +185,19 @@ CREATE UNIQUE INDEX ON sales_returns       (gate_inward_id) WHERE gate_inward_id
 
 Views:
 
-- `v_gate_inward_register` — entries with supplier, PO number, GRN number, age
-  in days, `is_stale`, line count and total challan quantity, for the register
+- `v_gate_inward_register` — entries with supplier / party, PO or pass
+  number, closing record number, age in days and `is_stale`, for the register
   and the cards.
-- `v_purchase_order_gate_inward` — per PO: entries at gate, quantity at gate
-  per line (so the PO page and the GRN form can show "arrived, not yet
-  received").
+- `v_purchase_order_gate_inward` — per PO: entries at gate and received (so
+  the PO page and the GRN form can show "vehicle arrived, not yet received").
 
 ## 5. Database functions (all SECURITY DEFINER, role-checked, tables SELECT-only)
 
 | Function | Who | Does |
 |---|---|---|
-| `gate_inward_open_pos(p_supplier_id)` | gate, office | POs of the supplier in approved / ordered / partially_received, not closed short, with open quantity > 0. No amounts. |
-| `gate_inward_open_lines(p_po_id)` | gate, office | PO lines: item code / name, description, UOM, ordered, received, already at gate, open. **No unit price.** |
-| `gate_inward_open_passes(p_number)` | gate, office | Returnable / job-work passes that are `out` or `partially_returned`, by number or party, with their lines and what is still outside. No rates. |
-| `gate_inward_save(p_id, p_data jsonb)` | gate | Insert (or edit while `at_gate`, by the maker or a manager). Checks the type is enabled, the linked record matches the type (supplier ↔ PO; pass is a returnable / job-work pass still out; lines belong to it), quantities > 0; sets `has_excess`; assigns `GIN-` on success; logs `created`; notifies (§8). |
+| `gate_inward_open_pos(p_supplier_id)` | gate, office | POs of the supplier in approved / ordered / partially_received, not closed short, still having something to receive, in the categories of `purchase_categories`. Returns PO number, date, expected date only: **no amounts, no quantities.** |
+| `gate_inward_open_passes(p_number)` | gate, office | Returnable / job-work passes that are `out` or `partially_returned`, by number or party: pass number, party, vehicle on the pass, due-back date. No lines, no rates. |
+| `gate_inward_save(p_id, p_data jsonb)` | gate | Insert (or edit while `at_gate`, by the maker or a manager). Checks the type is enabled, the linked record matches the type (supplier ↔ PO in an allowed category; pass is a returnable / job-work pass still out), a vehicle number is given; assigns `GIN-` on success; logs `created`; notifies (§8). |
 | `gate_inward_vehicle_out(p_id)` | gate | Sets `vehicle_out_at/by`, logs `vehicle_out`. Idempotent. |
 | `gate_inward_close(p_id, p_note)` | office | Sample / other only: `at_gate → closed` with who received it. |
 | `gate_inward_reject(p_id, p_reason)` | office | `at_gate → rejected`. Notifies the guard who made it. |
@@ -232,8 +215,7 @@ Triggers on the closing records (one pattern, three tables):
 - `trg_gate_inward_on_gpr` (AFTER INSERT on `gate_pass_receipts`): same for
   returnable / job-work back → `received`, `gate_pass_receipt_id`; the entry
   must be for the same outward pass. The outward "Receive goods" form gets a
-  picker of that pass's `at_gate` entries (pre-fills the quantities the guard
-  saw).
+  picker of that pass's `at_gate` entries (pre-fills the receipt date).
 - `trg_gate_inward_on_sales_return` (AFTER UPDATE OF status to `posted` on
   `sales_returns`): → `received`, `sales_return_id`.
 - `gate_pass_mark_out` (existing outward function): after marking a pass out,
@@ -270,10 +252,10 @@ purchase tables.
 | Page | Route | Who | What it shows |
 |---|---|---|---|
 | Gate Check → **Inward** tab | `/gate-pass/check` | guard | Third mode next to Goods / vehicle and Worker. Scan or type a `GIN-` number to open an entry (status, vehicle, "Vehicle left" button); big **New inward entry** button. |
-| New Inward Entry | `/gate-pass/inward/new` | guard, gate pass manager | **Type** first (big buttons, only the enabled types). Purchase: supplier search → open POs of that supplier → PO lines with *challan quantity* and *packages* inputs (excess shown in amber). Returnable / job work back: scan or type the `GP-` number → the pass's lines still outside → quantity back per line. Sales return: customer, optional dispatch, products and cartons. Sample / other: free-text lines. Then the common vehicle block: vehicle number, driver, contact, transporter, challan no. and date, packages, gross weight, challan photo, vehicle photo, remarks → **Save & print slip**. "Another entry for the same vehicle" keeps the vehicle block. Uses the guard's dark `GuardShell` for `gate_security`. |
-| Inward Entry | `/gate-pass/inward/:id` | guard (own, read + vehicle out), office | Printable slip with QR (`GIN-` number, date / time in, supplier, PO, vehicle, challan, lines with challan quantity, guard's name), photos, timeline (events), buttons: Vehicle left, Reject, Cancel, **Make GRN** (opens Goods Receipt with the entry preselected). |
+| New Inward Entry | `/gate-pass/inward/new` | guard, gate pass manager | **Type** first (big buttons, only the enabled types). Purchase: supplier search → open raw-material POs of that supplier → pick one. Returnable / job work back: scan or type the `GP-` number → the pass card (party, vehicle on the pass, due back) → confirm. Sales return: customer, optional dispatch. Sample / other: one line of text. Then the common vehicle block: vehicle number, driver, contact, transporter, challan no. and date, packages, gross weight, challan photo, vehicle photo, remarks → **Save & print slip**. "Another entry for the same vehicle" keeps the vehicle block. Uses the guard's dark `GuardShell` for `gate_security`. |
+| Inward Entry | `/gate-pass/inward/:id` | guard (own, read + vehicle out), office | Printable slip with QR (`GIN-` number, date / time in, supplier, PO, vehicle, challan, packages, guard's name), photos, timeline (events), buttons: Vehicle left, Reject, Cancel, **Make GRN** (opens Goods Receipt with the entry preselected). |
 | Gate Inward Register | `/purchase/gate-inward` | purchase officer / manager, store, admin | Today by default; filters by date range, supplier, PO, status. Cards: **At gate today**, **Awaiting GRN** (stale in red), **Rejected (7 days)**, **Received (GRN made) today**. Print the day's gate register. |
-| Goods Receipt | `/purchase/grn` (existing) | purchase | New **Gate inward entry** picker after the PO is chosen, listing that PO's `at_gate` entries (number, date, vehicle, challan). Choosing one pre-fills the receipt date, invoice/challan number, and each line's quantity from the challan. Required when the setting is on. |
+| Goods Receipt | `/purchase/grn` (existing) | purchase | New **Gate inward entry** picker after the PO is chosen, listing that PO's `at_gate` entries (number, date, vehicle, challan). Choosing one pre-fills the receipt date and the invoice / challan number; the store still enters every quantity itself. Required when the setting is on. |
 | Purchase Dashboard | `/purchase/dashboard` (existing) | purchase | Card **Vehicles at gate awaiting GRN** with count and oldest age. |
 | Gate Pass Dashboard | `/gate-pass/dashboard` (existing) | gate pass | Card **Inward today**. |
 | Settings | Gate Inward section on the existing purchase / gate settings page | super_admin | Require for GRN (+ categories), stale days, enabled types, empty-vehicle mode (off / optional / compulsory). |
@@ -292,7 +274,7 @@ stays `gate_pass`, so the guard never enters `/purchase/*`.
 | `gate_security` | New inward entry, open an entry by number, Vehicle left; never sees prices or amounts |
 | `gate_pass_manager` | Everything the guard can, plus edit an `at_gate` entry and cancel |
 | `purchase_officer` | Register, entry page, make the GRN from an entry, reject / cancel |
-| `purchase_manager`, `admin` | As officer, plus receive the excess and stale notifications |
+| `purchase_manager`, `admin` | As officer, plus receive the stale notifications |
 | `store_operator` | Register read-only (so the store knows what is at the gate) |
 | `super_admin` | Everything, plus settings |
 
@@ -306,7 +288,6 @@ changes.
 | Event | To |
 |---|---|
 | Entry saved | purchase officers and managers, store operator (and super admins) — "GIN-000012 · PO-00045 · Supplier · vehicle ABC-123 at gate" |
-| Excess quantity on the challan | purchase managers |
 | Rejected / cancelled by the office | the guard who made it |
 | Stale: at gate for more than `stale_days` with no GRN | purchase managers, every morning 09:10 Pakistan time (pg_cron, guarded like `gate-pass-overdue`) |
 
@@ -324,9 +305,9 @@ the `GIN-` number in its message.
   the PO so the inspector knows which lot arrived; optional `gate_inward_id`
   on `purchase_qc_inspections`.
 - **Gate Pass → Receive goods** (returnable / job work): a picker of the
-  pass's `at_gate` inward entries; choosing one pre-fills the returned
-  quantities. The pass page and the Returns & Job Work page show "arrived at
-  gate, not yet received" in amber.
+  pass's `at_gate` inward entries; choosing one pre-fills the receipt date.
+  The pass page and the Returns & Job Work page show "vehicle arrived, not
+  yet received" in amber.
 - **Sales Returns:** a picker of the customer's `at_gate` sales-return entries;
   the return note prints the `GIN-` number and vehicle.
 - **Gate Pass Dashboard / list:** vehicles that came in empty for loading and
@@ -342,7 +323,7 @@ the `GIN-` number in its message.
 2. Gate Check Inward tab, New Inward Entry with the type picker, Inward Entry
    page with printable slip and QR, `gate_security` route updates.
 3. Gate Inward Register with cards, type filter and the daily printout.
-4. Goods Receipt picker + pre-fill; GRN dialog / print show the gate data;
+4. Goods Receipt picker; GRN dialog / print show the gate data;
    Receive goods picker on the outward pass.
 5. `docs/GATE_INWARD.md` in the style of `GATE_PASS.md`; enum-free, so
    `types.ts` needs no change (tables accessed through a `giDb` cast like
@@ -350,7 +331,7 @@ the `GIN-` number in its message.
 
 **Phase 2 — make it the rule, add the remaining types**
 6. Switch `require_for_grn` on for raw material (then all categories once the
-   gate is reliable); stale morning notification; excess flag notification;
+   gate is reliable); stale morning notification;
    dashboard cards; PO "At gate" column; QC form shows gate entries.
 7. Enable Sales return, Sample / free supply, Empty vehicle for loading and
    Other; sales-return picker; auto-close of loading vehicles on gate out.
@@ -362,16 +343,17 @@ the `GIN-` number in its message.
 
 ## 11. Risks and how the design handles them
 
-- **Guards typing wrong quantities.** They copy the challan and photograph it;
-  the store's GRN count is still the stock figure. The slip shows both later.
+- **Guards typing wrong quantities.** They type none. The challan photo is
+  the record; the store's GRN count is the stock figure.
 - **Blocking receipts before the gate is trained.** Enforcement is a setting,
   off by default, per category.
 - **Multi-PO trucks.** One entry per PO keeps the GRN link one-to-one; the
   form copies the vehicle block to make the second entry a few taps.
 - **Vehicle numbers typed differently.** Normalised with the existing
   `gate_pass_norm_vehicle` (uppercase, no spaces or dashes) for search.
-- **Price leakage to the guard.** Lines come from a function without prices;
-  `canViewPrices` already returns false for `gate_security`.
+- **Price or quantity leakage to the guard.** The PO and pass pickers come
+  from functions that return headers only; `canViewPrices` already returns
+  false for `gate_security`.
 
 ## 12. Decisions needed before building
 
@@ -379,11 +361,12 @@ the `GIN-` number in its message.
    one entry and split into several GRNs later?
 2. **Enforcement from day one?** Recommended: Phase 1 optional, Phase 2
    required for raw material, then all categories.
-3. **What the guard enters per line:** challan quantity per PO line
-   (recommended, gives "at gate" quantities per item) — or only the total
-   package count plus a challan photo, with the office filling lines later?
-4. **Who is notified on every entry:** purchase officers + managers + store
-   operator (proposed). Add anyone else (e.g. QC inspector for raw material)?
+3. ~~What the guard enters per line~~ **Decided:** nothing per line. The
+   guard records the gate-in movement only (supplier, PO, vehicle, driver,
+   challan photo); Purchase entries are for raw-material POs by default
+   (`purchase_categories` setting). No line table.
+4. ~~Who is notified on every entry~~ **Decided:** purchase officers,
+   purchase managers and the store operator.
 5. **Weighbridge:** needed in Phase 1 for any supplier billed by weight?
 6. ~~Which types in Phase 1~~ **Decided:** Purchase + Returnable back + Job
    work back.
