@@ -79,12 +79,12 @@ that nothing has been dispatched or booked. No prices anywhere.
 | `sales_order_manager`, `dispatch_operator` | Read all planner pages (module added to their access in `AuthContext`) |
 | `super_admin` | Everything, plus Settings |
 
-Roles are enum values in `20261009120000_dispatch_planner_roles.sql`, registered
+Roles are enum values in `20261010120000_dispatch_planner_roles.sql`, registered
 in `AuthContext` (tier definition `dispatch_planner` → `/dispatch-planner`),
 `ProtectedRoute`, `RolesPage`, `UsersPage` and the sidebar. The database
 functions check the role again (`dispatch_planner_can`).
 
-## 4. Database (`20261009120100_dispatch_planner.sql`)
+## 4. Database (`20261010120100_dispatch_planner.sql`)
 
 Planner-owned tables, read-only to clients, writes via role-checked functions:
 
@@ -112,7 +112,7 @@ Functions: `dispatch_planner_suggest`, `dispatch_planner_working_days`,
 `job_order_items`, `sales_orders` or `sales_order_items`; no change to the
 Dispatch or Job Orders pages; no dispatch or job order creation.
 
-Rollback: `supabase/rollbacks/20261009120100_dispatch_planner_down.sql` drops
+Rollback: `supabase/rollbacks/20261010120100_dispatch_planner_down.sql` drops
 the planner's tables, views and functions. Nothing else is affected (the three
 enum values stay; remove `user_roles` rows instead).
 

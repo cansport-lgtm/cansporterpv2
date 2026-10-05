@@ -28,8 +28,8 @@
 --      and flagged "will be late" when that is after the deadline.
 -- Every row carries the rule that placed it so the board can explain itself.
 --
--- Rollback: supabase/rollbacks/20261009120100_dispatch_planner_down.sql
--- Roles are added in 20261009120000_dispatch_planner_roles.sql.
+-- Rollback: supabase/rollbacks/20261010120100_dispatch_planner_down.sql
+-- Roles are added in 20261010120000_dispatch_planner_roles.sql.
 -- ============================================================================
 
 -- 1. Planner-owned tables ----------------------------------------------------

@@ -1,9 +1,9 @@
--- Rollback for 20261009120100_dispatch_planner.sql
+-- Rollback for 20261010120100_dispatch_planner.sql
 -- Drops the Dispatch Planner module: its saved plan versions, pins, vehicle
 -- master and settings. Nothing in sales orders, dispatches, stock closing or
 -- job orders was changed by the module, so nothing else is touched.
 -- Left as they are:
---   * the three app_role values from 20261009120000_dispatch_planner_roles.sql:
+--   * the three app_role values from 20261010120000_dispatch_planner_roles.sql:
 --     Postgres cannot drop enum values. Remove the user_roles rows instead.
 
 DROP FUNCTION IF EXISTS public.dispatch_planner_settings_save(jsonb);

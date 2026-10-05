@@ -1,7 +1,7 @@
 // Shared definitions for the Dispatch Planner module — a READ-ONLY planner that
 // suggests a dispatch day and a load for every pending domestic order line.
 // The rules live in the database: see
-// supabase/migrations/20261009120100_dispatch_planner.sql (dispatch_planner_suggest).
+// supabase/migrations/20261010120100_dispatch_planner.sql (dispatch_planner_suggest).
 // The planner never writes to another module's tables; its own writes (pins,
 // saved versions, vehicles, settings) go through the dispatch_planner_* functions.
 

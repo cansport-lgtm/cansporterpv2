@@ -11,7 +11,7 @@
 --                              versions, print and export
 --   dispatch_planner_viewer  → read only
 --
--- The tables and functions are added in 20261009120100_dispatch_planner.sql —
+-- The tables and functions are added in 20261010120100_dispatch_planner.sql —
 -- the new enum values can't be referenced in the same transaction that adds them.
 -- ============================================================================
 
