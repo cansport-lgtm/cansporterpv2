@@ -114,8 +114,8 @@ export default function StoreGateReconciliationPage() {
     const q = search.trim().toLowerCase();
     return rows
       .filter((r) => !onlyIssues || r.codes.length > 0)
-      .filter((r) => !q || [r.dispatch_number, r.customer_name ?? "", r.sp_number ?? "", r.gp_number ?? "", r.order_numbers ?? ""].some((v) => v.toLowerCase().includes(q)))
-      .sort((a, b) => (b.open_high - a.open_high) || (b.open_medium - a.open_medium) || a.dispatch_number.localeCompare(b.dispatch_number));
+      .filter((r) => !q || [r.dispatch_number ?? "", r.customer_name ?? "", r.sp_number ?? "", r.gp_number ?? "", r.order_numbers ?? "", r.sp_dispatch_plan_no ?? ""].some((v) => v.toLowerCase().includes(q)))
+      .sort((a, b) => (b.open_high - a.open_high) || (b.open_medium - a.open_medium) || (a.dispatch_number ?? a.sp_number ?? "").localeCompare(b.dispatch_number ?? b.sp_number ?? ""));
   }, [rows, onlyIssues, search]);
 
   const summary = useMemo(() => {
@@ -124,7 +124,7 @@ export default function StoreGateReconciliationPage() {
     const out = rows.filter((r) => inRange(r.out_date, from, to));
     const sum = (xs: ReconRow[], f: (r: ReconRow) => number | null) => xs.reduce((s, r) => s + Number(f(r) ?? 0), 0);
     return {
-      dc: { n: dc.length, dz: sum(dc, (r) => r.dc_quantity), ctn: sum(dc, (r) => r.dc_packages) },
+      dc: { n: dc.length, dz: sum(dc, (r) => r.dc_quantity ?? 0), ctn: sum(dc, (r) => r.dc_packages ?? 0) },
       sp: { n: new Set(sp.map((r) => r.store_pass_id)).size, dz: sum(sp, (r) => r.sp_quantity), ctn: sum(sp, (r) => r.sp_packages) },
       out: { n: new Set(out.map((r) => r.gate_pass_id)).size, dz: sum(out, (r) => gateFigure(r)?.unit === "dz" ? gateFigure(r)!.value : r.gp_quantity), ctn: sum(out, (r) => gateFigure(r)?.unit === "ctn" ? gateFigure(r)!.value : r.gp_packages) },
       openHigh: sum(rows, (r) => r.open_high),
@@ -141,8 +141,8 @@ export default function StoreGateReconciliationPage() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filtered.map((r) => {
       const g = gateFigure(r);
       return {
-        Dispatch: r.dispatch_number, "DC date": r.dispatch_date, Customer: r.customer_name ?? "", Orders: r.order_numbers ?? "",
-        "DC dz": Number(r.dc_quantity), "DC ctn": Number(r.dc_packages),
+        Dispatch: r.dispatch_number ?? "", "DC date": r.dispatch_date ?? "", Customer: r.customer_name ?? "", Orders: r.order_numbers ?? "", "SP plan": r.sp_dispatch_plan_no ?? "", "Handed over to": r.sp_received_by ?? "",
+        "DC dz": r.dc_quantity ?? "", "DC ctn": r.dc_packages ?? "",
         "Store pass": r.sp_number ?? "", "SP status": r.sp_status ?? "", "SP issued": r.sp_issued_at ? format(new Date(r.sp_issued_at), "yyyy-MM-dd HH:mm") : "",
         "SP dz": r.sp_quantity ?? "", "SP ctn": r.sp_packages ?? "",
         "Gate pass": r.gp_number ?? "", "GP status": r.gp_status ?? "", "Gate out": r.gate_out_at ? format(new Date(r.gate_out_at), "yyyy-MM-dd HH:mm") : "",
@@ -183,7 +183,7 @@ export default function StoreGateReconciliationPage() {
       <table><thead><tr><th>Dispatch</th><th>Customer</th><th class="right">DC dz / ctn</th><th>Store pass</th><th>Gate pass</th><th>Out</th><th>Discrepancies</th></tr></thead>
       <tbody>${filtered.map((r) => {
         const g = gateFigure(r);
-        return `<tr><td><b>${esc(r.dispatch_number)}</b></td><td>${esc(r.customer_name ?? "")}</td><td class="right">${esc(fmtQty(r.dc_quantity))} / ${Number(r.dc_packages)}</td>
+        return `<tr><td><b>${esc(r.dispatch_number ?? "—")}</b>${r.sp_dispatch_plan_no ? `<div class="xs muted">plan ${esc(r.sp_dispatch_plan_no)}</div>` : ""}</td><td>${esc(r.customer_name ?? r.sp_received_by ?? "")}</td><td class="right">${r.dc_quantity === null ? "—" : `${esc(fmtQty(r.dc_quantity))} / ${Number(r.dc_packages)}`}</td>
           <td>${r.sp_number ? `${esc(r.sp_number)} · ${esc(fmtQty(r.sp_quantity))} / ${Number(r.sp_packages ?? 0)} · ${esc(fmtT(r.sp_issued_at))}` : "none"}</td>
           <td>${r.gp_number ? `${esc(r.gp_number)}${g ? ` · ${esc(fmtQty(g.value))} ${g.unit}` : ""}` : "—"}</td><td>${esc(fmtT(r.gate_out_at))}</td>
           <td>${r.codes.map((c) => esc(discrepancyMeta(c).label) + (r.explained.some((e) => e.code === c) ? " (explained)" : "")).join("; ") || "Matches"}</td></tr>`;
@@ -251,7 +251,7 @@ export default function StoreGateReconciliationPage() {
         {summary.inside.length > 0 && (
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
             <b>{fmtQty(summary.inside.reduce((s, r) => s + Number(r.sp_quantity ?? 0), 0))} dz · {summary.inside.reduce((s, r) => s + Number(r.sp_packages ?? 0), 0)} ctn</b> issued by the store are still inside the factory
-            ({summary.inside.map((r) => r.dispatch_number).join(", ")}).{to === today ? " They may still go out today." : ""}
+            ({summary.inside.map((r) => r.dispatch_number ?? r.sp_number).join(", ")}).{to === today ? " They may still go out today." : ""}
           </div>
         )}
 
@@ -288,23 +288,29 @@ export default function StoreGateReconciliationPage() {
                       const g = gateFigure(r);
                       const openCodes = r.codes.filter((c) => !r.explained.some((e) => e.code === c));
                       return (
-                        <TableRow key={r.dispatch_id} className={cn(r.open_high > 0 && "bg-red-50/40")}>
+                        <TableRow key={r.dispatch_id ?? `sp-${r.store_pass_id}`} className={cn(r.open_high > 0 && "bg-red-50/40")}>
                           <TableCell>
-                            <div className="font-mono text-sm font-semibold">{r.dispatch_number}</div>
-                            <div className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(r.dispatch_date), "dd MMM")}{r.order_numbers ? ` · ${r.order_numbers}` : ""}</div>
-                          </TableCell>
-                          <TableCell className="text-sm max-w-[180px] truncate" title={r.customer_name ?? ""}>{r.customer_name ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
-                            {fmtQty(r.dc_quantity)} / {Number(r.dc_packages)}
-                            {r.codes.includes("DC_CHANGED") && r.sp_dispatch_quantity !== null && (
-                              <div className="text-[11px] text-amber-700">was {fmtQty(r.sp_dispatch_quantity)} / {Number(r.sp_dispatch_packages ?? 0)}</div>
+                            {r.dispatch_id ? (
+                              <>
+                                <div className="font-mono text-sm font-semibold">{r.dispatch_number}</div>
+                                <div className="text-xs text-muted-foreground whitespace-nowrap">{r.dispatch_date ? format(new Date(r.dispatch_date), "dd MMM") : ""}{r.order_numbers ? ` · ${r.order_numbers}` : ""}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-sm font-semibold text-amber-800">No dispatch linked</div>
+                                <div className="text-xs text-muted-foreground whitespace-nowrap">plan {r.sp_dispatch_plan_no ?? "—"}</div>
+                              </>
                             )}
+                          </TableCell>
+                          <TableCell className="text-sm max-w-[180px] truncate" title={r.customer_name ?? r.sp_received_by ?? ""}>{r.customer_name ?? (r.sp_received_by ? `handed to ${r.sp_received_by}` : "—")}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
+                            {r.dc_quantity === null ? "—" : `${fmtQty(r.dc_quantity)} / ${Number(r.dc_packages)}`}
                           </TableCell>
                           <TableCell className="text-sm">
                             {r.store_pass_id && r.sp_status === "issued" ? (
                               <div>
                                 <Link to={`/store-pass/passes/${r.store_pass_id}`} className="font-mono text-primary hover:underline">{r.sp_number}</Link>
-                                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{fmtQty(r.sp_quantity)} / {Number(r.sp_packages ?? 0)} · {fmtT(r.sp_issued_at)}</div>
+                                <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{r.sp_quantity !== null ? `${fmtQty(r.sp_quantity)} / ${Number(r.sp_packages ?? 0)}` : `covers ${r.sp_dispatch_count ?? 0} dispatches`} · {fmtT(r.sp_issued_at)}</div>
                               </div>
                             ) : r.store_pass_id ? (
                               <div><Link to={`/store-pass/passes/${r.store_pass_id}`} className="font-mono text-primary hover:underline">{r.sp_number}</Link><div className="text-xs text-muted-foreground">draft</div></div>
@@ -353,7 +359,9 @@ export default function StoreGateReconciliationPage() {
                             {r.cancelled_sp_reason && <div className="text-xs text-muted-foreground mt-1">Cancelled: {r.cancelled_sp_reason}</div>}
                           </TableCell>
                           <TableCell className="text-right">
-                            {canResolve && openCodes.length > 0 && (
+                            {r.dispatch_id === null && r.store_pass_id ? (
+                              <Button size="sm" variant="outline" asChild><Link to={`/store-pass/passes/${r.store_pass_id}`}>Link</Link></Button>
+                            ) : canResolve && openCodes.length > 0 && (
                               <Button size="sm" variant="outline" onClick={() => { setDialog({ row: r, code: openCodes[0] }); setNote(""); }}>Explain</Button>
                             )}
                           </TableCell>
@@ -365,7 +373,7 @@ export default function StoreGateReconciliationPage() {
                     <tfoot>
                       <TableRow className="font-semibold bg-muted/40">
                         <TableCell colSpan={2}>Totals (rows shown)</TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(filtered.reduce((s, r) => s + Number(r.dc_quantity), 0))} / {filtered.reduce((s, r) => s + Number(r.dc_packages), 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(filtered.reduce((s, r) => s + Number(r.dc_quantity ?? 0), 0))} / {filtered.reduce((s, r) => s + Number(r.dc_packages ?? 0), 0)}</TableCell>
                         <TableCell className="tabular-nums whitespace-nowrap">{fmtQty(filtered.reduce((s, r) => s + Number(r.sp_status === "issued" ? r.sp_quantity ?? 0 : 0), 0))} / {filtered.reduce((s, r) => s + Number(r.sp_status === "issued" ? r.sp_packages ?? 0 : 0), 0)}</TableCell>
                         <TableCell className="tabular-nums whitespace-nowrap">
                           {fmtQty(filtered.reduce((s, r) => s + Number(gateFigure(r)?.unit === "dz" ? gateFigure(r)!.value : r.gp_quantity ?? 0), 0))} dz · {filtered.reduce((s, r) => s + Number(gateFigure(r)?.unit === "ctn" ? gateFigure(r)!.value : r.gp_packages ?? 0), 0)} ctn
@@ -453,7 +461,7 @@ export default function StoreGateReconciliationPage() {
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) { setDialog(null); setNote(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Explain · {dialog?.row.dispatch_number}</DialogTitle>
+            <DialogTitle>Explain · {dialog?.row.dispatch_number ?? dialog?.row.sp_number}</DialogTitle>
             <DialogDescription>The discrepancy stays in the record with your note and your name, and no longer counts as open.</DialogDescription>
           </DialogHeader>
           {dialog && (

@@ -54,7 +54,7 @@ export default function DispatchTrackingPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) =>
       (stageFilter === "all" || r.stage === stageFilter) &&
-      (!q || [r.dispatch_number, r.customer_name ?? "", r.order_numbers ?? "", r.sp_number ?? "", r.gp_number ?? "", r.dc_vehicle ?? "", r.sp_vehicle ?? ""]
+      (!q || [r.dispatch_number, r.customer_name ?? "", r.order_numbers ?? "", r.sp_number ?? "", r.gp_number ?? "", r.dc_vehicle ?? "", r.sp_dispatch_plan_no ?? ""]
         .some((v) => v.toLowerCase().includes(q))),
     );
   }, [rows, stageFilter, search]);
@@ -76,6 +76,7 @@ export default function DispatchTrackingPage() {
       "DC ctn": Number(r.dc_packages),
       "Store pass": r.sp_number ?? "",
       "SP issued": r.sp_issued_at ? format(new Date(r.sp_issued_at), "yyyy-MM-dd HH:mm") : "",
+      "SP plan": r.sp_dispatch_plan_no ?? "",
       "SP dz": r.sp_quantity ?? "",
       "SP ctn": r.sp_packages ?? "",
       "Gate pass": r.gp_number ?? "",
@@ -190,7 +191,7 @@ export default function DispatchTrackingPage() {
                             <Link to={`/store-pass/passes/${r.store_pass_id}`} className="font-mono text-primary hover:underline">{r.sp_number}</Link>
                             <div className="text-xs text-muted-foreground whitespace-nowrap">
                               {r.sp_status === "issued" && r.sp_issued_at
-                                ? `${format(new Date(r.sp_issued_at), "HH:mm")} · ${fmtQty(r.sp_quantity)} / ${Number(r.sp_packages ?? 0)}`
+                                ? `${format(new Date(r.sp_issued_at), "HH:mm")}${r.sp_quantity !== null ? ` · ${fmtQty(r.sp_quantity)} / ${Number(r.sp_packages ?? 0)}` : ` · covers ${r.sp_dispatch_count ?? 0} dispatches`}`
                                 : "Draft"}
                             </div>
                           </div>

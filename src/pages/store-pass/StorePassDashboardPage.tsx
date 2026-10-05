@@ -105,7 +105,7 @@ export default function StorePassDashboardPage() {
                     <span className="font-semibold">{r.sp_number} · {r.dispatch_number}</span>
                     <span className="text-xs text-indigo-700 font-semibold whitespace-nowrap">waiting {hoursBetween(r.sp_issued_at, new Date().toISOString())}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{r.customer_name} · {r.sp_vehicle} · {fmtQty(r.sp_quantity)} dz / {Number(r.sp_packages ?? 0)} ctn</div>
+                  <div className="text-xs text-muted-foreground truncate">{r.customer_name} · plan {r.sp_dispatch_plan_no ?? "—"}{r.sp_quantity !== null ? ` · ${fmtQty(r.sp_quantity)} dz / ${Number(r.sp_packages ?? 0)} ctn` : ""}</div>
                 </Link>
               ))}
             </CardContent>
@@ -116,12 +116,12 @@ export default function StorePassDashboardPage() {
             <CardContent className="space-y-2">
               {openIssues.length === 0 && <p className="text-sm text-muted-foreground">Nothing open. Store and gate agree.</p>}
               {openIssues.slice(0, 8).map((r) => (
-                <Link key={r.dispatch_id} to={`/store-pass/reconciliation?date=${r.out_date ?? r.sp_date ?? r.dispatch_date}`} className="block rounded-lg border p-2 text-sm hover:bg-muted/50">
+                <Link key={r.dispatch_id ?? r.store_pass_id} to={`/store-pass/reconciliation?date=${r.out_date ?? r.sp_date ?? r.dispatch_date}`} className="block rounded-lg border p-2 text-sm hover:bg-muted/50">
                   <div className="flex justify-between gap-2">
-                    <span className="font-semibold">{r.dispatch_number}</span>
-                    <span className="text-xs text-muted-foreground">{format(new Date(r.dispatch_date), "dd MMM")}</span>
+                    <span className="font-semibold">{r.dispatch_number ?? `${r.sp_number} · plan ${r.sp_dispatch_plan_no ?? "—"}`}</span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(r.dispatch_date ?? r.sp_date ?? r.sp_issued_at ?? new Date()), "dd MMM")}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{r.customer_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{r.customer_name ?? r.sp_received_by}</div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {r.codes.filter((c) => !r.explained.some((e) => e.code === c)).map((c) => (
                       <span key={c} className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", SEVERITY_TONE[discrepancyMeta(c).severity])}>{discrepancyMeta(c).label}</span>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { Loader2, Warehouse } from "lucide-react";
+import { ChevronDown, Loader2, Plus, Trash2, Warehouse } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,36 +24,26 @@ import { cn } from "@/lib/utils";
 import { PhotoInput } from "@/components/gate-pass/PhotoInput";
 import { SP_SELECT, errorMessage, fmtQty, spDb, type StorePass } from "@/lib/storePass";
 
-type OrderRef = { order_number: string; status: string; customers: { name: string } | null } | null;
+type LineEdit = { key: string; description: string; product_id: string; quantity: string; packages: string; remarks: string };
+type ProductRow = { id: string; code: string; name: string };
+type OrderRef = { order_number: string; customers: { name: string } | null } | null;
 type DispatchRow = {
   id: string;
   dispatch_number: string;
   dispatch_date: string;
-  vehicle_number: string | null;
-  driver_name: string | null;
-  driver_contact: string | null;
+  delivery_status: string;
   sales_orders: OrderRef;
   sales_dispatch_orders: { sales_orders: OrderRef }[];
-  sales_dispatch_items: {
-    id: string;
-    quantity_dozens: number;
-    packages: number | null;
-    packing_type: string | null;
-    sales_order_items: { products: { code: string; name: string } | null } | null;
-  }[];
+  sales_dispatch_items: { quantity_dozens: number; packages: number | null }[];
 };
-type LineEdit = { quantity: string; packages: string; remarks: string };
 
-const NOT_APPROVED = ["draft", "pending", "cancelled"];
+const newLine = (): LineEdit => ({ key: crypto.randomUUID(), description: "", product_id: "", quantity: "", packages: "", remarks: "" });
+const NONE = "__none__";
 
-const dispatchOrders = (d: DispatchRow) => {
-  const list = [d.sales_orders, ...d.sales_dispatch_orders.map((o) => o.sales_orders)].filter(
-    (o): o is NonNullable<OrderRef> => Boolean(o),
-  );
-  return list.filter((o, i) => list.findIndex((x) => x.order_number === o.order_number) === i);
+const customersOf = (d: DispatchRow) => {
+  const list = [d.sales_orders, ...d.sales_dispatch_orders.map((o) => o.sales_orders)].filter(Boolean) as NonNullable<OrderRef>[];
+  return [...new Set(list.map((o) => o.customers?.name).filter(Boolean))].join("; ");
 };
-const customersOf = (d: DispatchRow) =>
-  [...new Set(dispatchOrders(d).map((o) => o.customers?.name).filter(Boolean))].join("; ");
 
 export default function StorePassFormPage() {
   const { id: editId } = useParams();
@@ -61,18 +54,17 @@ export default function StorePassFormPage() {
   const canCreate = hasModulePermission("store_pass", "create");
 
   const [passDate, setPassDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [vehicle, setVehicle] = useState("");
-  const [driver, setDriver] = useState("");
-  const [driverContact, setDriverContact] = useState("");
-  const [receivedBy, setReceivedBy] = useState("");
-  const [storeLocation, setStoreLocation] = useState("");
+  const [planNo, setPlanNo] = useState("");
+  const [handedTo, setHandedTo] = useState("");
   const [photoPath, setPhotoPath] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [lines, setLines] = useState<LineEdit[]>([newLine(), newLine(), newLine()]);
+  // Optional link to the system dispatches. Untouched on a new pass → the database
+  // links the dispatch whose number the plan number is (e.g. "DC-00412").
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkTouched, setLinkTouched] = useState(false);
   const [dispatchIds, setDispatchIds] = useState<string[]>([]);
-  // Issued figures the keeper typed, by dispatch item id. Blank = as the dispatch.
-  const [edits, setEdits] = useState<Record<string, LineEdit>>({});
 
-  // Editing a draft: load it once and fill the form.
   const { data: editing } = useQuery<StorePass | null>({
     queryKey: ["store-pass", editId],
     enabled: Boolean(editId),
@@ -85,165 +77,103 @@ export default function StorePassFormPage() {
   useEffect(() => {
     if (!editing) return;
     setPassDate(editing.pass_date);
-    setVehicle(editing.vehicle_number ?? "");
-    setDriver(editing.driver_name ?? "");
-    setDriverContact(editing.driver_contact ?? "");
-    setReceivedBy(editing.received_by_name ?? "");
-    setStoreLocation(editing.store_location ?? "");
+    setPlanNo(editing.dispatch_plan_no ?? "");
+    setHandedTo(editing.received_by_name ?? "");
     setPhotoPath(editing.photo_path ?? "");
     setRemarks(editing.remarks ?? "");
-    setDispatchIds((editing.store_pass_dispatches ?? []).map((d) => d.dispatch_id));
-    const e: Record<string, LineEdit> = {};
-    (editing.store_pass_items ?? []).forEach((i) => {
-      if (i.dispatch_item_id) {
-        e[i.dispatch_item_id] = {
-          quantity: String(i.quantity),
-          packages: i.packages === null ? "" : String(i.packages),
-          remarks: i.remarks ?? "",
-        };
-      }
-    });
-    setEdits(e);
+    const items = [...(editing.store_pass_items ?? [])].sort((a, b) => a.line_no - b.line_no);
+    setLines(items.length ? items.map((i) => ({
+      key: i.id, description: i.description, product_id: i.product_id ?? "",
+      quantity: String(i.quantity), packages: i.packages === null ? "" : String(i.packages), remarks: i.remarks ?? "",
+    })) : [newLine()]);
+    const ids = (editing.store_pass_dispatches ?? []).map((d) => d.dispatch_id);
+    setDispatchIds(ids);
+    setLinkTouched(true); // editing: keep the links as they are unless changed
+    if (ids.length) setLinkOpen(true);
   }, [editing]);
 
-  // Dispatches already on a live store pass (other than the one being edited).
+  const { data: products = [] } = useQuery<ProductRow[]>({
+    queryKey: ["store-pass-products"],
+    queryFn: async () => {
+      const { data, error } = await spDb.from("products").select("id, code, name").order("code").limit(3000);
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+
+  // Dispatches already on a live store pass (other than this one).
   const { data: taken = [] } = useQuery<{ dispatch_id: string; store_pass_id: string; pass_number: string }[]>({
     queryKey: ["dispatch-store-pass"],
+    enabled: linkOpen,
     queryFn: async () => {
       const { data, error } = await spDb.from("v_dispatch_store_pass").select("dispatch_id, store_pass_id, pass_number");
       if (error) throw error;
       return data ?? [];
     },
   });
-  // Dispatches that already have a gate pass (the store pass is late, but still allowed while pending).
-  const { data: gatePasses = [] } = useQuery<{ dispatch_id: string; pass_number: string; status: string }[]>({
-    queryKey: ["dispatch-gate-pass"],
-    queryFn: async () => {
-      const { data, error } = await spDb.from("v_dispatch_gate_pass").select("dispatch_id, pass_number, status");
-      if (error) return [];
-      return data ?? [];
-    },
-  });
-
-  // Pending domestic dispatches: the vehicle has not left yet.
-  const { data: dispatches = [], isLoading: dispatchesLoading } = useQuery<DispatchRow[]>({
+  const { data: dispatches = [] } = useQuery<DispatchRow[]>({
     queryKey: ["store-pass-dispatch-candidates"],
+    enabled: linkOpen,
     queryFn: async () => {
       const { data, error } = await spDb
         .from("sales_dispatches")
-        .select(
-          "id, dispatch_number, dispatch_date, vehicle_number, driver_name, driver_contact," +
-          "sales_orders(order_number, status, customers(name))," +
-          "sales_dispatch_orders(sales_orders(order_number, status, customers(name)))," +
-          "sales_dispatch_items(id, quantity_dozens, packages, packing_type, sales_order_items(products(code, name)))",
-        )
+        .select("id, dispatch_number, dispatch_date, delivery_status, sales_orders(order_number, customers(name)), sales_dispatch_orders(sales_orders(order_number, customers(name))), sales_dispatch_items(quantity_dozens, packages)")
         .eq("sales_segment", "domestic")
-        .eq("delivery_status", "pending")
+        .in("delivery_status", ["pending", "in_transit"])
         .order("dispatch_date", { ascending: false })
-        .limit(300);
+        .limit(200);
       if (error) throw error;
       return data ?? [];
     },
   });
-
   const takenBy = useMemo(() => {
     const m = new Map<string, string>();
     taken.filter((t) => t.store_pass_id !== editId).forEach((t) => m.set(t.dispatch_id, t.pass_number));
     return m;
   }, [taken, editId]);
-  const gpOf = useMemo(() => new Map(gatePasses.map((g) => [g.dispatch_id, g])), [gatePasses]);
 
-  // The dispatches picked, in dispatch-number order (the pass is printed that way).
-  const selected = useMemo(
-    () => dispatches.filter((d) => dispatchIds.includes(d.id)).sort((a, b) => a.dispatch_number.localeCompare(b.dispatch_number)),
-    [dispatches, dispatchIds],
-  );
-  const lines = selected.flatMap((d) =>
-    d.sales_dispatch_items
-      .filter((i) => Number(i.quantity_dozens) > 0)
-      .map((i) => {
-        const e = edits[i.id];
-        const quantity = e && e.quantity !== "" ? Number(e.quantity) : Number(i.quantity_dozens);
-        const packages = e && e.packages !== "" ? Number(e.packages) : i.packages === null ? null : Number(i.packages);
-        return {
-          key: i.id,
-          dispatch: d,
-          product: i.sales_order_items?.products ? `${i.sales_order_items.products.code} · ${i.sales_order_items.products.name}` : "Item",
-          packing: i.packing_type,
-          dcQty: Number(i.quantity_dozens),
-          dcPackages: i.packages === null ? null : Number(i.packages),
-          quantity,
-          packages,
-          remarks: e?.remarks ?? "",
-          short: quantity < Number(i.quantity_dozens) || Number(packages ?? 0) < Number(i.packages ?? 0),
-          over: quantity > Number(i.quantity_dozens) || Number(packages ?? 0) > Number(i.packages ?? 0),
-        };
-      }),
-  );
-  const totals = lines.reduce(
-    (t, l) => ({
-      quantity: t.quantity + l.quantity, packages: t.packages + Number(l.packages ?? 0),
-      dcQty: t.dcQty + l.dcQty, dcPackages: t.dcPackages + Number(l.dcPackages ?? 0),
-    }),
-    { quantity: 0, packages: 0, dcQty: 0, dcPackages: 0 },
-  );
-  const shortNoRemark = lines.filter((l) => l.short && !l.remarks.trim()).length;
-  const over = lines.filter((l) => l.over).length;
-
-  const setEdit = (key: string, patch: Partial<LineEdit>) =>
-    setEdits((prev) => ({ ...prev, [key]: { quantity: "", packages: "", remarks: "", ...prev[key], ...patch } }));
-
-  const toggleDispatch = (d: DispatchRow, on: boolean) => {
-    setDispatchIds((prev) => (on ? [...prev, d.id] : prev.filter((x) => x !== d.id)));
-    // First dispatch picked fills in the vehicle details if they are still empty.
-    if (on && !vehicle && d.vehicle_number) setVehicle(d.vehicle_number.toUpperCase());
-    if (on && !driver && d.driver_name) setDriver(d.driver_name);
-    if (on && !driverContact && d.driver_contact) setDriverContact(d.driver_contact);
+  const setLine = (key: string, patch: Partial<LineEdit>) =>
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const pickProduct = (key: string, productId: string) => {
+    const p = products.find((x) => x.id === productId);
+    setLines((ls) => ls.map((l) => l.key === key
+      ? { ...l, product_id: productId === NONE ? "" : productId, description: p && !l.description.trim() ? `${p.code} · ${p.name}` : l.description }
+      : l));
   };
+  const filled = lines.filter((l) => l.description.trim() || l.product_id || l.quantity || l.packages);
+  const totals = filled.reduce((t, l) => ({ quantity: t.quantity + Number(l.quantity || 0), packages: t.packages + Number(l.packages || 0) }), { quantity: 0, packages: 0 });
+  const incomplete = filled.filter((l) => Number(l.quantity || 0) <= 0 && Number(l.packages || 0) <= 0).length;
+  const canIssue = Boolean(planNo.trim()) && filled.length > 0 && incomplete === 0 && Boolean(handedTo.trim()) && Boolean(photoPath);
 
   const save = useMutation({
     mutationFn: async (issue: boolean) => {
-      const data = {
+      const data: Record<string, unknown> = {
         pass_date: passDate,
-        vehicle_number: vehicle,
-        driver_name: driver,
-        driver_contact: driverContact,
-        received_by_name: receivedBy,
-        store_location: storeLocation,
+        dispatch_plan_no: planNo,
+        received_by_name: handedTo,
         photo_path: photoPath,
         remarks,
-        dispatch_ids: dispatchIds,
-        lines: lines.map((l) => ({
-          dispatch_item_id: l.key,
-          quantity: l.quantity,
-          packages: l.packages,
-          remarks: l.remarks,
+        lines: filled.map((l) => ({
+          description: l.description, product_id: l.product_id || null,
+          quantity: l.quantity === "" ? 0 : Number(l.quantity), packages: l.packages === "" ? null : Number(l.packages), remarks: l.remarks,
         })),
       };
+      if (linkTouched) data.dispatch_ids = dispatchIds;
       const { data: id, error } = await spDb.rpc("store_pass_save", { p_id: editId ?? null, p_data: data, p_issue: issue });
       if (error) throw error;
       return { id: id as string, issue };
     },
     onSuccess: ({ id, issue }) => {
-      queryClient.invalidateQueries({ queryKey: ["store-passes"] });
+      ["store-passes", "dispatch-store-pass", "store-gate-tracking", "store-gate-recon"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
       queryClient.invalidateQueries({ queryKey: ["store-pass", id] });
-      queryClient.invalidateQueries({ queryKey: ["dispatch-store-pass"] });
-      queryClient.invalidateQueries({ queryKey: ["store-gate-tracking"] });
-      toast({
-        title: issue ? "Store pass issued" : "Draft saved",
-        description: issue ? "Time-stamped and ready to print. Hand it over with the goods." : undefined,
-      });
+      toast({ title: issue ? "Store pass issued" : "Draft saved", description: issue ? "Time-stamped and ready to print. It travels with the goods to the gate." : undefined });
       navigate(`/store-pass/passes/${id}`);
     },
     onError: (e) => toast({ title: "Could not save", description: errorMessage(e), variant: "destructive" }),
   });
 
   if (!canCreate) {
-    return (
-      <ERPLayout>
-        <div className="p-8 text-center text-muted-foreground">You do not have permission to make store passes.</div>
-      </ERPLayout>
-    );
+    return <ERPLayout><div className="p-8 text-center text-muted-foreground">You do not have permission to make store passes.</div></ERPLayout>;
   }
   if (editId && editing && editing.status !== "draft") {
     return (
@@ -261,169 +191,165 @@ export default function StorePassFormPage() {
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
         <PageHeader
           title={editing ? `Edit ${editing.pass_number}` : "New store pass"}
-          description="Finished goods handed over by the store for one vehicle. The SP number is given when you save. No stock moves; no prices."
+          description="Finished goods handed over at the loading dock. The SP number is given when you save. No stock moves; no prices."
           icon={Warehouse}
         />
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
           <div className="space-y-4 min-w-0">
             <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">1. Vehicle and driver</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <CardHeader className="pb-3"><CardTitle className="text-base">1. Dispatch plan</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
                 <div>
-                  <Label htmlFor="sp-vehicle">Vehicle no. *</Label>
-                  <Input id="sp-vehicle" value={vehicle} placeholder="e.g. LES-4471" onChange={(e) => setVehicle(e.target.value.toUpperCase())} />
-                </div>
-                <div>
-                  <Label htmlFor="sp-driver">Driver name</Label>
-                  <Input id="sp-driver" value={driver} onChange={(e) => setDriver(e.target.value)} />
-                </div>
-                <div>
-                  <Label htmlFor="sp-contact">Driver phone / CNIC</Label>
-                  <Input id="sp-contact" value={driverContact} onChange={(e) => setDriverContact(e.target.value)} />
+                  <Label htmlFor="sp-plan">Dispatch plan no. *</Label>
+                  <Input id="sp-plan" value={planNo} className="h-11 text-lg" placeholder="e.g. DPV-000012 or DC-00412"
+                    onChange={(e) => setPlanNo(e.target.value.toUpperCase())} />
+                  <p className="text-xs text-muted-foreground mt-1">Write the number on the dispatch plan. If it is the dispatch (DC) number, the pass links to that dispatch by itself.</p>
                 </div>
                 <div>
                   <Label htmlFor="sp-date">Date</Label>
-                  <Input id="sp-date" type="date" value={passDate} onChange={(e) => setPassDate(e.target.value)} />
+                  <Input id="sp-date" type="date" className="h-11" value={passDate} onChange={(e) => setPassDate(e.target.value)} />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">2. Dispatches going on this vehicle</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Pending domestic dispatches of approved sales orders. A dispatch already on another store pass cannot be picked.
-                </p>
+                <CardTitle className="text-base">2. Items handed over</CardTitle>
+                <p className="text-sm text-muted-foreground">Type each item as it is. Picking the product is optional; it helps the per-product reconciliation.</p>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[760px]">
+                <Table className="min-w-[780px]">
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Item *</TableHead>
+                      <TableHead className="w-56">Product (optional)</TableHead>
+                      <TableHead className="text-right w-28">Dozens</TableHead>
+                      <TableHead className="text-right w-28">Cartons</TableHead>
+                      <TableHead>Remark</TableHead>
                       <TableHead className="w-10" />
-                      <TableHead>Dispatch</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Orders</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead className="text-right">Dz / Ctn</TableHead>
-                      <TableHead>DC vehicle</TableHead>
-                      <TableHead>Note</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dispatchesLoading ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Loading…</TableCell></TableRow>
-                    ) : dispatches.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No pending domestic dispatches.</TableCell></TableRow>
-                    ) : dispatches.map((d) => {
-                      const orders = dispatchOrders(d);
-                      const unapproved = orders.filter((o) => NOT_APPROVED.includes(o.status));
-                      const onPass = takenBy.get(d.id);
-                      const gp = gpOf.get(d.id);
-                      const disabled = Boolean(onPass) || unapproved.length > 0 || orders.length === 0;
-                      const checked = dispatchIds.includes(d.id);
-                      const qty = d.sales_dispatch_items.reduce((s, i) => s + Number(i.quantity_dozens), 0);
-                      const ctn = d.sales_dispatch_items.reduce((s, i) => s + Number(i.packages ?? 0), 0);
-                      const sameVehicle = vehicle && d.vehicle_number && d.vehicle_number.replace(/[^A-Za-z0-9]/g, "").toUpperCase() === vehicle.replace(/[^A-Za-z0-9]/g, "");
+                    {lines.map((l, n) => {
+                      const bad = (l.description.trim() || l.product_id) && Number(l.quantity || 0) <= 0 && Number(l.packages || 0) <= 0;
                       return (
-                        <TableRow key={d.id} className={cn(disabled && !checked && "opacity-60", checked && "bg-primary/5")}>
+                        <TableRow key={l.key}>
+                          <TableCell className="text-muted-foreground">{n + 1}</TableCell>
                           <TableCell>
-                            <Checkbox
-                              aria-label={`Select ${d.dispatch_number}`}
-                              checked={checked}
-                              disabled={disabled && !checked}
-                              onCheckedChange={(v) => toggleDispatch(d, v === true)}
-                            />
+                            <Input aria-label={`Item ${n + 1}`} className="h-10 min-w-[200px]" value={l.description} placeholder="e.g. Football size 5 white, 10 ctn"
+                              onChange={(e) => setLine(l.key, { description: e.target.value })} />
                           </TableCell>
-                          <TableCell className="font-mono text-sm font-semibold">{d.dispatch_number}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(d.dispatch_date), "dd MMM")}</TableCell>
-                          <TableCell className="text-sm">{orders.map((o) => o.order_number).join(", ") || "—"}</TableCell>
-                          <TableCell className="text-sm max-w-[220px] truncate" title={customersOf(d)}>{customersOf(d)}</TableCell>
-                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(qty)} / {ctn}</TableCell>
-                          <TableCell className={cn("text-sm", sameVehicle && "font-semibold text-emerald-700")}>{d.vehicle_number || "—"}</TableCell>
-                          <TableCell className="text-xs">
-                            {onPass ? <span className="text-red-700 font-medium">On {onPass}</span>
-                              : unapproved.length ? <span className="text-red-700 font-medium">Order not approved</span>
-                              : gp ? <span className="text-amber-700 font-medium">Gate pass {gp.pass_number} already made</span>
-                              : <span className="text-emerald-700 font-medium">Ready</span>}
+                          <TableCell>
+                            <Select value={l.product_id || NONE} onValueChange={(v) => pickProduct(l.key, v)}>
+                              <SelectTrigger className="h-10"><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NONE}>— none —</SelectItem>
+                                {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.code} · {p.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Input aria-label={`Dozens ${n + 1}`} inputMode="decimal" className={cn("h-10 text-right tabular-nums", bad && "border-amber-500")} value={l.quantity}
+                              onChange={(e) => setLine(l.key, { quantity: e.target.value.replace(/[^0-9.]/g, "") })} />
+                          </TableCell>
+                          <TableCell>
+                            <Input aria-label={`Cartons ${n + 1}`} inputMode="numeric" className={cn("h-10 text-right tabular-nums", bad && "border-amber-500")} value={l.packages}
+                              onChange={(e) => setLine(l.key, { packages: e.target.value.replace(/[^0-9]/g, "") })} />
+                          </TableCell>
+                          <TableCell>
+                            <Input aria-label={`Remark ${n + 1}`} className="h-10 min-w-[140px]" value={l.remarks} onChange={(e) => setLine(l.key, { remarks: e.target.value })} />
+                          </TableCell>
+                          <TableCell>
+                            <Button type="button" variant="ghost" size="icon" aria-label="Remove line" disabled={lines.length === 1}
+                              onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
                     })}
                   </TableBody>
+                  <tfoot>
+                    <TableRow>
+                      <TableCell colSpan={3}>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, newLine()])}>
+                          <Plus className="h-4 w-4 mr-1" /> Add item
+                        </Button>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{fmtQty(totals.quantity)} dz</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{totals.packages} ctn</TableCell>
+                      <TableCell colSpan={2} className="text-xs text-muted-foreground">{filled.length} item(s){incomplete ? ` · ${incomplete} without a quantity` : ""}</TableCell>
+                    </TableRow>
+                  </tfoot>
                 </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-base">3. Hand-over</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="sp-handed">Handed over to (person's name) *</Label>
+                    <Input id="sp-handed" className="h-11" value={handedTo} placeholder="e.g. Imran (loader)" onChange={(e) => setHandedTo(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="sp-remarks">Remarks</Label>
+                    <Textarea id="sp-remarks" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Photo of the stock at the loading dock *</Label>
+                  <PhotoInput id="sp-photo" label="Take photo of the stock" folder="store-pass" value={photoPath} onChange={setPhotoPath} />
+                  {!photoPath && <p className="text-xs text-muted-foreground mt-1">Needed to issue the pass. A draft can be saved without it.</p>}
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">3. Lines issued from the store</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Copied from the dispatches. Confirm or correct what actually left the store. Short issue needs a remark; issuing more than the dispatch is not allowed.
-                </p>
+                <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setLinkOpen((o) => !o)} aria-expanded={linkOpen}>
+                  <div>
+                    <CardTitle className="text-base">Link to system dispatches <span className="text-muted-foreground font-normal">(optional)</span></CardTitle>
+                    <p className="text-sm text-muted-foreground">For the office. Linking lets Dispatch Tracking and the daily reconciliation compare this pass with the dispatch and the gate.</p>
+                  </div>
+                  <ChevronDown className={cn("h-5 w-5 transition-transform", linkOpen && "rotate-180")} />
+                </button>
               </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[820px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Packing</TableHead>
-                      <TableHead className="text-right">DC dz</TableHead>
-                      <TableHead className="text-right">DC ctn</TableHead>
-                      <TableHead className="text-right bg-primary/5">Issued dz</TableHead>
-                      <TableHead className="text-right bg-primary/5">Issued ctn</TableHead>
-                      <TableHead>Remark</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lines.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Select dispatches above.</TableCell></TableRow>
-                    ) : selected.map((d) => (
-                      <GroupRows key={d.id} dispatch={d} lines={lines.filter((l) => l.dispatch.id === d.id)} setEdit={setEdit} />
-                    ))}
-                  </TableBody>
-                  {lines.length > 0 && (
-                    <tfoot>
-                      <TableRow className="font-semibold">
-                        <TableCell colSpan={2}>Totals</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtQty(totals.dcQty)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{totals.dcPackages}</TableCell>
-                        <TableCell className="text-right tabular-nums text-primary">{fmtQty(totals.quantity)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-primary">{totals.packages}</TableCell>
-                        <TableCell className="text-xs font-normal">
-                          {totals.quantity === totals.dcQty && totals.packages === totals.dcPackages
-                            ? <span className="text-emerald-700 font-semibold">Matches the dispatches</span>
-                            : <span className="text-amber-700 font-semibold">
-                                Short by {fmtQty(totals.dcQty - totals.quantity)} dz · {totals.dcPackages - totals.packages} ctn
-                              </span>}
-                        </TableCell>
-                      </TableRow>
-                    </tfoot>
-                  )}
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">4. Handover</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div>
-                  <Label htmlFor="sp-received">Received by (loader / driver)</Label>
-                  <Input id="sp-received" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
-                </div>
-                <div>
-                  <Label htmlFor="sp-location">Store location / loading bay</Label>
-                  <Input id="sp-location" value={storeLocation} placeholder="e.g. FG Store A · Bay 2" onChange={(e) => setStoreLocation(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Photo of the loaded stack (optional)</Label>
-                  <PhotoInput id="sp-photo" label="Take photo" folder="store-pass" value={photoPath} onChange={setPhotoPath} />
-                </div>
-                <div className="sm:col-span-2 lg:col-span-3">
-                  <Label htmlFor="sp-remarks">Remarks</Label>
-                  <Textarea id="sp-remarks" rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-                </div>
-              </CardContent>
+              {linkOpen && (
+                <CardContent className="p-0 overflow-x-auto">
+                  <Table className="min-w-[640px]">
+                    <TableHeader>
+                      <TableRow><TableHead className="w-10" /><TableHead>Dispatch</TableHead><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Dz / Ctn</TableHead><TableHead>Status</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dispatches.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No pending domestic dispatches.</TableCell></TableRow>
+                      ) : dispatches.map((d) => {
+                        const onPass = takenBy.get(d.id);
+                        const checked = dispatchIds.includes(d.id);
+                        return (
+                          <TableRow key={d.id} className={cn(onPass && !checked && "opacity-60", checked && "bg-primary/5")}>
+                            <TableCell>
+                              <Checkbox aria-label={`Link ${d.dispatch_number}`} checked={checked} disabled={Boolean(onPass) && !checked}
+                                onCheckedChange={(v) => { setLinkTouched(true); setDispatchIds((prev) => (v === true ? [...prev, d.id] : prev.filter((x) => x !== d.id))); }} />
+                            </TableCell>
+                            <TableCell className="font-mono text-sm font-semibold">{d.dispatch_number}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(d.dispatch_date), "dd MMM")}</TableCell>
+                            <TableCell className="text-sm max-w-[220px] truncate" title={customersOf(d)}>{customersOf(d)}</TableCell>
+                            <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
+                              {fmtQty(d.sales_dispatch_items.reduce((s, i) => s + Number(i.quantity_dozens), 0))} / {d.sales_dispatch_items.reduce((s, i) => s + Number(i.packages ?? 0), 0)}
+                            </TableCell>
+                            <TableCell className="text-xs">{onPass ? <span className="text-red-700 font-medium">On {onPass}</span> : d.delivery_status.replace(/_/g, " ")}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              )}
             </Card>
           </div>
 
@@ -432,108 +358,41 @@ export default function StorePassFormPage() {
               <CardHeader className="pb-2"><CardTitle className="text-base">Summary</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">SP number</span><span className="font-medium">{editing?.pass_number ?? "Given on save"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Vehicle</span><span className="font-medium">{vehicle || "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Dispatches</span><span className="font-medium">{dispatchIds.length}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Customers</span>
-                  <span className="font-medium text-right">{[...new Set(selected.map(customersOf).filter(Boolean))].join("; ") || "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Issued</span>
-                  <span className="font-medium">{fmtQty(totals.quantity)} dz · {totals.packages} ctn</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">On dispatches</span>
-                  <span className="font-medium">{fmtQty(totals.dcQty)} dz · {totals.dcPackages} ctn</span></div>
-                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Stock</span>
-                  <span className="font-medium text-right">No movement — the dispatch already did it</span></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Dispatch plan</span><span className="font-medium text-right">{planNo || "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{filled.length}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-medium">{fmtQty(totals.quantity)} dz · {totals.packages} ctn</span></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Handed over to</span><span className="font-medium text-right">{handedTo || "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Photo</span><span className={cn("font-medium", photoPath ? "text-emerald-700" : "text-amber-700")}>{photoPath ? "Taken" : "Missing"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Linked dispatches</span><span className="font-medium">{linkTouched ? dispatchIds.length : "Automatic by DC no."}</span></div>
               </CardContent>
             </Card>
 
-            {(over > 0 || shortNoRemark > 0) && (
+            {!canIssue && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-1">
-                {over > 0 && <div><b>{over} line(s)</b> issue more than the dispatch. Lower them, or ask the office to correct the dispatch first.</div>}
-                {shortNoRemark > 0 && <div><b>{shortNoRemark} short line(s)</b> need a remark saying why.</div>}
+                <div className="font-semibold">To issue, still needed:</div>
+                <ul className="list-disc pl-4">
+                  {!planNo.trim() && <li>the dispatch plan number</li>}
+                  {filled.length === 0 && <li>at least one item</li>}
+                  {incomplete > 0 && <li>a quantity on every item</li>}
+                  {!handedTo.trim() && <li>who the goods were handed over to</li>}
+                  {!photoPath && <li>the photo of the stock at the loading dock</li>}
+                </ul>
               </div>
             )}
 
             <div className="rounded-xl border p-4 bg-muted/30 text-sm text-muted-foreground">
-              Issuing stamps the time and your name on the pass and freezes the lines. After issue only a store pass manager can cancel it.
-              The gate guard still counts against the <b>gate pass</b>; the daily reconciliation compares the two.
+              Issuing stamps the time and your name and freezes the pass. After issue only a store pass manager can cancel it.
             </div>
 
             <div className="flex flex-col gap-2">
-              <Button disabled={save.isPending || dispatchIds.length === 0} onClick={() => save.mutate(true)}>
-                {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Issue store pass
+              <Button className="h-12 text-base" disabled={save.isPending || !canIssue} onClick={() => save.mutate(true)}>
+                {save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Issue store pass
               </Button>
-              <Button variant="outline" disabled={save.isPending || dispatchIds.length === 0} onClick={() => save.mutate(false)}>Save as draft</Button>
+              <Button variant="outline" disabled={save.isPending || !planNo.trim() || filled.length === 0} onClick={() => save.mutate(false)}>Save as draft</Button>
             </div>
           </div>
         </div>
       </div>
     </ERPLayout>
-  );
-}
-
-type Line = {
-  key: string;
-  product: string;
-  packing: string | null;
-  dcQty: number;
-  dcPackages: number | null;
-  quantity: number;
-  packages: number | null;
-  remarks: string;
-  short: boolean;
-  over: boolean;
-};
-
-function GroupRows({
-  dispatch, lines, setEdit,
-}: {
-  dispatch: DispatchRow;
-  lines: Line[];
-  setEdit: (key: string, patch: Partial<LineEdit>) => void;
-}) {
-  return (
-    <>
-      <TableRow className="bg-muted/40 hover:bg-muted/40">
-        <TableCell colSpan={7} className="py-1.5 text-sm font-semibold">
-          {dispatch.dispatch_number} <span className="text-muted-foreground font-normal">· {customersOf(dispatch)}</span>
-        </TableCell>
-      </TableRow>
-      {lines.map((l) => (
-        <TableRow key={l.key} className={cn(l.over ? "bg-red-50/60" : l.short && "bg-amber-50/60")}>
-          <TableCell className="font-medium">{l.product}</TableCell>
-          <TableCell className="text-sm text-muted-foreground">{l.packing || "—"}</TableCell>
-          <TableCell className="text-right tabular-nums">{fmtQty(l.dcQty)}</TableCell>
-          <TableCell className="text-right tabular-nums">{l.dcPackages ?? "—"}</TableCell>
-          <TableCell className="text-right">
-            <Input
-              aria-label={`Issued dozens ${l.product}`}
-              inputMode="decimal"
-              className={cn("h-9 w-24 text-right tabular-nums ml-auto", l.over && "border-red-500", l.short && !l.over && "border-amber-500")}
-              value={String(l.quantity)}
-              onChange={(e) => setEdit(l.key, { quantity: e.target.value.replace(/[^0-9.]/g, "") })}
-            />
-          </TableCell>
-          <TableCell className="text-right">
-            <Input
-              aria-label={`Issued cartons ${l.product}`}
-              inputMode="numeric"
-              disabled={l.dcPackages === null}
-              className={cn("h-9 w-20 text-right tabular-nums ml-auto", l.over && "border-red-500", l.short && !l.over && "border-amber-500")}
-              value={l.packages === null ? "" : String(l.packages)}
-              onChange={(e) => setEdit(l.key, { packages: e.target.value.replace(/[^0-9]/g, "") })}
-            />
-          </TableCell>
-          <TableCell>
-            <Input
-              aria-label={`Remark ${l.product}`}
-              className={cn("h-9 min-w-[180px]", l.short && !l.remarks.trim() && "border-amber-500")}
-              placeholder={l.short ? "Why short? *" : ""}
-              value={l.remarks}
-              onChange={(e) => setEdit(l.key, { remarks: e.target.value })}
-            />
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
   );
 }
