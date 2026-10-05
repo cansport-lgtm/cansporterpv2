@@ -1,6 +1,6 @@
 # Dispatch Plan & Job Order Planner — plan (proposal, 5 Oct 2026)
 
-Status: **Proposal / planning document** (no code changes yet).
+Status: **Phase 1 built** (suggested dispatch plan, board, vehicles, versions — see `docs/DISPATCH_PLANNER.md`). Phase 2 and 3 are still proposals.
 
 Decisions taken (5 Oct 2026): the module is a **planner only**. It **reads**
 data from the other modules and **suggests** a dispatch plan and job orders.

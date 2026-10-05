@@ -17486,6 +17486,9 @@ export type Database = {
         | "store_pass_manager"
         | "store_pass_officer"
         | "store_pass_viewer"
+        | "dispatch_planner_manager"
+        | "dispatch_planner_officer"
+        | "dispatch_planner_viewer"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17783,6 +17786,9 @@ export const Constants = {
         "store_pass_manager",
         "store_pass_officer",
         "store_pass_viewer",
+        "dispatch_planner_manager",
+        "dispatch_planner_officer",
+        "dispatch_planner_viewer",
       ],
       asset_category: [
         "office_assets",
