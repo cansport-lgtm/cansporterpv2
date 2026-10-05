@@ -92,6 +92,7 @@ export type PlannerVersion = {
   total_cartons: number;
   created_by: string | null;
   created_at: string;
+  archived_at?: string | null;
   creator?: { full_name: string | null } | null;
 };
 
