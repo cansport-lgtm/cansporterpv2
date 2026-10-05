@@ -61,6 +61,7 @@ export default function DispatchPlannerVersionDetailPage() {
         .from("dispatch_planner_versions")
         .select("*, creator:app_users!dispatch_planner_versions_created_by_fkey(full_name)")
         .eq("id", id)
+        .is("archived_at", null)
         .maybeSingle();
       if (error) throw error;
       return data;

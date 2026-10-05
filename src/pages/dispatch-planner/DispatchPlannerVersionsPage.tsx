@@ -29,6 +29,7 @@ export default function DispatchPlannerVersionsPage() {
       const { data, error } = await dpDb
         .from("dispatch_planner_versions")
         .select("*, creator:app_users!dispatch_planner_versions_created_by_fkey(full_name)")
+        .is("archived_at", null)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -38,10 +39,10 @@ export default function DispatchPlannerVersionsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await dpDb.rpc("dispatch_planner_version_delete", { p_id: id });
+      const { error } = await dpDb.rpc("dispatch_planner_version_archive", { p_id: id });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["dp-versions"] }); toast.success("Version deleted"); setToDelete(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["dp-versions"] }); toast.success("Version removed"); setToDelete(null); },
     onError: (e) => toast.error(errorMessage(e)),
   });
 
@@ -93,12 +94,12 @@ export default function DispatchPlannerVersionsPage() {
         <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {toDelete?.version_number}?</AlertDialogTitle>
-              <AlertDialogDescription>The saved snapshot and its lines are removed. Nothing outside the planner is affected.</AlertDialogDescription>
+              <AlertDialogTitle>Remove {toDelete?.version_number}?</AlertDialogTitle>
+              <AlertDialogDescription>The saved snapshot is hidden from the list (kept in the database for the record). Nothing outside the planner is affected.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => toDelete && del.mutate(toDelete.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={() => toDelete && del.mutate(toDelete.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -32,6 +32,7 @@ export default function DispatchPlannerDashboardPage() {
       const { data, error } = await dpDb
         .from("dispatch_planner_versions")
         .select("*, creator:app_users!dispatch_planner_versions_created_by_fkey(full_name)")
+        .is("archived_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

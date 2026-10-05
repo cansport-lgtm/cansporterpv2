@@ -91,10 +91,12 @@ Planner-owned tables, read-only to clients, writes via role-checked functions:
 - `dispatch_planner_settings` — single row: `horizon_days`, `lead_time_days`,
   `stale_closing_days`, `sunday_off`, `use_public_holidays`, `segments`.
 - `dispatch_planner_vehicles` — the fleet (unique registration, carton capacity).
-- `dispatch_planner_pins` — `order_item_id` (no FK, cleaned by
-  `dispatch_planner_pins_cleanup`), `pinned_date`, `urgent`, `note`.
+- `dispatch_planner_pins` — `order_item_id` (no FK), `pinned_date`, `urgent`,
+  `note`, `cleared_at` (a cleared pin is kept and ignored; saving the line
+  again revives it; `dispatch_planner_pins_cleanup` clears pins of lines no
+  longer pending).
 - `dispatch_planner_versions` (`DPV-000001`, …) and `dispatch_planner_version_lines`
-  — the board as saved.
+  — the board as saved; a removed version is marked `archived_at` and hidden.
 
 Read-only views: `v_dispatch_planner_pending_lines` (open domestic lines with
 pending dozens, cartons, deadline, planning item), `v_dispatch_planner_fg_stock`
@@ -103,9 +105,14 @@ pending dozens, cartons, deadline, planning item), `v_dispatch_planner_fg_stock`
 Functions: `dispatch_planner_suggest`, `dispatch_planner_working_days`,
 `dispatch_planner_add_working_days`, `dispatch_planner_today`,
 `dispatch_planner_pin_save` / `_pin_clear` / `_pins_cleanup`,
-`dispatch_planner_version_save` / `_version_delete`,
+`dispatch_planner_version_save` / `_version_archive`,
 `dispatch_planner_vehicle_save`, `dispatch_planner_settings_save`,
 `dispatch_planner_has_any_role`, `dispatch_planner_can`.
+
+The module contains **no row-removing or object-removing SQL** (migration
+`20261010120200_dispatch_planner_no_destructive_sql.sql`): pins are cleared
+by marking them, versions are archived by marking them, and the suggestion
+engine works in memory rather than in temporary tables.
 
 **Not in this module, by decision:** no trigger on `sales_dispatch_items`,
 `deadline_change_requests` or `job_orders`; no column on `job_orders`,
