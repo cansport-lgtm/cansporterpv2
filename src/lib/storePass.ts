@@ -1,6 +1,7 @@
 // Shared definitions for the Store Pass module (finished goods handed over by
-// the store for one vehicle, before the gate).
-// The rules live in the database: see supabase/migrations/20261008120100_store_pass.sql.
+// the store at the loading dock, before the gate).
+// The rules live in the database: see supabase/migrations/20261008120100_store_pass.sql
+// and 20261009120000_store_pass_simplify.sql.
 // Every write goes through its store_pass_* functions; the tables are read-only here.
 
 import { format } from "date-fns";
@@ -25,17 +26,18 @@ export const spStatusMeta = (s: string) =>
 export type StorePassItem = {
   id: string;
   line_no: number;
-  dispatch_id: string;
+  dispatch_id: string | null;
   dispatch_item_id: string | null;
   product_id: string | null;
   description: string;
   packing_type: string | null;
   uom: string;
-  dispatch_quantity: number;
+  dispatch_quantity: number | null;
   dispatch_packages: number | null;
   quantity: number;
   packages: number | null;
   remarks: string | null;
+  products?: { code: string; name: string } | null;
 };
 
 export type StorePassDispatchRef = {
@@ -53,6 +55,7 @@ export type StorePass = {
   pass_number: string;
   status: StorePassStatus;
   pass_date: string;
+  dispatch_plan_no: string | null;
   vehicle_number: string | null;
   driver_name: string | null;
   driver_contact: string | null;
@@ -79,7 +82,7 @@ export const SP_SELECT =
   "creator:app_users!store_passes_created_by_fkey(full_name)," +
   "issuer:app_users!store_passes_issued_by_fkey(full_name)," +
   "canceller:app_users!store_passes_cancelled_by_fkey(full_name)," +
-  "store_pass_items(*)," +
+  "store_pass_items(*, products(code, name))," +
   "store_pass_dispatches(dispatch_id, sales_dispatches(dispatch_number, dispatch_date, delivery_status, vehicle_number))";
 
 export const fmtQty = (n: number | null | undefined) =>
@@ -88,15 +91,9 @@ export const fmtQty = (n: number | null | undefined) =>
 export const sortedItems = (p: StorePass) =>
   [...(p.store_pass_items ?? [])].sort((a, b) => a.line_no - b.line_no);
 
-/** A line the store issued short of the dispatch (dozens or cartons). */
-export const isShort = (i: Pick<StorePassItem, "quantity" | "dispatch_quantity" | "packages" | "dispatch_packages">) =>
-  Number(i.quantity) < Number(i.dispatch_quantity) || Number(i.packages ?? 0) < Number(i.dispatch_packages ?? 0);
-
-export const totals = (items: Pick<StorePassItem, "quantity" | "packages" | "dispatch_quantity" | "dispatch_packages">[]) => ({
+export const totals = (items: Pick<StorePassItem, "quantity" | "packages">[]) => ({
   quantity: items.reduce((s, i) => s + Number(i.quantity), 0),
   packages: items.reduce((s, i) => s + Number(i.packages ?? 0), 0),
-  dispatchQuantity: items.reduce((s, i) => s + Number(i.dispatch_quantity), 0),
-  dispatchPackages: items.reduce((s, i) => s + Number(i.dispatch_packages ?? 0), 0),
 });
 
 /** Today in the factory's time zone as yyyy-MM-dd. */
@@ -112,37 +109,22 @@ const fmtDateTime = (s: string | null) => (s ? format(new Date(s), "dd MMM yyyy,
 /** Print the store pass. No prices are ever on it. `qrSvg` is the QR's outerHTML. */
 export function printStorePass(p: StorePass, qrSvg: string) {
   const items = sortedItems(p);
-  const byDispatch = new Map<string, StorePassItem[]>();
-  items.forEach((i) => byDispatch.set(i.dispatch_id, [...(byDispatch.get(i.dispatch_id) ?? []), i]));
-  const dispatchNo = (id: string) =>
-    (p.store_pass_dispatches ?? []).find((d) => d.dispatch_id === id)?.sales_dispatches?.dispatch_number ?? "";
   const t = totals(items);
-  let n = 0;
-  const rows = [...byDispatch.entries()]
-    .map(([dispatchId, lines]) =>
-      `<tr><td colspan="6" class="group">${esc(dispatchNo(dispatchId))}</td></tr>` +
-      lines
-        .map((i) => {
-          n += 1;
-          const short = isShort(i);
-          return `<tr>
-            <td>${n}</td>
-            <td>${esc(i.description)}</td>
-            <td>${esc(i.packing_type ?? "")}</td>
-            <td class="right">${i.packages ?? ""}</td>
-            <td class="right">${esc(fmtQty(i.quantity))}</td>
-            <td>${esc(i.remarks ?? "")}${short ? `<div class="xs muted">Dispatch: ${i.dispatch_packages ?? "—"} ctn / ${esc(fmtQty(i.dispatch_quantity))} dz</div>` : ""}</td>
-          </tr>`;
-        })
-        .join(""),
-    )
+  const linked = (p.store_pass_dispatches ?? []).map((d) => d.sales_dispatches?.dispatch_number).filter(Boolean).join(", ");
+  const rows = items
+    .map((i, n) => `<tr>
+        <td>${n + 1}</td>
+        <td>${esc(i.description)}</td>
+        <td class="right">${i.packages ?? ""}</td>
+        <td class="right">${esc(fmtQty(i.quantity))}</td>
+        <td>${esc(i.remarks ?? "")}</td>
+      </tr>`)
     .join("");
   const body = `
   <style>
     .sp table { width: 100%; border-collapse: collapse; margin-top: 12px; }
     .sp th, .sp td { border: 1px solid #bbb; padding: 6px 8px; font-size: 12px; text-align: left; vertical-align: top; }
     .sp th { background: #f1f3f7; }
-    .sp td.group { background: #f7f7f7; font-weight: 700; }
     .sp .right { text-align: right; }
     .sp .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; font-size: 12px; }
     .sp .sign { display: flex; gap: 16px; margin-top: 56px; }
@@ -162,24 +144,21 @@ export function printStorePass(p: StorePass, qrSvg: string) {
     <div class="facts">
       <div><span class="muted">SP no.</span> <b style="font-size:15px">${esc(p.pass_number)}</b></div>
       <div><span class="muted">Date</span> <b>${esc(format(new Date(p.pass_date), "dd MMM yyyy"))}</b></div>
-      <div><span class="muted">Vehicle</span> <b>${esc(p.vehicle_number ?? "")}</b></div>
-      <div><span class="muted">Driver</span> <b>${esc([p.driver_name, p.driver_contact].filter(Boolean).join(" · "))}</b></div>
-      <div style="grid-column: span 2"><span class="muted">Customers</span> <b>${esc(p.party_name)}</b></div>
-      <div style="grid-column: span 2"><span class="muted">Dispatches</span> <b>${esc((p.store_pass_dispatches ?? []).map((d) => d.sales_dispatches?.dispatch_number).filter(Boolean).join(", "))}</b></div>
+      <div><span class="muted">Dispatch plan no.</span> <b style="font-size:14px">${esc(p.dispatch_plan_no ?? "")}</b></div>
+      <div><span class="muted">Handed over to</span> <b>${esc(p.received_by_name ?? "")}</b></div>
       ${p.issued_at ? `<div><span class="muted">Issued</span> <b>${esc(fmtDateTime(p.issued_at))}</b></div>` : ""}
-      ${p.store_location ? `<div><span class="muted">From</span> <b>${esc(p.store_location)}</b></div>` : ""}
+      ${linked ? `<div><span class="muted">Dispatches</span> <b>${esc(linked)}</b></div>` : ""}
     </div>
     <table>
-      <thead><tr><th>#</th><th>Product</th><th>Packing</th><th class="right">Cartons</th><th class="right">Dozens</th><th>Remark</th></tr></thead>
+      <thead><tr><th>#</th><th>Item</th><th class="right">Cartons</th><th class="right">Dozens</th><th>Remark</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="3" class="right bold">Total issued</td><td class="right bold">${t.packages}</td><td class="right bold">${esc(fmtQty(t.quantity))}</td>
-        <td class="xs">Dispatches: ${t.dispatchPackages} ctn / ${esc(fmtQty(t.dispatchQuantity))} dz</td></tr></tfoot>
+      <tfoot><tr><td colspan="2" class="right bold">Total handed over</td><td class="right bold">${t.packages}</td><td class="right bold">${esc(fmtQty(t.quantity))}</td><td></td></tr></tfoot>
     </table>
     ${p.remarks ? `<p style="font-size:12px">Remarks: ${esc(p.remarks)}</p>` : ""}
-    <p class="xs muted">Goods listed above were handed over by the Finished Goods Store for dispatch. This pass travels with the goods to the gate, where the guard counts against the gate pass. No prices are shown.</p>
+    <p class="xs muted">Goods listed above were handed over by the Finished Goods Store at the loading dock. This pass travels with the goods to the gate, where the guard counts against the gate pass. No prices are shown.</p>
     <div class="sign">
       <div>Store keeper<br><b>${esc(p.issuer?.full_name ?? p.creator?.full_name ?? "")}</b></div>
-      <div>Received by (loader / driver)<br><b>${esc(p.received_by_name ?? "")}</b></div>
+      <div>Handed over to<br><b>${esc(p.received_by_name ?? "")}</b></div>
       <div>Gate security<br>Gate pass no. ________</div>
     </div>
   </div>`;
@@ -241,12 +220,12 @@ export type TrackingRow = {
   sp_number: string | null;
   sp_status: string | null;
   sp_issued_at: string | null;
-  sp_vehicle: string | null;
+  sp_dispatch_plan_no: string | null;
+  sp_received_by: string | null;
   sp_created_at: string | null;
+  sp_dispatch_count: number | null;
   sp_quantity: number | null;
   sp_packages: number | null;
-  sp_dispatch_quantity: number | null;
-  sp_dispatch_packages: number | null;
   gate_pass_id: string | null;
   gp_number: string | null;
   gp_status: string | null;
@@ -289,7 +268,7 @@ export function hoursBetween(from: string | null | undefined, to: string | null 
 
 export type DiscrepancyCode =
   | "OUT_NO_SP" | "SP_NOT_OUT" | "SP_VS_GP" | "SP_VS_DC" | "DC_CHANGED"
-  | "SP_CANCELLED_AFTER_ISSUE" | "CROSS_DAY" | "DC_PENDING";
+  | "SP_CANCELLED_AFTER_ISSUE" | "CROSS_DAY" | "DC_PENDING" | "SP_UNLINKED";
 
 export type Severity = "high" | "medium" | "info";
 
@@ -297,8 +276,9 @@ export const DISCREPANCY_META: Record<DiscrepancyCode, { label: string; severity
   OUT_NO_SP: { label: "Out without store pass", severity: "high", help: "The vehicle left the gate and the store never issued a store pass for this dispatch." },
   SP_NOT_OUT: { label: "Issued, not out", severity: "high", help: "The store handed the goods over but they have not left the gate." },
   SP_VS_GP: { label: "Store ≠ gate", severity: "high", help: "What the store issued differs from what the guard counted at the gate." },
-  SP_VS_DC: { label: "Store ≠ DC", severity: "medium", help: "What the store issued differs from the dispatch as it is now. The office corrects the dispatch, or the store explains." },
+  SP_VS_DC: { label: "Store ≠ DC", severity: "medium", help: "What the store handed over differs from the dispatch as it is now. The office corrects the dispatch, or the store explains." },
   DC_CHANGED: { label: "DC changed after issue", severity: "medium", help: "The office edited the dispatch after the store pass was issued." },
+  SP_UNLINKED: { label: "Not linked to a dispatch", severity: "medium", help: "The store issued this pass but it is not linked to any system dispatch, so nothing can be compared yet. Link it from the pass page." },
   SP_CANCELLED_AFTER_ISSUE: { label: "Issued pass cancelled", severity: "info", help: "An issued store pass for this dispatch was cancelled by a manager." },
   CROSS_DAY: { label: "Cross-day", severity: "info", help: "Issued by the store on one day, out of the gate on another." },
   DC_PENDING: { label: "Pending", severity: "info", help: "Dispatch made; nothing issued or out yet." },
@@ -314,25 +294,27 @@ export const SEVERITY_TONE: Record<Severity, string> = {
 
 export type ReconExplained = { code: string; note: string; by: string | null; at: string };
 
+// A row is a dispatch (dispatch_id set) or an issued store pass not yet linked to any dispatch (stage 'unlinked').
 export type ReconRow = {
-  dispatch_id: string;
-  dispatch_number: string;
-  dispatch_date: string;
-  dispatch_created_at: string;
-  delivery_status: string;
+  dispatch_id: string | null;
+  dispatch_number: string | null;
+  dispatch_date: string | null;
+  dispatch_created_at: string | null;
+  delivery_status: string | null;
   customer_name: string | null;
   order_numbers: string | null;
-  dc_quantity: number;
-  dc_packages: number;
+  dc_quantity: number | null;
+  dc_packages: number | null;
   store_pass_id: string | null;
   sp_number: string | null;
   sp_status: string | null;
   sp_issued_at: string | null;
   sp_date: string | null;
+  sp_dispatch_plan_no: string | null;
+  sp_received_by: string | null;
+  sp_dispatch_count: number | null;
   sp_quantity: number | null;
   sp_packages: number | null;
-  sp_dispatch_quantity: number | null;
-  sp_dispatch_packages: number | null;
   gate_pass_id: string | null;
   gp_number: string | null;
   gp_status: string | null;
@@ -343,7 +325,7 @@ export type ReconRow = {
   gp_packages: number | null;
   gp_counted_packages: number | null;
   gp_counted_quantity: number | null;
-  stage: TrackingStage;
+  stage: TrackingStage | "unlinked";
   cancelled_sp_number: string | null;
   cancelled_sp_reason: string | null;
   cancelled_sp_at: string | null;

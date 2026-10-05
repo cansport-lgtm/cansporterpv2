@@ -1,9 +1,17 @@
 # Store Pass — plan (approved 3 Oct 2026)
 
-Decisions taken: one store pass per **vehicle** covering several dispatches
-(like the sales gate pass); no approval step; gate behaviour `warn` first,
+Decisions taken: no approval step; gate behaviour `warn` first,
 `block` via the setting; **domestic sales dispatches only** for now; the daily
 20:30 discrepancy notification is included. Mock: the "Store Pass Mock" canvas.
+
+**Changed after go-live (5 Oct 2026):** the store keeper does not know the
+vehicle or driver and does not pick system dispatches. The pass is now a
+free-text **dispatch plan no.**, free-text **items**, the **hand-over person**
+and a **photo of the stock at the loading dock**. Linking to system dispatches
+is optional (automatic when the plan number is a DC number, else by the
+office) and remains the basis of tracking and reconciliation. See
+`docs/STORE_PASS.md` for what is live; the sections below describe the
+original design.
 
 A **store pass** records finished goods physically handed over by the
 finished-goods store for dispatch, *before* the vehicle reaches the gate. Today
