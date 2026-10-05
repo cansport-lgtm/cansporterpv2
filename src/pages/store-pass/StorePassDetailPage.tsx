@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { photoUrl, statusMeta as gpStatusMeta } from "@/lib/gatePass";
 import {
+  canLinkStorePass,
   SP_SELECT, errorMessage, fmtQty, printStorePass, sortedItems, spDb, spStatusMeta, totals, type StorePass,
 } from "@/lib/storePass";
 
@@ -58,7 +59,7 @@ export default function StorePassDetailPage() {
   const { user, roles, hasModulePermission } = useAuth();
   const canCreate = hasModulePermission("store_pass", "create");
   const canManage = hasModulePermission("store_pass", "approve");
-  const canLink = canCreate || roles.some((r) => r.role === "gate_pass_manager");
+  const canLink = canLinkStorePass(roles); // the dispatch operator, not the store keeper
   const qrRef = useRef<HTMLDivElement>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -193,7 +194,7 @@ export default function StorePassDetailPage() {
         {unlinked && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex gap-3 text-sm text-amber-900">
             <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0" />
-            <div>This pass is not linked to any system dispatch, so the daily reconciliation cannot compare it with the dispatch or the gate yet. {canLink ? "Link it when the office has made the dispatch." : "The office links it when the dispatch is made."}</div>
+            <div>This pass is not linked to any system dispatch, so the daily reconciliation cannot compare it with the dispatch or the gate yet. {canLink ? "Link it to the dispatch it went on." : "The dispatch operator links it from the Domestic Dispatch page once the dispatch sheet is made."}</div>
           </div>
         )}
 

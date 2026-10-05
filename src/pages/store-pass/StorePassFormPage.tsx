@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { ChevronDown, Loader2, Plus, Trash2, Warehouse } from "lucide-react";
+import { Link2, Loader2, Plus, Trash2, Warehouse } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,24 +25,9 @@ import { SP_SELECT, errorMessage, fmtQty, spDb, type StorePass } from "@/lib/sto
 
 type LineEdit = { key: string; description: string; product_id: string; quantity: string; packages: string; remarks: string };
 type ProductRow = { id: string; code: string; name: string };
-type OrderRef = { order_number: string; customers: { name: string } | null } | null;
-type DispatchRow = {
-  id: string;
-  dispatch_number: string;
-  dispatch_date: string;
-  delivery_status: string;
-  sales_orders: OrderRef;
-  sales_dispatch_orders: { sales_orders: OrderRef }[];
-  sales_dispatch_items: { quantity_dozens: number; packages: number | null }[];
-};
 
 const newLine = (): LineEdit => ({ key: crypto.randomUUID(), description: "", product_id: "", quantity: "", packages: "", remarks: "" });
 const NONE = "__none__";
-
-const customersOf = (d: DispatchRow) => {
-  const list = [d.sales_orders, ...d.sales_dispatch_orders.map((o) => o.sales_orders)].filter(Boolean) as NonNullable<OrderRef>[];
-  return [...new Set(list.map((o) => o.customers?.name).filter(Boolean))].join("; ");
-};
 
 export default function StorePassFormPage() {
   const { id: editId } = useParams();
@@ -59,11 +43,6 @@ export default function StorePassFormPage() {
   const [photoPath, setPhotoPath] = useState("");
   const [remarks, setRemarks] = useState("");
   const [lines, setLines] = useState<LineEdit[]>([newLine(), newLine(), newLine()]);
-  // Optional link to the system dispatches. Untouched on a new pass → the database
-  // links the dispatch whose number the plan number is (e.g. "DC-00412").
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [linkTouched, setLinkTouched] = useState(false);
-  const [dispatchIds, setDispatchIds] = useState<string[]>([]);
 
   const { data: editing } = useQuery<StorePass | null>({
     queryKey: ["store-pass", editId],
@@ -86,10 +65,6 @@ export default function StorePassFormPage() {
       key: i.id, description: i.description, product_id: i.product_id ?? "",
       quantity: String(i.quantity), packages: i.packages === null ? "" : String(i.packages), remarks: i.remarks ?? "",
     })) : [newLine()]);
-    const ids = (editing.store_pass_dispatches ?? []).map((d) => d.dispatch_id);
-    setDispatchIds(ids);
-    setLinkTouched(true); // editing: keep the links as they are unless changed
-    if (ids.length) setLinkOpen(true);
   }, [editing]);
 
   const { data: products = [] } = useQuery<ProductRow[]>({
@@ -100,37 +75,6 @@ export default function StorePassFormPage() {
       return data ?? [];
     },
   });
-
-  // Dispatches already on a live store pass (other than this one).
-  const { data: taken = [] } = useQuery<{ dispatch_id: string; store_pass_id: string; pass_number: string }[]>({
-    queryKey: ["dispatch-store-pass"],
-    enabled: linkOpen,
-    queryFn: async () => {
-      const { data, error } = await spDb.from("v_dispatch_store_pass").select("dispatch_id, store_pass_id, pass_number");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const { data: dispatches = [] } = useQuery<DispatchRow[]>({
-    queryKey: ["store-pass-dispatch-candidates"],
-    enabled: linkOpen,
-    queryFn: async () => {
-      const { data, error } = await spDb
-        .from("sales_dispatches")
-        .select("id, dispatch_number, dispatch_date, delivery_status, sales_orders(order_number, customers(name)), sales_dispatch_orders(sales_orders(order_number, customers(name))), sales_dispatch_items(quantity_dozens, packages)")
-        .eq("sales_segment", "domestic")
-        .in("delivery_status", ["pending", "in_transit"])
-        .order("dispatch_date", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const takenBy = useMemo(() => {
-    const m = new Map<string, string>();
-    taken.filter((t) => t.store_pass_id !== editId).forEach((t) => m.set(t.dispatch_id, t.pass_number));
-    return m;
-  }, [taken, editId]);
 
   const setLine = (key: string, patch: Partial<LineEdit>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -158,7 +102,6 @@ export default function StorePassFormPage() {
           quantity: l.quantity === "" ? 0 : Number(l.quantity), packages: l.packages === "" ? null : Number(l.packages), remarks: l.remarks,
         })),
       };
-      if (linkTouched) data.dispatch_ids = dispatchIds;
       const { data: id, error } = await spDb.rpc("store_pass_save", { p_id: editId ?? null, p_data: data, p_issue: issue });
       if (error) throw error;
       return { id: id as string, issue };
@@ -308,49 +251,13 @@ export default function StorePassFormPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setLinkOpen((o) => !o)} aria-expanded={linkOpen}>
-                  <div>
-                    <CardTitle className="text-base">Link to system dispatches <span className="text-muted-foreground font-normal">(optional)</span></CardTitle>
-                    <p className="text-sm text-muted-foreground">For the office. Linking lets Dispatch Tracking and the daily reconciliation compare this pass with the dispatch and the gate.</p>
-                  </div>
-                  <ChevronDown className={cn("h-5 w-5 transition-transform", linkOpen && "rotate-180")} />
-                </button>
-              </CardHeader>
-              {linkOpen && (
-                <CardContent className="p-0 overflow-x-auto">
-                  <Table className="min-w-[640px]">
-                    <TableHeader>
-                      <TableRow><TableHead className="w-10" /><TableHead>Dispatch</TableHead><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Dz / Ctn</TableHead><TableHead>Status</TableHead></TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dispatches.length === 0 ? (
-                        <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No pending domestic dispatches.</TableCell></TableRow>
-                      ) : dispatches.map((d) => {
-                        const onPass = takenBy.get(d.id);
-                        const checked = dispatchIds.includes(d.id);
-                        return (
-                          <TableRow key={d.id} className={cn(onPass && !checked && "opacity-60", checked && "bg-primary/5")}>
-                            <TableCell>
-                              <Checkbox aria-label={`Link ${d.dispatch_number}`} checked={checked} disabled={Boolean(onPass) && !checked}
-                                onCheckedChange={(v) => { setLinkTouched(true); setDispatchIds((prev) => (v === true ? [...prev, d.id] : prev.filter((x) => x !== d.id))); }} />
-                            </TableCell>
-                            <TableCell className="font-mono text-sm font-semibold">{d.dispatch_number}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(d.dispatch_date), "dd MMM")}</TableCell>
-                            <TableCell className="text-sm max-w-[220px] truncate" title={customersOf(d)}>{customersOf(d)}</TableCell>
-                            <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
-                              {fmtQty(d.sales_dispatch_items.reduce((s, i) => s + Number(i.quantity_dozens), 0))} / {d.sales_dispatch_items.reduce((s, i) => s + Number(i.packages ?? 0), 0)}
-                            </TableCell>
-                            <TableCell className="text-xs">{onPass ? <span className="text-red-700 font-medium">On {onPass}</span> : d.delivery_status.replace(/_/g, " ")}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              )}
-            </Card>
+            <div className="rounded-xl border p-4 bg-muted/30 text-sm text-muted-foreground flex gap-3">
+              <Link2 className="h-5 w-5 shrink-0 mt-0.5" />
+              <div>
+                <b className="text-foreground">Linking to the dispatch sheet is not your job.</b> The dispatch operator links this pass to its
+                dispatch (DC) from the Domestic Dispatch page once the sheet is made; the plan number you write tells them which one.
+              </div>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -363,7 +270,6 @@ export default function StorePassFormPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-medium">{fmtQty(totals.quantity)} dz · {totals.packages} ctn</span></div>
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Handed over to</span><span className="font-medium text-right">{handedTo || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Photo</span><span className={cn("font-medium", photoPath ? "text-emerald-700" : "text-amber-700")}>{photoPath ? "Taken" : "Missing"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Linked dispatches</span><span className="font-medium">{linkTouched ? dispatchIds.length : "Automatic by DC no."}</span></div>
               </CardContent>
             </Card>
 
