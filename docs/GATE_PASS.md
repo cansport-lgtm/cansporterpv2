@@ -66,7 +66,8 @@ the phone):
 
 Scrap passes still use the weighbridge panel inside the guard screen.
 
-- Everything matches → **Out**. Sales dispatches on the pass become In Transit.
+- Everything matches → **Out**. Sales dispatches on the pass become **Delivered**,
+  dated the day the vehicle left.
   Finished-goods samples are issued from stock.
 - Anything differs → **Held**. The pass maker and the gate pass managers are
   notified. The vehicle must not leave.
@@ -134,7 +135,7 @@ the pass.
   spoiled), the date and time written on paper (within the backfill limit,
   default 7 days), a photo of the paper pass and a reason.
 - Saved straight to **Out**, dated on paper, with the same stock effects as
-  the type (e.g. dispatches set to In Transit, scrap out of the yard).
+  the type (e.g. dispatches set to Delivered, scrap out of the yard).
 - **Paper Books** page: books and serial ranges, a serial map showing entered,
   spoiled and **gap** serials (not entered but before the last entered one),
   marking a serial spoiled, and the backfill register. Super admins set the
@@ -165,9 +166,10 @@ these roles; the tables are read-only to the app.
 ## Effects on existing pages
 
 - Dispatch list and dispatch dashboard: two extra columns, **Gate pass** and
-  **Gate out**. When a pass goes out, its pending dispatches are set to
-  **In Transit** automatically. Nothing else in dispatch, invoicing or COGS
-  changes.
+  **Gate out**. When a pass goes out, its pending or in-transit dispatches are
+  set to **Delivered** automatically, with the actual delivery date set to the
+  gate-out day (the status dropdown still allows corrections). Nothing else in
+  dispatch, invoicing or COGS changes.
 - WIP Ledger: finished-goods samples appear at the FG level as
   **Samples (gate pass)**, next to Sales (in bags of 25 dozen, like Sales).
 - Stock Movements: sample issues, returnable / job-work transfers to and from

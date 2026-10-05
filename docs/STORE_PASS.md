@@ -5,7 +5,7 @@ loading dock, *before* the vehicle reaches the gate. One number series:
 `SP-000001`, `SP-000002`, … given only when a pass saves successfully.
 
 ```
-Sales order → Dispatch DC → Store pass SP (store keeper) → Gate pass GP → Gate out → In Transit
+Sales order → Dispatch DC → Store pass SP (store keeper) → Gate pass GP → Gate out → Delivered
                                    ↓                                   ↓
                               Daily store ↔ gate reconciliation (step 2)
 ```
