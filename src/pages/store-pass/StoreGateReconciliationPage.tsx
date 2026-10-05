@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { esc, printDocument } from "@/lib/printDocument";
 import { statusMeta as gpStatusMeta } from "@/lib/gatePass";
 import {
+  canLinkStorePass,
   SEVERITY_TONE, discrepancyMeta, errorMessage, fmtQty, gateFigure, spDb, todayPk,
   type ReconProductRow, type ReconRow,
 } from "@/lib/storePass";
@@ -45,6 +46,7 @@ export default function StoreGateReconciliationPage() {
   const { toast } = useToast();
   const { roles } = useAuth();
   const canResolve = roles.some((r) => ["super_admin", "store_pass_manager", "gate_pass_manager"].includes(r.role));
+  const canLink = canLinkStorePass(roles);
   const isSuper = roles.some((r) => r.role === "super_admin");
   const today = todayPk();
   const start = isDate(params.get("date")) ? (params.get("date") as string) : today;
@@ -360,7 +362,9 @@ export default function StoreGateReconciliationPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             {r.dispatch_id === null && r.store_pass_id ? (
-                              <Button size="sm" variant="outline" asChild><Link to={`/store-pass/passes/${r.store_pass_id}`}>Link</Link></Button>
+                              canLink
+                                ? <Button size="sm" variant="outline" asChild><Link to={`/store-pass/passes/${r.store_pass_id}`}>Link</Link></Button>
+                                : <span className="text-xs text-muted-foreground">Dispatch operator links</span>
                             ) : canResolve && openCodes.length > 0 && (
                               <Button size="sm" variant="outline" onClick={() => { setDialog({ row: r, code: openCodes[0] }); setNote(""); }}>Explain</Button>
                             )}

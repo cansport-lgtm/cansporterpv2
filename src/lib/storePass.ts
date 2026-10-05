@@ -166,6 +166,31 @@ export function printStorePass(p: StorePass, qrSvg: string) {
 }
 
 // Store pass no. / status for dispatch lists (read-only extra column).
+// Who links store passes to system dispatches (the dispatch sheet). The store
+// keeper (store_pass_officer) only makes passes; the dispatch operator links.
+// Mirrors store_pass_can_link() in the database.
+export const STORE_PASS_LINK_ROLES = ["super_admin", "store_pass_manager", "gate_pass_manager", "dispatch_operator", "sales_order_manager"];
+export const canLinkStorePass = (roles: { role: string }[]) => roles.some((r) => STORE_PASS_LINK_ROLES.includes(r.role));
+
+// One row of store_pass_link_candidates(dispatch_id): a pass the operator could put the dispatch on.
+export type LinkCandidate = {
+  store_pass_id: string;
+  pass_number: string;
+  status: string;
+  pass_date: string;
+  dispatch_plan_no: string | null;
+  received_by_name: string | null;
+  issued_at: string | null;
+  created_by_name: string | null;
+  quantity: number;
+  packages: number;
+  item_count: number;
+  linked_count: number;
+  linked_dispatches: string | null;
+  is_current: boolean;
+  plan_matches: boolean | null;
+};
+
 export type DispatchStorePass = {
   dispatch_id: string;
   store_pass_id: string;
@@ -278,7 +303,7 @@ export const DISCREPANCY_META: Record<DiscrepancyCode, { label: string; severity
   SP_VS_GP: { label: "Store ≠ gate", severity: "high", help: "What the store issued differs from what the guard counted at the gate." },
   SP_VS_DC: { label: "Store ≠ DC", severity: "medium", help: "What the store handed over differs from the dispatch as it is now. The office corrects the dispatch, or the store explains." },
   DC_CHANGED: { label: "DC changed after issue", severity: "medium", help: "The office edited the dispatch after the store pass was issued." },
-  SP_UNLINKED: { label: "Not linked to a dispatch", severity: "medium", help: "The store issued this pass but it is not linked to any system dispatch, so nothing can be compared yet. Link it from the pass page." },
+  SP_UNLINKED: { label: "Not linked to a dispatch", severity: "medium", help: "The store issued this pass but it is not linked to any system dispatch, so nothing can be compared yet. The dispatch operator links it from the Domestic Dispatch page (Store pass column)." },
   SP_CANCELLED_AFTER_ISSUE: { label: "Issued pass cancelled", severity: "info", help: "An issued store pass for this dispatch was cancelled by a manager." },
   CROSS_DAY: { label: "Cross-day", severity: "info", help: "Issued by the store on one day, out of the gate on another." },
   DC_PENDING: { label: "Pending", severity: "info", help: "Dispatch made; nothing issued or out yet." },

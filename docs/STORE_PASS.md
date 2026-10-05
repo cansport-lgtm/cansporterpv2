@@ -13,8 +13,9 @@ Sales order → Dispatch DC → Store pass SP (store keeper) → Gate pass GP �
 Database: `supabase/migrations/20261008120000_store_pass_roles.sql` (roles),
 `20261008120100_store_pass.sql` (passes, tracking),
 `20261008120200_store_pass_reconciliation.sql` (reconciliation, gate check
-notice, daily notification) and `20261009120000_store_pass_simplify.sql` (the
-simplified pass described below). Rollbacks in `supabase/rollbacks/`. Plan and
+notice, daily notification), `20261009120000_store_pass_simplify.sql` (the
+simplified pass described below) and `20261009130000_store_pass_link_roles.sql`
+(who links passes to dispatches). Rollbacks in `supabase/rollbacks/`. Plan and
 decisions: `docs/STORE_PASS_PLAN.md`.
 
 ## What a pass is
@@ -24,7 +25,7 @@ system dispatches. A pass is four things:
 
 | | |
 |---|---|
-| **Dispatch plan no.** | Free text, required — the number on the dispatch plan (a planner version `DPV-000012`, or the dispatch number `DC-00412` when known). When it is a domestic dispatch number, the pass is **linked to that dispatch automatically** |
+| **Dispatch plan no.** | Free text, required — the number on the dispatch plan (a planner version `DPV-000012`, or the dispatch number `DC-00412` when known). It tells the dispatch operator which dispatch to link the pass to; a pass whose plan number is a DC number is offered first |
 | **Items** | Typed by the keeper: description (free text), optional product, dozens, cartons, remark. At least one item with a quantity |
 | **Handed over to** | The name of the person the goods were handed to (loader / driver) — required to issue |
 | **Photo** | Of the stock at the loading dock — required to issue |
@@ -32,13 +33,19 @@ system dispatches. A pass is four things:
 | Stock | **None.** The dispatch already moves finished goods (WIP ledger FG level, COGS). The store pass is a control document |
 | Prices | Never stored or shown |
 
-**Linking to system dispatches** is optional and is what Dispatch Tracking, the
-Gate Check notice and the daily reconciliation compare on. Besides the
-automatic link by DC number, the office (store roles or a gate pass manager)
-can link a pass to one or more dispatches from the pass page or the form
-(**Link to dispatch**), at any time after issue too. A dispatch can be on one
-live pass only. An issued pass with no link shows in the reconciliation as
-**Not linked to a dispatch** until it is.
+**Linking to the dispatch sheet** (the system dispatch, DC) is what Dispatch
+Tracking, the Gate Check notice and the daily reconciliation compare on. It is
+**not the store keeper's job**: the keeper only makes and issues the pass. The
+**dispatch operator** links it, from the Domestic Dispatch page — the **Store
+pass** column has a **Link** button per dispatch (or **Change** when it is
+already on a pass) that opens the list of live passes, the one whose plan number
+is this DC first, with items, hand-over person and issue time; **Unlink** takes
+the dispatch off its pass. Issuing a pass with no link sends the dispatch
+operators a notification. A dispatch can be on one live pass only; a pass may
+cover several dispatches (the operator links each one). Store pass managers and
+gate pass managers can also link, from the pass page (**Link to dispatch**). An
+issued pass with no link shows in the reconciliation as **Not linked to a
+dispatch** until it is.
 
 Figures per dispatch: a pass linked to exactly one dispatch gives that dispatch
 its totals; a pass linked to several cannot be split, so those dispatches show
@@ -62,8 +69,8 @@ draft → issued → (cancelled)
 |---|---|---|
 | Dashboard | `/store-pass/dashboard` | Today's dispatches, store passes issued and gate outs; issued-but-waiting (with hours); dispatches with no store pass; held at gate; open discrepancies of the last 7 days; recent passes |
 | Store Passes | `/store-pass/passes` | Register with date range, status and search; Excel export; cards for issued today, issued-but-no-gate-pass, dispatches with no store pass, held at gate |
-| New Store Pass | `/store-pass/new` | Vehicle and driver → tick the pending domestic dispatches on it (the first one fills in the vehicle) → lines per dispatch with issued dz / ctn and remark → receiver, bay, photo, remarks → **Issue** or **Save as draft** |
-| Store pass | `/store-pass/passes/:id` | Items, the linked dispatches with their gate pass and gate-out time, details, the photo, history; Print, Edit / Issue (draft), Link to dispatch, Cancel |
+| New Store Pass | `/store-pass/new` | Dispatch plan no. → items (description, optional product, dz, ctn, remark) → handed over to, photo of the stock, remarks → **Issue** or **Save as draft**. No linking here |
+| Store pass | `/store-pass/passes/:id` | Items, the linked dispatches with their gate pass and gate-out time, details, the photo, history; Print, Edit / Issue (draft), Link to dispatch (linker roles only), Cancel |
 | Dispatch Tracking | `/store-pass/tracking` | One row per domestic dispatch: DC → SP → GP → Out → Delivered as a stage strip with the hours between steps; stage chips as filters; open stages shown whatever their date; Excel export |
 | Daily Reconciliation | `/store-pass/reconciliation` | See below |
 
@@ -85,7 +92,7 @@ per dispatch.
 | `SP_NOT_OUT` | Issued, not out | Store handed over, not out of the gate (shown softer while the day is still running) | High |
 | `SP_VS_GP` | Store ≠ gate | Store issued ≠ counted at the gate (printed figures when nothing was counted) | High |
 | `SP_VS_DC` | Store ≠ DC | Store handed over ≠ the dispatch as it is now (single-linked passes) | Medium |
-| `SP_UNLINKED` | Not linked to a dispatch | Issued pass with no linked dispatch; nothing to compare yet — link it from the pass page | Medium |
+| `SP_UNLINKED` | Not linked to a dispatch | Issued pass with no linked dispatch; nothing to compare yet — the dispatch operator links it from the Domestic Dispatch page | Medium |
 | `SP_CANCELLED_AFTER_ISSUE` | Issued pass cancelled | An issued store pass was cancelled | Info |
 | `CROSS_DAY` | Cross-day | Issued on one day, out on another | Info |
 | `DC_PENDING` | Pending | Dispatch made, nothing issued or out yet | Info |
@@ -110,6 +117,8 @@ per dispatch.
 
 - **Domestic Dispatch** list and **Dispatch Dashboard**: one extra column,
   **Store pass** (SP number and issue time, or —), next to Gate pass / Gate out.
+  On the Domestic Dispatch list, linker roles (the dispatch operator) also get
+  the **Link** / **Change** button there, which opens the store pass picker.
 - **New Gate Pass (Sales)**: the dispatch picker shows each dispatch's store
   pass (`SP-… · 14:05`, `draft`, or **No store pass**).
 - **Gate Check**: the store-pass notice (warn / block) on a sales pass, per the
@@ -131,8 +140,13 @@ Views: `v_dispatch_store_pass` (live store pass per dispatch),
 figures, gate counts and the `stage` reached: `no_store_pass`, `draft`,
 `issued`, `on_gate_pass`, `held`, `out`, `delivered`, `returned`).
 
-Functions: `store_pass_save(p_id, p_data, p_issue)`, `store_pass_issue`,
-`store_pass_cancel`, `store_pass_link_dispatches(p_id, p_dispatch_ids)`;
+Functions: `store_pass_save(p_id, p_data, p_issue)` (never links),
+`store_pass_issue` (notifies the dispatch operators when the pass has no link),
+`store_pass_cancel`, `store_pass_link_dispatches(p_id, p_dispatch_ids)` (linker
+roles: `store_pass_can_link()`), and for the operator's dialog
+`store_pass_link_candidates(p_dispatch_id)`,
+`store_pass_attach_dispatch(p_store_pass_id, p_dispatch_id)`,
+`store_pass_detach_dispatch(p_dispatch_id)`;
 `store_pass_reconcile(from, to)`,
 `store_pass_reconcile_products(from, to)`, `store_pass_recon_resolve`,
 `store_pass_recon_reopen`, `store_pass_settings_save`,
@@ -147,8 +161,9 @@ dispatch), `store_pass_unlinked`, `store_pass_log`, `store_pass_notify`,
 
 | Role | Can |
 |---|---|
-| `store_pass_officer` (store keeper) | Make, issue and print passes; edit / cancel own drafts; link to dispatches |
-| `store_pass_manager` | Everything above, plus cancel an issued pass (reason) and explain discrepancies |
+| `store_pass_officer` (store keeper) | Make, issue and print passes; edit / cancel own drafts. **Cannot link** a pass to a dispatch |
+| `store_pass_manager` | Everything above, plus cancel an issued pass (reason), link passes to dispatches and explain discrepancies |
+| `dispatch_operator` / `sales_order_manager` | **Link store passes to dispatches** from the Domestic Dispatch page (Store pass column → Link / Change / Unlink); gets the notification when a pass is issued unlinked. No store pass pages |
 | `store_pass_viewer` | Read only |
 | `gate_pass_manager` | Read Dispatch Tracking and the reconciliation; explain discrepancies; link passes to dispatches |
 | `gate_security` | Sees the store-pass notice on Gate Check; nothing else new |

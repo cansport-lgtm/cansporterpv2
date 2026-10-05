@@ -26,7 +26,7 @@ import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
 import { GateOutCell, GatePassNoCell } from "@/components/gate-pass/DispatchGatePass";
 import { useDispatchGatePasses } from "@/lib/gatePass";
 import { StorePassNoCell } from "@/components/store-pass/DispatchStorePass";
-import { useDispatchStorePasses } from "@/lib/storePass";
+import { canLinkStorePass, useDispatchStorePasses } from "@/lib/storePass";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -52,7 +52,7 @@ interface OrderItem {
 
 export default function DomesticDispatchPage() {
   const queryClient = useQueryClient();
-  const { user, hasModulePermission } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -78,6 +78,8 @@ export default function DomesticDispatchPage() {
 
   const canCreate = hasModulePermission('sales', 'create');
   const canEdit = hasModulePermission('sales', 'edit');
+  // Linking a store pass to its dispatch sheet: the dispatch operator's job (not the store keeper's).
+  const canLinkStore = canLinkStorePass(roles);
 
   useEffect(() => {
     const onAfterPrint = () => setIsPrintMode(false);
@@ -1145,7 +1147,9 @@ export default function DomesticDispatchPage() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell><StorePassNoCell sp={storePasses.get(dispatch.id)} /></TableCell>
+                        <TableCell>
+                          <StorePassNoCell sp={storePasses.get(dispatch.id)} dispatch={canLinkStore ? { id: dispatch.id, dispatch_number: dispatch.dispatch_number } : undefined} />
+                        </TableCell>
                         <TableCell><GatePassNoCell gp={gatePasses.get(dispatch.id)} /></TableCell>
                         <TableCell><GateOutCell gp={gatePasses.get(dispatch.id)} /></TableCell>
                         <TableCell className="text-right space-x-1">
