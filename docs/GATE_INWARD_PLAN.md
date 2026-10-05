@@ -50,7 +50,7 @@ already exists for it, so the gate never duplicates stores or accounts work.
 | **Job work back** | A Job work gate pass that is out | The pass number; processed goods received, packages | `GPR-` receipt on the pass → `received` | 1 |
 | **Sales return** | Customer (and the dispatch if the driver has the invoice / dispatch number) | Products and cartons as per the return note | A sales return (`sales_returns`) names this entry → `received` | 2 |
 | **Sample / free supply** | Supplier or anyone; no PO | Free-text lines, packages | Office closes with a note ("received by …") → `closed` | 2 |
-| **Empty vehicle for loading** | Transporter / customer vehicle arriving empty to load a dispatch or scrap | Vehicle, driver, who it came for | Automatically when an outward pass goes **Out** on that vehicle the same day → `loaded_out`; this gives the register an in-time for every vehicle that leaves on a `GP-` | 2 |
+| **Empty vehicle for loading** | Transporter / customer vehicle arriving empty to load a dispatch or scrap | Vehicle, driver, who it came for | Automatically when an outward pass goes **Out** on that vehicle the same day → `loaded_out`; this gives the register an in-time for every vehicle that leaves on a `GP-`. Super admin sets whether it is **off**, **optional** or **compulsory** (see §5) | 2 |
 | **Other** | Courier, documents, contractor material, anything else | Free text | Office closes with a note → `closed` | 2 |
 | **Manual backfill** | Any type above, entered later from the paper inward register | Paper book and serial, date and time on paper, photo of the page | Same as its type, dated on paper | 3 |
 
@@ -184,7 +184,9 @@ CREATE TABLE gate_inward_settings (               -- single row
   require_for_grn boolean NOT NULL DEFAULT false,  -- Phase 2 switches this on
   require_for_categories purchase_category[] NOT NULL DEFAULT '{raw_material}',
   stale_days integer NOT NULL DEFAULT 3,
-  enabled_kinds text[] NOT NULL DEFAULT '{purchase,returnable_return,job_work_return}'  -- types the guard can pick
+  enabled_kinds text[] NOT NULL DEFAULT '{purchase,returnable_return,job_work_return}',  -- types the guard can pick
+  loading_vehicle_mode text NOT NULL DEFAULT 'optional'
+    CHECK (loading_vehicle_mode IN ('off','optional','required'))  -- see §5
 );
 
 -- The closing records point back at the entry (one entry per record)
@@ -237,6 +239,18 @@ Triggers on the closing records (one pattern, three tables):
 - `gate_pass_mark_out` (existing outward function): after marking a pass out,
   close any `loading_vehicle` entry of the same day whose normalised vehicle
   number matches → `loaded_out`, `out_gate_pass_id`.
+
+**Empty vehicle for loading: the super admin setting** (`loading_vehicle_mode`)
+
+| Mode | Guard sees | Outward gate check |
+|---|---|---|
+| `off` | The type is hidden | Unchanged |
+| `optional` (default) | The type is offered; recording the empty vehicle is up to the gate | Unchanged; if an entry exists it is closed automatically |
+| `required` | The type is offered and the Gate Check page shows "Vehicle in?" next to the vehicle field | `gate_pass_gate_check` refuses **Out** when no `at_gate` loading-vehicle entry exists today for the vehicle number the guard typed: "No gate-in entry for this vehicle — record the vehicle in first". The guard makes the inward entry from the same screen and retries. Scrap, sales, sample and every other outward type are treated alike; manual backfill passes are exempt (they are entered after the fact). |
+
+The check uses the vehicle number the guard types at the gate (normalised),
+not the one printed on the pass, so a changed truck still matches the entry
+the guard made when it came in.
 - `trg_enforce_gate_inward_before_grn` (BEFORE INSERT on
   `goods_receipt_notes`): when `require_for_grn` is on and the PO's category
   is in `require_for_categories`, block a GRN without `gate_inward_id`
@@ -262,7 +276,7 @@ purchase tables.
 | Goods Receipt | `/purchase/grn` (existing) | purchase | New **Gate inward entry** picker after the PO is chosen, listing that PO's `at_gate` entries (number, date, vehicle, challan). Choosing one pre-fills the receipt date, invoice/challan number, and each line's quantity from the challan. Required when the setting is on. |
 | Purchase Dashboard | `/purchase/dashboard` (existing) | purchase | Card **Vehicles at gate awaiting GRN** with count and oldest age. |
 | Gate Pass Dashboard | `/gate-pass/dashboard` (existing) | gate pass | Card **Inward today**. |
-| Settings | Gate Inward section on the existing purchase / gate settings page | super_admin | Require for GRN (+ categories), stale days, allow "other" kind. |
+| Settings | Gate Inward section on the existing purchase / gate settings page | super_admin | Require for GRN (+ categories), stale days, enabled types, empty-vehicle mode (off / optional / compulsory). |
 
 Sidebar: **Gate Inward Register** under the Purchase group; **New Inward
 Entry** under Gate Pass (allowedRoles: super_admin, gate_pass_manager,
@@ -371,8 +385,8 @@ the `GIN-` number in its message.
 4. **Who is notified on every entry:** purchase officers + managers + store
    operator (proposed). Add anyone else (e.g. QC inspector for raw material)?
 5. **Weighbridge:** needed in Phase 1 for any supplier billed by weight?
-6. **Which types in Phase 1:** Purchase + Returnable back + Job work back
-   (recommended, they all have an office record to close them today), or
-   Purchase only to start?
-7. **Empty vehicle for loading:** worth recording (gives a complete in / out
-   register for every truck) or noise for the guard?
+6. ~~Which types in Phase 1~~ **Decided:** Purchase + Returnable back + Job
+   work back.
+7. ~~Empty vehicle for loading~~ **Decided:** yes, with a super admin setting
+   `loading_vehicle_mode` = off / optional / compulsory (default optional;
+   compulsory blocks the outward gate-out without a gate-in entry).
