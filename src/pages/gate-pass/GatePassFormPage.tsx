@@ -794,6 +794,7 @@ export default function GatePassFormPage() {
                   {passType === "sales" ? "The sales orders are already approved, so the pass goes straight to the gate."
                     : passType === "supplier_return" ? "The purchase return is the approval, so the pass goes straight to the gate."
                     : backfillOn && canBackfill ? "Entered by a manager, so it is approved and recorded as out straight away."
+                    : passType === "sample" ? "A sample manager must approve before the guard can let it out. Whoever raises the pass cannot approve it themselves."
                     : "A gate pass manager must approve before the guard can let it out."}
                 </div>
               </div>
