@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Html5Qrcode } from "html5-qrcode";
-import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine, Siren } from "lucide-react";
+import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, QrCode, ScanLine, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +14,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { GuardShell } from "@/components/gate-pass/GuardShell";
+import { InwardGatePanel } from "@/components/gate-pass/InwardGatePanel";
+import { isInwardNumber, normalizeInwardNumber } from "@/lib/gateInward";
 import { StorePassGateNotice } from "@/components/store-pass/StorePassGateNotice";
 import { PersonGatePanel, type PersonLookup } from "@/components/person-gate-pass/PersonGatePanel";
 import {
@@ -38,28 +40,6 @@ type CheckResult = {
   missing_store_pass?: string[]; // sales pass that went out with no store pass (warn mode)
 };
 
-// Guards get a bare full-screen page with just a logout; everyone else the normal layout.
-function GuardShell({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-30 bg-slate-900 text-white">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div>
-            <div className="font-display font-bold text-lg leading-tight">Gate Check</div>
-            <div className="text-xs text-slate-300">{user?.full_name ?? "Security"}</div>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => { logout(); navigate("/login"); }}>
-            <LogOut className="h-4 w-4 mr-1" /> Logout
-          </Button>
-        </div>
-      </header>
-      <main className="p-3 sm:p-4 max-w-xl mx-auto">{children}</main>
-    </div>
-  );
-}
-
 export default function GateCheckPage() {
   const { roles, hasModulePermission } = useAuth();
   const queryClient = useQueryClient();
@@ -69,11 +49,12 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
-  // Goods passes (GP-…), worker passes (LGP-…) and staff passes (SGP-…) share this
-  // screen. A scanned QR picks the flow by its prefix; typed input follows the
-  // selected mode.
-  const [mode, setMode] = useState<"goods" | "worker" | "staff">("goods");
+  // Goods passes (GP-…), worker passes (LGP-…), staff passes (SGP-…) and inward
+  // entries (GIN-…) share this screen. A scanned QR picks the flow by its prefix;
+  // typed input follows the selected mode.
+  const [mode, setMode] = useState<"goods" | "worker" | "staff" | "inward">("goods");
   const [personLookup, setPersonLookup] = useState<{ variant: PersonPassVariant; lookup: PersonLookup } | null>(null);
+  const [inwardNumber, setInwardNumber] = useState<string | null>(null);
   const modeVariant = mode === "worker" ? WORKER_PASS : mode === "staff" ? STAFF_PASS : null;
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -117,6 +98,16 @@ export default function GateCheckPage() {
     setAlarm(null);
     lookupAtRef.current = Date.now();
     setLookupId((x) => x + 1);
+    if (isInwardNumber(text) || (mode === "inward" && !/^(GP|LGP|SGP)-?\d+$/i.test(text))) {
+      const n = normalizeInwardNumber(text);
+      setMode("inward");
+      setCode(n);
+      setPassNumber(null);
+      setPersonLookup(null);
+      setInwardNumber(n);
+      queryClient.invalidateQueries({ queryKey: ["gate-check-inward", n] });
+      return;
+    }
     const personVariant = detectPersonPassVariant(text) ?? (modeVariant && !/^GP-?\d+$/i.test(text) ? modeVariant : null);
     if (personVariant) {
       // Worker / staff pass by number, or today's pass by employee code.
@@ -125,6 +116,7 @@ export default function GateCheckPage() {
       setMode(personVariant.key);
       setCode(lookup.number ?? lookup.code ?? "");
       setPassNumber(null);
+      setInwardNumber(null);
       setPersonLookup({ variant: personVariant, lookup });
       PERSON_PASS_VARIANTS.forEach((v) => queryClient.invalidateQueries({ queryKey: [`gate-check-${v.key}-pass`] }));
       return;
@@ -133,6 +125,7 @@ export default function GateCheckPage() {
     if (!n) return;
     setMode("goods");
     setPersonLookup(null);
+    setInwardNumber(null);
     setCode(n);
     setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
@@ -225,6 +218,7 @@ export default function GateCheckPage() {
     setAlarm(null);
     setPassNumber(null);
     setPersonLookup(null);
+    setInwardNumber(null);
     setCode("");
     setResult(null);
   };
@@ -242,19 +236,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
-            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
-              {([["goods", "Goods / vehicle"], ["worker", "Worker"], ["staff", "Staff"]] as const).map(([m, label]) => (
+            <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods out"], ["worker", "Worker"], ["staff", "Staff"], ["inward", "Inward"]] as const).map(([m, label]) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m}
                   className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
-                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setPersonLookup(null); }}>
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setPersonLookup(null); setInwardNumber(null); }}>
                   {label}
                 </button>
               ))}
             </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">{modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : "GP number"}</Label>
+              <Label htmlFor="gp-code" className="sr-only">{modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number" : "GP number"}</Label>
               <Input id="gp-code" value={code} inputMode="text"
-                placeholder={modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : "GP number, e.g. 131"}
+                placeholder={modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number, e.g. 12" : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -273,6 +267,9 @@ export default function GateCheckPage() {
 
         {personLookup && (
           <PersonGatePanel key={personLookup.variant.key} variant={personLookup.variant} lookup={personLookup.lookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        )}
+        {mode === "inward" && (
+          <InwardGatePanel number={inwardNumber} lookupId={lookupId} onReset={reset} />
         )}
 
         {passNumber && isFetching && !pass && (

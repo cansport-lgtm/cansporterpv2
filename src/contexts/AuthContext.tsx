@@ -110,7 +110,8 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   private_label_officer: ['sales', 'dashboard'],
   private_label_viewer: ['sales', 'dashboard'],
   pettycash_handler: ['expenses'], // Petty cash handler: petty cash page only
-  store_operator: ['material_consumption'], // Store operator: stock closing page only
+  // Store operator: stock closing page, plus the Gate Inward Register (read-only: what is at the gate).
+  store_operator: ['material_consumption', 'purchase'],
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
   // Projects Super Manager: sees every user's projects and their progress, can create
   // projects/tasks/documents, but can never delete anything (see hasModulePermission).
@@ -207,7 +208,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   pettycash_handler: ['/expenses/petty-cash'], // Petty cash handler: petty cash page only
-  store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
+  store_operator: ['/consumption/stock-closing', '/purchase/gate-inward'], // Store operator: stock closing + gate inward register
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   projects_super_manager: ['/projects', '/dashboard'], // Projects Super Manager: whole Project Management module
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
@@ -268,6 +269,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/requests',
     '/purchase/orders',
     '/purchase/grn',
+    '/purchase/gate-inward',
   ],
   // Purchase Manager: full purchase operations incl. approvals, invoices and returns.
   purchase_manager: [
@@ -276,6 +278,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/requests',
     '/purchase/orders',
     '/purchase/grn',
+    '/purchase/gate-inward',
     '/purchase/qc-parameters',
     '/purchase/invoices',
     '/purchase/returns',
@@ -291,9 +294,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   qa_inspector: [
     '/qa/operator-inspection',
   ],
-  // Gate Security: ONLY the Gate Check page (scan, count each line, mark Out or hold).
+  // Gate Security: the Gate Check page (scan, count each line, mark Out or hold) and
+  // the inward entries it records (/gate-pass/inward/new, /gate-pass/inward/:id).
   gate_security: [
     '/gate-pass/check',
+    '/gate-pass/inward',
   ],
   gate_pass_sample_manager: ['/gate-pass', '/dashboard'],
   gate_pass_returnable_manager: ['/gate-pass', '/dashboard'],
