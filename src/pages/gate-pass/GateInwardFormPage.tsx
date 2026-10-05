@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { GuardShell } from "@/components/gate-pass/GuardShell";
 import { useGuardOnly } from "@/hooks/useGuardOnly";
+import { GuardInwardBack } from "@/components/guard/GuardInwardBack";
 import { PhotoInput } from "@/components/gate-pass/PhotoInput";
 import { errorMessage, normalizePassNumber } from "@/lib/gatePass";
 import {
@@ -66,7 +67,15 @@ const VEHICLE_FIELDS: (keyof Form)[] = ["vehicle_number", "driver_name", "driver
 // photo, save. Purchase and the other types are recorded by the office.
 const GUARD_KINDS: InwardKind[] = ["returnable_return", "job_work_return"];
 
+/** Gate keepers making a new entry get the 3-step scan / vehicle / photo screen; everyone else the full form. */
 export default function GateInwardFormPage() {
+  const { id } = useParams();
+  const guardOnly = useGuardOnly();
+  if (guardOnly && !id) return <GuardInwardBack />;
+  return <GateInwardFormFull />;
+}
+
+function GateInwardFormFull() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

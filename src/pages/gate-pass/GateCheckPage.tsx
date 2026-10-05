@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
 import { GuardShell } from "@/components/gate-pass/GuardShell";
+import { useGuardOnly } from "@/hooks/useGuardOnly";
+import GuardGateCheckPage from "@/pages/gate-pass/GuardGateCheckPage";
 import { InwardGatePanel } from "@/components/gate-pass/InwardGatePanel";
 import { isInwardNumber, normalizeInwardNumber } from "@/lib/gateInward";
 import { StorePassGateNotice } from "@/components/store-pass/StorePassGateNotice";
@@ -40,7 +42,13 @@ type CheckResult = {
   missing_store_pass?: string[]; // sales pass that went out with no store pass (warn mode)
 };
 
+/** Gate keepers get the picture-and-colour page; the office keeps the detailed one below. */
 export default function GateCheckPage() {
+  const guardOnly = useGuardOnly();
+  return guardOnly ? <GuardGateCheckPage /> : <OfficeGateCheckPage />;
+}
+
+function OfficeGateCheckPage() {
   const { roles, hasModulePermission } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -39,6 +39,33 @@ The guard opens the pass (scan the QR on the printout, or type the number),
 types the vehicle number seen, and counts every line — cartons where the line
 has them, otherwise the quantity.
 
+### The guard's screen (`gate_security`)
+
+A gate keeper who reads little gets a picture-and-colour version of Gate Check
+(`src/pages/gate-pass/GuardGateCheckPage.tsx`); managers keep the detailed
+page. Urdu large, English small, one job per screen, and the phone speaks each
+step in Urdu (a speaker button on every screen mutes it; the choice is kept on
+the phone):
+
+- **Home:** one big SCAN button. The QR code decides what the paper is
+  (`GP-`, `LGP-`, `SGP-`, `GIN-`), so there are no tabs. Four picture tiles
+  (goods out, goods back, worker, staff) are for a vehicle or person with no
+  paper and open a digits-only keypad.
+- **Goods going out:** for the number plate and for every line the guard
+  answers one question, **same** or **different**. Only on *different* does a
+  minus / plus counter (or the plate input) appear. The green **GO** button
+  shows only when everything is the same; otherwise the red **STOP and tell
+  office** button holds the pass. Both call the same `gate_pass_gate_check`.
+- **Green screen** (out): a two-note beep and one vibration, then *next*.
+- **Red screen** (held, or an old pass scanned again): the siren for an old
+  pass, a short buzz for a held pass, what is short in large Urdu, **CALL
+  OFFICE** (dials 0333 2216339, `OFFICE_PHONE` in `src/lib/guardUi.ts`),
+  silence, next.
+- **Worker / staff:** the existing photo-compare panel under an Urdu header.
+- **Goods coming back:** see `docs/GATE_INWARD.md`.
+
+Scrap passes still use the weighbridge panel inside the guard screen.
+
 - Everything matches → **Out**. Sales dispatches on the pass become In Transit.
   Finished-goods samples are issued from stock.
 - Anything differs → **Held**. The pass maker and the gate pass managers are
