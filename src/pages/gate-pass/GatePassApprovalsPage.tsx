@@ -17,13 +17,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  PASS_SELECT, approvableGatePassTypes, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, sortedItems, type GatePass,
+  PASS_SELECT, approvableGatePassTypes, canReviewGatePass, errorMessage, isOwnPassBlocked, expectedCount, fmtQty, gpDb, passTypeMeta, sortedItems, type GatePass,
 } from "@/lib/gatePass";
 
 export default function GatePassApprovalsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { roles, hasModulePermission } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   // Held vehicles are for the gate pass manager; each pass type is approved by its own manager.
   const canRelease = hasModulePermission("gate_pass", "approve");
   const myTypes = approvableGatePassTypes(roles);
@@ -134,7 +134,7 @@ export default function GatePassApprovalsPage() {
                       {p.remarks ? ` · ${p.remarks}` : ""}
                     </div>
                   </div>
-                  {myTypes.includes(p.pass_type) ? (
+                  {canReviewGatePass(roles, p, user?.id) ? (
                     <div className="flex gap-2 shrink-0">
                       <Button size="sm" variant="outline" className="text-destructive" onClick={() => { setReason(""); setReject(p); }}>
                         <XCircle className="h-4 w-4 mr-1" /> Reject
@@ -144,7 +144,11 @@ export default function GatePassApprovalsPage() {
                       </Button>
                     </div>
                   ) : (
-                    <span className="text-xs text-muted-foreground shrink-0">Waiting for the {t.label.toLowerCase()} manager</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {isOwnPassBlocked(roles, p, user?.id)
+                        ? `You raised this pass · another ${t.label.toLowerCase()} manager must approve it`
+                        : `Waiting for the ${t.label.toLowerCase()} manager`}
+                    </span>
                   )}
                 </div>
               );
