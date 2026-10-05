@@ -34,7 +34,8 @@ export function GuardInwardBack() {
   const [vehicleAnswer, setVehicleAnswer] = useState<"same" | "different" | null>(null);
   const [vehicleTyped, setVehicleTyped] = useState("");
   const [photo, setPhoto] = useState("");
-  const [saved, setSaved] = useState<string | null>(null);
+  const [allBack, setAllBack] = useState<boolean | null>(null);
+  const [saved, setSaved] = useState<{ number: string; received: boolean } | null>(null);
 
   useEffect(() => { speak(step === "form" ? SAY.backVehicle : SAY.back); return () => stopSpeaking(); }, [step]);
 
@@ -51,13 +52,16 @@ export function GuardInwardBack() {
 
   const open = (raw: string) => {
     const n = normalizePassNumber(raw);
-    setVehicleAnswer(null); setVehicleTyped(""); setPhoto("");
+    setVehicleAnswer(null); setVehicleTyped(""); setPhoto(""); setAllBack(null);
     setQuery(n);
     setStep("form");
   };
 
   const vehicle = !pass ? "" : vehicleAnswer === "same" ? (pass.vehicle_number || "HAND CARRY") : vehicleTyped;
   const vehicleOk = vehicleAnswer === "same" || (vehicleAnswer === "different" && vehicleTyped.replace(/[^A-Za-z0-9]/g, "").length >= 3);
+  const returnable = pass?.pass_type === "returnable";
+  // A returnable needs the "everything back?" answer; job work is always received by the office.
+  const canSave = vehicleOk && (!returnable || allBack !== null);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -72,12 +76,19 @@ export function GuardInwardBack() {
       });
       if (error) throw error;
       const { data: row } = await giDb.from("gate_inward_entries").select("entry_number").eq("id", data).maybeSingle();
-      return (row?.entry_number as string) ?? "";
+      const number = (row?.entry_number as string) ?? "";
+      if (!(returnable && allBack === true)) return { number, received: false };
+      // Everything came back: receive every open line of the pass now (GPR- receipt, stock back).
+      const { data: gpr, error: recvErr } = await giDb.rpc("gate_inward_receive_all", { p_entry_id: data });
+      if (recvErr) throw new Error(`${number} saved, but the goods could not be received: ${recvErr.message}`);
+      return { number: `${number} · ${gpr as string}`, received: true };
     },
-    onSuccess: (n) => {
+    onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["gate-inward"] });
       queryClient.invalidateQueries({ queryKey: ["gate-inward-open-passes"] });
-      setSaved(n);
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-outside"] });
+      queryClient.invalidateQueries({ queryKey: ["gate-passes"] });
+      setSaved(r);
     },
     onError: (e) => toast({ title: "Could not save", description: errorMessage(e), variant: "destructive" }),
   });
@@ -85,12 +96,14 @@ export function GuardInwardBack() {
   const home = () => navigate("/gate-pass/check");
 
   if (saved) {
-    return <GoScreen title={saved} mainUr={T.saved} mainEn="SAVED · the store will count it" nextUr={T.next} nextEn="Back to Gate Check" onNext={home} />;
+    return saved.received
+      ? <GoScreen title={saved.number} mainUr={T.received} mainEn="RECEIVED · everything is back" nextUr={T.next} nextEn="Back to Gate Check" onNext={home} sayText={SAY.received} />
+      : <GoScreen title={saved.number} mainUr={T.saved} mainEn="SAVED · the office will count it" nextUr={T.next} nextEn="Back to Gate Check" onNext={home} />;
   }
 
   return (
     <GuardShell title={T.goodsCameBack}>
-      <GuardHeader color="bg-teal-700" icon={<Package className="h-8 w-8" />} ur={T.goodsCameBack} en="Goods coming back · 3 steps"
+      <GuardHeader color="bg-teal-700" icon={<Package className="h-8 w-8" />} ur={T.goodsCameBack} en={returnable ? "Goods coming back · 4 steps" : "Goods coming back · 3 steps"}
         onBack={step === "scan" ? home : () => { setStep("scan"); setQuery(null); }} />
 
       {step === "scan" && (
@@ -146,9 +159,35 @@ export function GuardInwardBack() {
           {/* 3 — photo */}
           {pass && vehicleOk && (
             <Step n={3} ur={T.takePhoto} en="Paper + goods" done={Boolean(photo)} active>
-              <PhotoInput id="guard-inward-photo" label={T.openCamera} folder="inward-challan" value={photo} onChange={setPhoto} />
+              <PhotoInput id="guard-inward-photo" label={T.openCamera} folder="inward-challan" value={photo} onChange={(p) => { setPhoto(p); if (returnable) speak(SAY.allBackQ); }} />
               {!photo && <div className="flex items-center justify-center gap-2 text-slate-500 text-sm font-sans"><Camera className="h-4 w-4" /> one photo of the old pass and the goods</div>}
             </Step>
+          )}
+
+          {/* 4 — everything back? (returnable only; job work is received by the office) */}
+          {pass && vehicleOk && returnable && (
+            <Step n={4} ur={T.allBackQ} en="Did everything come back?" done={allBack !== null} active>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button type="button" onClick={() => setAllBack(true)}
+                  className={cn("h-16 rounded-xl flex items-center justify-center gap-2 text-xl font-bold border-[3px]",
+                    allBack === true ? "bg-emerald-700 border-emerald-700 text-white" : "bg-white border-emerald-700 text-emerald-800")}>
+                  <CheckCircle2 className="h-6 w-6" /><span style={UR}>{T.yesAll}</span>
+                </button>
+                <button type="button" onClick={() => setAllBack(false)}
+                  className={cn("h-16 rounded-xl flex items-center justify-center text-xl font-bold border-[3px]",
+                    allBack === false ? "bg-slate-700 border-slate-700 text-white" : "bg-white border-slate-500 text-slate-700")}>
+                  <span style={UR}>{T.noSome}</span>
+                </button>
+              </div>
+              <div className="text-xs text-center text-slate-500 font-sans">
+                {allBack === true ? "The pass is received now: GPR receipt, goods back in stock." : allBack === false ? "The office will receive what came back." : "Yes = received at the gate now. No = the office counts it."}
+              </div>
+            </Step>
+          )}
+          {pass && vehicleOk && !returnable && (
+            <div className="rounded-xl bg-slate-100 p-3 text-center">
+              <Ur ur={T.officeWillReceive} en="Job work: the office records what was used, processed and rejected" size="text-base" className="text-slate-700" />
+            </div>
           )}
         </div>
       )}
@@ -156,9 +195,10 @@ export function GuardInwardBack() {
       {step === "form" && pass && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur p-3 pb-5">
           <div className="max-w-xl mx-auto">
-            <BigButton ur={T.save} en="SAVE · store will count it" icon={save.isPending ? <Loader2 className="h-8 w-8 animate-spin" /> : <Save className="h-8 w-8" />}
+            <BigButton ur={T.save} en={returnable && allBack ? "SAVE · receive everything now" : "SAVE · the office will count it"}
+              icon={save.isPending ? <Loader2 className="h-8 w-8 animate-spin" /> : <Save className="h-8 w-8" />}
               color="bg-emerald-700 text-white" shadow="shadow-[0_6px_0_#14532d]" className="h-[84px]"
-              disabled={!vehicleOk || save.isPending} onClick={() => save.mutate()} />
+              disabled={!canSave || save.isPending} onClick={() => save.mutate()} />
           </div>
         </div>
       )}
