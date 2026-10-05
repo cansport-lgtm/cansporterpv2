@@ -149,6 +149,11 @@ BEGIN
 END;
 $$;
 
+-- Remove a pass's dispatch links (used by store_pass_link_dispatches).
+CREATE OR REPLACE FUNCTION public.store_pass_clear_links(p_id uuid)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$ DELETE FROM public.store_pass_dispatches WHERE store_pass_id = p_id; $$;
+
 -- Link a pass to the system dispatches it covers (replaces the links). Any
 -- domestic dispatch that is not on another live store pass. Store roles and
 -- gate pass managers (the office) may link; a cancelled pass cannot be linked.
@@ -177,7 +182,7 @@ BEGIN
     FROM public.store_pass_dispatches spd JOIN public.sales_dispatches sd ON sd.id = spd.dispatch_id
    WHERE spd.store_pass_id = p_id;
 
-  DELETE FROM public.store_pass_dispatches WHERE store_pass_id = p_id;
+  PERFORM public.store_pass_clear_links(p_id);
 
   FOR d IN
     SELECT sd.* FROM public.sales_dispatches sd
@@ -558,6 +563,7 @@ TO anon, authenticated, service_role;
 
 REVOKE EXECUTE ON FUNCTION
   public.store_pass_build(uuid, jsonb),
+  public.store_pass_clear_links(uuid),
   public.store_pass_match_dispatch(text),
   public.store_pass_unlinked(date, date)
 FROM PUBLIC, anon, authenticated;

@@ -8,6 +8,7 @@
 -- after running this file to get the old definitions back in full.
 
 DROP FUNCTION IF EXISTS public.store_pass_link_dispatches(uuid, uuid[]);
+DROP FUNCTION IF EXISTS public.store_pass_clear_links(uuid);
 DROP FUNCTION IF EXISTS public.store_pass_match_dispatch(text);
 DROP FUNCTION IF EXISTS public.store_pass_unlinked(date, date);
 DROP FUNCTION IF EXISTS public.store_pass_build(uuid, jsonb);
