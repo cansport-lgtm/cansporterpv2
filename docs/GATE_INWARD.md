@@ -5,8 +5,9 @@ factory, made before anything reaches the store. One number series for all
 types: `GIN-000001`, `GIN-000002`, … A number is given only when the entry
 saves, so failed saves never leave gaps (same as `GP-`).
 
-Database: `supabase/migrations/20261005120000_gate_inward.sql`. Rollback in
-`supabase/rollbacks/20261005120000_gate_inward_down.sql`. No new roles. The
+Database: `supabase/migrations/20261005120000_gate_inward.sql` and
+`20261006120000_gate_inward_receive_all.sql` (receive a whole returnable at
+the gate). Rollbacks in `supabase/rollbacks/`. No new roles. The
 planning document with the full design and the later phases is
 `docs/GATE_INWARD_PLAN.md`.
 
@@ -22,7 +23,7 @@ today: the GRN (purchase) and the `GPR-` receipt (returnable / job work).
 | Type | Arrives against | Guard enters | Closed by → status | Enabled |
 |---|---|---|---|---|
 | **Purchase** | One approved / ordered / partially received PO of the supplier, in the categories allowed by the settings (raw material by default) | **Office only** (not the guard): supplier, PO, vehicle, driver, challan no. and photo, packages | The GRN for that PO names the entry → `grn_made` | Yes |
-| **Returnable back** | A Returnable gate pass (`GP-`) that is out / partly returned | The pass (scan the old slip or type its number), vehicle, driver | "Receive goods" on the pass (`GPR-`) names the entry → `received` | Yes |
+| **Returnable back** | A Returnable gate pass (`GP-`) that is out / partly returned | The pass (scan the old slip or type its number), vehicle, photo, and **did everything come back?** | **Yes** → received at the gate at once (`gate_inward_receive_all`: every open line, the `GPR-` receipt, stock back from GP-REPAIR, spare-part stock, the pass status) → `received`. **No** → "Receive goods" on the pass (`GPR-`) names the entry → `received` | Yes |
 | **Job work back** | A Job work pass that is out | Same | Same | Yes |
 | Sales return | Customer, optional dispatch | — | Office closes with a note for now (the sales-return link is Phase 2) | Off |
 | Sample / free supply | Supplier or anyone, no PO | — | Office closes with a note → `closed` | Off |

@@ -179,10 +179,10 @@ export function Scanner({ onText, onCancel, hintUr = T.scan, hintEn = "Point the
 }
 
 /** Whole screen green: let it go. */
-export function GoScreen({ title, sub, nextUr = T.next, nextEn = "Next · scan again", onNext, mainUr = T.go, mainEn = T.goSub }: {
-  title?: string; sub?: string; nextUr?: string; nextEn?: string; onNext: () => void; mainUr?: string; mainEn?: string;
+export function GoScreen({ title, sub, nextUr = T.next, nextEn = "Next · scan again", onNext, mainUr = T.go, mainEn = T.goSub, sayText = SAY.go }: {
+  title?: string; sub?: string; nextUr?: string; nextEn?: string; onNext: () => void; mainUr?: string; mainEn?: string; sayText?: string;
 }) {
-  useEffect(() => { beepOk(); speak(SAY.go); return () => stopSpeaking(); }, []);
+  useEffect(() => { beepOk(); speak(sayText); return () => stopSpeaking(); }, [sayText]);
   return (
     <div className="fixed inset-0 z-40 bg-emerald-700 text-white flex flex-col items-center justify-between p-6 pt-10">
       <div className="text-sm font-sans text-emerald-100">{title}</div>

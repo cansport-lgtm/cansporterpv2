@@ -65,6 +65,11 @@ export const T = {
   notThisPerson: "یہ وہ نہیں ہے",
   waiting: "انتظار کریں…",
   storeBlocked: "اسٹور پاس نہیں ہے — اسٹور کو فون کریں",
+  allBackQ: "پورا سامان واپس آ گیا؟",
+  yesAll: "ہاں، پورا",
+  noSome: "نہیں، کچھ کم ہے",
+  received: "سامان وصول ہو گیا",
+  officeWillReceive: "دفتر گنتی کرے گا",
 };
 
 /** What the phone says when a screen opens. Short, plain Urdu. */
@@ -82,6 +87,8 @@ export const SAY = {
   backVehicle: "یہی گاڑی ہے؟",
   backPhoto: "کاغذ اور سامان کی تصویر لیں۔",
   saved: "محفوظ ہو گیا۔ شکریہ۔",
+  allBackQ: "کیا پورا سامان واپس آ گیا؟",
+  received: "سامان وصول ہو گیا۔ شکریہ۔",
   inward: "گاڑی چلی جائے تو بٹن دبائیں۔",
 };
 
