@@ -42,8 +42,30 @@ export const TYPE_APPROVER_ROLE: Partial<Record<GatePassType, string>> = {
   scrap: "gate_pass_scrap_manager",
 };
 
+// Types whose maker may not approve or reject their own pass (super admin excepted).
+export const SELF_REVIEW_BLOCKED: GatePassType[] = ["sample"];
+
+export const isSuperAdmin = (roles: { role: string }[]) => roles.some((r) => r.role === "super_admin");
+
 export const canApproveGatePassType = (roles: { role: string }[], type: string) =>
   roles.some((r) => r.role === "super_admin" || r.role === TYPE_APPROVER_ROLE[type as GatePassType]);
+
+// Can this user approve / reject this particular pass? Same as the type check, except
+// the maker of a sample pass must leave it to another sample manager.
+export const canReviewGatePass = (
+  roles: { role: string }[],
+  pass: { pass_type: string; created_by: string | null },
+  userId: string | null | undefined,
+) =>
+  canApproveGatePassType(roles, pass.pass_type) &&
+  !(SELF_REVIEW_BLOCKED.includes(pass.pass_type as GatePassType) && !isSuperAdmin(roles) && !!userId && pass.created_by === userId);
+
+// True when the only reason this user cannot review the pass is that they raised it.
+export const isOwnPassBlocked = (
+  roles: { role: string }[],
+  pass: { pass_type: string; created_by: string | null },
+  userId: string | null | undefined,
+) => canApproveGatePassType(roles, pass.pass_type) && !canReviewGatePass(roles, pass, userId);
 
 // Types this user can approve (empty for everyone but type managers and super admin).
 export const approvableGatePassTypes = (roles: { role: string }[]) =>
