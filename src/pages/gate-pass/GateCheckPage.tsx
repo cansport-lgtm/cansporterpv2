@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Html5Qrcode } from "html5-qrcode";
-import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine, Siren } from "lucide-react";
+import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, QrCode, ScanLine, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +14,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { GuardShell } from "@/components/gate-pass/GuardShell";
+import { InwardGatePanel } from "@/components/gate-pass/InwardGatePanel";
+import { isInwardNumber, normalizeInwardNumber } from "@/lib/gateInward";
 import { LabourGatePanel, type LabourLookup } from "@/components/labour/LabourGatePanel";
 import { isLabourPassNumber, normalizeLabourPassNumber } from "@/lib/labourGatePass";
 import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
@@ -33,28 +35,6 @@ type CheckResult = {
   problems?: string[]; // scrap weighment
 };
 
-// Guards get a bare full-screen page with just a logout; everyone else the normal layout.
-function GuardShell({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-30 bg-slate-900 text-white">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div>
-            <div className="font-display font-bold text-lg leading-tight">Gate Check</div>
-            <div className="text-xs text-slate-300">{user?.full_name ?? "Security"}</div>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => { logout(); navigate("/login"); }}>
-            <LogOut className="h-4 w-4 mr-1" /> Logout
-          </Button>
-        </div>
-      </header>
-      <main className="p-3 sm:p-4 max-w-xl mx-auto">{children}</main>
-    </div>
-  );
-}
-
 export default function GateCheckPage() {
   const { roles, hasModulePermission } = useAuth();
   const queryClient = useQueryClient();
@@ -64,10 +44,11 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
-  // Goods passes (GP-…) and worker passes (LGP-…) share this screen. A scanned QR
-  // picks the flow by its prefix; typed input follows the selected mode.
-  const [mode, setMode] = useState<"goods" | "worker">("goods");
+  // Goods passes (GP-…), worker passes (LGP-…) and inward entries (GIN-…) share this
+  // screen. A scanned QR picks the flow by its prefix; typed input follows the selected mode.
+  const [mode, setMode] = useState<"goods" | "worker" | "inward">("goods");
   const [labourLookup, setLabourLookup] = useState<LabourLookup | null>(null);
+  const [inwardNumber, setInwardNumber] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
@@ -107,6 +88,16 @@ export default function GateCheckPage() {
     setAlarm(null);
     lookupAtRef.current = Date.now();
     setLookupId((x) => x + 1);
+    if (isInwardNumber(text) || (mode === "inward" && !/^(GP|LGP)-?\d+$/i.test(text))) {
+      const n = normalizeInwardNumber(text);
+      setMode("inward");
+      setCode(n);
+      setPassNumber(null);
+      setLabourLookup(null);
+      setInwardNumber(n);
+      queryClient.invalidateQueries({ queryKey: ["gate-check-inward", n] });
+      return;
+    }
     if (isLabourPassNumber(text) || (mode === "worker" && !/^GP-?\d+$/i.test(text))) {
       // Worker pass by number, or today's pass by worker code.
       const n = normalizeLabourPassNumber(text);
@@ -114,6 +105,7 @@ export default function GateCheckPage() {
       setMode("worker");
       setCode(lookup.number ?? lookup.code ?? "");
       setPassNumber(null);
+      setInwardNumber(null);
       setLabourLookup(lookup);
       queryClient.invalidateQueries({ queryKey: ["gate-check-labour-pass"] });
       return;
@@ -122,6 +114,7 @@ export default function GateCheckPage() {
     if (!n) return;
     setMode("goods");
     setLabourLookup(null);
+    setInwardNumber(null);
     setCode(n);
     setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
@@ -214,6 +207,7 @@ export default function GateCheckPage() {
     setAlarm(null);
     setPassNumber(null);
     setLabourLookup(null);
+    setInwardNumber(null);
     setCode("");
     setResult(null);
   };
@@ -231,19 +225,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
-              {([["goods", "Goods / vehicle"], ["worker", "Worker"]] as const).map(([m, label]) => (
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods out"], ["worker", "Worker"], ["inward", "Inward"]] as const).map(([m, label]) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m}
                   className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
-                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setLabourLookup(null); }}>
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setLabourLookup(null); setInwardNumber(null); }}>
                   {label}
                 </button>
               ))}
             </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">{mode === "worker" ? "LGP number or worker code" : "GP number"}</Label>
+              <Label htmlFor="gp-code" className="sr-only">{mode === "worker" ? "LGP number or worker code" : mode === "inward" ? "GIN number" : "GP number"}</Label>
               <Input id="gp-code" value={code} inputMode="text"
-                placeholder={mode === "worker" ? "LGP number or worker code" : "GP number, e.g. 131"}
+                placeholder={mode === "worker" ? "LGP number or worker code" : mode === "inward" ? "GIN number, e.g. 12" : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -262,6 +256,9 @@ export default function GateCheckPage() {
 
         {labourLookup && (
           <LabourGatePanel lookup={labourLookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        )}
+        {mode === "inward" && (
+          <InwardGatePanel number={inwardNumber} lookupId={lookupId} onReset={reset} />
         )}
 
         {passNumber && isFetching && !pass && (

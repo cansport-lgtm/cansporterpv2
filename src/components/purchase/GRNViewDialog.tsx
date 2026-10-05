@@ -61,7 +61,7 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
       if (!grnId) return null;
       const { data, error } = await sb
         .from("goods_receipt_notes")
-        .select(`*, suppliers(name, code), purchase_orders(po_number, category)`)
+        .select(`*, suppliers(name, code), purchase_orders(po_number, category), gate_inward:gate_inward_entries!goods_receipt_notes_gate_inward_id_fkey(entry_number, vehicle_number, driver_name, in_at, challan_number)`)
         .eq("id", grnId)
         .maybeSingle();
       if (error) throw error;
@@ -222,6 +222,13 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
               <div><strong>Supplier:</strong> {grn.suppliers?.name || "—"}</div>
               <div><strong>Receipt Date:</strong> {grn.receipt_date ? format(new Date(grn.receipt_date), "dd/MM/yyyy") : "—"}</div>
               <div><strong>Invoice #:</strong> {grn.invoice_number || "—"}</div>
+              {grn.gate_inward && (
+                <div className="col-span-2">
+                  <strong>Gate in:</strong> {grn.gate_inward.entry_number} · vehicle {grn.gate_inward.vehicle_number}
+                  {grn.gate_inward.driver_name ? ` · ${grn.gate_inward.driver_name}` : ""} · in {format(new Date(grn.gate_inward.in_at), "dd/MM/yyyy HH:mm")}
+                  {grn.gate_inward.challan_number ? ` · challan ${grn.gate_inward.challan_number}` : ""}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <strong>Invoice Amount:</strong>
                 {editMode ? (

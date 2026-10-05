@@ -22,7 +22,7 @@ const fmtDate = (d?: string | null) => {
 export async function printGRN(grnId: string): Promise<void> {
   const { data: grn, error: grnErr } = await sb
     .from("goods_receipt_notes")
-    .select(`*, purchase_orders(po_number, category), suppliers(name, code, phone)`)
+    .select(`*, purchase_orders(po_number, category), suppliers(name, code, phone), gate_inward:gate_inward_entries!goods_receipt_notes_gate_inward_id_fkey(entry_number, vehicle_number, driver_name, in_at, challan_number, packages_count)`)
     .eq("id", grnId)
     .maybeSingle();
   if (grnErr || !grn) throw grnErr || new Error("GRN not found");
@@ -94,6 +94,22 @@ export async function printGRN(grnId: string): Promise<void> {
           <div>${esc(grn.received_by ? (nameById[grn.received_by] || "—") : "—")}</div>
         </div>
       </div>
+      ${grn.gate_inward ? `
+      <div class="grid2">
+        <div>
+          <div class="label">Gate inward entry</div>
+          <div class="bold">${esc(grn.gate_inward.entry_number)}</div>
+          <div class="xs muted">In at ${esc(format(new Date(grn.gate_inward.in_at), "dd MMM yyyy HH:mm"))}</div>
+        </div>
+        <div>
+          <div class="label">Vehicle</div>
+          <div>${esc(grn.gate_inward.vehicle_number)}${grn.gate_inward.driver_name ? ` · ${esc(grn.gate_inward.driver_name)}` : ""}</div>
+        </div>
+        <div>
+          <div class="label">Challan at gate</div>
+          <div>${esc(grn.gate_inward.challan_number || "—")}${grn.gate_inward.packages_count != null ? ` · ${esc(grn.gate_inward.packages_count)} pkg` : ""}</div>
+        </div>
+      </div>` : ""}
 
       <table>
         <thead><tr>

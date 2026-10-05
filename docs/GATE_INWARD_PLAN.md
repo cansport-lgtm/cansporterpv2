@@ -1,6 +1,6 @@
 # Gate Inward — Plan
 
-Status: **Proposal / planning document** (no code changes yet).
+Status: **Phase 1 implemented** (`supabase/migrations/20261005120000_gate_inward.sql`, see `docs/GATE_INWARD.md`). Phases 2 and 3 below are still proposals.
 
 Gate Inward is the security gate's record of every vehicle that brings goods
 **into** the factory, made at the gate before anything reaches the store. It is

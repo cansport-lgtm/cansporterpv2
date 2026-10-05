@@ -156,7 +156,7 @@ export function ProtectedRoute({
 
     // For store operator, redirect back to stock closing page if accessing unauthorized page
     if (roles.some((r) => (r.role as string) === 'store_operator')) {
-      if (location.pathname !== '/consumption/stock-closing') {
+      if (location.pathname !== '/consumption/stock-closing' && !location.pathname.startsWith('/purchase/gate-inward')) {
         return <Navigate to="/consumption/stock-closing" replace />;
       }
     }
@@ -202,7 +202,7 @@ export function ProtectedRoute({
     // For gate security, redirect back to the Gate Check page when accessing
     // anything outside it.
     if (roles.some((r) => (r.role as string) === 'gate_security')) {
-      if (location.pathname !== '/gate-pass/check') {
+      if (location.pathname !== '/gate-pass/check' && !location.pathname.startsWith('/gate-pass/inward')) {
         return <Navigate to="/gate-pass/check" replace />;
       }
     }
