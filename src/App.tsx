@@ -387,6 +387,13 @@ import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
 import DispatchTrackingPage from "./pages/store-pass/DispatchTrackingPage";
 import StorePassDashboardPage from "./pages/store-pass/StorePassDashboardPage";
 import StoreGateReconciliationPage from "./pages/store-pass/StoreGateReconciliationPage";
+import DispatchPlannerDashboardPage from "./pages/dispatch-planner/DispatchPlannerDashboardPage";
+import DispatchPlannerBoardPage from "./pages/dispatch-planner/DispatchPlannerBoardPage";
+import DispatchPlannerPendingPage from "./pages/dispatch-planner/DispatchPlannerPendingPage";
+import DispatchPlannerVersionsPage from "./pages/dispatch-planner/DispatchPlannerVersionsPage";
+import DispatchPlannerVersionDetailPage from "./pages/dispatch-planner/DispatchPlannerVersionDetailPage";
+import DispatchPlannerVehiclesPage from "./pages/dispatch-planner/DispatchPlannerVehiclesPage";
+import DispatchPlannerSettingsPage from "./pages/dispatch-planner/DispatchPlannerSettingsPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -919,6 +926,16 @@ const App = () => (
             <Route path="/store-pass/new" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
             <Route path="/store-pass/edit/:id" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
             <Route path="/store-pass/tracking" element={<ProtectedRoute><DispatchTrackingPage /></ProtectedRoute>} />
+
+            {/* Dispatch Planner — read-only suggestions; see docs/DISPATCH_PLANNER.md */}
+            <Route path="/dispatch-planner" element={<Navigate to="/dispatch-planner/dashboard" replace />} />
+            <Route path="/dispatch-planner/dashboard" element={<ProtectedRoute><DispatchPlannerDashboardPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/board" element={<ProtectedRoute><DispatchPlannerBoardPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/pending" element={<ProtectedRoute><DispatchPlannerPendingPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/versions" element={<ProtectedRoute><DispatchPlannerVersionsPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/versions/:id" element={<ProtectedRoute><DispatchPlannerVersionDetailPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/vehicles" element={<ProtectedRoute><DispatchPlannerVehiclesPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/settings" element={<ProtectedRoute requiredRole="super_admin"><DispatchPlannerSettingsPage /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />

@@ -183,6 +183,9 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "store_pass_manager", label: "Store Pass — Manager (issue, cancel issued passes, explain discrepancies)" },
   { value: "store_pass_officer", label: "Store Pass — Officer / store keeper (make, issue & print passes)" },
   { value: "store_pass_viewer", label: "Store Pass — Viewer (read-only)" },
+  { value: "dispatch_planner_manager", label: "Dispatch Planner — Manager (suggestions, pins, versions, vehicle master)" },
+  { value: "dispatch_planner_officer", label: "Dispatch Planner — Officer (run suggestions, pin lines, save versions, print)" },
+  { value: "dispatch_planner_viewer", label: "Dispatch Planner — Viewer (read-only)" },
   { value: "manager", label: "Manager" },
   { value: "supervisor", label: "Supervisor" },
   { value: "operator", label: "Operator" },
@@ -685,6 +688,9 @@ export default function UsersPage() {
       store_pass_manager: "bg-indigo-700/10 text-indigo-700",
       store_pass_officer: "bg-indigo-600/10 text-indigo-600",
       store_pass_viewer: "bg-indigo-500/10 text-indigo-500",
+      dispatch_planner_manager: "bg-cyan-700/10 text-cyan-700",
+      dispatch_planner_officer: "bg-cyan-600/10 text-cyan-600",
+      dispatch_planner_viewer: "bg-cyan-500/10 text-cyan-500",
       projects_super_manager: "bg-blue-700/10 text-blue-700",
     };
     return colors[role] || "";

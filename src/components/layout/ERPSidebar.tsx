@@ -34,6 +34,7 @@ import {
   Workflow,
   LifeBuoy,
   DoorOpen,
+  CalendarRange,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -741,6 +742,23 @@ const navigationItems: NavItem[] = [
       { title: "New Store Pass", href: "/store-pass/new", allowedRoles: ["super_admin", "store_pass_manager", "store_pass_officer"] },
       { title: "Dispatch Tracking", href: "/store-pass/tracking" },
       { title: "Daily Reconciliation", href: "/store-pass/reconciliation" },
+    ],
+  },
+  {
+    // A read-only planner: suggests a dispatch day and a load for every pending
+    // domestic order line from stock, deadlines and the fleet. It books nothing.
+    // See docs/DISPATCH_PLANNER.md.
+    title: "Dispatch Planner",
+    icon: CalendarRange,
+    color: "text-cyan-400",
+    module: "dispatch_planner",
+    children: [
+      { title: "Dashboard", href: "/dispatch-planner/dashboard" },
+      { title: "Suggested Plan", href: "/dispatch-planner/board" },
+      { title: "Pending Lines", href: "/dispatch-planner/pending" },
+      { title: "Saved Versions", href: "/dispatch-planner/versions" },
+      { title: "Vehicles", href: "/dispatch-planner/vehicles" },
+      { title: "Settings", href: "/dispatch-planner/settings", superAdminOnly: true },
     ],
   },
   {
