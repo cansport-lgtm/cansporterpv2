@@ -171,6 +171,9 @@ export function printStorePass(p: StorePass, qrSvg: string) {
 // Mirrors store_pass_can_link() in the database.
 export const STORE_PASS_LINK_ROLES = ["super_admin", "store_pass_manager", "gate_pass_manager", "dispatch_operator", "sales_order_manager"];
 export const canLinkStorePass = (roles: { role: string }[]) => roles.some((r) => STORE_PASS_LINK_ROLES.includes(r.role));
+// One store pass ↔ one dispatch. Once linked, changing or removing the link is a
+// correction: super admin only (mirrors store_pass_link_dispatches).
+export const canCorrectStorePassLink = (roles: { role: string }[]) => roles.some((r) => r.role === "super_admin");
 
 // One row of store_pass_link_candidates(dispatch_id): a pass the operator could put the dispatch on.
 export type LinkCandidate = {

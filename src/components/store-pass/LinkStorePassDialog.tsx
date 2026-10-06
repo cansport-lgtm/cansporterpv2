@@ -11,15 +11,18 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  errorMessage, fmtQty, spDb, spStatusMeta, type DispatchStorePass, type LinkCandidate,
+  canCorrectStorePassLink, errorMessage, fmtQty, spDb, spStatusMeta, type DispatchStorePass, type LinkCandidate,
 } from "@/lib/storePass";
 
 // The dispatch operator puts a dispatch (DC) on the store pass the keeper issued
 // for it. Dispatch-centric: opened from the Store pass column of the Domestic
-// Dispatch page. Picks ONE pass; the pass keeps its other links.
+// Dispatch page. One store pass ↔ one dispatch: a pass already linked to another
+// dispatch cannot be picked, and once this dispatch is linked only a super admin
+// can change or remove the link (a wrong link is a correction).
 
 type Props = {
   dispatch: { id: string; dispatch_number: string };
@@ -33,6 +36,8 @@ const INVALIDATE = ["dispatch-store-pass", "store-passes", "store-gate-tracking"
 export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { roles } = useAuth();
+  const canCorrect = canCorrectStorePassLink(roles);
   const [picked, setPicked] = useState<string | null>(null);
 
   const { data: candidates = [], isLoading } = useQuery<LinkCandidate[]>({
@@ -84,7 +89,7 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
           <DialogTitle>Link {dispatch.dispatch_number} to a store pass</DialogTitle>
           <DialogDescription>
             Pick the store pass the keeper issued for these goods. Passes whose plan number is this dispatch come first.
-            A dispatch can be on one live store pass; a pass may cover several dispatches.
+            One store pass per dispatch. {current ? "This dispatch is already linked: changing or removing the link is a correction." : "Once linked, only a super admin can change it, so check before you save."}
           </DialogDescription>
         </DialogHeader>
 
@@ -108,11 +113,12 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
                 <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No store pass to link. The store keeper has not issued one yet.</TableCell></TableRow>
               ) : candidates.map((c) => {
                 const checked = picked === c.store_pass_id;
+                const taken = c.linked_count > 0 && !c.is_current; // on another dispatch: one pass, one dispatch
                 return (
-                  <TableRow key={c.store_pass_id} className={cn("cursor-pointer", checked && "bg-primary/5", c.plan_matches && !checked && "bg-emerald-50/60")}
-                    onClick={() => setPicked(checked ? null : c.store_pass_id)}>
+                  <TableRow key={c.store_pass_id} className={cn(taken ? "opacity-60" : "cursor-pointer", checked && "bg-primary/5", c.plan_matches && !checked && !taken && "bg-emerald-50/60")}
+                    onClick={() => { if (!taken) setPicked(checked ? null : c.store_pass_id); }}>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox aria-label={`Pick ${c.pass_number}`} checked={checked} onCheckedChange={(v) => setPicked(v === true ? c.store_pass_id : null)} />
+                      <Checkbox aria-label={`Pick ${c.pass_number}`} checked={checked} disabled={taken} onCheckedChange={(v) => setPicked(v === true ? c.store_pass_id : null)} />
                     </TableCell>
                     <TableCell>
                       <div className="font-mono text-sm font-semibold">{c.pass_number}</div>
@@ -127,7 +133,7 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{c.issued_at ? format(new Date(c.issued_at), "dd MMM HH:mm") : "not yet"}</TableCell>
                     <TableCell className="text-xs">
                       {c.is_current ? <span className="font-semibold text-primary">this dispatch{c.linked_count > 1 ? ` + ${c.linked_count - 1}` : ""}</span>
-                        : c.linked_count ? <span className="text-amber-700">{c.linked_dispatches}</span>
+                        : c.linked_count ? <span className="text-amber-700">On {c.linked_dispatches}</span>
                         : <span className="text-muted-foreground">not linked</span>}
                     </TableCell>
                   </TableRow>
@@ -139,7 +145,7 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
 
         <DialogFooter className="gap-2 sm:justify-between">
           <div>
-            {current && (
+            {current && canCorrect && (
               <Button variant="ghost" className="text-destructive" disabled={busy} onClick={() => detach.mutate()}>
                 {detach.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Unlink className="h-4 w-4 mr-1" />} Unlink from {current.pass_number}
               </Button>
@@ -147,8 +153,8 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
           </div>
           <div className="flex gap-2">
             <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Back</Button>
-            <Button disabled={busy || !picked || !changed} onClick={() => picked && attach.mutate(picked)}>
-              {attach.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Link2 className="h-4 w-4 mr-1" />} Link to {candidates.find((c) => c.store_pass_id === picked)?.pass_number ?? "store pass"}
+            <Button disabled={busy || !picked || !changed || (Boolean(current) && !canCorrect)} onClick={() => picked && attach.mutate(picked)}>
+              {attach.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Link2 className="h-4 w-4 mr-1" />} {current ? "Correct link to" : "Link to"} {candidates.find((c) => c.store_pass_id === picked)?.pass_number ?? "store pass"}
             </Button>
           </div>
         </DialogFooter>
