@@ -1,5 +1,5 @@
 -- ============================================================================
--- Rollback of 20261012120000_gate_pass_freight.sql
+-- Rollback of 20261012130000_gate_pass_freight.sql
 -- ----------------------------------------------------------------------------
 -- Restores gate_pass_save, gate_pass_submit and gate_pass_mark_out as they
 -- were before (verbatim copies of 20260929120000_gate_pass_phase2_3.sql,

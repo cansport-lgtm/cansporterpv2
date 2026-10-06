@@ -1,6 +1,6 @@
 # Dispatch freight voucher at gate out — plan (revised 6 Oct 2026)
 
-**Built 6 Oct 2026** as `supabase/migrations/20261012120000_gate_pass_freight.sql`
+**Built 6 Oct 2026** as `supabase/migrations/20261012130000_gate_pass_freight.sql`
 (rollback in `supabase/rollbacks/`), with the pages described below. What is
 live is summarised in `docs/GATE_PASS.md` under *Freight voucher*; the
 sections here are the design.

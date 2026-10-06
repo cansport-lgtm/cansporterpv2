@@ -1,5 +1,5 @@
 // Freight voucher at gate out — shared definitions.
-// Rules live in supabase/migrations/20261012120000_gate_pass_freight.sql: the
+// Rules live in supabase/migrations/20261012130000_gate_pass_freight.sql: the
 // office records the freight on a sales gate pass, the voucher (FV-…) is made
 // by the database when the vehicle goes Out, and the cashier marks it paid.
 // Every write goes through the gate_pass_freight_* functions.

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
+import { TripFuelApprovalsSection } from "@/components/person-gate-pass/TripFuelApprovalsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -124,6 +125,8 @@ export function PersonGatePassApprovalsPage({ variant }: { variant: PersonPassVa
             </CardContent>
           </Card>
         )}
+
+        {variant.key === "staff" && <TripFuelApprovalsSection basePath={variant.basePath} />}
 
         {onDuty.length > 0 && (
           <Card className="border-indigo-200">

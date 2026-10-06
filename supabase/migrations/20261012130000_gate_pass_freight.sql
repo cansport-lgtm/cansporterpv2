@@ -18,7 +18,7 @@
 -- (same rule as scrap rates). Nothing on the guard's screen changes.
 --
 -- Plan: docs/DISPATCH_FREIGHT_VOUCHER_PLAN.md. Rollback:
--- supabase/rollbacks/20261012120000_gate_pass_freight_down.sql.
+-- supabase/rollbacks/20261012130000_gate_pass_freight_down.sql.
 --
 -- Redefines gate_pass_save (20260929120000_gate_pass_phase2_3.sql),
 -- gate_pass_submit (20261009120000_gate_pass_sample_no_self_approval.sql)

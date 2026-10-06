@@ -13,7 +13,7 @@ Database: `supabase/migrations/20260928120000_gate_pass_roles.sql` (roles),
 
 | Type | Linked to | Approval | Stock |
 |---|---|---|---|
-| Sales | One or more pending dispatches of approved sales orders, on one vehicle | Automatic | None — the dispatch already moved it |
+| Sales | **One** pending dispatch (DC) of approved sales orders — one gate pass per dispatch, one dispatch per live pass; the store pass links to the same dispatch (`docs/STORE_PASS.md`). Once saved, only a super admin can change the dispatch on the pass (`20261010120000_store_pass_one_to_one.sql`); anyone else cancels and makes a new one | Automatic | None — the dispatch already moved it |
 | Supplier return | A purchase return | Automatic | None — the purchase return already moved it |
 | Sample | Customer, distributor or anyone else; finished goods or free text | Sample manager | FG lines are issued when the vehicle goes out |
 | Returnable | Supplier / repairer or anyone; machines, fixed assets, spare parts, store items, products or free text; due-back date | Returnable manager | Store items / products move to **Out for repair**; spare parts leave `spare_parts.current_stock`; both come back on a receipt |
@@ -130,7 +130,7 @@ the pass.
 
 ## Freight voucher (sales passes)
 
-Database: `supabase/migrations/20261012120000_gate_pass_freight.sql`; plan and
+Database: `supabase/migrations/20261012130000_gate_pass_freight.sql`; plan and
 decisions in `docs/DISPATCH_FREIGHT_VOUCHER_PLAN.md`. The vouchers are a log,
 reconciled by hand with the cash book; nothing posts to the ledger yet.
 
@@ -174,7 +174,7 @@ reconciled by hand with the cash book; nothing posts to the ledger yet.
   `dispatch_operator` and `sales_order_manager` read (the dispatch list shows
   a **Freight** column). `gate_security` can never read freight, voucher or
   transporter rows.
-- Rollback: `supabase/rollbacks/20261012120000_gate_pass_freight_down.sql`.
+- Rollback: `supabase/rollbacks/20261012130000_gate_pass_freight_down.sql`.
 
 ## Manual backfill
 

@@ -27,7 +27,7 @@ const roleDescriptions: Record<AppRole, string> = {
   private_label_manager: "Private Label Sales – full access including approve (delete reserved for super admin)",
   private_label_officer: "Private Label Sales – create and edit entries (no approve, no delete)",
   private_label_viewer: "Private Label Sales – read-only access",
-  pettycash_handler: "Access to Petty Cash page only with entry creation",
+  pettycash_handler: "Access to Petty Cash page only with entry creation; pays staff trip fuel vouchers (Expenses → Trip Fuel Vouchers)",
   store_operator: "Access to Stock Closing page in Material Consumption module only",
   project_manager: "Project Management – full access including approve (delete reserved for super admin); can only see assigned projects",
   online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",

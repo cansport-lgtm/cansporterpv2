@@ -207,7 +207,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   private_label_manager: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
-  pettycash_handler: ['/expenses/petty-cash', '/expenses/freight-vouchers'], // Petty cash handler: petty cash + freight vouchers to pay
+  pettycash_handler: ['/expenses/petty-cash', '/expenses/trip-fuel', '/expenses/freight-vouchers'], // Petty cash handler: petty cash, trip fuel vouchers and freight vouchers they pay
   store_operator: ['/consumption/stock-closing', '/purchase/gate-inward'], // Store operator: stock closing + gate inward register
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   projects_super_manager: ['/projects', '/dashboard'], // Projects Super Manager: whole Project Management module
