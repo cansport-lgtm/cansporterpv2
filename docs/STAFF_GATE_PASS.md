@@ -123,6 +123,48 @@ approver, the HR user who applied and the gate pass managers are notified at
 most once per pass every 10 minutes. The register and the HR Dashboard show the
 red card for the last 7 days; the pass page shows a red banner.
 
+## Trip fuel (cash voucher for company work)
+
+Added in `20261006120000_staff_trip_fuel.sql` (rollback
+`supabase/rollbacks/20261006120000_staff_trip_fuel_down.sql`). Nothing is written
+to Petty Cash or the accounting books: the voucher is the document and cash is
+managed by hand.
+
+```
+trip over (pass returned / not scanned in) → staff member or HR claims → pending_approval
+  → HR manager approves → approved (voucher printed, cash collected from the cashier)
+  → cashier marks paid → paid
+rejected (HR manager) · cancelled (claimant or HR manager, before paid)
+```
+
+- **Where.** The **Trip fuel** card on the pass page (HR pass page and My Gate
+  Passes), shown once the official duty pass has been scanned Out and In. One
+  live voucher per pass; a cancelled or rejected one frees the pass again.
+- **The claim.** Route / areas travelled, and either the bike's start and end
+  odometer readings or the kilometres run by hand; optional odometer photo
+  (bucket `trip-odometer-photos`), notes. The form warns when the start reading
+  is below the last claimed end reading, and refuses a trip above the per-trip
+  ceiling.
+- **Amount.** km × a **flat rate per km** for everyone, from the settings
+  (`staff_gate_pass_settings.fuel_rate_per_km`, set by a super admin on
+  Expenses → Trip Fuel Vouchers, with `fuel_max_km_per_trip`, default 300).
+  Rate and figures are frozen on the voucher.
+- **Voucher.** `TFV-000001` … with staff, pass, date, route, odometer or km,
+  rate, amount and signature lines (claimed by, approved by HR, paid by cashier,
+  received by). Printable from the pass page and the cashier's page.
+- **Roles.** Claim: the staff member on the pass (self-service) or HR. Approve
+  / reject: `hr_manager` (and super admin), always. Mark paid: `pettycash_handler`,
+  `expenses_manager`, `expenses_officer` (and super admin). Cancel before paid:
+  the claimant or an HR manager. No new role.
+- **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for HR**;
+  **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the cashier's queue
+  (approved, waiting for cash), history with filters and Excel export, and the
+  settings. The staff register shows the voucher on each trip and km / fuel per
+  person in the Company work summary and its export.
+- **Notifications.** Claim → HR managers. Approved → claimant and cashiers
+  (`pettycash_handler`, `expenses_manager`). Rejected / paid → claimant.
+  Cancelled → claimant, HR managers (and cashiers when it was already approved).
+
 ## Half day marking (HR attendance)
 
 Staff attendance is one row per employee per day in `attendance`
@@ -179,6 +221,8 @@ run whatever the time.
 |---|---|
 | Default expected minutes for a short leave | 30 |
 | Default expected minutes for official duty | 180 |
+| Trip fuel rate per km (Rs), set on Expenses → Trip Fuel Vouchers | 0 (must be set before the first claim) |
+| Trip fuel: max km per trip | 300 |
 | Grace minutes before "late back" | 15 |
 | Day-end time (Asia/Karachi), used when the staff member has no duty end time | 18:00 |
 | Mark half day when not returned at day end | on |

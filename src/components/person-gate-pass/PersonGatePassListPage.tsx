@@ -25,7 +25,12 @@ import {
 type Row = Pick<PersonGatePass,
   "id" | "pass_number" | "pass_kind" | "status" | "pass_date" | "reason" | "destination" | "expected_minutes" | "gate_out_at" |
   "expected_back_at" | "gate_in_at" | "minutes_outside" | "half_day_rows" | "created_at" | "employee_id" | "person" | "creator" |
-  "attendance_effect" | "work_minutes_outside">;
+  "attendance_effect" | "work_minutes_outside"> & {
+  fuel?: { voucher_number: string; status: string; km: number; amount: number }[] | null;
+};
+
+const liveFuel = (r: Row) => (r.fuel ?? []).find((f) => ["pending_approval", "approved", "paid"].includes(f.status)) ?? null;
+const FUEL_LABEL: Record<string, string> = { pending_approval: "awaiting HR", approved: "approved", paid: "paid" };
 
 const effectText = (r: Row) =>
   marksAbsent(r) ? " · ABSENT" : r.pass_kind === "short_leave" && marksHalfDay(r) ? " · ½ day" : "";
@@ -63,7 +68,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
   const listSelect =
     "id, pass_number, pass_kind, status, pass_date, reason, expected_minutes, gate_out_at, expected_back_at, gate_in_at, minutes_outside, half_day_rows, created_at, employee_id," +
     (variant.attendanceEffects ? "attendance_effect, work_minutes_outside," : "") +
-    (variant.key === "staff" ? "destination," : "") +
+    (variant.key === "staff" ? "destination, fuel:staff_trip_fuel_vouchers(voucher_number, status, km, amount)," : "") +
     `${personSelect(variant, false)},` +
     `creator:app_users!${variant.table}_created_by_fkey(full_name)`;
 
@@ -115,13 +120,18 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
 
   // Company work summary per person for the selected dates (official duty passes that went out).
   const officialSummary = useMemo(() => {
-    const map = new Map<string, { code: string; name: string; dept: string; trips: number; minutes: number; notScannedIn: number; stillOut: number; destinations: Set<string> }>();
+    const map = new Map<string, { code: string; name: string; dept: string; trips: number; minutes: number; notScannedIn: number; stillOut: number; destinations: Set<string>; km: number; fuel: number; fuelPending: number }>();
     rows.forEach((r) => {
       if (!isOfficialDuty(r.pass_kind) || !["out", "returned", "not_returned"].includes(r.status)) return;
       const key = r.employee_id;
-      const e = map.get(key) ?? { code: r.person?.employee_code ?? "", name: r.person?.full_name ?? "", dept: r.person?.production_departments?.name ?? "", trips: 0, minutes: 0, notScannedIn: 0, stillOut: 0, destinations: new Set<string>() };
+      const e = map.get(key) ?? { code: r.person?.employee_code ?? "", name: r.person?.full_name ?? "", dept: r.person?.production_departments?.name ?? "", trips: 0, minutes: 0, notScannedIn: 0, stillOut: 0, destinations: new Set<string>(), km: 0, fuel: 0, fuelPending: 0 };
       e.trips += 1;
       e.minutes += minutesOutside(r);
+      const f = liveFuel(r);
+      if (f) {
+        e.km += Number(f.km);
+        if (f.status === "pending_approval") e.fuelPending += Number(f.amount); else e.fuel += Number(f.amount);
+      }
       if (r.status === "not_returned") e.notScannedIn += 1;
       if (r.status === "out") e.stillOut += 1;
       if (r.destination) e.destinations.add(r.destination);
@@ -134,13 +144,15 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(officialSummary.map((e) => ({
       Code: e.code, Name: e.name, Department: e.dept, Trips: e.trips, "Minutes outside": e.minutes, "Hours outside": Math.round((e.minutes / 60) * 100) / 100,
-      "Not scanned in": e.notScannedIn, "Still out": e.stillOut, Destinations: [...e.destinations].join("; "),
+      "Not scanned in": e.notScannedIn, "Still out": e.stillOut, "Km claimed": e.km, "Fuel approved / paid (Rs)": e.fuel, "Fuel awaiting HR (Rs)": e.fuelPending,
+      Destinations: [...e.destinations].join("; "),
     }))), "Summary");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.filter((r) => isOfficialDuty(r.pass_kind)).map((r) => ({
       Pass: r.pass_number, Date: r.pass_date, Code: r.person?.employee_code ?? "", Name: r.person?.full_name ?? "", Department: r.person?.production_departments?.name ?? "",
       Destination: r.destination ?? "", Purpose: r.reason, Status: statusMeta(r.status, r.pass_kind).label,
       Out: r.gate_out_at ? format(new Date(r.gate_out_at), "dd MMM yyyy HH:mm") : "", In: r.gate_in_at ? format(new Date(r.gate_in_at), "dd MMM yyyy HH:mm") : "",
       "Minutes outside": minutesOutside(r), "Raised by": r.creator?.full_name ?? "",
+      "Fuel voucher": liveFuel(r)?.voucher_number ?? "", "Fuel km": liveFuel(r)?.km ?? "", "Fuel amount": liveFuel(r)?.amount ?? "", "Fuel status": liveFuel(r) ? FUEL_LABEL[liveFuel(r)!.status] ?? liveFuel(r)!.status : "",
     }))), "Trips");
     XLSX.writeFile(wb, `company-work-${fromDate}-to-${toDate}.xlsx`);
   };
@@ -241,6 +253,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                     <TableHead>{hasOfficial ? "Reason / destination" : "Reason"}</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Gate</TableHead>
+                    {hasOfficial && variant.key === "staff" && <TableHead>Fuel</TableHead>}
                     {!self && <TableHead>Applied by</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -276,6 +289,11 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                         </TableCell>
                         <TableCell><Badge variant={status.variant}>{status.label}</Badge></TableCell>
                         <TableCell className={cn("text-xs whitespace-nowrap", late > 0 && (official ? "text-amber-700 font-semibold" : "text-red-700 font-semibold"))}>{timeline(r)}</TableCell>
+                        {hasOfficial && variant.key === "staff" && (
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {(() => { const f = liveFuel(r); return f ? <span className={cn(f.status === "paid" ? "text-emerald-700" : f.status === "approved" ? "text-sky-700" : "text-amber-700")}>Rs {Math.round(Number(f.amount)).toLocaleString()} · {FUEL_LABEL[f.status] ?? f.status}</span> : official && ["returned", "not_returned"].includes(r.status) ? <span className="text-muted-foreground">not claimed</span> : ""; })()}
+                          </TableCell>
+                        )}
                         {!self && <TableCell className="text-xs text-muted-foreground">{r.creator?.full_name ?? ""}</TableCell>}
                       </TableRow>
                     );
@@ -308,6 +326,8 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                       <TableHead className="text-right">Trips</TableHead>
                       <TableHead className="text-right">Time outside</TableHead>
                       <TableHead className="text-right">Not scanned in</TableHead>
+                      {variant.key === "staff" && <TableHead className="text-right">Km claimed</TableHead>}
+                      {variant.key === "staff" && <TableHead className="text-right">Fuel (Rs)</TableHead>}
                       <TableHead>Destinations</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -321,6 +341,8 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                         <TableCell className="text-right">{e.trips}{e.stillOut ? <span className="text-xs text-muted-foreground"> ({e.stillOut} out now)</span> : null}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">{fmtHours(e.minutes)}</TableCell>
                         <TableCell className={cn("text-right", e.notScannedIn && "text-amber-700 font-semibold")}>{e.notScannedIn || ""}</TableCell>
+                        {variant.key === "staff" && <TableCell className="text-right whitespace-nowrap">{e.km ? e.km.toLocaleString(undefined, { maximumFractionDigits: 1 }) : ""}</TableCell>}
+                        {variant.key === "staff" && <TableCell className="text-right whitespace-nowrap">{e.fuel ? Math.round(e.fuel).toLocaleString() : ""}{e.fuelPending ? <span className="text-xs text-amber-700"> (+{Math.round(e.fuelPending).toLocaleString()} awaiting)</span> : null}</TableCell>}
                         <TableCell className="text-xs text-muted-foreground max-w-[320px] truncate" title={[...e.destinations].join(", ")}>{[...e.destinations].join(", ")}</TableCell>
                       </TableRow>
                     ))}

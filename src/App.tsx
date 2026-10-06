@@ -217,6 +217,7 @@ import AssetReconciliationPage from "./pages/fixed-assets/AssetReconciliationPag
 // Expense Management pages
 import ExpenseDashboard from "./pages/expenses/ExpenseDashboard";
 import PettyCashPage from "./pages/expenses/PettyCashPage";
+import TripFuelVouchersPage from "./pages/expenses/TripFuelVouchersPage";
 import GeneralExpensesPage from "./pages/expenses/GeneralExpensesPage";
 import UtilityBillsPage from "./pages/expenses/UtilityBillsPage";
 import ExpenseBudgetsPage from "./pages/expenses/ExpenseBudgetsPage";
@@ -789,6 +790,7 @@ const App = () => (
             {/* Expense Management Routes */}
             <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpenseDashboard /></ProtectedRoute>} />
             <Route path="/expenses/petty-cash" element={<ProtectedRoute><PettyCashPage /></ProtectedRoute>} />
+            <Route path="/expenses/trip-fuel" element={<ProtectedRoute><TripFuelVouchersPage /></ProtectedRoute>} />
             <Route path="/expenses/general" element={<ProtectedRoute><GeneralExpensesPage /></ProtectedRoute>} />
             <Route path="/expenses/utilities" element={<ProtectedRoute><UtilityBillsPage /></ProtectedRoute>} />
             <Route path="/expenses/budgets" element={<ProtectedRoute><ExpenseBudgetsPage /></ProtectedRoute>} />

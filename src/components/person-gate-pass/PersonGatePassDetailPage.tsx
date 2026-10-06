@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
+import { TripFuelClaimCard } from "@/components/person-gate-pass/TripFuelClaimCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -231,6 +232,8 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
             </CardContent>
           </Card>
         </div>
+
+        {variant.key === "staff" && <TripFuelClaimCard variant={variant} pass={pass} />}
 
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">History</CardTitle></CardHeader>
