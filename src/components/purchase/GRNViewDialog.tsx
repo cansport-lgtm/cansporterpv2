@@ -7,12 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload, Pencil, Save, X, Printer } from "lucide-react";
+import { Paperclip, FileText, Image as ImageIcon, Trash2, Upload, Pencil, Save, X, Printer, Truck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { syncGRNToLedger } from "@/lib/accounting/syncGRNToLedger";
 import { printGRN } from "@/lib/purchase/printGRN";
-
+import { gpDb } from "@/lib/gatePass";
+import {
+  VOUCHER_SELECT, fmtRs, grnPayerLabel, modeLabel, printFreightVoucher, voucherStatusMeta,
+  type FreightVoucher, type GrnFreight,
+} from "@/lib/gatePassFreight";
+import {
+  GRNFreightSection, emptyGrnFreight, grnFreightError, grnFreightFromRow, grnFreightPayload, isCompanyPaid,
+  type GrnFreightFormState,
+} from "@/components/purchase/GRNFreightSection";
 const sb = supabase as any;
 const ATTACHMENT_BUCKET = "grn-attachments";
 
@@ -46,14 +57,17 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadKind, setUploadKind] = useState<"bill" | "stock_photo">("bill");
-  const { hasModulePermission } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   const canEdit = hasModulePermission("purchase", "edit");
   const [editMode, setEditMode] = useState(false);
   const [editPrices, setEditPrices] = useState<Record<string, string>>({});
   const [editInvoice, setEditInvoice] = useState<string>("");
+  const [freightEdit, setFreightEdit] = useState(false);
+  const [freightForm, setFreightForm] = useState<GrnFreightFormState>(emptyGrnFreight());
+  const [freightReason, setFreightReason] = useState("");
 
   // Reset edit state whenever a different GRN is opened/closed.
-  useEffect(() => { setEditMode(false); }, [grnId]);
+  useEffect(() => { setEditMode(false); setFreightEdit(false); setFreightReason(""); }, [grnId]);
 
   const { data: grn } = useQuery({
     queryKey: ["grn-view-dialog", grnId],
@@ -97,6 +111,70 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
       return (data || []) as Attachment[];
     },
     enabled: !!grnId,
+  });
+
+  // Freight: who paid for the vehicle, and the inward voucher (20261014120000_grn_freight.sql).
+  const { data: freight, isLoading: freightLoading } = useQuery<GrnFreight | null>({
+    queryKey: ["grn-freight", grnId],
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("grn_freight").select("*").eq("grn_id", grnId).maybeSingle();
+      if (error) return null; // migration not applied yet, or no access
+      return data;
+    },
+    enabled: !!grnId,
+  });
+  const { data: sharedGrn } = useQuery<{ grn_number: string } | null>({
+    queryKey: ["grn-freight-shared", freight?.shared_grn_id],
+    queryFn: async () => {
+      const { data } = await sb.from("goods_receipt_notes").select("grn_number").eq("id", freight!.shared_grn_id).maybeSingle();
+      return data;
+    },
+    enabled: !!freight?.shared_grn_id,
+  });
+  const { data: vouchers = [] } = useQuery<FreightVoucher[]>({
+    queryKey: ["gate-pass-freight-vouchers", "grn", grnId],
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("gate_pass_freight_vouchers").select(VOUCHER_SELECT)
+        .eq("grn_id", grnId).order("created_at", { ascending: false });
+      if (error) return [];
+      return data ?? [];
+    },
+    enabled: !!grnId,
+  });
+  const liveVoucher = vouchers.find((v) => v.status !== "cancelled");
+  const cancelledVouchers = vouchers.filter((v) => v.status === "cancelled");
+  const isFreightManager = roles.some((r) => ["super_admin", "purchase_manager", "gate_pass_manager"].includes(r.role));
+  const canEditFreight = !!grn && hasModulePermission("purchase", "create") &&
+    (!freight || grn.received_by === user?.id || isFreightManager);
+
+  const freightMutation = useMutation({
+    mutationFn: async () => {
+      if (!grnId) throw new Error("No GRN");
+      const problem = grnFreightError(freightForm);
+      if (problem) throw new Error(problem);
+      const { error } = await gpDb.rpc("grn_freight_save", {
+        p_grn_id: grnId, p_data: grnFreightPayload(freightForm, { reason: freightReason }),
+      });
+      if (error) throw error;
+      // The GRN total (supplier-billed freight) and the recovery may have changed.
+      return await syncGRNToLedger(grnId);
+    },
+    onSuccess: (sync: any) => {
+      queryClient.invalidateQueries({ queryKey: ["grn-freight", grnId] });
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-freight-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["grn-freight-by-grn"] });
+      queryClient.invalidateQueries({ queryKey: ["grn-view-dialog", grnId] });
+      queryClient.invalidateQueries({ queryKey: ["goods-receipt-notes"] });
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-transporters"] });
+      if (sync && !sync.ok) {
+        toast({ title: "Freight saved, but GL sync failed", description: sync.error, variant: "destructive" });
+      } else {
+        toast({ title: "Freight saved" });
+      }
+      setFreightEdit(false);
+      setFreightReason("");
+    },
+    onError: (e: any) => toast({ title: "Could not save freight", description: e.message, variant: "destructive" }),
   });
 
   const uploadMutation = useMutation({
@@ -236,7 +314,7 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
                 ) : (grn.invoice_amount ? `Rs. ${Number(grn.invoice_amount).toLocaleString()}` : "—")}
               </div>
               {Number(grn.transportation_cost || 0) > 0 && (
-                <div><strong>Transportation:</strong> Rs. {Number(grn.transportation_cost).toLocaleString()}</div>
+                <div><strong>Freight on supplier's bill:</strong> Rs. {Number(grn.transportation_cost).toLocaleString()}</div>
               )}
               <div><strong>Total Received:</strong> Rs. {Number(editMode ? liveTotal : (grn.total_amount || 0)).toLocaleString()}</div>
             </div>
@@ -276,6 +354,96 @@ export function GRNViewDialog({ grnId, onOpenChange }: GRNViewDialogProps) {
                 </TableBody>
               </Table>
             )}
+
+            {/* Freight */}
+            <div className="border-t pt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2"><Truck className="h-4 w-4" /><strong>Freight</strong></div>
+                <div className="flex gap-2">
+                  {liveVoucher && (
+                    <Button size="sm" variant="outline" onClick={() => printFreightVoucher(liveVoucher)}>
+                      <Printer className="h-4 w-4 mr-1" /> Freight voucher
+                    </Button>
+                  )}
+                  {canEditFreight && !freightEdit && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setFreightForm(grnFreightFromRow(freight, grn.transportation_cost));
+                      setFreightEdit(true);
+                    }}>
+                      <Pencil className="h-4 w-4 mr-1" /> {freight ? "Change" : "Record freight"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {freightEdit ? (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <GRNFreightSection value={freightForm} onChange={setFreightForm} currentGrnId={grnId ?? undefined} idPrefix="grnv-fr" />
+                  {freight && (
+                    <div className="space-y-1">
+                      <Label htmlFor="grnv-fr-reason">Reason for the change *</Label>
+                      <Textarea id="grnv-fr-reason" rows={2} value={freightReason} onChange={(e) => setFreightReason(e.target.value)} />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    An unpaid voucher is corrected (or cancelled when the company no longer pays). A paid voucher must be cancelled by a manager first.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setFreightEdit(false)} disabled={freightMutation.isPending}>Back</Button>
+                    <Button size="sm" onClick={() => freightMutation.mutate()} disabled={freightMutation.isPending}>
+                      {freightMutation.isPending ? "Saving…" : "Save freight"}
+                    </Button>
+                  </div>
+                </div>
+              ) : freightLoading ? (
+                <p className="text-muted-foreground">Loading…</p>
+              ) : !freight ? (
+                <p className="text-amber-700">
+                  Freight not recorded on this GRN{Number(grn.transportation_cost || 0) > 0 ? ` (transportation Rs. ${Number(grn.transportation_cost).toLocaleString()} on the bill)` : ""}.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <span className="text-muted-foreground">Who paid</span><span className="font-medium">{grnPayerLabel(freight.payer)}</span>
+                  {freight.payer === "supplier_billed" && (
+                    <><span className="text-muted-foreground">On supplier's bill</span><span className="font-medium">{fmtRs(freight.amount)}</span></>
+                  )}
+                  {freight.payer === "other_grn" && (
+                    <><span className="text-muted-foreground">Recorded on</span><span className="font-medium">{sharedGrn?.grn_number ?? "—"}</span></>
+                  )}
+                  {isCompanyPaid(freight.payer) && (
+                    <>
+                      <span className="text-muted-foreground">Mode</span><span className="font-medium">{modeLabel(freight.mode)}</span>
+                      <span className="text-muted-foreground">Transporter</span><span className="font-medium">{freight.transporter_name}</span>
+                      <span className="text-muted-foreground">Amount paid</span><span className="font-semibold">{fmtRs(freight.amount)}</span>
+                      {freight.vehicle_number && (<><span className="text-muted-foreground">Vehicle · driver</span><span>{[freight.vehicle_number, freight.driver_name, freight.driver_contact].filter(Boolean).join(" · ")}</span></>)}
+                      {freight.booking_ref && (<><span className="text-muted-foreground">Ride / bilty no.</span><span>{freight.booking_ref}</span></>)}
+                    </>
+                  )}
+                  {freight.note && (<><span className="text-muted-foreground">Note</span><span>{freight.note}</span></>)}
+                </div>
+              )}
+
+              {!freightEdit && freight && isCompanyPaid(freight.payer) && !liveVoucher && (
+                <p className="text-amber-700">No live voucher for this GRN{cancelledVouchers.length ? ` (${cancelledVouchers.length} cancelled)` : ""}. Use Change to make one.</p>
+              )}
+              {!freightEdit && liveVoucher && (
+                <div className="rounded-lg border p-2 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-mono font-semibold">{liveVoucher.voucher_number}</span>
+                    <span className="text-xs text-muted-foreground"> · {fmtRs(liveVoucher.amount)} to {liveVoucher.transporter_name}
+                      {liveVoucher.status === "paid" && ` · paid ${liveVoucher.paid_date ? format(new Date(liveVoucher.paid_date), "dd/MM/yyyy") : ""}`}
+                      {liveVoucher.recover_from_supplier && " · recover from supplier"}
+                    </span>
+                  </div>
+                  <Badge variant={voucherStatusMeta(liveVoucher.status).variant}>{voucherStatusMeta(liveVoucher.status).label}</Badge>
+                </div>
+              )}
+              {!freightEdit && cancelledVouchers.map((v) => (
+                <div key={v.id} className="text-xs text-muted-foreground">
+                  {v.voucher_number} cancelled{v.cancelled_at ? ` ${format(new Date(v.cancelled_at), "dd/MM/yyyy")}` : ""}: {v.cancel_reason}
+                </div>
+              ))}
+            </div>
 
             {grn.notes && (
               <div>

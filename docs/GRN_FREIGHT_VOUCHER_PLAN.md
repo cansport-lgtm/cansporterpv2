@@ -1,4 +1,14 @@
-# Inward freight voucher on the GRN — plan (6 Oct 2026, not built yet)
+# Inward freight voucher on the GRN — plan (6 Oct 2026)
+
+**Built 6 Oct 2026** as `supabase/migrations/20261014120000_grn_freight.sql`
+(rollback in `supabase/rollbacks/`). What is live is summarised in
+`docs/GATE_PASS.md` under *Inward freight on the GRN*.
+
+Decisions taken: freight is entered **on the GRN** by **whoever makes the
+GRN**, who can also **print the voucher** from there; one truck carrying
+several POs → the trip is entered on one GRN and the others say **"On another
+GRN"**; **"to pay" freight recovered from the supplier** is a choice of its
+own; inward freight is an **expense** (Freight Inward) in the ledger.
 
 Same freight voucher system as the sales gate pass (`docs/DISPATCH_FREIGHT_VOUCHER_PLAN.md`,
 live in `20261012130000_gate_pass_freight.sql`), now for **goods coming in**
@@ -117,21 +127,28 @@ A **Freight** section on Goods Receipt (`/purchase/grn`), replacing the single
 - Phase 2 (with the outward phase 2): when the cashier marks paid → CPV
   **Dr Freight Inward (Carriage Inward)**, Cr Cash, party = transporter.
 
-## 7. Questions to confirm before building
+## 7. Decisions (confirmed 6 Oct 2026)
 
-1. **Entered on the GRN** (recommended — the office already has the amount and
-   the goods are counted), or earlier on the **gate inward entry**?
-2. **One truck, several POs / GRNs**: enter the trip amount on one GRN and pick
-   "Company paid — on GRN-xxx" for the others (recommended), or split the
-   amount across GRNs?
-3. **"To pay" freight we pay on the supplier's behalf and deduct from his
-   bill** — do you have this? If yes, a fourth choice *Company paid, recover
-   from supplier* (voucher + debit against the supplier's payable). Can be
-   phase 2.
-4. Phase 2 cost treatment: freight inward as an **expense**, or added to the
-   **raw-material cost** (landed cost)?
-5. Who enters it: whoever makes the GRN today (store / purchase) — OK?
+1. Entered on the GRN; the voucher prints from the GRN (toast after saving,
+   Freight column on the list, Freight block on the GRN view).
+2. One truck, several POs: amount on one GRN, the others **On another GRN**
+   (picks a GRN of the last 14 days with company-paid freight). A GRN that
+   others point at cannot be switched away from company-paid.
+3. **Company paid, recover from supplier** added: inward voucher as usual,
+   and the GRN's purchase posting splits the credit — Accounts Payable
+   (amount − freight) and **Freight Inward** (freight). Needs the *Freight
+   Inward (expense)* slot mapped on Accounting → Default Accounts;
+   `syncGRNToLedger` keeps the split in step after edits.
+4. Inward freight is an expense: the later posting of a paid voucher is
+   Dr Freight Inward, Cr Cash. Until then the cash book entry for every inward
+   freight payment should go to Freight Inward; recovered ones net to nil
+   against the GRN credit.
+5. Whoever can make a GRN (`purchase` create permission, purchase officer /
+   manager, store operator, accounting officer, admin) records the freight and
+   reads / prints inward vouchers. Changing it later: the GRN maker or a
+   purchase / gate pass manager, with a reason. Cancelling an inward voucher:
+   gate pass manager or purchase manager.
 
-Build order once confirmed: migration + rollback → GRN form + view →
-voucher at GRN save + inward print → Freight Vouchers / Transporters
-direction → dashboard cards → docs.
+Not built in this round: the Purchase dashboard "unpaid inward freight" card
+and "freight as % of purchase value" (§5). The Freight Vouchers page shows
+inward totals for the month next to the outward ones.

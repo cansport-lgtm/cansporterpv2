@@ -176,6 +176,40 @@ reconciled by hand with the cash book; nothing posts to the ledger yet.
   transporter rows.
 - Rollback: `supabase/rollbacks/20261012130000_gate_pass_freight_down.sql`.
 
+### Inward freight on the GRN
+
+Database: `supabase/migrations/20261014120000_grn_freight.sql` (rollback in
+`supabase/rollbacks/`); plan in `docs/GRN_FREIGHT_VOUCHER_PLAN.md`. The same
+vouchers, for purchase deliveries:
+
+- **On the GRN** (Goods Receipt → New GRN, section *Freight*, required):
+  **Supplier's own vehicle** (or included in the price) · **Supplier billed
+  it** (the amount is added to the GRN total, i.e. the supplier's payable) ·
+  **Company paid transporter** · **Company paid, recover from supplier**
+  ("to pay" bilty) · **On another GRN** (same vehicle; points at the GRN the
+  trip was recorded on). Company paid: mode (contractor van, online rickshaw,
+  bike, **goods company (bilty)**), transporter, amount, ride / bilty no.,
+  vehicle and driver (prefilled from the gate inward entry).
+- **When the GRN is saved** a company-paid freight gets an inward voucher
+  `FV-…` (same series), dated the receipt date, **unpaid**, and the cashiers
+  are notified. A toast offers **Print voucher**; the GRN list has a
+  **Freight** column (click the FV number to print) and the GRN view a
+  *Freight* block with **Freight voucher** (print) and **Change**.
+- **Company-paid freight is not in the GRN total**: the supplier is not owed
+  it. With **recover from supplier** the GRN's ledger posting credits Accounts
+  Payable that much less and **Freight Inward** the difference (map the
+  *Freight Inward (expense)* slot on Accounting → Default Accounts).
+- **Changing it later**: the GRN maker or a manager (`purchase_manager`,
+  `gate_pass_manager`, `super_admin`), with a reason. An unpaid voucher is
+  corrected or cancelled; a paid voucher must be cancelled first (gate pass
+  or purchase manager, Freight Vouchers page). Deleting a GRN cancels its
+  unpaid voucher and is refused while the voucher is paid.
+- **Paying**: Freight Vouchers page, as above, with a **Direction** filter
+  (outward / inward); *Pay selected* can mix a transporter's inward and
+  outward trips on one statement.
+- **Who**: anyone who can make a GRN records it and can read and print inward
+  vouchers (not outward ones).
+
 ## Manual backfill
 
 - Managers only, on the New Gate Pass form ("Manual backfill of a paper pass").
