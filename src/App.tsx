@@ -386,6 +386,8 @@ import GatePassDashboardPage from "./pages/gate-pass/GatePassDashboardPage";
 import GatePassReturnsPage from "./pages/gate-pass/GatePassReturnsPage";
 import ScrapYardPage from "./pages/gate-pass/ScrapYardPage";
 import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
+import FreightVouchersPage from "./pages/gate-pass/FreightVouchersPage";
+import TransportersPage from "./pages/gate-pass/TransportersPage";
 import GateInwardFormPage from "./pages/gate-pass/GateInwardFormPage";
 import GateInwardDetailPage from "./pages/gate-pass/GateInwardDetailPage";
 import GateInwardRegisterPage from "./pages/purchase/GateInwardRegisterPage";
@@ -924,6 +926,12 @@ const App = () => (
             <Route path="/gate-pass/returns" element={<ProtectedRoute><GatePassReturnsPage /></ProtectedRoute>} />
             <Route path="/gate-pass/scrap-yard" element={<ProtectedRoute><ScrapYardPage /></ProtectedRoute>} />
             <Route path="/gate-pass/books" element={<ProtectedRoute><PaperBooksPage /></ProtectedRoute>} />
+            {/* Freight vouchers made at gate out. The same page is mounted for the cashier roles under
+                Accounting and Expenses, which are the modules they can open. */}
+            <Route path="/gate-pass/freight" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/transporters" element={<ProtectedRoute><TransportersPage /></ProtectedRoute>} />
+            <Route path="/accounting/freight-vouchers" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
+            <Route path="/expenses/freight-vouchers" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes" element={<ProtectedRoute><GatePassListPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes/:id" element={<ProtectedRoute><GatePassDetailPage /></ProtectedRoute>} />
             <Route path="/gate-pass/new" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />

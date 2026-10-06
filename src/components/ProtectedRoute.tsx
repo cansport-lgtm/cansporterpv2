@@ -153,7 +153,7 @@ export function ProtectedRoute({
 
     // For pettycash handler, redirect back to petty cash page if accessing unauthorized page
     if (roles.some((r) => r.role === 'pettycash_handler')) {
-      if (location.pathname !== '/expenses/petty-cash') {
+      if (location.pathname !== '/expenses/petty-cash' && location.pathname !== '/expenses/freight-vouchers') {
         return <Navigate to="/expenses/petty-cash" replace />;
       }
     }

@@ -161,6 +161,8 @@ export type GatePass = {
   closed_at: string | null;
   close_reason: string | null;
   gate_pass_books?: { book_number: string } | null;
+  // Freight (sales): who pays and how it goes. Never an amount on the print.
+  gate_pass_freight?: { payer: string; mode: string | null; transporter_name: string | null } | null;
   creator?: { full_name: string | null } | null;
   approver?: { full_name: string | null } | null;
   holder?: { full_name: string | null } | null;
@@ -184,7 +186,8 @@ export const PASS_SELECT =
   "gate_pass_items(*)," +
   "gate_pass_dispatches(dispatch_id, sales_dispatches(dispatch_number, dispatch_date, delivery_status))," +
   "purchase_returns(return_number, status)," +
-  "gate_pass_books(book_number)";
+  "gate_pass_books(book_number)," +
+  "gate_pass_freight(payer, mode, transporter_name)";
 
 export const fmtQty = (n: number | null | undefined) =>
   Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -249,6 +252,11 @@ export function printGatePass(p: GatePass, qrSvg: string) {
     : p.approved_at
       ? "Auto"
       : "";
+  const fr = p.gate_pass_freight;
+  const freightLine = !fr ? ""
+    : fr.payer === "company"
+      ? ["Company pays", { contractor_van: "Contractor van", online_rickshaw: "Online rickshaw", bike: "Bike" }[fr.mode ?? ""] ?? fr.mode, fr.transporter_name].filter(Boolean).join(" · ")
+      : fr.payer === "customer" ? "Paid by customer" : "Customer's own vehicle";
   const rows = items
     .map(
       (i, n) => `<tr>
@@ -288,6 +296,7 @@ export function printGatePass(p: GatePass, qrSvg: string) {
       <div><span class="muted">Driver</span> <b>${esc([p.driver_name, p.driver_contact].filter(Boolean).join(" · "))}</b></div>
       <div style="grid-column: span 2"><span class="muted">Party</span> <b>${esc(p.party_name)}</b></div>
       ${dispatches ? `<div style="grid-column: span 2"><span class="muted">Dispatches</span> <b>${esc(dispatches)}</b></div>` : ""}
+      ${freightLine ? `<div style="grid-column: span 2"><span class="muted">Freight</span> <b>${esc(freightLine)}</b></div>` : ""}
       ${p.purchase_returns?.return_number ? `<div style="grid-column: span 2"><span class="muted">Purchase return</span> <b>${esc(p.purchase_returns.return_number)}</b></div>` : ""}
       ${p.process_name ? `<div><span class="muted">Process</span> <b>${esc(p.process_name)}</b></div>` : ""}
       ${p.expected_return_date ? `<div><span class="muted">Due back</span> <b>${esc(format(new Date(p.expected_return_date), "dd MMM yyyy"))}</b></div>` : ""}

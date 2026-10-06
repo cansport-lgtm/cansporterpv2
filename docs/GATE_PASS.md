@@ -128,6 +128,54 @@ the pass.
   than the yard holds, or the total is over the approved weight by more than
   the allowed overweight (default 10%). Unload and weigh again, or cancel.
 
+## Freight voucher (sales passes)
+
+Database: `supabase/migrations/20261012130000_gate_pass_freight.sql`; plan and
+decisions in `docs/DISPATCH_FREIGHT_VOUCHER_PLAN.md`. The vouchers are a log,
+reconciled by hand with the cash book; nothing posts to the ledger yet.
+
+- **On the pass** (sales type, section *5. Freight*): who pays — **Company
+  pays**, **Customer paid** or **Customer's own vehicle**. When the company
+  pays: the mode (contractor van / online rickshaw / bike), the transporter
+  (picked from the list, or a new name typed, which is saved to the list),
+  the amount and the app's ride number. A sales pass cannot be submitted
+  without it. The amount is never printed on the gate pass; the printout only
+  says e.g. "Freight: Company pays · Contractor van · Shahid Transport".
+- **At Out** (guard scan, manager release, backfill) a company-pays pass gets
+  a **freight voucher** `FV-000001`, … dated the gate-out day, as **unpaid**,
+  with a snapshot of the pass (DCs, customers, vehicle, driver, transporter,
+  amount). The cashier roles and the pass maker are notified. Customer-paid
+  passes get no voucher (the pass history says so).
+- **Freight Vouchers** page (`/gate-pass/freight`; for cashiers also
+  `/accounting/freight-vouchers` and `/expenses/freight-vouchers`): Unpaid /
+  Paid / All tabs, filters, search, Excel; owed per transporter, this month by
+  transporter and by mode, customer-paid loads. **Mark paid** (date, cash
+  paid, photo of the signed slip, remark) or **Pay selected**: several unpaid
+  trips of one contractor at once on a **payment statement** `FPS-000001`, …
+  printed for the contractor's signature; each voucher keeps its own row and
+  the statement number. The voucher prints with signature lines for the
+  driver / transporter and the cashier.
+- **Transporters** page (`/gate-pass/transporters`, managers): one row per
+  **contractor** (paid per trip, settled together) and one per **app**
+  (Bykea, InDrive… a different driver every ride, the ride number goes on the
+  pass); phone, usual mode, default rate (prefills the amount), active. Per
+  transporter: its trips, what is owed now, month totals, statements. Super
+  admins set the unpaid reminder (default 3 days; a morning notification at
+  09:10 Pakistan time lists what is older).
+- **Changes after Out** (managers, reason required, on the pass's Freight
+  card): correcting the amount / transporter / driver updates the unpaid
+  voucher; switching to customer-paid cancels it; a paid voucher must be
+  cancelled first (Freight Vouchers page) and a new one made from the pass.
+  Everything is in the pass history and the voucher's own history.
+- **Who**: `gate_pass_officer` / `gate_pass_manager` record freight;
+  `gate_pass_manager` manages transporters, corrections and cancellations;
+  the cashier (`pettycash_handler`, `accounting_poster` / `officer` /
+  `manager`, `gate_pass_manager`) marks paid; `gate_pass_viewer`,
+  `dispatch_operator` and `sales_order_manager` read (the dispatch list shows
+  a **Freight** column). `gate_security` can never read freight, voucher or
+  transporter rows.
+- Rollback: `supabase/rollbacks/20261012130000_gate_pass_freight_down.sql`.
+
 ## Manual backfill
 
 - Managers only, on the New Gate Pass form ("Manual backfill of a paper pass").

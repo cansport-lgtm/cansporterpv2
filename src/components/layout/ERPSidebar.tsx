@@ -135,6 +135,7 @@ const navigationItems: NavItem[] = [
       { title: "New Voucher", href: "/accounting/vouchers/new" },
       { title: "Customer Receipts", href: "/accounting/customer-receipts" },
       { title: "Supplier Payments", href: "/accounting/supplier-payments" },
+      { title: "Freight Vouchers", href: "/accounting/freight-vouchers" },
       // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
 
       { title: "Books", href: "", isHeader: true },
@@ -480,6 +481,7 @@ const navigationItems: NavItem[] = [
       { title: "Operating Expenses Analysis", href: "/expenses/operating-analysis" },
       { title: "Petty Cash", href: "/expenses/petty-cash" },
       { title: "Trip Fuel Vouchers", href: "/expenses/trip-fuel" },
+      { title: "Freight Vouchers", href: "/expenses/freight-vouchers" },
       { title: "General Expenses", href: "/expenses/general" },
       { title: "Utility Bills", href: "/expenses/utilities" },
       { title: "Budgets", href: "/expenses/budgets" },
@@ -732,6 +734,8 @@ const navigationItems: NavItem[] = [
       { title: "Returns & Job Work", href: "/gate-pass/returns" },
       { title: "Scrap Yard", href: "/gate-pass/scrap-yard" },
       { title: "Paper Books", href: "/gate-pass/books" },
+      { title: "Freight Vouchers", href: "/gate-pass/freight" },
+      { title: "Transporters", href: "/gate-pass/transporters" },
       { title: "Dispatch Tracking", href: "/store-pass/tracking", allowedRoles: ["super_admin", "gate_pass_manager"] },
       { title: "Store ↔ Gate Reconciliation", href: "/store-pass/reconciliation", allowedRoles: ["super_admin", "gate_pass_manager"] },
     ],
