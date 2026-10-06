@@ -1,16 +1,23 @@
-// Freight voucher at gate out — shared definitions.
-// Rules live in supabase/migrations/20261012130000_gate_pass_freight.sql: the
-// office records the freight on a sales gate pass, the voucher (FV-…) is made
-// by the database when the vehicle goes Out, and the cashier marks it paid.
-// Every write goes through the gate_pass_freight_* functions.
+// Freight vouchers — shared definitions.
+// Rules live in supabase/migrations/20261012130000_gate_pass_freight.sql
+// (outward: the office records the freight on a sales gate pass, the voucher
+// FV-… is made when the vehicle goes Out) and 20261014120000_grn_freight.sql
+// (inward: whoever makes the GRN records the freight, the voucher is made when
+// it is saved). The cashier marks either paid. Every write goes through the
+// gate_pass_freight_* / grn_freight_* functions.
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import { esc, printDocument } from "@/lib/printDocument";
 import { gpDb } from "@/lib/gatePass";
 
 export type FreightPayer = "company" | "customer" | "customer_vehicle";
-export type FreightMode = "contractor_van" | "online_rickshaw" | "bike";
+export type FreightMode = "contractor_van" | "online_rickshaw" | "bike" | "goods_company";
+export type FreightDirection = "outward" | "inward";
+export type GrnFreightPayer = "supplier_vehicle" | "supplier_billed" | "company" | "company_recover" | "other_grn";
 export type TransporterKind = "contractor" | "app";
 export type FreightVoucherStatus = "unpaid" | "paid" | "cancelled";
 
@@ -20,11 +27,27 @@ export const PAYERS: { value: FreightPayer; label: string; description: string }
   { value: "customer_vehicle", label: "Customer's own vehicle", description: "The customer collected the stock — no voucher" },
 ];
 
+/** Modes on a sales gate pass. */
 export const MODES: { value: FreightMode; label: string }[] = [
   { value: "contractor_van", label: "Contractor van" },
   { value: "online_rickshaw", label: "Online rickshaw" },
   { value: "bike", label: "Bike" },
 ];
+/** Every mode: inward deliveries can also come by a goods company on a bilty. */
+export const ALL_MODES: { value: FreightMode; label: string }[] = [
+  ...MODES,
+  { value: "goods_company", label: "Goods company (bilty)" },
+];
+
+/** Who paid for the vehicle that brought a purchase delivery (GRN). */
+export const GRN_PAYERS: { value: GrnFreightPayer; label: string; description: string }[] = [
+  { value: "supplier_vehicle", label: "Supplier's own vehicle", description: "Or freight included in the price — nothing to pay" },
+  { value: "supplier_billed", label: "Supplier billed it", description: "Freight is on the supplier's bill — added to the GRN total" },
+  { value: "company", label: "Company paid transporter", description: "A freight voucher is made for the driver / transporter to collect cash" },
+  { value: "company_recover", label: "Company paid, recover from supplier", description: "\"To pay\" freight: voucher for the driver, and the supplier's payable is reduced by it" },
+  { value: "other_grn", label: "On another GRN", description: "Same vehicle — the trip was recorded on another GRN" },
+];
+export const grnPayerLabel = (p: string | null | undefined) => GRN_PAYERS.find((x) => x.value === p)?.label ?? "Not recorded";
 
 export const KINDS: { value: TransporterKind; label: string; description: string }[] = [
   { value: "contractor", label: "Contractor", description: "A known firm or person, paid per trip, trips settled together" },
@@ -32,7 +55,7 @@ export const KINDS: { value: TransporterKind; label: string; description: string
 ];
 
 export const payerLabel = (p: string | null | undefined) => PAYERS.find((x) => x.value === p)?.label ?? "Not recorded";
-export const modeLabel = (m: string | null | undefined) => MODES.find((x) => x.value === m)?.label ?? (m ?? "");
+export const modeLabel = (m: string | null | undefined) => ALL_MODES.find((x) => x.value === m)?.label ?? (m ?? "");
 export const kindLabel = (k: string | null | undefined) => KINDS.find((x) => x.value === k)?.label ?? (k ?? "");
 
 export const VOUCHER_STATUS: Record<string, { label: string; variant: "warning" | "success" | "secondary" | "destructive" }> = {
@@ -74,7 +97,14 @@ export type GatePassFreight = {
 export type FreightVoucher = {
   id: string;
   voucher_number: string;
-  gate_pass_id: string;
+  direction: FreightDirection;
+  gate_pass_id: string | null;
+  grn_id: string | null;
+  grn_number: string | null;
+  po_number: string | null;
+  supplier_name: string | null;
+  gate_inward_number: string | null;
+  recover_from_supplier: boolean;
   voucher_date: string;
   status: FreightVoucherStatus;
   mode: FreightMode;
@@ -103,6 +133,16 @@ export type FreightVoucher = {
   payer_user?: { full_name: string | null } | null;
   gate_pass_freight_statements?: { statement_number: string } | null;
 };
+
+/** GP-… for a dispatch, GRN-… for a purchase delivery. */
+export const voucherSource = (v: Pick<FreightVoucher, "direction" | "grn_number" | "gate_passes">) =>
+  v.direction === "inward" ? v.grn_number ?? "" : v.gate_passes?.pass_number ?? "";
+/** What was carried: the dispatches, or the PO. */
+export const voucherGoods = (v: Pick<FreightVoucher, "direction" | "dispatch_numbers" | "po_number">) =>
+  v.direction === "inward" ? (v.po_number ? `PO ${v.po_number}` : "") : v.dispatch_numbers ?? "";
+/** Who the goods were for or from. */
+export const voucherParty = (v: Pick<FreightVoucher, "direction" | "customer_names" | "supplier_name">) =>
+  v.direction === "inward" ? v.supplier_name ?? "" : v.customer_names ?? "";
 
 export const VOUCHER_SELECT =
   "*, gate_passes(pass_number), payer_user:app_users!gate_pass_freight_vouchers_paid_by_fkey(full_name)," +
@@ -156,8 +196,49 @@ export type FreightLogRow = {
   statement_number: string | null;
 };
 
+/** The freight recorded on a GRN (one row per GRN). */
+export type GrnFreight = {
+  grn_id: string;
+  payer: GrnFreightPayer;
+  mode: FreightMode | null;
+  transporter_id: string | null;
+  transporter_name: string | null;
+  amount: number | null;
+  booking_ref: string | null;
+  driver_name: string | null;
+  driver_contact: string | null;
+  vehicle_number: string | null;
+  shared_grn_id: string | null;
+  note: string | null;
+  updated_at: string;
+};
+
+/** A row of v_grn_freight_log: a GRN with freight, and its live voucher. */
+export type GrnFreightLogRow = {
+  grn_id: string;
+  grn_number: string;
+  receipt_date: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  po_number: string | null;
+  payer: GrnFreightPayer;
+  mode: FreightMode | null;
+  transporter_id: string | null;
+  transporter_name: string | null;
+  amount: number | null;
+  booking_ref: string | null;
+  vehicle_number: string | null;
+  shared_grn_id: string | null;
+  shared_grn_number: string | null;
+  voucher_id: string | null;
+  voucher_number: string | null;
+  voucher_status: FreightVoucherStatus | null;
+  voucher_date: string | null;
+  paid_date: string | null;
+};
+
 export const FREIGHT_EVENT_LABEL: Record<string, string> = {
-  created: "Made at gate out",
+  created: "Made",
   reissued: "Re-issued",
   corrected: "Corrected",
   paid: "Paid",
@@ -187,6 +268,29 @@ export function useGatePassFreight(gatePassIds: string[]) {
     },
   });
   return data ?? new Map<string, FreightLogRow>();
+}
+
+/** Inward freight log rows keyed by GRN id (the GRN list's Freight column). */
+export function useGrnFreight(grnIds: string[]) {
+  const ids = [...new Set(grnIds.filter(Boolean))].sort();
+  const { data } = useQuery<Map<string, GrnFreightLogRow>>({
+    queryKey: ["grn-freight-by-grn", ids],
+    enabled: ids.length > 0,
+    queryFn: async () => {
+      const map = new Map<string, GrnFreightLogRow>();
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const { data: rows, error } = await gpDb
+          .from("v_grn_freight_log")
+          .select("*")
+          .in("grn_id", ids.slice(i, i + CHUNK));
+        // Missing until the migration is applied, or hidden from this role — show blanks.
+        if (error) return map;
+        (rows as GrnFreightLogRow[]).forEach((r) => map.set(r.grn_id, r));
+      }
+      return map;
+    },
+  });
+  return data ?? new Map<string, GrnFreightLogRow>();
 }
 
 // ---------------------------------------------------------------------------
@@ -242,8 +346,11 @@ const PRINT_CSS = `
     .fv .stamp { display: inline-block; padding: 2px 8px; border: 2px solid; border-radius: 4px; font-weight: 700; font-size: 12px; letter-spacing: .06em; }
   </style>`;
 
+const qrMarkup = (value: string) => renderToStaticMarkup(createElement(QRCodeSVG, { value, size: 80, level: "M" }));
+
 /** Print the freight voucher (A5-style) — the paper the driver / contractor collects cash against. */
-export function printFreightVoucher(v: FreightVoucher, qrSvg: string) {
+export function printFreightVoucher(v: FreightVoucher, qrSvg: string = qrMarkup(v.voucher_number)) {
+  const inward = v.direction === "inward";
   const status = v.status === "paid" ? `<span class="stamp" style="color:#067647;border-color:#067647">PAID ${esc(fmtDate(v.paid_date))}</span>`
     : v.status === "cancelled" ? `<span class="stamp" style="color:#b42318;border-color:#b42318">CANCELLED</span>`
     : `<span class="stamp" style="color:#b54708;border-color:#b54708">UNPAID</span>`;
@@ -252,7 +359,7 @@ export function printFreightVoucher(v: FreightVoucher, qrSvg: string) {
     <div class="head">
       <div>
         <h1>Cansport Global Industries</h1>
-        <div class="bold" style="margin-top:8px; letter-spacing:.08em; font-size:15px">FREIGHT VOUCHER</div>
+        <div class="bold" style="margin-top:8px; letter-spacing:.08em; font-size:15px">FREIGHT VOUCHER${inward ? " — INWARD" : ""}</div>
         <div style="margin-top:6px">${status}</div>
       </div>
       <div style="text-align:center">${qrSvg}<div class="xs muted">${esc(v.voucher_number)}</div></div>
@@ -260,14 +367,21 @@ export function printFreightVoucher(v: FreightVoucher, qrSvg: string) {
     <div class="facts">
       <div><span class="muted">Voucher no.</span> <b style="font-size:15px">${esc(v.voucher_number)}</b></div>
       <div><span class="muted">Date</span> <b>${esc(fmtDate(v.voucher_date))}</b></div>
+      ${inward ? `
+      <div><span class="muted">GRN</span> <b>${esc(v.grn_number ?? "")}</b></div>
+      <div><span class="muted">Vehicle</span> <b>${esc(v.vehicle_number || "—")}</b></div>
+      <div><span class="muted">Purchase order</span> <b>${esc(v.po_number || "—")}</b></div>
+      <div><span class="muted">Gate inward</span> <b>${esc(v.gate_inward_number || "—")}</b></div>
+      <div style="grid-column: span 2"><span class="muted">Supplier</span> <b>${esc(v.supplier_name || "—")}</b></div>
+      ${v.recover_from_supplier ? `<div style="grid-column: span 2"><b>To be recovered from the supplier</b> — deducted from the supplier's bill</div>` : ""}` : `
       <div><span class="muted">Gate pass</span> <b>${esc(v.gate_passes?.pass_number ?? "")}</b></div>
       <div><span class="muted">Vehicle</span> <b>${esc(v.vehicle_number || "—")}</b></div>
       <div style="grid-column: span 2"><span class="muted">Dispatches</span> <b>${esc(v.dispatch_numbers || "—")}</b></div>
-      <div style="grid-column: span 2"><span class="muted">Customer(s)</span> <b>${esc(v.customer_names || "—")}</b></div>
+      <div style="grid-column: span 2"><span class="muted">Customer(s)</span> <b>${esc(v.customer_names || "—")}</b></div>`}
       <div><span class="muted">Mode</span> <b>${esc(modeLabel(v.mode))}</b></div>
       <div><span class="muted">Transporter</span> <b>${esc(v.transporter_name)}</b></div>
       <div><span class="muted">Driver</span> <b>${esc([v.driver_name, v.driver_contact].filter(Boolean).join(" · ") || "—")}</b></div>
-      <div><span class="muted">Ride / booking ref</span> <b>${esc(v.booking_ref || "—")}</b></div>
+      <div><span class="muted">${inward ? "Ride / bilty no." : "Ride / booking ref"}</span> <b>${esc(v.booking_ref || "—")}</b></div>
       ${v.note ? `<div style="grid-column: span 2"><span class="muted">Note</span> ${esc(v.note)}</div>` : ""}
     </div>
     <div class="amount">
@@ -284,9 +398,17 @@ export function printFreightVoucher(v: FreightVoucher, qrSvg: string) {
       <div>Paid by (cashier)<br>&nbsp;<br>&nbsp;</div>
       <div>Checked by<br>&nbsp;<br>&nbsp;</div>
     </div>
-    <p class="xs muted" style="text-align:center; margin-top:12px">Cash is paid against this voucher only. Made automatically when the vehicle left the gate.</p>
+    <p class="xs muted" style="text-align:center; margin-top:12px">Cash is paid against this voucher only. Made automatically ${inward ? "when the goods were received (GRN)" : "when the vehicle left the gate"}.</p>
   </div>`;
   printDocument(v.voucher_number, body);
+}
+
+/** Load a voucher and print it (the GRN pages print straight from the voucher id). */
+export async function printFreightVoucherById(id: string) {
+  const { data, error } = await gpDb.from("gate_pass_freight_vouchers").select(VOUCHER_SELECT).eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Voucher not found");
+  printFreightVoucher(data as FreightVoucher);
 }
 
 /** Print a contractor's payment statement: the trips paid together. */
@@ -297,8 +419,8 @@ export function printFreightStatement(s: FreightStatement, vouchers: FreightVouc
       <td>${n + 1}</td>
       <td>${esc(fmtDate(v.voucher_date))}</td>
       <td>${esc(v.voucher_number)}</td>
-      <td>${esc(v.gate_passes?.pass_number ?? "")}</td>
-      <td>${esc(v.dispatch_numbers || "")}</td>
+      <td>${esc(voucherSource(v))}</td>
+      <td>${esc([voucherGoods(v), v.direction === "inward" ? v.supplier_name : ""].filter(Boolean).join(" · "))}</td>
       <td>${esc(v.vehicle_number || "")}</td>
       <td>${esc(v.driver_name || "")}</td>
       <td class="right">${esc(fmtRs(v.amount))}</td>
@@ -322,7 +444,7 @@ export function printFreightStatement(s: FreightStatement, vouchers: FreightVouc
       ${s.remark ? `<div><span class="muted">Remark</span> ${esc(s.remark)}</div>` : ""}
     </div>
     <table>
-      <thead><tr><th>#</th><th>Date</th><th>Voucher</th><th>Gate pass</th><th>Dispatches</th><th>Vehicle</th><th>Driver</th><th class="right">Amount</th></tr></thead>
+      <thead><tr><th>#</th><th>Date</th><th>Voucher</th><th>Gate pass / GRN</th><th>Dispatches / PO</th><th>Vehicle</th><th>Driver</th><th class="right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="7" class="right"><b>Total</b></td><td class="right"><b>${esc(fmtRs(s.total_amount))}</b></td></tr></tfoot>
     </table>

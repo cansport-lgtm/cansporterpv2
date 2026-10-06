@@ -29,6 +29,7 @@ const DEFAULT_SLOTS: { key: string; label: string; description: string; usedBy: 
   { key: "purchase_account_general_supplies", label: "Purchase Dr — General Supplies", description: "Debited on GRN when PO category = general_supplies", usedBy: ["Phase 2B — Purchase"] },
   { key: "purchase_account_spare_maintenance", label: "Purchase Dr — Spare & Maintenance", description: "Debited on GRN when PO category = spare_maintenance", usedBy: ["Phase 2B — Purchase"] },
   { key: "purchase_returns", label: "Purchase Returns", description: "Credited when goods are returned to supplier (debit-note)", usedBy: ["future — purchase returns"] },
+  { key: "freight_inward", label: "Freight Inward (expense)", description: "Freight we pay on purchase deliveries. Credited on a GRN whose freight is recovered from the supplier (his payable is reduced by it); debited when inward freight vouchers are paid", usedBy: ["GRN freight — recover from supplier", "future — freight voucher posting"] },
   // Phase 3a - Production
   { key: "raw_material_inventory", label: "Raw Material Inventory", description: "Credited when raw materials are consumed in production", usedBy: ["Phase 3a — Production"] },
   { key: "raw_material_consumed", label: "Raw Material Consumed (COGS)", description: "Debited when raw materials are consumed in production", usedBy: ["Phase 3a — Production"] },

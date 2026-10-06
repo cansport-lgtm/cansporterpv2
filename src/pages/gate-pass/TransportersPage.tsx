@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { errorMessage, gpDb, isSuperAdmin } from "@/lib/gatePass";
 import { useTransporters } from "@/components/gate-pass/FreightSection";
 import {
-  KINDS, MODES, STATEMENT_SELECT, VOUCHER_SELECT, fmtRs, kindLabel, modeLabel, printFreightStatement,
+  ALL_MODES, KINDS, STATEMENT_SELECT, VOUCHER_SELECT, fmtRs, kindLabel, modeLabel, printFreightStatement, voucherGoods,
   voucherStatusMeta, type FreightMode, type FreightStatement, type FreightVoucher, type Transporter, type TransporterKind,
 } from "@/lib/gatePassFreight";
 
@@ -208,7 +208,7 @@ export default function TransportersPage() {
                     <div className="overflow-x-auto -mx-4">
                       <Table className="min-w-[640px]">
                         <TableHeader>
-                          <TableRow><TableHead>Date</TableHead><TableHead>Voucher</TableHead><TableHead>Gate pass</TableHead><TableHead>Dispatches</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead></TableRow>
+                          <TableRow><TableHead>Date</TableHead><TableHead>Voucher</TableHead><TableHead>Gate pass / GRN</TableHead><TableHead>Dispatches / PO</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead></TableRow>
                         </TableHeader>
                         <TableBody>
                           {vouchers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-4 text-muted-foreground">No trips yet.</TableCell></TableRow>}
@@ -216,8 +216,10 @@ export default function TransportersPage() {
                             <TableRow key={v.id}>
                               <TableCell className="text-sm whitespace-nowrap">{fmtDate(v.voucher_date)}</TableCell>
                               <TableCell className="font-mono text-sm">{v.voucher_number}</TableCell>
-                              <TableCell><Link to={`/gate-pass/passes/${v.gate_pass_id}`} className="font-mono text-sm text-primary hover:underline">{v.gate_passes?.pass_number}</Link></TableCell>
-                              <TableCell className="font-mono text-xs">{v.dispatch_numbers}</TableCell>
+                              <TableCell>{v.direction === "inward"
+                                ? <span className="font-mono text-sm">{v.grn_number} <span className="text-xs text-muted-foreground">(inward)</span></span>
+                                : <Link to={`/gate-pass/passes/${v.gate_pass_id}`} className="font-mono text-sm text-primary hover:underline">{v.gate_passes?.pass_number}</Link>}</TableCell>
+                              <TableCell className="font-mono text-xs">{voucherGoods(v)}{v.direction === "inward" && v.supplier_name ? <span className="font-sans text-muted-foreground"> · {v.supplier_name}</span> : null}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{fmtRs(v.amount)}</TableCell>
                               <TableCell>
                                 <Badge variant={voucherStatusMeta(v.status).variant}>{voucherStatusMeta(v.status).label}</Badge>
@@ -286,7 +288,7 @@ export default function TransportersPage() {
               <Label htmlFor="tr-mode">Usual mode</Label>
               <Select value={form.default_mode} onValueChange={(v) => setForm({ ...form, default_mode: v as FreightMode })}>
                 <SelectTrigger id="tr-mode"><SelectValue /></SelectTrigger>
-                <SelectContent>{MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{ALL_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label htmlFor="tr-phone">Phone</Label><Input id="tr-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>

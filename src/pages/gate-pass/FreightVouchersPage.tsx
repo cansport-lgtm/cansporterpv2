@@ -31,12 +31,13 @@ import { cn } from "@/lib/utils";
 import { PhotoInput } from "@/components/gate-pass/PhotoInput";
 import { errorMessage, gpDb, photoUrl, todayPk } from "@/lib/gatePass";
 import {
-  FREIGHT_EVENT_LABEL, MODES, STATEMENT_SELECT, VOUCHER_SELECT, fmtRs, modeLabel, printFreightStatement,
-  printFreightVoucher, voucherStatusMeta,
-  type FreightLogRow, type FreightStatement, type FreightVoucher,
+  ALL_MODES, FREIGHT_EVENT_LABEL, STATEMENT_SELECT, VOUCHER_SELECT, fmtRs, modeLabel, printFreightStatement,
+  printFreightVoucher, voucherGoods, voucherParty, voucherSource, voucherStatusMeta,
+  type FreightLogRow, type FreightStatement, type FreightVoucher, type GrnFreightLogRow,
 } from "@/lib/gatePassFreight";
 
 type Tab = "unpaid" | "paid" | "all";
+type Direction = "all" | "outward" | "inward";
 type EventRow = { id: string; event: string; message: string | null; created_at: string; actor: { full_name: string | null } | null };
 
 const fmtDate = (s: string | null | undefined) => (s ? format(new Date(s), "dd MMM yyyy") : "—");
@@ -52,6 +53,9 @@ export default function FreightVouchersPage() {
   const inGatePass = location.pathname.startsWith("/gate-pass");
   const canPay = roles.some((r) => ["super_admin", "gate_pass_manager", "pettycash_handler", "accounting_poster", "accounting_officer", "accounting_manager"].includes(r.role));
   const canManage = hasModulePermission("gate_pass", "approve");
+  // Inward vouchers can also be cancelled by a purchase manager.
+  const canCancel = (v: FreightVoucher) =>
+    canManage || (v.direction === "inward" && roles.some((r) => r.role === "purchase_manager"));
   const today = todayPk();
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
@@ -62,6 +66,7 @@ export default function FreightVouchersPage() {
   const [search, setSearch] = useState("");
   const [transporterFilter, setTransporterFilter] = useState("all");
   const [modeFilter, setModeFilter] = useState("all");
+  const [direction, setDirection] = useState<Direction>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [payOne, setPayOne] = useState<FreightVoucher | null>(null);
   const [paySelectedOpen, setPaySelectedOpen] = useState(false);
@@ -100,6 +105,16 @@ export default function FreightVouchersPage() {
       const { data, error } = await gpDb.from("v_gate_pass_freight_log").select("*")
         .gte("out_date", monthStart).lte("out_date", monthEnd);
       if (error) throw error;
+      return data ?? [];
+    },
+  });
+  // Inward (GRN) freight this month; missing until 20261014120000 is applied.
+  const { data: monthInward = [] } = useQuery<GrnFreightLogRow[]>({
+    queryKey: ["gate-pass-freight-log", "inward-month", monthStart],
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("v_grn_freight_log").select("*")
+        .gte("receipt_date", monthStart).lte("receipt_date", monthEnd);
+      if (error) return [];
       return data ?? [];
     },
   });
@@ -192,9 +207,11 @@ export default function FreightVouchersPage() {
     return base.filter((v) =>
       (transporterFilter === "all" || v.transporter_name === transporterFilter) &&
       (modeFilter === "all" || v.mode === modeFilter) &&
-      (!q || [v.voucher_number, v.gate_passes?.pass_number, v.dispatch_numbers, v.vehicle_number, v.driver_name, v.transporter_name, v.customer_names, v.booking_ref]
+      (direction === "all" || (v.direction ?? "outward") === direction) &&
+      (!q || [v.voucher_number, v.gate_passes?.pass_number, v.dispatch_numbers, v.vehicle_number, v.driver_name, v.transporter_name,
+        v.customer_names, v.booking_ref, v.grn_number, v.po_number, v.supplier_name, v.gate_inward_number]
         .some((x) => (x ?? "").toLowerCase().includes(q))));
-  }, [tab, unpaid, settled, search, transporterFilter, modeFilter]);
+  }, [tab, unpaid, settled, search, transporterFilter, modeFilter, direction]);
 
   const transporterNames = useMemo(() => [...new Set([...unpaid, ...settled].map((v) => v.transporter_name))].sort(), [unpaid, settled]);
   const selectedRows = unpaid.filter((v) => selected.includes(v.id));
@@ -205,7 +222,15 @@ export default function FreightVouchersPage() {
     unpaid.forEach((v) => m.set(v.transporter_name, (m.get(v.transporter_name) ?? 0) + Number(v.amount)));
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [unpaid]);
-  const monthCompany = monthRows.filter((r) => r.payer === "company" && r.voucher_status && r.voucher_status !== "cancelled");
+  const monthOutward = monthRows.filter((r) => r.payer === "company" && r.voucher_status && r.voucher_status !== "cancelled");
+  const monthIn = monthInward.filter((r) => (r.payer === "company" || r.payer === "company_recover") && r.voucher_status && r.voucher_status !== "cancelled");
+  const monthCompany = useMemo<{ mode: string | null; amount: number | null; transporter_name: string | null }[]>(
+    () => [
+      ...monthRows.filter((r) => r.payer === "company" && r.voucher_status && r.voucher_status !== "cancelled"),
+      ...monthInward.filter((r) => (r.payer === "company" || r.payer === "company_recover") && r.voucher_status && r.voucher_status !== "cancelled"),
+    ],
+    [monthRows, monthInward],
+  );
   const monthByMode = useMemo(() => {
     const m = new Map<string, { n: number; rs: number }>();
     monthCompany.forEach((r) => { const c = m.get(r.mode ?? "") ?? { n: 0, rs: 0 }; c.n++; c.rs += Number(r.amount); m.set(r.mode ?? "", c); });
@@ -222,9 +247,10 @@ export default function FreightVouchersPage() {
     { label: "Unpaid now", value: `${unpaid.length} · ${fmtRs(sum(unpaid))}`, tone: unpaid.length ? "text-amber-700" : "" },
     { label: `Unpaid over ${reminderDays} days`, value: `${overdue.length} · ${fmtRs(sum(overdue))}`, tone: overdue.length ? "text-red-700" : "" },
     { label: "Paid today", value: fmtRs(paidToday.reduce((s, r) => s + Number(r.paid_amount ?? r.amount), 0)), tone: "text-emerald-700" },
-    { label: "This month (company pays)", value: `${monthCompany.length} · ${fmtRs(sum(monthCompany.map((r) => ({ amount: Number(r.amount) }))))}`, tone: "" },
+    { label: "This month — outward", value: `${monthOutward.length} · ${fmtRs(sum(monthOutward.map((r) => ({ amount: Number(r.amount) }))))}`, tone: "" },
+    { label: "This month — inward (GRN)", value: `${monthIn.length} · ${fmtRs(sum(monthIn.map((r) => ({ amount: Number(r.amount) }))))}`, tone: "" },
     { label: "Customer-paid loads this month", value: customerPaid, tone: "text-muted-foreground" },
-    { label: "Average per load", value: monthCompany.length ? fmtRs(sum(monthCompany.map((r) => ({ amount: Number(r.amount) }))) / monthCompany.length) : "—", tone: "" },
+    { label: "Average per trip", value: monthCompany.length ? fmtRs(sum(monthCompany.map((r) => ({ amount: Number(r.amount) }))) / monthCompany.length) : "—", tone: "" },
   ];
 
   const print = (v: FreightVoucher) => {
@@ -235,8 +261,9 @@ export default function FreightVouchersPage() {
 
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(rows.map((v) => ({
-      Voucher: v.voucher_number, Date: v.voucher_date, "Gate pass": v.gate_passes?.pass_number ?? "", Dispatches: v.dispatch_numbers ?? "",
-      Customers: v.customer_names ?? "", Vehicle: v.vehicle_number ?? "", Mode: modeLabel(v.mode), Transporter: v.transporter_name,
+      Voucher: v.voucher_number, Date: v.voucher_date, Direction: v.direction === "inward" ? "Inward" : "Outward",
+      "Gate pass / GRN": voucherSource(v), "Dispatches / PO": voucherGoods(v),
+      "Customer / supplier": voucherParty(v), "Recover from supplier": v.recover_from_supplier ? "Yes" : "", Vehicle: v.vehicle_number ?? "", Mode: modeLabel(v.mode), Transporter: v.transporter_name,
       Driver: [v.driver_name, v.driver_contact].filter(Boolean).join(" "), "Ride ref": v.booking_ref ?? "",
       Amount: Number(v.amount), Status: voucherStatusMeta(v.status).label, "Paid date": v.paid_date ?? "",
       "Paid amount": v.paid_amount ?? "", "Paid by": v.payer_user?.full_name ?? "", Statement: v.gate_pass_freight_statements?.statement_number ?? "",
@@ -248,21 +275,23 @@ export default function FreightVouchersPage() {
   };
 
   const passLink = (v: FreightVoucher) =>
-    inGatePass
-      ? <Link to={`/gate-pass/passes/${v.gate_pass_id}`} className="font-mono text-primary hover:underline">{v.gate_passes?.pass_number}</Link>
-      : <span className="font-mono">{v.gate_passes?.pass_number}</span>;
+    v.direction === "inward"
+      ? <div><span className="font-mono">{v.grn_number}</span> <Badge variant="outline" className="text-[10px] px-1.5 py-0">Inward</Badge></div>
+      : inGatePass
+        ? <Link to={`/gate-pass/passes/${v.gate_pass_id}`} className="font-mono text-primary hover:underline">{v.gate_passes?.pass_number}</Link>
+        : <span className="font-mono">{v.gate_passes?.pass_number}</span>;
 
   return (
     <ERPLayout>
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
-        <PageHeader title="Freight Vouchers" description="Cash owed to drivers and contractors for dispatches that left the gate. Reconciled by hand with the cash book." icon={Wallet}>
+        <PageHeader title="Freight Vouchers" description="Cash owed to drivers and transporters for dispatches that left the gate and purchase deliveries received on a GRN. Reconciled by hand with the cash book." icon={Wallet}>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={exportExcel} disabled={rows.length === 0}><Download className="h-4 w-4 mr-1" /> Excel</Button>
             {inGatePass && canManage && <Button variant="outline" asChild><Link to="/gate-pass/transporters">Transporters</Link></Button>}
           </div>
         </PageHeader>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
           {kpis.map((k) => (
             <Card key={k.label}><CardContent className="p-4">
               <div className="text-xs text-muted-foreground">{k.label}</div>
@@ -330,19 +359,30 @@ export default function FreightVouchersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="min-w-[140px]">
+                <Label className="text-xs">Direction</Label>
+                <Select value={direction} onValueChange={(v) => setDirection(v as Direction)}>
+                  <SelectTrigger aria-label="Direction"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Outward and inward</SelectItem>
+                    <SelectItem value="outward">Outward (dispatch)</SelectItem>
+                    <SelectItem value="inward">Inward (GRN)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="min-w-[150px]">
                 <Label className="text-xs">Mode</Label>
                 <Select value={modeFilter} onValueChange={setModeFilter}>
                   <SelectTrigger aria-label="Mode"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All modes</SelectItem>
-                    {MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    {ALL_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <Label htmlFor="fv-search" className="text-xs">Search</Label>
-                <Input id="fv-search" placeholder="FV, GP, DC, vehicle, driver, ride ref…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input id="fv-search" placeholder="FV, GP, DC, GRN, PO, supplier, vehicle, driver, ride ref…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               {tab === "unpaid" && canPay && selected.length > 0 && (
                 <Button disabled={selectedTransporters.size !== 1} onClick={() => setPaySelectedOpen(true)}>
@@ -366,8 +406,8 @@ export default function FreightVouchersPage() {
                     )}
                     <TableHead>Voucher</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Gate pass</TableHead>
-                    <TableHead>Dispatches · customer</TableHead>
+                    <TableHead>Gate pass / GRN</TableHead>
+                    <TableHead>Dispatches / PO · party</TableHead>
                     <TableHead>Vehicle · driver</TableHead>
                     <TableHead>Mode</TableHead>
                     <TableHead>Transporter</TableHead>
@@ -398,8 +438,8 @@ export default function FreightVouchersPage() {
                         <TableCell className={cn("text-sm whitespace-nowrap", old && "text-red-700 font-medium")}>{fmtDate(v.voucher_date)}</TableCell>
                         <TableCell>{passLink(v)}</TableCell>
                         <TableCell className="text-sm max-w-[260px]">
-                          <div className="font-mono text-xs">{v.dispatch_numbers}</div>
-                          <div className="text-muted-foreground truncate">{v.customer_names}</div>
+                          <div className="font-mono text-xs">{voucherGoods(v)}</div>
+                          <div className="text-muted-foreground truncate">{voucherParty(v)}{v.recover_from_supplier ? " · recover from supplier" : ""}</div>
                         </TableCell>
                         <TableCell className="text-sm">
                           <div>{v.vehicle_number ?? "—"}</div>
@@ -440,7 +480,7 @@ export default function FreightVouchersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark {payOne?.voucher_number} paid</DialogTitle>
-            <DialogDescription>{payOne && `${fmtRs(payOne.amount)} to ${payOne.transporter_name} for ${payOne.gate_passes?.pass_number}. The signed voucher is the cash proof.`}</DialogDescription>
+            <DialogDescription>{payOne && `${fmtRs(payOne.amount)} to ${payOne.transporter_name} for ${voucherSource(payOne)}. The signed voucher is the cash proof.`}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label htmlFor="pay-date">Paid on</Label><Input id="pay-date" type="date" max={today} value={pay.date} onChange={(e) => setPay({ ...pay, date: e.target.value })} /></div>
@@ -467,7 +507,7 @@ export default function FreightVouchersPage() {
             <DialogDescription>Total {fmtRs(sum(selectedRows))}. One payment statement is made listing every trip; each voucher is marked paid on it.</DialogDescription>
           </DialogHeader>
           <ul className="max-h-40 overflow-y-auto text-sm space-y-0.5 rounded-md border p-2">
-            {selectedRows.map((v) => <li key={v.id} className="flex justify-between"><span className="font-mono">{v.voucher_number} · {fmtDate(v.voucher_date)} · {v.gate_passes?.pass_number}</span><span className="tabular-nums">{fmtRs(v.amount)}</span></li>)}
+            {selectedRows.map((v) => <li key={v.id} className="flex justify-between"><span className="font-mono">{v.voucher_number} · {fmtDate(v.voucher_date)} · {voucherSource(v)}</span><span className="tabular-nums">{fmtRs(v.amount)}</span></li>)}
           </ul>
           <div className="grid grid-cols-2 gap-3">
             <div><Label htmlFor="ps-date">Paid on</Label><Input id="ps-date" type="date" max={today} value={pay.date} onChange={(e) => setPay({ ...pay, date: e.target.value })} /></div>
@@ -490,7 +530,7 @@ export default function FreightVouchersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel {cancelTarget?.voucher_number}</DialogTitle>
-            <DialogDescription>{cancelTarget?.status === "paid" ? "This voucher was already paid. Cancelling keeps the payment in the log and marks the voucher cancelled." : "The pass keeps its freight; a manager can make a new voucher from the pass (Change freight)."}</DialogDescription>
+            <DialogDescription>{cancelTarget?.status === "paid" ? "This voucher was already paid. Cancelling keeps the payment in the log and marks the voucher cancelled." : cancelTarget?.direction === "inward" ? "The GRN keeps its freight; a new voucher can be made from the GRN (Freight → Change)." : "The pass keeps its freight; a manager can make a new voucher from the pass (Change freight)."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1"><Label htmlFor="fv-cancel-reason">Reason *</Label><Textarea id="fv-cancel-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
           <DialogFooter>
@@ -509,16 +549,20 @@ export default function FreightVouchersPage() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">{detail.voucher_number} <Badge variant={voucherStatusMeta(detail.status).variant}>{voucherStatusMeta(detail.status).label}</Badge></DialogTitle>
-                <DialogDescription>{fmtDate(detail.voucher_date)} · {detail.gate_passes?.pass_number} · {detail.dispatch_numbers}</DialogDescription>
+                <DialogDescription>{fmtDate(detail.voucher_date)} · {detail.direction === "inward" ? "Inward" : "Outward"} · {voucherSource(detail)} · {voucherGoods(detail)}</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
                 {[
-                  ["Customer(s)", detail.customer_names ?? "—"],
+                  ...(detail.direction === "inward" ? [
+                    ["Supplier", detail.supplier_name ?? "—"],
+                    ["Gate inward", detail.gate_inward_number ?? "—"],
+                    ...(detail.recover_from_supplier ? [["Recover", "Deducted from the supplier's payable"]] : []),
+                  ] : [["Customer(s)", detail.customer_names ?? "—"]]),
                   ["Vehicle", detail.vehicle_number ?? "—"],
                   ["Driver", [detail.driver_name, detail.driver_contact].filter(Boolean).join(" · ") || "—"],
                   ["Mode", modeLabel(detail.mode)],
                   ["Transporter", detail.transporter_name],
-                  ["Ride ref", detail.booking_ref ?? "—"],
+                  [detail.direction === "inward" ? "Ride / bilty no." : "Ride ref", detail.booking_ref ?? "—"],
                   ["Amount", fmtRs(detail.amount)],
                   ...(detail.note ? [["Note", detail.note]] : []),
                   ...(detail.status === "paid" ? [
@@ -548,7 +592,7 @@ export default function FreightVouchersPage() {
                 </ol>
               </div>
               <DialogFooter className="flex-wrap gap-2">
-                {canManage && detail.status !== "cancelled" && (
+                {canCancel(detail) && detail.status !== "cancelled" && (
                   <Button variant="ghost" className="text-destructive mr-auto" onClick={() => { setCancelTarget(detail); setDetail(null); }}>Cancel voucher</Button>
                 )}
                 <Button variant="outline" onClick={() => print(detail)}><Printer className="h-4 w-4 mr-1" /> Print</Button>
