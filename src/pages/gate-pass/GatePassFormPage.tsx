@@ -98,6 +98,10 @@ export default function GatePassFormPage() {
 
   const [passType, setPassType] = useState<GatePassType>("sales");
   const [passDate, setPassDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // The prefilled date comes from this device's clock and goes stale if the form stays
+  // open past midnight. Only send a date someone chose; otherwise the server stamps
+  // today's Pakistan date at save.
+  const [dateChosen, setDateChosen] = useState(false);
   const [vehicle, setVehicle] = useState("");
   const [driver, setDriver] = useState("");
   const [driverContact, setDriverContact] = useState("");
@@ -141,6 +145,7 @@ export default function GatePassFormPage() {
     if (!editing) return;
     setPassType(editing.pass_type);
     setPassDate(editing.pass_date);
+    setDateChosen(true);
     setVehicle(editing.vehicle_number ?? "");
     setDriver(editing.driver_name ?? "");
     setDriverContact(editing.driver_contact ?? "");
@@ -337,7 +342,7 @@ export default function GatePassFormPage() {
     mutationFn: async (submit: boolean) => {
       const data: Record<string, unknown> = {
         pass_type: passType,
-        pass_date: passDate,
+        ...(dateChosen ? { pass_date: passDate } : {}),
         vehicle_number: vehicle,
         driver_name: driver,
         driver_contact: driverContact,
@@ -459,7 +464,7 @@ export default function GatePassFormPage() {
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div>
                   <Label htmlFor="gp-date">Date</Label>
-                  <Input id="gp-date" type="date" value={passDate} onChange={(e) => setPassDate(e.target.value)} />
+                  <Input id="gp-date" type="date" value={passDate} onChange={(e) => { setPassDate(e.target.value); setDateChosen(true); }} />
                 </div>
                 <div>
                   <Label htmlFor="gp-vehicle">Vehicle no.{passType === "sales" ? " *" : ""}</Label>
