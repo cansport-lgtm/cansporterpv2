@@ -140,6 +140,18 @@ END;
 $$;
 
 -- 4. Retire the competing status trigger from 20260403035012 --------------------
+--    The function is emptied first, so the trigger is harmless even where the
+--    DROP statements below are held back (the project's admin tool holds every
+--    removal statement for an interactive confirmation).
+
+CREATE OR REPLACE FUNCTION public.update_sales_order_status_on_dispatch()
+RETURNS trigger LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Superseded by trg_sales_order_items_recalc_status (20261012120000).
+  RETURN NULL;
+END;
+$$;
 
 DROP TRIGGER IF EXISTS trg_update_order_status_on_dispatch ON public.sales_dispatch_items;
 DROP FUNCTION IF EXISTS public.update_sales_order_status_on_dispatch();
