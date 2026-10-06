@@ -475,6 +475,7 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/expenses/dashboard" },
       { title: "Operating Expenses Analysis", href: "/expenses/operating-analysis" },
       { title: "Petty Cash", href: "/expenses/petty-cash" },
+      { title: "Trip Fuel Vouchers", href: "/expenses/trip-fuel" },
       { title: "General Expenses", href: "/expenses/general" },
       { title: "Utility Bills", href: "/expenses/utilities" },
       { title: "Budgets", href: "/expenses/budgets" },
