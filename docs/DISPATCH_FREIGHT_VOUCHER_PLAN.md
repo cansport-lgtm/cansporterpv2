@@ -1,16 +1,15 @@
-# Dispatch freight → cash voucher at gate out — plan (draft, 6 Oct 2026)
+# Dispatch freight voucher at gate out — plan (revised 6 Oct 2026)
+
+Decisions taken so far: the voucher is made **at gate out**; the cashier pays
+**against it later** (the transporter / driver collects cash with the voucher);
+the **gate pass maker** enters the freight; **no amount on the gate pass
+print**; **no ledger posting yet** — a freight log and dashboard, reconciled
+by hand with the cash book, and ledger integration later.
 
 Every dispatch leaves on a hired vehicle: a contractor van, an online rickshaw
-(Bykea / InDrive / Careem) or a bike. The driver is paid in cash at the gate,
-and today that payment is written by hand afterwards. Sometimes the customer's
-own van collects the stock and nothing is paid.
-
-Proposal: the office writes the freight on the **sales gate pass** while making
-it (who pays, how it goes, which transporter, how much). When the guard scans
-the pass and the vehicle goes **Out**, the system posts the **cash payment
-voucher (CPV)** by itself, prints it for the driver's signature, and tells the
-cashier. If the customer paid or brought their own vehicle, nothing is posted
-and the pass just records that.
+(Bykea / InDrive / Careem) or a bike. The driver is paid in cash, and today
+that payment is written by hand afterwards. Sometimes the customer's own van
+collects the stock and nothing is paid.
 
 ```
 Sales order → Dispatch DC (office) → Gate pass GP (one vehicle, 1..n DCs)
@@ -20,10 +19,15 @@ Sales order → Dispatch DC (office) → Gate pass GP (one vehicle, 1..n DCs)
                                           │
                      ┌────────────────────┴────────────────────┐
              payer = company                            payer = customer
-   CPV posted automatically                              no voucher
-   Dr Freight Outward  /  Cr Cash in Hand                pass shows "Customer paid"
-   party = transporter · ref = GP number                 (or "Customer's own vehicle")
-   cashier notified · voucher printed for signature
+   Freight voucher FV-000123 created (UNPAID)            no voucher
+   cashier notified · slip printed                       pass shows "Customer paid"
+                     │                                   (or "Customer's own vehicle")
+   driver / transporter brings the slip
+   cashier pays, marks PAID (date, who, signed slip photo)
+                     │
+   Freight log + dashboard  ──(manual reconciliation with cash book)
+                     │
+   later: PAID → cash payment voucher in the ledger (phase 2)
 ```
 
 Nothing changes for the guard: the guard's screen, the count and the Out / Held
@@ -54,175 +58,201 @@ right under Vehicle / Driver:
 | Field | Values | Rule |
 |---|---|---|
 | Who pays | **Company pays** / **Customer paid** / **Customer's own vehicle** | Required to submit a sales pass |
-| Mode | Contractor van / Online rickshaw / Bike / Own vehicle | Required when company pays |
+| Mode | Contractor van / Online rickshaw / Bike | Required when company pays |
 | Transporter | Pick from the transporter list, or type a new name (and phone) | Required when company pays; a new name is saved to the list |
+| Driver name / phone | the pass already has these | Printed on the voucher as the person who collects |
 | Amount (Rs) | > 0 | Required when company pays |
-| Online booking ref | free text | Optional (the Bykea / InDrive ride number) |
+| Ride / booking ref | free text | For online rides: the Bykea / InDrive ride number |
 | Note | free text | Optional |
 
 - Prefilled: transporter from the DC's `transporter_name`; amount from the
   transporter's **default rate** (see §4) if one is set.
 - Editable while the pass is draft or approved (not yet out). After out, only a
-  **correction** (see §6).
+  **correction** on the voucher (see §6).
 - Shown on the pass detail page and on the printout as a single line
   ("Freight: company pays · Contractor van · Shahid Transport" or "Freight:
-  customer paid"). The **amount is not printed** on the gate pass; it is on the
-  cash voucher.
-- Old passes (made before this goes live) are "Freight not recorded" and are
-  never posted.
+  customer paid"). **No amount on the gate pass print**; it is on the voucher.
+- Old passes (made before this goes live) are "Freight not recorded" and never
+  get a voucher.
 
-## 3. What happens at Out
+## 3. The freight voucher
 
-Inside the existing `gate_pass_mark_out` (so it fires on every path that
-already sets Out: the guard's matching scan, a manager releasing a held pass,
-and a backfilled paper pass), for a **sales** pass with **company pays**:
+Its own document in the gate pass module, **not** an accounting voucher
+(phase 2 links it to the ledger):
 
-1. Post one **CPV** dated the gate-out day (factory time; the paper date for a
-   backfill):
+| | |
+|---|---|
+| Number | `FV-000001`, `FV-000002`, … one series, given only on a successful save |
+| Made | Automatically inside `gate_pass_mark_out` for a sales pass with **company pays** — so on every Out path: the guard's matching scan, a manager releasing a held pass, a backfilled paper pass (dated on the paper) |
+| Carries | Voucher date (gate-out day, factory time), gate pass no., DC numbers and customers, vehicle no., mode, transporter, driver name / phone, ride ref, amount, note |
+| Status | **unpaid** → **paid** (cashier) · **cancelled** (manager, reason) |
+| Paid with | Paid date, paid by, cash paid (normally the voucher amount), signed-slip photo (optional), remark |
+| One per pass | Unique on gate pass, so a re-run never duplicates |
 
-   | | Account | Dr | Cr | Party |
-   |---|---|---|---|---|
-   | 1 | **Freight Outward** (new default-account slot `freight_outward`) | amount | | transporter |
-   | 2 | **Cash in Hand** (existing slot `default_cash`) | | amount | |
+Flow:
 
-   Narration: `Freight GP-000123 · DC-00456, DC-00457 · KHI-1234 · Online rickshaw · Shahid Transport`.
-   `source_module = 'gate_pass_freight'`, `source_reference_id = gate pass id`.
-   Posted once only (unique on source + pass), so a re-run never duplicates.
-2. Save the voucher id and number on the pass, log `freight_posted` in the
-   pass history.
-3. Notify the cashier roles (`accounting_poster`, `accounting_officer`,
-   `accounting_manager`) and the pass maker: "Cash voucher CPV-202610-0031 ·
-   Rs 1,500 to Shahid Transport for GP-000123".
-4. If the Freight Outward or Cash account is not mapped, the pass **still goes
-   Out** (the vehicle must not be stopped by accounting setup); the pass is
-   flagged "freight voucher not posted" and managers are notified. A manager
-   posts it later from the pass page once the accounts are mapped.
+```
+OUT ──► unpaid ──► paid                (cashier: Mark paid)
+            └────► cancelled           (manager, reason: e.g. never collected, re-issued)
+corrections while unpaid (manager, reason): amount, transporter, driver — kept in the event log
+paid: frozen; only cancel + re-issue by a manager
+```
 
-With **customer paid** or **customer's own vehicle**: nothing is posted; the
-pass history gets `freight_customer`.
+- **Notification at Out** to the cashier role(s) and the pass maker: "Freight
+  voucher FV-000123 · Rs 1,500 · Shahid Transport · for GP-000123 — unpaid".
+- **Reminder** every morning (with the existing 09:05 overdue job) for
+  vouchers unpaid for more than the setting (default 3 days).
+- **Printout** (A5 / thermal-friendly, same HTML print path as the pass):
+  voucher no. with QR, date, pass no., DCs, vehicle, mode, transporter, driver,
+  amount in figures and words, lines for *Received by (driver) · CNIC / phone*,
+  *Paid by (cashier)*, *Checked by*. The cashier can print it again at payment.
+- Held, cancelled or rejected passes never get a voucher. A held pass that is
+  released gets it at release, like everything else that happens at Out.
 
-Held, cancelled or rejected passes never post. A pass that is held and later
-released posts at release, like everything else that happens at Out.
-
-The cashier pays the driver from the gate-out day's cash. The voucher print
-(existing voucher view) gets a **Received by (driver) signature** line and the
-pass number, so the signed copy is the cash proof.
+**Customer paid / customer's own vehicle**: nothing is created; the pass
+history gets `freight_customer` and the log shows the pass with payer =
+customer (so the dashboard can count how many loads were customer-paid).
 
 ## 4. Transporter list
 
 A small master, **Gate Pass → Transporters** (managers), because the same
-contractor and the same rickshaw apps come back every day:
+contractor and the same apps come back every day:
 
 | Field | Note |
 |---|---|
 | Name, phone | |
+| Kind | **Contractor** (van / bike contractor, a known person or firm) · **App** (Bykea, InDrive, Careem …) |
 | Default mode | contractor van / online rickshaw / bike |
 | Default rate (Rs) | optional; prefills the amount |
-| Settlement | **Cash at gate** (phase 1) · **Monthly bill** (phase 2) |
-| Ledger party | created automatically in `accounting_parties` (type `supplier`) the first time; used on the voucher |
 | Active | |
+| (reserved) Ledger party | filled in phase 2 when the voucher posts to the ledger |
 
-Typing a new name on the pass creates the transporter with the ledger party in
-the same save. The guard never reads this table (rates are money).
+Typing a new name on the pass creates the transporter in the same save. The
+guard never reads this table (rates are money).
 
-## 5. Reports
+### Contractor vs app — how the payee is recorded
 
-- **Freight Register** page (`/gate-pass/freight`, gate pass managers,
-  officers read-only, accounting roles): one row per out sales pass — date,
-  GP, DCs, customers, vehicle, mode, transporter, payer, amount, voucher no.
-  (link), not-posted flag. Filters by date, transporter, payer, mode; totals
-  per transporter and per mode; Excel export.
-- **Gate Pass dashboard**: today's freight cash (count and Rs), passes with a
-  voucher not yet posted.
-- **Dispatch list**: a **Freight** column (payer / amount) next to the existing
-  Gate pass and Gate out columns, read from the pass of that dispatch.
-- Accounting pages need nothing new: the CPV already appears in Cash Book, Day
-  Book, Vouchers, the party ledger of the transporter and Expenses analysis
-  under Freight Outward. The voucher view shows "Source: Gate pass GP-000123"
-  with a link to the pass.
+- **Contractor van / bike contractor**: one transporter row per contractor
+  (the firm or owner, e.g. *Shahid Transport*). The driver of the day is typed
+  on the pass (name / phone, fields that already exist). The voucher's payee is
+  the contractor; the driver is the one who signs and collects. Monthly totals
+  per contractor come straight from the log.
+- **Online rickshaw / bike (app)**: one transporter row **per app**, not per
+  driver. The driver is a different person every ride and never comes back, so
+  rows per driver would only pile up. The pass records the **ride number**
+  (from the app) and the driver's name / phone from the app screen; the
+  voucher prints them. Totals per app per month come from the log, and a ride
+  number gives the audit trail back to the app's own receipt.
+- **A regular bike rider paid per trip** (your own known person, not through
+  an app): a contractor row with mode = bike.
 
-## 6. Corrections and cancellation
+## 5. Pages and dashboard
 
-- **Wrong amount or transporter after Out** (manager only, with a reason):
-  the original CPV is reversed with the existing reversal (status `reversed` +
-  mirror voucher) and a new CPV is posted; both stay in the ledger and in the
-  pass history. Blocked if the period is closed (existing trigger).
-- **Changed to customer paid after Out**: reversal only, no new voucher.
-- A pass is never cancelled after Out today; that stays so.
+- **Freight Vouchers** page (`/gate-pass/freight`): tabs **Unpaid** (default,
+  oldest first, with a *Mark paid* button and *Print*), **Paid**, **All**.
+  Filters: date, transporter, mode, payer, status; search by FV / GP / DC /
+  vehicle; Excel export. Each row: FV no., date, GP, DCs, customers, vehicle,
+  mode, transporter, driver, amount, status, paid date / by.
+- **Mark paid** dialog: paid date (default today), cash paid (default the
+  voucher amount; a different figure needs a remark), signed-slip photo
+  (optional), remark.
+- **Freight dashboard** (cards on the Gate Pass dashboard, and the top of the
+  Freight Vouchers page): unpaid now (count, Rs), unpaid older than the
+  reminder days, paid today (Rs), this month by transporter and by mode,
+  customer-paid loads this month, average freight per load.
+- **Manual reconciliation**: the Paid tab, filtered by date, exported to Excel,
+  is what accounts tick against the cash book. The log never changes after
+  Paid, except by a logged cancel + re-issue.
+- **Gate pass detail page**: Freight card with the voucher no., status and
+  *Open voucher*; a *Freight not recorded* note on old passes.
+- **Dispatch list / dispatch dashboard**: a **Freight** column (payer, or
+  `FV-… unpaid / paid`) next to the Gate pass and Gate out columns.
+
+## 6. Corrections
+
+- **Unpaid**: a manager can change amount, transporter, driver, mode or ride
+  ref with a reason; before / after kept in the voucher's event log; the
+  printout shows "corrected".
+- **Paid**: frozen. A manager cancels with a reason and, if needed, issues a
+  replacement voucher from the pass (*Re-issue*). Both stay in the log.
+- Changing a pass from company-pays to customer-paid after Out cancels its
+  voucher (reason required).
 - Nothing about the dispatch's Delivered status, invoice or COGS changes.
 
 ## 7. Roles
 
-No new roles. Existing ones decide:
-
 | Who | Can |
 |---|---|
-| `gate_pass_officer`, `gate_pass_manager` | Enter and edit freight on a pass before Out |
-| `gate_pass_manager`, `super_admin` | Transporter list, corrections after Out, post a voucher that failed |
-| `accounting_poster` / `officer` / `manager` | Get the notification, see the register, print the voucher |
-| `gate_security` | Nothing new; cannot read freight or transporter rows |
-| `gate_pass_viewer` | Register read-only |
+| `gate_pass_officer`, `gate_pass_manager` | Enter and edit freight on a pass before Out; print vouchers |
+| `gate_pass_manager`, `super_admin` | Transporter list, corrections, cancel / re-issue, settings |
+| **Cashier** — `pettycash_handler` (existing role) plus `accounting_poster` / `officer` / `manager` | Freight Vouchers page, Mark paid, print; notified at Out and by the reminder |
+| `gate_pass_viewer`, `dispatch_operator`, `sales_order_manager` | Freight column and page read-only |
+| `gate_security` | Nothing new; cannot read freight, voucher or transporter rows |
+
+No new role is needed. If the cashier is not the petty-cash person, a
+`freight_cashier` role can be added in the same migration.
 
 ## 8. Database (one migration + rollback, same pattern as the other gate pass phases)
 
 - `gate_pass_transporters` — §4; read policy restricted to gate pass office
-  roles, accounting roles and super admin (not `gate_security`).
-- `gate_pass_freight` — one row per sales pass: `gate_pass_id` (PK), `payer`
-  (`company` / `customer` / `customer_vehicle`), `mode`, `transporter_id`,
-  `transporter_name`, `amount`, `booking_ref`, `note`, `voucher_id`,
-  `posted_at`, `post_error`, `updated_by/at`. Same restricted read policy.
-  Unique on `voucher_id`.
-- `accounting_default_accounts`: new slot `freight_outward`, added to
-  `DefaultAccountsPage` so it can be mapped to a Freight / Cartage Outward
-  expense head.
+  roles, cashier roles and super admin (not `gate_security`).
+- `gate_pass_freight` — one row per sales pass, written by the office:
+  `gate_pass_id` (PK), `payer` (`company` / `customer` / `customer_vehicle`),
+  `mode`, `transporter_id`, `transporter_name`, `amount`, `booking_ref`,
+  `note`, `updated_by/at`. Same restricted read policy.
+- `gate_pass_freight_vouchers` — §3: `voucher_number` (`FV-` sequence),
+  `gate_pass_id` (unique), `voucher_date`, snapshot of transporter / driver /
+  vehicle / mode / dispatches, `amount`, `status`, `paid_at/by`, `paid_amount`,
+  `paid_photo_url`, `paid_remark`, `cancelled_at/by`, `cancel_reason`,
+  `replaces_voucher_id`, reserved `ledger_voucher_id` for phase 2.
+- `gate_pass_freight_voucher_events` — event log (created, corrected, paid,
+  cancelled, re-issued) with before / after.
+- `gate_pass_settings`: `freight_reminder_days` (default 3).
 - Functions (SECURITY DEFINER, role-checked like the rest):
   `gate_pass_freight_save(p_pass_id, p_data)`, `gate_pass_transporter_save(p_data)`,
-  `gate_pass_freight_post(p_pass_id)` (called from `gate_pass_mark_out`; also
-  callable by a manager for a failed post), `gate_pass_freight_correct(p_pass_id, p_data, p_reason)`.
+  `gate_pass_freight_voucher_create(g)` (called from `gate_pass_mark_out`),
+  `gate_pass_freight_voucher_pay(p_id, p_data)`, `_correct(p_id, p_data, p_reason)`,
+  `_cancel(p_id, p_reason)`, `_reissue(p_pass_id, p_reason)`.
 - `gate_pass_submit`: a sales pass cannot be submitted without the payer
   chosen (and transporter + amount when company pays).
-- `gate_pass_mark_out`: redefined to call `gate_pass_freight_post` for sales
-  passes; every other branch unchanged.
-- View `v_gate_pass_freight_register` for the page and the dispatch column.
+- `gate_pass_mark_out`: redefined to create the voucher for sales passes;
+  every other branch unchanged.
+- Views: `v_gate_pass_freight_log` (page, export, dispatch column) and
+  `v_gate_pass_freight_summary` (dashboard).
+- Notifications: `notify_role` to the cashier roles at Out; the morning job
+  adds unpaid-overdue vouchers.
 - Rollback `supabase/rollbacks/<ts>_gate_pass_freight_down.sql`: restores the
-  previous `gate_pass_mark_out` and `gate_pass_submit`, drops the two tables,
-  the functions and the view. Posted vouchers are kept (ledger history).
+  previous `gate_pass_mark_out` and `gate_pass_submit`, drops the tables,
+  functions and views.
 
 ## 9. Front end
 
 - `GatePassFormPage`: Freight section (sales type), transporter combobox with
-  "add new", amount prefill.
-- `GatePassDetailPage`: Freight card with voucher link, "not posted" banner
-  with a **Post now** button, **Correct freight** dialog (managers).
+  "add new", amount prefill, ride ref.
+- `GatePassDetailPage`: Freight card with the voucher link / status.
 - `gatePass.ts` printout: the one freight line, no amount.
-- New `FreightRegisterPage`, `TransportersPage`; sidebar entries under Gate
-  Pass; routes and `ProtectedRoute` paths for the roles above.
-- `DefaultAccountsPage`: the `freight_outward` slot.
-- `VoucherViewDialog`: source link to the pass, driver signature line on print.
+- New `FreightVouchersPage` (tabs, Mark paid dialog, print), `FreightVoucherPrint`
+  (HTML print like the pass), `TransportersPage`; sidebar entries under Gate
+  Pass; routes and `ProtectedRoute` paths for the roles above; dashboard cards.
 - Dispatch pages: Freight column.
-- `docs/GATE_PASS.md`: new "Freight and cash voucher" section.
+- `docs/GATE_PASS.md`: new "Freight voucher" section.
 
-## 10. Phase 2 (not in the first build)
+## 10. Phase 2 — ledger integration (later)
 
-- **Monthly bill transporters**: at Out post a JV (Dr Freight Outward, Cr
-  Accounts Payable – transporter) instead of cash; settle through the existing
-  Supplier Payments page. The transporter's `settlement` field decides.
-- **Recover from customer**: "Company paid, charge the customer" posts the
-  cash out and Dr Accounts Receivable (customer) so it rides the customer's
-  ledger and invoice.
-- **Rate card**: rate per transporter × city / zone, prefilling the amount and
-  warning when the entered amount is above the card.
-- **Distributor dispatch sheets**, once they get a gate pass.
+- When the cashier marks a voucher **Paid**, post the cash payment voucher
+  (CPV): Dr Freight Outward, Cr Cash in Hand, party = transporter; store it in
+  `ledger_voucher_id`. Paid is the right moment because that is when cash
+  actually leaves.
+- A **Post pending** button to post the backlog of already-paid vouchers once
+  the Freight Outward account is mapped.
+- Monthly-bill contractors (JV to Accounts Payable, settled through Supplier
+  Payments), "company paid, recover from customer" (Dr Accounts Receivable),
+  rate card per transporter × city, and distributor dispatch sheets.
 
-## 11. Decisions needed before building
+## 11. Open points
 
-1. Post the CPV **at the moment of gate out** (recommended: matches "scan →
-   voucher", and the vehicle is already gone) — or create it as a pending item
-   that the cashier confirms when the driver is actually paid?
-2. Freight is entered by the **pass maker in the office** (recommended) — or
-   should the dispatch operator put it on the DC and the pass copy it?
-3. Online rickshaw / bike rides: one transporter per **app** (Bykea, InDrive…)
-   with the ride number in the booking ref — or one row per driver?
-4. Keep the amount **off the gate pass printout** (recommended) — or print it?
-5. Which expense head to map to `freight_outward` (an existing one such as
-   Cartage Outward, or a new account).
+1. Who is the cashier in the system: the existing `pettycash_handler` role,
+   the accounting roles, or a new `freight_cashier` role?
+2. Online rides: agree with the contractor-vs-app rule in §4 (one row per app,
+   ride number on the pass)?
+3. Reminder for unpaid vouchers: 3 days, or another figure?
