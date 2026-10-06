@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -84,7 +85,8 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
         .select(`
           *,
           customers(name, code, logo_url, billing_customer),
-          created_by_user:app_users!sales_orders_created_by_fkey(full_name)
+          created_by_user:app_users!sales_orders_created_by_fkey(full_name),
+          sales_order_items(quantity_dozens, quantity_dispatched)
         `)
         .eq('sales_segment', segment)
         .order('created_at', { ascending: false });
@@ -395,6 +397,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="in_production">In Production</SelectItem>
                   <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -610,7 +613,6 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                                 <SelectItem value="confirmed">Confirmed</SelectItem>
                                 <SelectItem value="in_production">In Production</SelectItem>
                                 <SelectItem value="ready">Ready</SelectItem>
-                                <SelectItem value="dispatched">Dispatched</SelectItem>
                                 <SelectItem value="delivered">Delivered</SelectItem>
                                 <SelectItem value="cancelled">Cancelled</SelectItem>
                               </SelectContent>
@@ -618,6 +620,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                           ) : (
                             <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                           )}
+                          <DispatchProgress lines={order.sales_order_items} status={order.status} className="mt-1" />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -667,7 +670,10 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                           {format(new Date(order.order_date), 'dd MMM yyyy')}
                         </div>
                       </div>
-                      <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                      <div className="text-right">
+                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                        <DispatchProgress lines={order.sales_order_items} status={order.status} className="mt-1" />
+                      </div>
                     </div>
 
                     {/* Customer */}
@@ -689,15 +695,14 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' && (
                           <Select value={order.status} onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}>
-                            <SelectTrigger className="w-28 h-8 text-xs">
-                              <SelectValue placeholder="Status" />
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="draft">Draft</SelectItem>
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="in_production">In Production</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="dispatched">Dispatched</SelectItem>
                               <SelectItem value="delivered">Delivered</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>

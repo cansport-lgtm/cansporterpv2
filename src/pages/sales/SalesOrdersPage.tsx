@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSalesOrderForm } from "@/components/sales/MobileSalesOrderForm";
 
@@ -831,8 +832,6 @@ export default function SalesOrdersPage() {
                                     <SelectItem value="confirmed">Confirmed</SelectItem>
                                     <SelectItem value="in_production">In Production</SelectItem>
                                     <SelectItem value="ready">Ready</SelectItem>
-                                    <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
-                                    <SelectItem value="dispatched">Dispatched</SelectItem>
                                     <SelectItem value="delivered">Delivered</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -842,6 +841,7 @@ export default function SalesOrdersPage() {
                                   {order.status.replace(/_/g, ' ')}
                                 </Badge>
                               )}
+                              <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
                             </TableCell>
                             <TableCell className="text-sm">
                               {order.created_by_user?.full_name || '-'}
@@ -944,9 +944,10 @@ export default function SalesOrdersPage() {
                           {format(new Date(order.order_date), 'dd MMM yyyy')}
                         </div>
                       </div>
-                      <Badge className={STATUS_COLORS[order.status]}>
-                        {order.status.replace(/_/g, ' ')}
-                      </Badge>
+                      <div className="text-right">
+                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                        <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
+                      </div>
                     </div>
 
                     {/* Customer */}
@@ -987,16 +988,14 @@ export default function SalesOrdersPage() {
                             value={order.status} 
                             onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}
                           >
-                            <SelectTrigger className="w-28 h-8 text-xs">
-                              <SelectValue placeholder="Status" />
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="draft">Draft</SelectItem>
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="in_production">In Production</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
-                              <SelectItem value="dispatched">Dispatched</SelectItem>
                               <SelectItem value="delivered">Delivered</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>

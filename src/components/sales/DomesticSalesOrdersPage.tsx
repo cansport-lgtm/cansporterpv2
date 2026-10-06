@@ -26,6 +26,7 @@ import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -800,9 +801,9 @@ export default function DomesticSalesOrdersPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="in_production">In Production</SelectItem>
                   <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -1121,7 +1122,6 @@ export default function DomesticSalesOrdersPage() {
                                     <SelectItem value="confirmed">Confirmed</SelectItem>
                                     <SelectItem value="in_production">In Production</SelectItem>
                                     <SelectItem value="ready">Ready</SelectItem>
-                                    <SelectItem value="dispatched">Dispatched</SelectItem>
                                     <SelectItem value="delivered">Delivered</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -1129,6 +1129,7 @@ export default function DomesticSalesOrdersPage() {
                               ) : (
                                 <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                               )}
+                              <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {(order as any).created_by_user?.full_name || '-'}
@@ -1244,7 +1245,10 @@ export default function DomesticSalesOrdersPage() {
                             {format(new Date(order.order_date), 'dd MMM yyyy')}
                           </div>
                         </div>
-                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                        <div className="text-right">
+                          <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                          <DispatchProgress lines={items} status={order.status} className="mt-1" />
+                        </div>
                       </div>
 
                       {/* Customer */}
@@ -1290,14 +1294,13 @@ export default function DomesticSalesOrdersPage() {
                       <div className="flex items-center justify-between gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
                         {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' ? (
                           <Select value={order.status} onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}>
-                            <SelectTrigger className="w-32 h-8 text-xs">
-                              <SelectValue placeholder="Status" />
+                            <SelectTrigger className="w-36 h-8 text-xs">
+                              <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="in_production">In Production</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="dispatched">Dispatched</SelectItem>
                               <SelectItem value="delivered">Delivered</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
