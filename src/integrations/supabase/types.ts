@@ -6954,7 +6954,10 @@ export type Database = {
           created_by: string | null
           employee_id: string
           id: string
+          adjustment_reason: string | null
           remarks: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           advance_date?: string
@@ -6963,7 +6966,10 @@ export type Database = {
           created_by?: string | null
           employee_id: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           advance_date?: string
@@ -6972,7 +6978,10 @@ export type Database = {
           created_by?: string | null
           employee_id?: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -7560,7 +7569,10 @@ export type Database = {
           created_by: string | null
           employee_id: string
           id: string
+          adjustment_reason: string | null
           remarks: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           advance_date?: string
@@ -7569,7 +7581,10 @@ export type Database = {
           created_by?: string | null
           employee_id: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           advance_date?: string
@@ -7578,7 +7593,10 @@ export type Database = {
           created_by?: string | null
           employee_id?: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {

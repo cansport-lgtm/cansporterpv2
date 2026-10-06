@@ -1335,6 +1335,7 @@ const LabourSalaryPage = () => {
         onOpenChange={setAdvanceOpen}
         employee={advanceEmployee}
         month={selectedMonth}
+        locked={isLocked}
       />
 
       <OvertimeDialog
@@ -1349,6 +1350,7 @@ const LabourSalaryPage = () => {
         onOpenChange={setTravelAdvanceOpen}
         employee={travelAdvanceEmployee}
         month={selectedMonth}
+        locked={isLocked}
       />
 
       <AttendanceAllowanceDialog
