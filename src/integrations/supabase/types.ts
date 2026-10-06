@@ -11781,6 +11781,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          auto_cancelled_at: string | null
           category: Database["public"]["Enums"]["purchase_category"]
           closed_short_at: string | null
           closed_short_by: string | null
@@ -11803,6 +11804,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           category: Database["public"]["Enums"]["purchase_category"]
           closed_short_at?: string | null
           closed_short_by?: string | null
@@ -11825,6 +11827,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           category?: Database["public"]["Enums"]["purchase_category"]
           closed_short_at?: string | null
           closed_short_by?: string | null
@@ -15456,6 +15459,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          auto_cancelled_at: string | null
           created_at: string | null
           created_by: string | null
           customer_id: string
@@ -15478,6 +15482,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id: string
@@ -15500,6 +15505,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id?: string

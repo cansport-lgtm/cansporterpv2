@@ -566,9 +566,14 @@ export default function PurchaseOrdersPage() {
       key: 'status',
       header: 'Status',
       render: (order) => (
-        <Badge className={STATUS_COLORS[order.status] || 'bg-gray-500'}>
-          {order.status?.replace('_', ' ')}
-        </Badge>
+        <div>
+          <Badge className={STATUS_COLORS[order.status] || 'bg-gray-500'}>
+            {order.status?.replace('_', ' ')}
+          </Badge>
+          {order.auto_cancelled_at && (
+            <div className="mt-1 text-xs text-muted-foreground">Auto-cancelled (30 days)</div>
+          )}
+        </div>
       ),
     },
     {
@@ -967,6 +972,11 @@ export default function PurchaseOrdersPage() {
                   {viewOrder.closed_short_at && (
                     <Badge variant="outline" title={`Marked completed with balance quantity outstanding on ${format(new Date(viewOrder.closed_short_at), 'dd/MM/yyyy')}`}>
                       closed short {format(new Date(viewOrder.closed_short_at), 'dd/MM/yyyy')}
+                    </Badge>
+                  )}
+                  {viewOrder.auto_cancelled_at && (
+                    <Badge variant="outline" title="Cancelled automatically: 30 days old with nothing received">
+                      auto-cancelled {format(new Date(viewOrder.auto_cancelled_at), 'dd/MM/yyyy')}
                     </Badge>
                   )}
                 </div>
