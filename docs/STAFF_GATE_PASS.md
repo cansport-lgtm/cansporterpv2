@@ -165,6 +165,19 @@ rejected (HR manager) · cancelled (claimant or HR manager, before paid)
   (`pettycash_handler`, `expenses_manager`). Rejected / paid → claimant.
   Cancelled → claimant, HR managers (and cashiers when it was already approved).
 
+### Trip fuel analysis and the ledger check
+
+- **HR → Trip Fuel Analysis** (`/hr/trip-fuel-analysis`, `hr_manager`, `hr_officer`,
+  super admin): trips, km, claimed, paid, approved-not-paid, awaiting HR, cost per
+  km; by staff, destination and month; filters for dates, staff, department and
+  status; Excel export. No ledger figures.
+- **Accounting → Reports → Trip Fuel Analysis** (`/accounting/trip-fuel-analysis`):
+  the same analysis plus a **Ledger check** against the expense account the fuel is
+  linked to (see `docs/EXPENSE_ACCOUNT_LINKS.md`).
+- Trip fuel also appears as its own bar in **Expenses → Operating Expenses
+  Analysis** (paid vouchers, by the date the cashier paid them).
+- The analysis tables are by **trip date**; the ledger check is by **payment date**.
+
 ## Half day marking (HR attendance)
 
 Staff attendance is one row per employee per day in `attendance`
