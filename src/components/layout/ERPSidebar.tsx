@@ -129,6 +129,7 @@ const navigationItems: NavItem[] = [
       { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
       { title: "Parties", href: "/accounting/parties" },
       { title: "Default Accounts", href: "/accounting/default-accounts" },
+      { title: "Expense Account Links", href: "/accounting/expense-links" },
 
       { title: "Entries", href: "", isHeader: true },
       { title: "New Voucher", href: "/accounting/vouchers/new" },
@@ -158,6 +159,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Analysis", href: "/accounting/sales-analysis" },
       { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
       { title: "Expenses Analysis", href: "/accounting/expenses-analysis" },
+      { title: "Trip Fuel Analysis", href: "/accounting/trip-fuel-analysis" },
 
       { title: "Inventory", href: "", isHeader: true },
       { title: "Finished Goods Inventory", href: "/accounting/fg-inventory", allowedRoles: ["accounting_manager", "super_admin"] },
@@ -171,6 +173,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
       { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
       { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
+      { title: "Expense Reconciliation", href: "/accounting/expense-reconciliation" },
       { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
       { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
       { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
@@ -302,6 +305,7 @@ const navigationItems: NavItem[] = [
       { title: "Staff Gate Passes", href: "/hr/gate-pass" },
       { title: "New Staff Gate Pass", href: "/hr/gate-pass/new", allowedRoles: ["super_admin", "staff_gate_pass_approver", "hr_manager", "hr_officer"] },
       { title: "Gate Pass Approvals", href: "/hr/gate-pass/approvals", allowedRoles: ["super_admin", "staff_gate_pass_approver"] },
+      { title: "Trip Fuel Analysis", href: "/hr/trip-fuel-analysis", allowedRoles: ["super_admin", "hr_manager", "hr_officer"] },
     ],
   },
   {

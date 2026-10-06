@@ -218,6 +218,10 @@ import AssetReconciliationPage from "./pages/fixed-assets/AssetReconciliationPag
 import ExpenseDashboard from "./pages/expenses/ExpenseDashboard";
 import PettyCashPage from "./pages/expenses/PettyCashPage";
 import TripFuelVouchersPage from "./pages/expenses/TripFuelVouchersPage";
+import HrTripFuelAnalysisPage from "./pages/hr/TripFuelAnalysisPage";
+import AccountingTripFuelAnalysisPage from "./pages/accounting/TripFuelAnalysisPage";
+import ExpenseAccountLinksPage from "./pages/accounting/ExpenseAccountLinksPage";
+import ExpenseReconciliationPage from "./pages/accounting/ExpenseReconciliationPage";
 import GeneralExpensesPage from "./pages/expenses/GeneralExpensesPage";
 import UtilityBillsPage from "./pages/expenses/UtilityBillsPage";
 import ExpenseBudgetsPage from "./pages/expenses/ExpenseBudgetsPage";
@@ -627,6 +631,7 @@ const App = () => (
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
             <Route path="/hr/time-sheet" element={<ProtectedRoute><TimeSheetPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass" element={<ProtectedRoute><StaffGatePassListPage /></ProtectedRoute>} />
+            <Route path="/hr/trip-fuel-analysis" element={<ProtectedRoute requiredRoles={["super_admin", "hr_manager", "hr_officer"]}><HrTripFuelAnalysisPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
@@ -966,6 +971,9 @@ const App = () => (
             <Route path="/accounting/sales-analysis" element={<ProtectedRoute><AccountingSalesAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/purchase-analysis" element={<ProtectedRoute><AccountingPurchaseAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/expenses-analysis" element={<ProtectedRoute><AccountingExpensesAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/trip-fuel-analysis" element={<ProtectedRoute><AccountingTripFuelAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/expense-links" element={<ProtectedRoute><ExpenseAccountLinksPage /></ProtectedRoute>} />
+            <Route path="/accounting/expense-reconciliation" element={<ProtectedRoute><ExpenseReconciliationPage /></ProtectedRoute>} />
             <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
             <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
             <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />

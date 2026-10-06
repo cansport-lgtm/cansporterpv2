@@ -11,6 +11,8 @@ import {
   isWithinInterval,
 } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { ppDb } from "@/lib/personGatePass";
+import { pkDate } from "@/lib/expenseLinks";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -53,7 +55,7 @@ const fmtRs = (n: number) => `₹${Math.round(n).toLocaleString()}`;
  * Operating Expenses Analysis
  *
  * Month-wise analysis of operating expenses (petty cash expenses + general
- * expenses + utility bills). By default it analyses a full calendar year and
+ * expenses + utility bills + paid staff trip fuel). By default it analyses a full calendar year and
  * breaks the spend down month by month. A custom date-range filter can be
  * applied to scope the whole analysis to an arbitrary period.
  */
@@ -113,7 +115,22 @@ export default function OperatingExpensesAnalysisPage() {
     },
   });
 
-  const isLoading = l1 || l2 || l3;
+  // Staff trip fuel: cash vouchers marked paid, by the date the cashier paid them.
+  const { data: tripFuel = [], isLoading: l4 } = useQuery({
+    queryKey: ["opex-trip-fuel", rangeStartStr, rangeEndStr],
+    queryFn: async () => {
+      const { data, error } = await ppDb
+        .from("staff_trip_fuel_vouchers")
+        .select("paid_at, amount")
+        .eq("status", "paid")
+        .gte("paid_at", `${rangeStartStr}T00:00:00+05:00`)
+        .lte("paid_at", `${rangeEndStr}T23:59:59.999+05:00`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const isLoading = l1 || l2 || l3 || l4;
 
   // Normalise every source into a single shape: { date, amount, source, category }.
   const allEntries = useMemo(() => {
@@ -142,8 +159,16 @@ export default function OperatingExpensesAnalysisPage() {
         category: `Utility - ${b.utility_types?.name || "Other"}`,
       }),
     );
+    tripFuel.forEach((v: any) =>
+      rows.push({
+        date: pkDate(v.paid_at),
+        amount: Number(v.amount || 0),
+        source: "Trip Fuel",
+        category: "Staff Trip Fuel",
+      }),
+    );
     return rows;
-  }, [pettyCash, general, utilities]);
+  }, [pettyCash, general, utilities, tripFuel]);
 
   // Month-wise breakdown across the analysis window.
   const monthly = useMemo(() => {
@@ -156,6 +181,7 @@ export default function OperatingExpensesAnalysisPage() {
       pettyCash: 0,
       general: 0,
       utilities: 0,
+      tripFuel: 0,
       total: 0,
       count: 0,
     }));
@@ -167,6 +193,7 @@ export default function OperatingExpensesAnalysisPage() {
       if (!bucket) return;
       if (r.source === "Petty Cash") bucket.pettyCash += r.amount;
       else if (r.source === "General") bucket.general += r.amount;
+      else if (r.source === "Trip Fuel") bucket.tripFuel += r.amount;
       else bucket.utilities += r.amount;
       bucket.total += r.amount;
       bucket.count += 1;
@@ -333,7 +360,8 @@ export default function OperatingExpensesAnalysisPage() {
                     <Legend />
                     <Bar dataKey="pettyCash" stackId="a" fill={COLORS[0]} name="Petty Cash" />
                     <Bar dataKey="general" stackId="a" fill={COLORS[1]} name="General" />
-                    <Bar dataKey="utilities" stackId="a" fill={COLORS[2]} name="Utilities" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="utilities" stackId="a" fill={COLORS[2]} name="Utilities" />
+                    <Bar dataKey="tripFuel" stackId="a" fill={COLORS[4]} name="Trip Fuel" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -427,6 +455,7 @@ export default function OperatingExpensesAnalysisPage() {
                   <TableHead className="text-right">Petty Cash</TableHead>
                   <TableHead className="text-right">General</TableHead>
                   <TableHead className="text-right">Utilities</TableHead>
+                  <TableHead className="text-right">Trip Fuel</TableHead>
                   <TableHead className="text-center">Entries</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">% Share</TableHead>
@@ -456,6 +485,7 @@ export default function OperatingExpensesAnalysisPage() {
                         <TableCell className="text-right">{fmtRs(m.pettyCash)}</TableCell>
                         <TableCell className="text-right">{fmtRs(m.general)}</TableCell>
                         <TableCell className="text-right">{fmtRs(m.utilities)}</TableCell>
+                        <TableCell className="text-right">{fmtRs(m.tripFuel)}</TableCell>
                         <TableCell className="text-center">{m.count}</TableCell>
                         <TableCell className="text-right font-medium">{fmtRs(m.total)}</TableCell>
                         <TableCell className="text-right">
@@ -464,7 +494,7 @@ export default function OperatingExpensesAnalysisPage() {
                       </TableRow>
                       {expandedMonth === m.key && m.count > 0 && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={7} className="p-0">
+                          <TableCell colSpan={8} className="p-0">
                             <div className="px-6 py-3">
                               <Table>
                                 <TableHeader>
@@ -501,6 +531,7 @@ export default function OperatingExpensesAnalysisPage() {
                     <TableCell className="text-right">{fmtRs(monthly.reduce((s, m) => s + m.pettyCash, 0))}</TableCell>
                     <TableCell className="text-right">{fmtRs(monthly.reduce((s, m) => s + m.general, 0))}</TableCell>
                     <TableCell className="text-right">{fmtRs(monthly.reduce((s, m) => s + m.utilities, 0))}</TableCell>
+                    <TableCell className="text-right">{fmtRs(monthly.reduce((s, m) => s + m.tripFuel, 0))}</TableCell>
                     <TableCell className="text-center">{monthly.reduce((s, m) => s + m.count, 0)}</TableCell>
                     <TableCell className="text-right">{fmtRs(metrics.total)}</TableCell>
                     <TableCell className="text-right">100%</TableCell>
@@ -508,7 +539,7 @@ export default function OperatingExpensesAnalysisPage() {
                 )}
                 {!isLoading && metrics.total === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No operating expenses found for this period</TableCell>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No operating expenses found for this period</TableCell>
                   </TableRow>
                 )}
               </TableBody>
