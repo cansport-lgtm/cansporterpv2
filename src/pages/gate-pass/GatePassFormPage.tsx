@@ -25,6 +25,10 @@ import { GoodsLinesEditor } from "@/components/gate-pass/GoodsLinesEditor";
 import { ScrapLinesEditor } from "@/components/gate-pass/ScrapLinesEditor";
 import { BackfillFields } from "@/components/gate-pass/BackfillFields";
 import {
+  FreightSection, emptyFreight, freightFromRow, freightPayload, type FreightFormState,
+} from "@/components/gate-pass/FreightSection";
+import { fmtRs, modeLabel, payerLabel, type GatePassFreight } from "@/lib/gatePassFreight";
+import {
   backfillPayload, emptyBackfill, goodsLinesPayload, newGoodsLine, newScrapLine, scrapLinesPayload,
   type BackfillState, type GoodsKind, type GoodsLine, type ScrapLine,
 } from "@/lib/gatePassForms";
@@ -111,6 +115,7 @@ export default function GatePassFormPage() {
   const [scrapLines, setScrapLines] = useState<ScrapLine[]>([newScrapLine()]);
   const [backfillOn, setBackfillOn] = useState(false);
   const [backfill, setBackfill] = useState<BackfillState>(emptyBackfill());
+  const [freight, setFreight] = useState<FreightFormState>(emptyFreight());
   const canBackfill = hasModulePermission("gate_pass", "approve") && !editId;
   const partyKinds = PARTY_KINDS[passType] ?? [];
 
@@ -179,6 +184,20 @@ export default function GatePassFormPage() {
       })));
     }
   }, [editing]);
+
+  // Editing a sales draft: its freight row (who pays, mode, transporter, amount).
+  const { data: editingFreight } = useQuery<GatePassFreight | null>({
+    queryKey: ["gate-pass-freight", editId],
+    enabled: Boolean(editId),
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("gate_pass_freight").select("*").eq("gate_pass_id", editId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  useEffect(() => {
+    if (editingFreight) setFreight(freightFromRow(editingFreight));
+  }, [editingFreight]);
 
   // Dispatches already on a live pass (other than the one being edited).
   const { data: taken = [] } = useQuery<{ dispatch_id: string; gate_pass_id: string; pass_number: string }[]>({
@@ -324,7 +343,11 @@ export default function GatePassFormPage() {
         transporter_name: transporter,
         remarks,
       };
-      if (passType === "sales") data.dispatch_ids = dispatchIds;
+      if (passType === "sales") {
+        data.dispatch_ids = dispatchIds;
+        // A draft can be saved before the freight is chosen; submitting cannot.
+        if (freight.payer) data.freight = freightPayload(freight);
+      }
       if (passType === "supplier_return") data.purchase_return_id = returnId;
       if (partyKinds.length) {
         data.party_kind = partyKind;
@@ -357,6 +380,8 @@ export default function GatePassFormPage() {
       queryClient.invalidateQueries({ queryKey: ["gate-passes-live"] });
       queryClient.invalidateQueries({ queryKey: ["gate-pass", id] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-gate-pass"] });
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-freight"] });
+      queryClient.invalidateQueries({ queryKey: ["gate-pass-transporters"] });
       toast({
         title: backfillOn && canBackfill ? "Backfill saved" : submit ? "Gate pass created" : "Draft saved",
         description: backfillOn && canBackfill
@@ -556,6 +581,8 @@ export default function GatePassFormPage() {
                     </Table>
                   </CardContent>
                 </Card>
+
+                <FreightSection value={freight} onChange={setFreight} />
               </>
             )}
 
@@ -773,6 +800,12 @@ export default function GatePassFormPage() {
                     <div className="flex justify-between"><span className="text-muted-foreground">Dispatches</span><span className="font-medium">{dispatchIds.length}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Total</span>
                       <span className="font-medium">{fmtQty(salesLines.reduce((s, l) => s + l.qty, 0))} dz · {salesLines.reduce((s, l) => s + Number(l.packages || 0), 0)} ctn</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-muted-foreground">Freight</span>
+                      <span className={cn("font-medium text-right", !freight.payer && "text-amber-700")}>
+                        {!freight.payer ? "Not chosen yet"
+                          : freight.payer === "company" ? `${modeLabel(freight.mode) || "Mode?"} · ${freight.amount ? fmtRs(freight.amount) : "amount?"}`
+                          : payerLabel(freight.payer)}
+                      </span></div>
                   </>
                 )}
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Stock</span>

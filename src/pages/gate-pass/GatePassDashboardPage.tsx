@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RescanAlerts } from "@/components/gate-pass/RescanAlerts";
 import { fmtQty, gpDb, passTypeMeta, statusMeta, todayPk } from "@/lib/gatePass";
+import { fmtRs } from "@/lib/gatePassFreight";
 
 type PassRow = {
   id: string; pass_number: string; pass_type: string; status: string; party_name: string;
@@ -55,6 +56,26 @@ export default function GatePassDashboardPage() {
     },
   });
 
+  // Freight vouchers (hidden from roles that cannot read them — the query then returns nothing).
+  const { data: freightUnpaid = [] } = useQuery<{ amount: number; transporter_name: string }[]>({
+    queryKey: ["gate-pass-freight-vouchers", "dashboard-unpaid"],
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("gate_pass_freight_vouchers").select("amount, transporter_name").eq("status", "unpaid");
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+  const { data: freightToday = [] } = useQuery<{ amount: number }[]>({
+    queryKey: ["gate-pass-freight-vouchers", "dashboard-today", today],
+    queryFn: async () => {
+      const { data, error } = await gpDb.from("gate_pass_freight_vouchers").select("amount").neq("status", "cancelled").eq("voucher_date", today);
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+  const freightUnpaidRs = freightUnpaid.reduce((s, r) => s + Number(r.amount), 0);
+  const freightTodayRs = freightToday.reduce((s, r) => s + Number(r.amount), 0);
+
   const outToday = recent.filter((r) => r.gate_out_at && new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(r.gate_out_at)) === today);
   const pending = recent.filter((r) => r.status === "pending_approval");
   const waiting = recent.filter((r) => r.status === "approved");
@@ -79,6 +100,8 @@ export default function GatePassDashboardPage() {
     { label: "Goods outside", value: outside.length, tone: "text-violet-700", href: "/gate-pass/returns" },
     { label: "Overdue returns", value: overdue.length, tone: overdue.length ? "text-red-700" : "", href: "/gate-pass/returns" },
     { label: "Scrap sold this month", value: `${fmtQty(scrapKg)} kg`, tone: "", href: "/gate-pass/scrap-yard" },
+    { label: "Freight today", value: `${freightToday.length} · ${fmtRs(freightTodayRs)}`, tone: "", href: "/gate-pass/freight" },
+    { label: "Freight unpaid", value: `${freightUnpaid.length} · ${fmtRs(freightUnpaidRs)}`, tone: freightUnpaid.length ? "text-amber-700" : "", href: "/gate-pass/freight" },
   ];
 
   return (
@@ -88,7 +111,7 @@ export default function GatePassDashboardPage() {
 
         <RescanAlerts />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {kpis.map((k) => (
             <Link key={k.label} to={k.href}>
               <Card className="hover:border-primary/40 transition-colors h-full">

@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { BackfillInfo, ReturnsSection, ScrapSection } from "@/components/gate-pass/PassExtraSections";
+import { FreightCard } from "@/components/gate-pass/FreightCard";
 import {
   PASS_SELECT, canReviewGatePass, countUnit, isOwnPassBlocked, errorMessage, expectedCount, fmtQty, gpDb, passTypeMeta, printGatePass,
   sortedItems, statusMeta, type GatePass,
@@ -54,6 +55,13 @@ const EVENT_LABEL: Record<string, string> = {
   closed: "Closed",
   backfilled: "Entered as manual backfill",
   rescan_attempt: "Old pass scanned again at gate",
+  freight_saved: "Freight recorded",
+  freight_voucher: "Freight voucher made",
+  freight_customer: "Freight paid by customer",
+  freight_not_recorded: "No freight recorded at gate out",
+  freight_paid: "Freight voucher paid",
+  freight_voucher_corrected: "Freight voucher corrected",
+  freight_voucher_cancelled: "Freight voucher cancelled",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel" | "release";
@@ -295,6 +303,8 @@ export default function GatePassDetailPage() {
               <ReturnsSection pass={pass} canReceive={canCreate} canClose={canApprove} />
             )}
             {pass.pass_type === "scrap" && <ScrapSection pass={pass} />}
+
+            {pass.pass_type === "sales" && <FreightCard pass={pass} />}
 
             {pass.pass_type === "sales" && (
               <Card>

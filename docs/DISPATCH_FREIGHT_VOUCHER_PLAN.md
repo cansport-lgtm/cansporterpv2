@@ -1,5 +1,10 @@
 # Dispatch freight voucher at gate out — plan (revised 6 Oct 2026)
 
+**Built 6 Oct 2026** as `supabase/migrations/20261012120000_gate_pass_freight.sql`
+(rollback in `supabase/rollbacks/`), with the pages described below. What is
+live is summarised in `docs/GATE_PASS.md` under *Freight voucher*; the
+sections here are the design.
+
 Decisions taken so far: the voucher is made **at gate out**; the cashier pays
 **against it later** (the transporter / driver collects cash with the voucher);
 the **gate pass maker** enters the freight; **no amount on the gate pass
