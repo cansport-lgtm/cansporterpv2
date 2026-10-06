@@ -4,7 +4,9 @@ Decisions taken so far: the voucher is made **at gate out**; the cashier pays
 **against it later** (the transporter / driver collects cash with the voucher);
 the **gate pass maker** enters the freight; **no amount on the gate pass
 print**; **no ledger posting yet** — a freight log and dashboard, reconciled
-by hand with the cash book, and ledger integration later.
+by hand with the cash book, and ledger integration later. Transporters: one
+row per **contractor** (paid per trip, several trips settled together) and one
+row per **app** (Bykea, InDrive, Careem) with the ride number on the pass.
 
 Every dispatch leaves on a hired vehicle: a contractor van, an online rickshaw
 (Bykea / InDrive / Careem) or a bike. The driver is paid in cash, and today
@@ -130,13 +132,22 @@ contractor and the same apps come back every day:
 Typing a new name on the pass creates the transporter in the same save. The
 guard never reads this table (rates are money).
 
-### Contractor vs app — how the payee is recorded
+### Contractor vs app — how the payee is recorded (agreed)
 
 - **Contractor van / bike contractor**: one transporter row per contractor
   (the firm or owner, e.g. *Shahid Transport*). The driver of the day is typed
   on the pass (name / phone, fields that already exist). The voucher's payee is
   the contractor; the driver is the one who signs and collects. Monthly totals
   per contractor come straight from the log.
+  - **Paid per trip.** Every trip is its own voucher with its own amount (the
+    trip rate: the transporter's default rate prefills it, the office can
+    change it per trip). The contractor is paid the **sum of his trips**:
+    the cashier opens the contractor's unpaid vouchers, ticks the ones being
+    settled (today's, this week's, or all), and **pays them together** in one
+    action (§5, *Pay selected*). A **contractor statement** prints with the
+    trips, dates, passes, DCs, vehicles and the total, signed by the
+    contractor. Each voucher still shows its own paid date and the statement
+    number it was paid on, so the log stays one row per trip.
 - **Online rickshaw / bike (app)**: one transporter row **per app**, not per
   driver. The driver is a different person every ride and never comes back, so
   rows per driver would only pile up. The pass records the **ride number**
@@ -153,13 +164,22 @@ guard never reads this table (rates are money).
   Filters: date, transporter, mode, payer, status; search by FV / GP / DC /
   vehicle; Excel export. Each row: FV no., date, GP, DCs, customers, vehicle,
   mode, transporter, driver, amount, status, paid date / by.
-- **Mark paid** dialog: paid date (default today), cash paid (default the
-  voucher amount; a different figure needs a remark), signed-slip photo
-  (optional), remark.
+- **Mark paid** dialog (one voucher): paid date (default today), cash paid
+  (default the voucher amount; a different figure needs a remark), signed-slip
+  photo (optional), remark.
+- **Pay selected** (contractors): on the Unpaid tab filter by transporter,
+  tick the trips, *Pay selected* → one paid date, one total, one signed-sheet
+  photo, and a **payment statement** `FPS-000001` listing every trip. All the
+  ticked vouchers become Paid with that statement number. Statement reprint
+  from the Paid tab or the transporter's page.
+- **Transporter page**: a contractor's trips (unpaid first, running total
+  owed), statements paid, month totals. This is also where the cashier sees
+  "how much do we owe Shahid Transport right now".
 - **Freight dashboard** (cards on the Gate Pass dashboard, and the top of the
-  Freight Vouchers page): unpaid now (count, Rs), unpaid older than the
-  reminder days, paid today (Rs), this month by transporter and by mode,
-  customer-paid loads this month, average freight per load.
+  Freight Vouchers page): unpaid now (count, Rs), **owed per contractor**,
+  unpaid older than the reminder days, paid today (Rs), this month by
+  transporter and by mode, customer-paid loads this month, average freight per
+  load.
 - **Manual reconciliation**: the Paid tab, filtered by date, exported to Excel,
   is what accounts tick against the cash book. The log never changes after
   Paid, except by a logged cancel + re-issue.
@@ -205,13 +225,18 @@ No new role is needed. If the cashier is not the petty-cash person, a
   vehicle / mode / dispatches, `amount`, `status`, `paid_at/by`, `paid_amount`,
   `paid_photo_url`, `paid_remark`, `cancelled_at/by`, `cancel_reason`,
   `replaces_voucher_id`, reserved `ledger_voucher_id` for phase 2.
+- `gate_pass_freight_statements` — one row per *Pay selected* action:
+  `statement_number` (`FPS-` sequence), transporter, paid date, paid by,
+  total, photo, remark; vouchers point to it through `statement_id`.
 - `gate_pass_freight_voucher_events` — event log (created, corrected, paid,
   cancelled, re-issued) with before / after.
 - `gate_pass_settings`: `freight_reminder_days` (default 3).
 - Functions (SECURITY DEFINER, role-checked like the rest):
   `gate_pass_freight_save(p_pass_id, p_data)`, `gate_pass_transporter_save(p_data)`,
   `gate_pass_freight_voucher_create(g)` (called from `gate_pass_mark_out`),
-  `gate_pass_freight_voucher_pay(p_id, p_data)`, `_correct(p_id, p_data, p_reason)`,
+  `gate_pass_freight_voucher_pay(p_id, p_data)`, `gate_pass_freight_pay_selected(p_ids, p_data)`
+  (one statement, all vouchers must be unpaid and of one transporter),
+  `_correct(p_id, p_data, p_reason)`,
   `_cancel(p_id, p_reason)`, `_reissue(p_pass_id, p_reason)`.
 - `gate_pass_submit`: a sales pass cannot be submitted without the payer
   chosen (and transporter + amount when company pays).
@@ -224,6 +249,8 @@ No new role is needed. If the cashier is not the petty-cash person, a
 - Rollback `supabase/rollbacks/<ts>_gate_pass_freight_down.sql`: restores the
   previous `gate_pass_mark_out` and `gate_pass_submit`, drops the tables,
   functions and views.
+- Phase 2 note: a statement is the natural unit for the ledger posting of a
+  contractor (one CPV per statement); an app ride posts per voucher.
 
 ## 9. Front end
 
@@ -231,8 +258,9 @@ No new role is needed. If the cashier is not the petty-cash person, a
   "add new", amount prefill, ride ref.
 - `GatePassDetailPage`: Freight card with the voucher link / status.
 - `gatePass.ts` printout: the one freight line, no amount.
-- New `FreightVouchersPage` (tabs, Mark paid dialog, print), `FreightVoucherPrint`
-  (HTML print like the pass), `TransportersPage`; sidebar entries under Gate
+- New `FreightVouchersPage` (tabs, Mark paid, Pay selected, print),
+  `FreightVoucherPrint` and `FreightStatementPrint` (HTML print like the pass),
+  `TransportersPage` (list + per-transporter trips / statements); sidebar entries under Gate
   Pass; routes and `ProtectedRoute` paths for the roles above; dashboard cards.
 - Dispatch pages: Freight column.
 - `docs/GATE_PASS.md`: new "Freight voucher" section.
@@ -249,10 +277,12 @@ No new role is needed. If the cashier is not the petty-cash person, a
   Payments), "company paid, recover from customer" (Dr Accounts Receivable),
   rate card per transporter × city, and distributor dispatch sheets.
 
-## 11. Open points
+## 11. Assumptions unless told otherwise
 
-1. Who is the cashier in the system: the existing `pettycash_handler` role,
-   the accounting roles, or a new `freight_cashier` role?
-2. Online rides: agree with the contractor-vs-app rule in §4 (one row per app,
-   ride number on the pass)?
-3. Reminder for unpaid vouchers: 3 days, or another figure?
+1. Cashier = the existing `pettycash_handler` role plus the accounting roles
+   (a `freight_cashier` role can be added later if needed).
+2. Unpaid reminder after 3 days (a setting, changeable by a super admin).
+3. Build order: migration + rollback → gate pass form and detail → voucher
+   creation at Out + print → Freight Vouchers page (Mark paid, Pay selected,
+   statements) → Transporters page → dashboard cards and dispatch column →
+   docs.
