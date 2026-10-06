@@ -15,7 +15,8 @@ Database: `supabase/migrations/20261008120000_store_pass_roles.sql` (roles),
 `20261008120200_store_pass_reconciliation.sql` (reconciliation, gate check
 notice, daily notification), `20261009120000_store_pass_simplify.sql` (the
 simplified pass described below) and `20261009130000_store_pass_link_roles.sql`
-(who links passes to dispatches). Rollbacks in `supabase/rollbacks/`. Plan and
+(who links passes to dispatches) and `20261010120000_store_pass_one_to_one.sql`
+(one pass ↔ one dispatch ↔ one gate pass; corrections by super admin). Rollbacks in `supabase/rollbacks/`. Plan and
 decisions: `docs/STORE_PASS_PLAN.md`.
 
 ## What a pass is
@@ -39,17 +40,31 @@ Tracking, the Gate Check notice and the daily reconciliation compare on. It is
 **dispatch operator** links it, from the Domestic Dispatch page — the **Store
 pass** column has a **Link** button per dispatch (or **Change** when it is
 already on a pass) that opens the list of live passes, the one whose plan number
-is this DC first, with items, hand-over person and issue time; **Unlink** takes
-the dispatch off its pass. Issuing a pass with no link sends the dispatch
-operators a notification. A dispatch can be on one live pass only; a pass may
-cover several dispatches (the operator links each one). Store pass managers and
-gate pass managers can also link, from the pass page (**Link to dispatch**). An
-issued pass with no link shows in the reconciliation as **Not linked to a
+is this DC first, with items, hand-over person and issue time. Issuing a pass
+with no link sends the dispatch operators a notification. Store pass managers
+and gate pass managers can also link, from the pass page (**Link to dispatch**).
+An issued pass with no link shows in the reconciliation as **Not linked to a
 dispatch** until it is.
 
-Figures per dispatch: a pass linked to exactly one dispatch gives that dispatch
-its totals; a pass linked to several cannot be split, so those dispatches show
-the pass number without figures and are not checked store ≠ gate.
+**One to one.** A store pass links to **one** dispatch, a dispatch is on **one**
+live store pass, and a dispatch is on **one** sales gate pass (a sales gate pass
+covers one dispatch, see `docs/GATE_PASS.md`):
+
+```
+SP-000012  →  DC-00412  →  GP-000871
+```
+
+**Wrong link = correction, super admin only.** The operator links an unlinked
+pass once. After that, changing the dispatch or removing the link (**Correct
+linked dispatch** on the pass page, **Change** / **Unlink** in the Store pass
+column) is only offered to, and only accepted from, a super admin. The history
+shows the correction (`Link corrected: DC-00412 → DC-00415`).
+(`20261010120000_store_pass_one_to_one.sql`.)
+
+Figures per dispatch: the linked pass gives the dispatch its totals. (Passes
+linked to several dispatches before the one-to-one rule cannot be split: those
+dispatches show the pass number without figures and are not checked store ≠
+gate until a super admin corrects the link.)
 
 ## Flow
 
@@ -60,8 +75,8 @@ draft → issued → (cancelled)
 - **Draft**: the keeper can edit items, the plan number, the hand-over and the
   photo, and cancel.
 - **Issued**: goods have been handed over; the pass is frozen. Only a store
-  pass manager (or super admin) can cancel it, with a reason. Links to
-  dispatches can still be changed after issue.
+  pass manager (or super admin) can cancel it, with a reason. The pass can be
+  linked after issue; a link, once made, is changed only by a super admin.
 
 ## Pages (sidebar group **Store Pass**, module `store_pass`)
 
@@ -70,7 +85,7 @@ draft → issued → (cancelled)
 | Dashboard | `/store-pass/dashboard` | Today's dispatches, store passes issued and gate outs; issued-but-waiting (with hours); dispatches with no store pass; held at gate; open discrepancies of the last 7 days; recent passes |
 | Store Passes | `/store-pass/passes` | Register with date range, status and search; Excel export; cards for issued today, issued-but-no-gate-pass, dispatches with no store pass, held at gate |
 | New Store Pass | `/store-pass/new` | Dispatch plan no. → items (description, optional product, dz, ctn, remark) → handed over to, photo of the stock, remarks → **Issue** or **Save as draft**. No linking here |
-| Store pass | `/store-pass/passes/:id` | Items, the linked dispatches with their gate pass and gate-out time, details, the photo, history; Print, Edit / Issue (draft), Link to dispatch (linker roles only), Cancel |
+| Store pass | `/store-pass/passes/:id` | Items, the linked dispatch with its gate pass and gate-out time, details, the photo, history; Print, Edit / Issue (draft), Link to dispatch (linker roles; Correct linked dispatch: super admin), Cancel |
 | Dispatch Tracking | `/store-pass/tracking` | One row per domestic dispatch: DC → SP → GP → Out → Delivered as a stage strip with the hours between steps; stage chips as filters; open stages shown whatever their date; Excel export |
 | Daily Reconciliation | `/store-pass/reconciliation` | See below |
 
@@ -163,11 +178,11 @@ dispatch), `store_pass_unlinked`, `store_pass_log`, `store_pass_notify`,
 |---|---|
 | `store_pass_officer` (store keeper) | Make, issue and print passes; edit / cancel own drafts. **Cannot link** a pass to a dispatch |
 | `store_pass_manager` | Everything above, plus cancel an issued pass (reason), link passes to dispatches and explain discrepancies |
-| `dispatch_operator` / `sales_order_manager` | **Link store passes to dispatches** from the Domestic Dispatch page (Store pass column → Link / Change / Unlink); gets the notification when a pass is issued unlinked. No store pass pages |
+| `dispatch_operator` / `sales_order_manager` | **Link store passes to dispatches** from the Domestic Dispatch page (Store pass column → Link), once per dispatch; gets the notification when a pass is issued unlinked. No store pass pages |
 | `store_pass_viewer` | Read only |
 | `gate_pass_manager` | Read Dispatch Tracking and the reconciliation; explain discrepancies; link passes to dispatches |
 | `gate_security` | Sees the store-pass notice on Gate Check; nothing else new |
-| `super_admin` | Everything, plus the gate setting |
+| `super_admin` | Everything, plus the gate setting and **correcting a wrong link** (change or remove the dispatch of a linked store pass; change the dispatch of a saved sales gate pass) |
 
 Store pass roles are module tiers (`AuthContext` `MODULE_TIER_DEFINITIONS`):
 confined to `/store-pass/*` plus the dashboard shell; they never reach a page

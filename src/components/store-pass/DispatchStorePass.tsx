@@ -5,16 +5,17 @@ import { Link2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { spStatusMeta, type DispatchStorePass } from "@/lib/storePass";
+import { canCorrectStorePassLink, spStatusMeta, type DispatchStorePass } from "@/lib/storePass";
 import { LinkStorePassDialog } from "./LinkStorePassDialog";
 
 // Store pass no. / issue time for dispatch lists. Read-only by default: the
 // dispatch pages keep working exactly as before, this is an extra column.
 // With `dispatch` given (only for roles that may link — the dispatch operator),
-// the cell also opens the Link store pass dialog.
+// the cell also opens the Link store pass dialog. A dispatch already on a pass
+// can only be changed by a super admin (a wrong link is a correction).
 
 export function StorePassNoCell({ sp, dispatch }: { sp?: DispatchStorePass; dispatch?: { id: string; dispatch_number: string } }) {
-  const { hasModulePermission } = useAuth();
+  const { roles, hasModulePermission } = useAuth();
   const [open, setOpen] = useState(false);
   // The dispatch operator has no Store Pass pages: show the number without a link.
   const canOpenPass = hasModulePermission("store_pass", "view");
@@ -34,7 +35,7 @@ export function StorePassNoCell({ sp, dispatch }: { sp?: DispatchStorePass; disp
     <span className="text-muted-foreground">—</span>
   );
 
-  if (!dispatch) return number;
+  if (!dispatch || (sp && !canCorrectStorePassLink(roles))) return number;
   return (
     <div className="flex items-center gap-1">
       {number}

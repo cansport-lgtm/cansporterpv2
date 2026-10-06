@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { photoUrl, statusMeta as gpStatusMeta } from "@/lib/gatePass";
 import {
+  canCorrectStorePassLink,
   canLinkStorePass,
   SP_SELECT, errorMessage, fmtQty, printStorePass, sortedItems, spDb, spStatusMeta, totals, type StorePass,
 } from "@/lib/storePass";
@@ -60,6 +61,7 @@ export default function StorePassDetailPage() {
   const canCreate = hasModulePermission("store_pass", "create");
   const canManage = hasModulePermission("store_pass", "approve");
   const canLink = canLinkStorePass(roles); // the dispatch operator, not the store keeper
+  const canCorrect = canCorrectStorePassLink(roles); // changing an existing link: super admin only
   const qrRef = useRef<HTMLDivElement>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -178,8 +180,8 @@ export default function StorePassDetailPage() {
                 <Button disabled={action.isPending} onClick={() => run("store_pass_issue", { p_id: pass.id }, "Store pass issued")}><CheckCircle2 className="h-4 w-4 mr-1" /> Issue</Button>
               </>
             )}
-            {canLink && pass.status !== "cancelled" && (
-              <Button variant={unlinked ? "default" : "outline"} onClick={openLink}><Link2 className="h-4 w-4 mr-1" /> {dispatches.length ? "Change linked dispatches" : "Link to dispatch"}</Button>
+            {pass.status !== "cancelled" && (dispatches.length ? canCorrect : canLink) && (
+              <Button variant={unlinked ? "default" : "outline"} onClick={openLink}><Link2 className="h-4 w-4 mr-1" /> {dispatches.length ? "Correct linked dispatch" : "Link to dispatch"}</Button>
             )}
             <Button variant="outline" onClick={print}><Printer className="h-4 w-4 mr-1" /> Print</Button>
             {canCancel && <Button variant="ghost" className="text-destructive" onClick={() => setCancelOpen(true)}>{isDraft ? "Cancel draft" : "Cancel pass"}</Button>}
@@ -194,7 +196,7 @@ export default function StorePassDetailPage() {
         {unlinked && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex gap-3 text-sm text-amber-900">
             <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0" />
-            <div>This pass is not linked to any system dispatch, so the daily reconciliation cannot compare it with the dispatch or the gate yet. {canLink ? "Link it to the dispatch it went on." : "The dispatch operator links it from the Domestic Dispatch page once the dispatch sheet is made."}</div>
+            <div>This pass is not linked to any system dispatch, so the daily reconciliation cannot compare it with the dispatch or the gate yet. {canLink ? "Link it to the one dispatch it went on. Once linked, only a super admin can change it." : "The dispatch operator links it from the Domestic Dispatch page once the dispatch sheet is made."}</div>
           </div>
         )}
 
@@ -331,8 +333,8 @@ export default function StorePassDetailPage() {
       <Dialog open={linkOpen} onOpenChange={(o) => { if (!o) setLinkOpen(false); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Link {pass.pass_number} to system dispatches</DialogTitle>
-            <DialogDescription>Tick the dispatch(es) these goods went on. Tracking and the daily reconciliation then compare this pass with the dispatch and the gate. A dispatch can be on one live store pass only.</DialogDescription>
+            <DialogTitle>{dispatches.length ? "Correct the dispatch of" : "Link"} {pass.pass_number}{dispatches.length ? "" : " to its dispatch"}</DialogTitle>
+            <DialogDescription>Pick the one dispatch (DC) these goods went on. Tracking and the daily reconciliation then compare this pass with the dispatch and the gate. One store pass per dispatch; once linked, only a super admin can change it.</DialogDescription>
           </DialogHeader>
           <div className="max-h-[50vh] overflow-auto border rounded-lg">
             <Table>
@@ -348,7 +350,7 @@ export default function StorePassDetailPage() {
                   return (
                     <TableRow key={d.id} className={cn(onPass && !checked && "opacity-60", checked && "bg-primary/5")}>
                       <TableCell><Checkbox aria-label={`Link ${d.dispatch_number}`} checked={checked} disabled={Boolean(onPass) && !checked}
-                        onCheckedChange={(v) => setLinkIds((prev) => (v === true ? [...prev, d.id] : prev.filter((x) => x !== d.id)))} /></TableCell>
+                        onCheckedChange={(v) => setLinkIds(v === true ? [d.id] : [])} /></TableCell>
                       <TableCell className="font-mono text-sm font-semibold">{d.dispatch_number}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(d.dispatch_date), "dd MMM")}</TableCell>
                       <TableCell className="text-sm max-w-[200px] truncate" title={customersOf(d)}>{customersOf(d)}</TableCell>
@@ -362,8 +364,8 @@ export default function StorePassDetailPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLinkOpen(false)}>Back</Button>
-            <Button disabled={action.isPending} onClick={() => run("store_pass_link_dispatches", { p_id: pass.id, p_dispatch_ids: linkIds }, linkIds.length ? "Dispatches linked" : "Links removed")}>
-              Save links ({linkIds.length})
+            <Button disabled={action.isPending} onClick={() => run("store_pass_link_dispatches", { p_id: pass.id, p_dispatch_ids: linkIds }, linkIds.length ? "Dispatch linked" : "Link removed")}>
+              {linkIds.length ? "Save link" : "Remove link"}
             </Button>
           </DialogFooter>
         </DialogContent>

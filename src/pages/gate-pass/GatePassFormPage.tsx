@@ -301,8 +301,9 @@ export default function GatePassFormPage() {
       })),
   );
 
+  // One sales gate pass covers one dispatch (DC): picking one replaces the other.
   const toggleDispatch = (d: DispatchRow, on: boolean) => {
-    setDispatchIds((prev) => (on ? [...prev, d.id] : prev.filter((x) => x !== d.id)));
+    setDispatchIds(on ? [d.id] : []);
     // First dispatch picked fills in the vehicle details if they are still empty.
     if (on && !vehicle && d.vehicle_number) setVehicle(d.vehicle_number);
     if (on && !driver && d.driver_name) setDriver(d.driver_name);
@@ -458,8 +459,8 @@ export default function GatePassFormPage() {
               <>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">3. Dispatches loading on this vehicle</CardTitle>
-                    <p className="text-sm text-muted-foreground">Pending dispatches of approved sales orders. A dispatch already on another pass cannot be picked.</p>
+                    <CardTitle className="text-base">3. Dispatch loading on this vehicle</CardTitle>
+                    <p className="text-sm text-muted-foreground">Pending dispatches of approved sales orders. One gate pass per dispatch (DC); a dispatch already on another pass cannot be picked. Once the pass is saved, only a super admin can change its dispatch.</p>
                   </CardHeader>
                   <CardContent className="p-0 overflow-x-auto">
                     <Table className="min-w-[760px]">
