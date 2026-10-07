@@ -4,399 +4,14 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Package, ClipboardList } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Shield, Users, Package, ClipboardList, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "@/integrations/supabase/types";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
-
-const roleDescriptions: Record<AppRole, string> = {
-  super_admin: "Full system access with all permissions",
-  admin: "Administrative access to most features",
-  manager: "Department-level management access",
-  supervisor: "Team supervision and approval capabilities",
-  operator: "Data entry and operational tasks",
-  viewer: "Read-only access to permitted modules",
-  operational_manager: "Full access to Production and QA modules",
-  qa_manager: "Quality Assurance – full access including approve (delete reserved for super admin)",
-  qa_super_manager: "Quality Assurance – everything the QA Manager can do, plus setting daily inspection targets (Daily Quality Plan); no delete",
-  maintenance_manager: "Maintenance – full access including approve (delete reserved for super admin)",
-  sales_executive: "Access to Sales module for order management",
-  order_management: "View access to Sales and Production dashboards only",
-  floor_incharge: "Labour Productivity Entry, plus Hourly Production & Machine Monitor when authorized",
-  private_label_distributor: "View-only access to Private Label Sales module",
-  private_label_manager: "Private Label Sales – full access including approve (delete reserved for super admin)",
-  private_label_officer: "Private Label Sales – create and edit entries (no approve, no delete)",
-  private_label_viewer: "Private Label Sales – read-only access",
-  pettycash_handler: "Access to Petty Cash page only with entry creation; pays staff trip fuel vouchers (Expenses → Trip Fuel Vouchers)",
-  store_operator: "Access to Stock Closing page in Material Consumption module only",
-  project_manager: "Project Management – full access including approve (delete reserved for super admin); can only see assigned projects",
-  online_sales_packing: "Online Sales orders page only – can only scan parcels and update weight/items",
-  online_sales_admin: "Online Sales – full module access including financials, masters and settings (all actions)",
-  online_sales_manager: "Online Sales – full module visibility incl. financials; can approve but not delete",
-  online_sales_agent: "Online Sales – order/customer/return fulfilment only (orders, customers, returns, live status, inventory); no money/financial pages",
-  accounting_poster: "Accounting – post vouchers/receipts/payments and review books & ledgers; no financial reports",
-  accounting_officer: "Accounting (no P&L / Balance Sheet) + Production view-only (incl. WIP Ledger) + Sales & Purchase invoicing/returns + Master Data (products/items)",
-  accounting_manager: "Accounting – full access to all entries and reports, including approve",
-  billing_officer: "Sales & Purchase invoicing – access to Sales and Purchase modules (permission-driven)",
-  purchase_officer: "Creates purchase orders – cannot approve (approval reserved for Purchase Manager)",
-  purchase_manager: "Approves purchase orders raised by Purchase Officers",
-  purchase_qc_inspector: "Quality Inspection page only – inspects incoming raw material against POs and approves QC; no prices, no other purchase pages",
-  dispatch_operator: "Domestic Dispatch page only – can create dispatches without seeing any prices; links store passes to their dispatch (DC)",
-  sales_order_manager: "Domestic sales orders + dispatch coordination & dashboards – no customer/product creation, no invoices, no prices",
-  production_operator: "Production & Production Planning – can post/unpost the day's production entries and edit within 48 hours of creation (no delete)",
-  closing_data_poster: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption) – limited to those two pages only",
-  distributor_sales: "Distributor Orders – create customers and make/submit orders for their distributor only",
-  distributor_manager: "Distributor Orders – approve/reject/edit orders and run the dispatch sheet for their distributor",
-  distributor_admin: "Distributor Orders – manage their distributor's sales & manager users, plus full module access",
-  labour_productivity_approver: "Labour Productivity – review and approve labour productivity entries and edit requests",
-  labour_productivity_poster: "Labour Productivity – create and post labour productivity entries",
-  labour_productivity_viewer: "Labour Productivity – read-only access to labour productivity data",
-  labour_gate_pass_approver: "Labour Productivity – approve / reject worker gate passes (half day, short leave), cancel a pass before it is out, convert an overdue short leave to a half day",
-  labour_attendance_delete_approver: "Labour Productivity – approve / reject supervisors' requests to delete a worker's attendance entry marked by mistake (approval deletes the entry); sees the attendance delete log sheet",
-  staff_gate_pass_approver: "HR – approve / reject staff gate passes (half day, short leave), cancel a pass before it is out, convert an overdue short leave to a half day; HR manager / officer apply",
-  projects_super_manager: "Project Management – sees all users' projects and progress; can create projects, tasks and documents but cannot delete anything",
-  gate_pass_manager: "Gate Pass – make and cancel passes; release a held pass with the counted quantity; close returnable / job work; manual backfill and paper books (sample, returnable, job work and scrap passes are approved by their own managers)",
-  gate_pass_sample_manager: "Gate Pass – approve or reject sample passes only",
-  gate_pass_returnable_manager: "Gate Pass – approve or reject returnable passes only",
-  gate_pass_jobwork_manager: "Gate Pass – approve or reject job work passes only",
-  gate_pass_scrap_manager: "Gate Pass – approve or reject scrap passes only (sees scrap rates)",
-  gate_pass_officer: "Gate Pass – make and submit passes (no approve)",
-  gate_pass_viewer: "Gate Pass – read-only access to passes and the register",
-  gate_security: "Gate Pass – gate guard: Gate Check page only; counts each line, marks the vehicle Out or holds it (never sees prices)",
-  store_pass_manager: "Store Pass – make and issue store passes, cancel an issued pass (with a reason), explain store ↔ gate discrepancies",
-  store_pass_officer: "Store Pass – store keeper: make, issue and print store passes; edit / cancel own drafts (the dispatch operator links passes to dispatches)",
-  store_pass_viewer: "Store Pass – read-only access to passes, dispatch tracking and reconciliation",
-  dispatch_planner_manager: "Dispatch Planner – everything the officer can, plus the vehicle master and deleting saved plan versions",
-  dispatch_planner_officer: "Dispatch Planner – run suggestions, pin / flag lines, save plan versions, print and export (reads only; nothing is dispatched or booked)",
-  dispatch_planner_viewer: "Dispatch Planner – read-only access to the suggested plan, pending lines and saved versions",
-  pr_office_officer: "Purchase Requests – Office Supplies: sees the Office Supplies requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
-  pr_office_approver: "Purchase Requests – Office Supplies: the officer's rights plus the Purchase approval for Office Supplies (lower quantities, set estimated rates, approve / reject; never on own request)",
-  pr_raw_material_officer: "Purchase Requests – Raw Material: sees the Raw Material requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
-  pr_raw_material_approver: "Purchase Requests – Raw Material: the officer's rights plus the Purchase approval for Raw Material (lower quantities, set estimated rates, approve / reject; never on own request)",
-  pr_production_officer: "Purchase Requests – Production Supplies: sees the Production Supplies requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
-  pr_production_approver: "Purchase Requests – Production Supplies: the officer's rights plus the Purchase approval for Production Supplies (lower quantities, set estimated rates, approve / reject; never on own request)",
-  pr_spares_officer: "Purchase Requests – Spares & Parts: sees the Spares & Parts requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
-  pr_spares_approver: "Purchase Requests – Spares & Parts: the officer's rights plus the Purchase approval for Spares & Parts (lower quantities, set estimated rates, approve / reject; never on own request)",
-  helpdesk_manager: "Help Desk – manages all support tickets (assign, comment, change status/priority, resolve) on the ticket admin board",
-  export_manager: "Export Sales – full access including approve (delete reserved for super admin)",
-  export_officer: "Export Sales – create and edit entries (no approve, no delete)",
-  export_viewer: "Export Sales – read-only access",
-  master_data_manager: "Master Data – full access including approve (delete reserved for super admin)",
-  master_data_officer: "Master Data – create and edit entries (no approve, no delete)",
-  master_data_viewer: "Master Data – read-only access",
-  hr_manager: "Human Resources – full access including approve (delete reserved for super admin)",
-  hr_officer: "Human Resources – create and edit entries (no approve, no delete)",
-  hr_viewer: "Human Resources – read-only access",
-  wip_manager: "WIP Management – full access including approve (delete reserved for super admin)",
-  wip_officer: "WIP Management – create and edit entries (no approve, no delete)",
-  wip_viewer: "WIP Management – read-only access",
-  rejections_manager: "Rejections & Wastages – full access including approve (delete reserved for super admin)",
-  rejections_officer: "Rejections & Wastages – create and edit entries (no approve, no delete)",
-  rejections_viewer: "Rejections & Wastages – read-only access",
-  performance_manager: "Performance – full access including approve (delete reserved for super admin)",
-  performance_officer: "Performance – create and edit entries (no approve, no delete)",
-  performance_viewer: "Performance – read-only access",
-  floor_inventory_manager: "Floor Inventory – full access including approve (delete reserved for super admin)",
-  floor_inventory_officer: "Floor Inventory – create and edit entries (no approve, no delete)",
-  floor_inventory_viewer: "Floor Inventory – read-only access",
-  fixed_assets_manager: "Fixed Assets – full access including approve (delete reserved for super admin)",
-  fixed_assets_officer: "Fixed Assets – create and edit entries (no approve, no delete)",
-  fixed_assets_viewer: "Fixed Assets – read-only access",
-  five_s_manager: "5S Audit – full access including approve (delete reserved for super admin)",
-  five_s_officer: "5S Audit – create and edit entries (no approve, no delete)",
-  five_s_viewer: "5S Audit – read-only access",
-  hourly_production_manager: "Hourly Production – full access including approve (delete reserved for super admin)",
-  hourly_production_officer: "Hourly Production – create and edit entries (no approve, no delete)",
-  hourly_production_viewer: "Hourly Production – read-only access",
-  rd_manager: "Product Dev & R&D – full access including approve (delete reserved for super admin)",
-  rd_officer: "Product Dev & R&D – create and edit entries (no approve, no delete)",
-  rd_viewer: "Product Dev & R&D – read-only access",
-  crm_manager: "CRM – full access including approve (delete reserved for super admin)",
-  crm_officer: "CRM – create and edit entries (no approve, no delete)",
-  crm_viewer: "CRM – read-only access",
-  marketing_manager: "Marketing – full access including approve (delete reserved for super admin)",
-  marketing_officer: "Marketing – create and edit entries (no approve, no delete)",
-  marketing_viewer: "Marketing – read-only access",
-  projects_officer: "Project Management – create and edit projects (no approve, no delete)",
-  projects_viewer: "Project Management – read-only access",
-  qa_officer: "Quality Assurance – create and edit inspections (no approve, no delete)",
-  qa_viewer: "Quality Assurance – read-only access",
-  qa_inspector: "Quality Assurance – inspection entry form only; can only create inspections (no dashboard or any other page)",
-  maintenance_officer: "Maintenance – create and edit work orders (no approve, no delete)",
-  maintenance_viewer: "Maintenance – read-only access",
-  expenses_manager: "Expenses – full access including approve (delete reserved for super admin)",
-  expenses_officer: "Expenses – create and edit entries (no approve, no delete)",
-  expenses_viewer: "Expenses – read-only access",
-  material_consumption_manager: "Material Consumption – full access including approve (delete reserved for super admin)",
-  material_consumption_officer: "Material Consumption – create and edit entries (no approve, no delete)",
-  material_consumption_viewer: "Material Consumption – read-only access",
-  machine_monitor_manager: "Machine Monitor – full access including approve (delete reserved for super admin)",
-  machine_monitor_officer: "Machine Monitor – create and edit entries (no approve, no delete)",
-  machine_monitor_viewer: "Machine Monitor – read-only access",
-  production_manager: "Production – full access including approve/post (delete reserved for super admin)",
-  production_officer: "Production – create and edit entries (no approve, no delete)",
-  production_viewer: "Production – read-only access",
-};
-
-const roleColors: Record<AppRole, string> = {
-  super_admin: "bg-red-500/10 text-red-500 border-red-500/20",
-  admin: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  manager: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  supervisor: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  operator: "bg-green-500/10 text-green-500 border-green-500/20",
-  viewer: "bg-gray-500/10 text-gray-500 border-gray-500/20",
-  operational_manager: "bg-teal-500/10 text-teal-500 border-teal-500/20",
-  qa_manager: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  qa_super_manager: "bg-cyan-700/10 text-cyan-700 border-cyan-700/20",
-  maintenance_manager: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  sales_executive: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  order_management: "bg-pink-500/10 text-pink-500 border-pink-500/20",
-  floor_incharge: "bg-lime-500/10 text-lime-500 border-lime-500/20",
-  private_label_distributor: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  private_label_manager: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
-  private_label_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  private_label_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
-  pettycash_handler: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  store_operator: "bg-sky-500/10 text-sky-500 border-sky-500/20",
-  project_manager: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  online_sales_packing: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-  online_sales_admin: "bg-rose-700/10 text-rose-700 border-rose-700/20",
-  online_sales_manager: "bg-rose-600/10 text-rose-600 border-rose-600/20",
-  online_sales_agent: "bg-pink-600/10 text-pink-600 border-pink-600/20",
-  accounting_poster: "bg-teal-500/10 text-teal-500 border-teal-500/20",
-  accounting_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  accounting_manager: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  billing_officer: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
-  purchase_officer: "bg-teal-600/10 text-teal-600 border-teal-600/20",
-  purchase_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
-  purchase_qc_inspector: "bg-emerald-600/10 text-emerald-600 border-emerald-600/20",
-  dispatch_operator: "bg-orange-600/10 text-orange-600 border-orange-600/20",
-  sales_order_manager: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
-  production_operator: "bg-blue-600/10 text-blue-600 border-blue-600/20",
-  closing_data_poster: "bg-purple-600/10 text-purple-600 border-purple-600/20",
-  distributor_sales: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  distributor_manager: "bg-amber-600/10 text-amber-600 border-amber-600/20",
-  distributor_admin: "bg-amber-700/10 text-amber-700 border-amber-700/20",
-  labour_productivity_approver: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  labour_productivity_poster: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  labour_productivity_viewer: "bg-slate-500/10 text-slate-500 border-slate-500/20",
-  labour_gate_pass_approver: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  labour_attendance_delete_approver: "bg-rose-500/10 text-rose-600 border-rose-500/20",
-  staff_gate_pass_approver: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-  export_manager: "bg-blue-600/10 text-blue-600 border-blue-600/20",
-  export_officer: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  export_viewer: "bg-blue-400/10 text-blue-400 border-blue-400/20",
-  master_data_manager: "bg-emerald-600/10 text-emerald-600 border-emerald-600/20",
-  master_data_officer: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  master_data_viewer: "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-  hr_manager: "bg-amber-600/10 text-amber-600 border-amber-600/20",
-  hr_officer: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  hr_viewer: "bg-amber-400/10 text-amber-400 border-amber-400/20",
-  wip_manager: "bg-violet-600/10 text-violet-600 border-violet-600/20",
-  wip_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  wip_viewer: "bg-violet-400/10 text-violet-400 border-violet-400/20",
-  rejections_manager: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
-  rejections_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  rejections_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
-  performance_manager: "bg-rose-600/10 text-rose-600 border-rose-600/20",
-  performance_officer: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-  performance_viewer: "bg-rose-400/10 text-rose-400 border-rose-400/20",
-  floor_inventory_manager: "bg-lime-600/10 text-lime-600 border-lime-600/20",
-  floor_inventory_officer: "bg-lime-500/10 text-lime-500 border-lime-500/20",
-  floor_inventory_viewer: "bg-lime-400/10 text-lime-400 border-lime-400/20",
-  fixed_assets_manager: "bg-orange-600/10 text-orange-600 border-orange-600/20",
-  fixed_assets_officer: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  fixed_assets_viewer: "bg-orange-400/10 text-orange-400 border-orange-400/20",
-  five_s_manager: "bg-teal-600/10 text-teal-600 border-teal-600/20",
-  five_s_officer: "bg-teal-500/10 text-teal-500 border-teal-500/20",
-  five_s_viewer: "bg-teal-400/10 text-teal-400 border-teal-400/20",
-  hourly_production_manager: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
-  hourly_production_officer: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  hourly_production_viewer: "bg-indigo-400/10 text-indigo-400 border-indigo-400/20",
-  rd_manager: "bg-fuchsia-600/10 text-fuchsia-600 border-fuchsia-600/20",
-  rd_officer: "bg-fuchsia-500/10 text-fuchsia-500 border-fuchsia-500/20",
-  rd_viewer: "bg-fuchsia-400/10 text-fuchsia-400 border-fuchsia-400/20",
-  crm_manager: "bg-sky-600/10 text-sky-600 border-sky-600/20",
-  crm_officer: "bg-sky-500/10 text-sky-500 border-sky-500/20",
-  crm_viewer: "bg-sky-400/10 text-sky-400 border-sky-400/20",
-  marketing_manager: "bg-purple-600/10 text-purple-600 border-purple-600/20",
-  marketing_officer: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  marketing_viewer: "bg-purple-400/10 text-purple-400 border-purple-400/20",
-  projects_officer: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  projects_viewer: "bg-blue-400/10 text-blue-400 border-blue-400/20",
-  qa_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  qa_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
-  qa_inspector: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
-  maintenance_officer: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  maintenance_viewer: "bg-amber-400/10 text-amber-400 border-amber-400/20",
-  expenses_manager: "bg-yellow-600/10 text-yellow-600 border-yellow-600/20",
-  expenses_officer: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  expenses_viewer: "bg-yellow-400/10 text-yellow-400 border-yellow-400/20",
-  material_consumption_manager: "bg-sky-600/10 text-sky-600 border-sky-600/20",
-  material_consumption_officer: "bg-sky-500/10 text-sky-500 border-sky-500/20",
-  material_consumption_viewer: "bg-sky-400/10 text-sky-400 border-sky-400/20",
-  machine_monitor_manager: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
-  machine_monitor_officer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400 border-cyan-400/20",
-  production_manager: "bg-orange-600/10 text-orange-600 border-orange-600/20",
-  production_officer: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  production_viewer: "bg-orange-400/10 text-orange-400 border-orange-400/20",
-  helpdesk_manager: "bg-rose-600/10 text-rose-600 border-rose-600/20",
-  gate_pass_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
-  gate_pass_officer: "bg-stone-600/10 text-stone-600 border-stone-600/20",
-  gate_pass_viewer: "bg-stone-500/10 text-stone-500 border-stone-500/20",
-  gate_pass_sample_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
-  gate_pass_returnable_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
-  gate_pass_jobwork_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
-  gate_pass_scrap_manager: "bg-stone-700/10 text-stone-700 border-stone-700/20",
-  gate_security: "bg-slate-800/10 text-slate-800 border-slate-800/20",
-  store_pass_manager: "bg-indigo-700/10 text-indigo-700 border-indigo-700/20",
-  store_pass_officer: "bg-indigo-600/10 text-indigo-600 border-indigo-600/20",
-  store_pass_viewer: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
-  dispatch_planner_manager: "bg-cyan-700/10 text-cyan-700 border-cyan-700/20",
-  dispatch_planner_officer: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
-  dispatch_planner_viewer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-  pr_office_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  pr_office_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
-  pr_raw_material_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  pr_raw_material_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
-  pr_production_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  pr_production_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
-  pr_spares_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
-  pr_spares_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
-  projects_super_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
-};
+import { ROLE_GROUPS, ROLE_META, NON_ASSIGNABLE_MODULES, TIER_LABELS, type AppRole } from "@/lib/roleCatalog";
 
 export default function RolesPage() {
-  const [roleCounts, setRoleCounts] = useState<Record<AppRole, number>>({
-    super_admin: 0,
-    admin: 0,
-    manager: 0,
-    supervisor: 0,
-    operator: 0,
-    viewer: 0,
-    operational_manager: 0,
-    qa_manager: 0,
-    qa_super_manager: 0,
-    maintenance_manager: 0,
-    sales_executive: 0,
-    order_management: 0,
-    floor_incharge: 0,
-    private_label_distributor: 0,
-    private_label_manager: 0,
-    private_label_officer: 0,
-    private_label_viewer: 0,
-    pettycash_handler: 0,
-    store_operator: 0,
-    project_manager: 0,
-    online_sales_packing: 0,
-    online_sales_admin: 0,
-    online_sales_manager: 0,
-    online_sales_agent: 0,
-    accounting_poster: 0,
-    accounting_officer: 0,
-    accounting_manager: 0,
-    billing_officer: 0,
-    purchase_officer: 0,
-    purchase_manager: 0,
-    purchase_qc_inspector: 0,
-    dispatch_operator: 0,
-    sales_order_manager: 0,
-    production_operator: 0,
-    closing_data_poster: 0,
-    distributor_sales: 0,
-    distributor_manager: 0,
-    distributor_admin: 0,
-    labour_productivity_approver: 0,
-    labour_productivity_poster: 0,
-    labour_productivity_viewer: 0,
-    labour_gate_pass_approver: 0,
-    labour_attendance_delete_approver: 0,
-    staff_gate_pass_approver: 0,
-    export_manager: 0,
-    export_officer: 0,
-    export_viewer: 0,
-    master_data_manager: 0,
-    master_data_officer: 0,
-    master_data_viewer: 0,
-    hr_manager: 0,
-    hr_officer: 0,
-    hr_viewer: 0,
-    wip_manager: 0,
-    wip_officer: 0,
-    wip_viewer: 0,
-    rejections_manager: 0,
-    rejections_officer: 0,
-    rejections_viewer: 0,
-    performance_manager: 0,
-    performance_officer: 0,
-    performance_viewer: 0,
-    floor_inventory_manager: 0,
-    floor_inventory_officer: 0,
-    floor_inventory_viewer: 0,
-    fixed_assets_manager: 0,
-    fixed_assets_officer: 0,
-    fixed_assets_viewer: 0,
-    five_s_manager: 0,
-    five_s_officer: 0,
-    five_s_viewer: 0,
-    hourly_production_manager: 0,
-    hourly_production_officer: 0,
-    hourly_production_viewer: 0,
-    rd_manager: 0,
-    rd_officer: 0,
-    rd_viewer: 0,
-    crm_manager: 0,
-    crm_officer: 0,
-    crm_viewer: 0,
-    marketing_manager: 0,
-    marketing_officer: 0,
-    marketing_viewer: 0,
-    projects_officer: 0,
-    projects_viewer: 0,
-    qa_officer: 0,
-    qa_viewer: 0,
-    qa_inspector: 0,
-    maintenance_officer: 0,
-    maintenance_viewer: 0,
-    expenses_manager: 0,
-    expenses_officer: 0,
-    expenses_viewer: 0,
-    material_consumption_manager: 0,
-    material_consumption_officer: 0,
-    material_consumption_viewer: 0,
-    machine_monitor_manager: 0,
-    machine_monitor_officer: 0,
-    machine_monitor_viewer: 0,
-    production_manager: 0,
-    production_officer: 0,
-    production_viewer: 0,
-    helpdesk_manager: 0,
-    gate_pass_manager: 0,
-    gate_pass_officer: 0,
-    gate_pass_viewer: 0,
-    gate_pass_sample_manager: 0,
-    gate_pass_returnable_manager: 0,
-    gate_pass_jobwork_manager: 0,
-    gate_pass_scrap_manager: 0,
-    gate_security: 0,
-    store_pass_manager: 0,
-    store_pass_officer: 0,
-    store_pass_viewer: 0,
-    dispatch_planner_manager: 0,
-    dispatch_planner_officer: 0,
-    dispatch_planner_viewer: 0,
-    pr_office_officer: 0,
-    pr_office_approver: 0,
-    pr_raw_material_officer: 0,
-    pr_raw_material_approver: 0,
-    pr_production_officer: 0,
-    pr_production_approver: 0,
-    pr_spares_officer: 0,
-    pr_spares_approver: 0,
-    projects_super_manager: 0,
-  });
+  const [roleCounts, setRoleCounts] = useState<Partial<Record<AppRole, number>>>({});
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchRoleCounts = async () => {
@@ -412,7 +27,15 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "qa_super_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "labour_attendance_delete_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "dispatch_planner_manager", "dispatch_planner_officer", "dispatch_planner_viewer", "pr_office_officer", "pr_office_approver", "pr_raw_material_officer", "pr_raw_material_approver", "pr_production_officer", "pr_production_approver", "pr_spares_officer", "pr_spares_approver", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
+  const term = search.trim().toLowerCase();
+  const groups = ROLE_GROUPS.map((g) => ({
+    ...g,
+    roles: g.roles.filter((r) => {
+      if (!term || g.label.toLowerCase().includes(term)) return true;
+      const m = ROLE_META[r];
+      return m.label.toLowerCase().includes(term) || m.description.toLowerCase().includes(term) || r.replace(/_/g, " ").includes(term);
+    }),
+  })).filter((g) => g.roles.length > 0);
 
   return (
     <ERPLayout>
@@ -438,24 +61,46 @@ export default function RolesPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="roles" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {roles.map((role) => (
-              <Card key={role}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg capitalize">
-                      {role.replace(/_/g, " ")}
-                    </CardTitle>
-                    <Badge variant="outline" className={roleColors[role]}>
-                      {roleCounts[role]} users
-                    </Badge>
-                  </div>
-                  <CardDescription>{roleDescriptions[role]}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+        <TabsContent value="roles" className="space-y-6">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search roles or modules..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
+          {groups.map((g) => (
+            <div key={g.key} className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                {g.label}
+                {NON_ASSIGNABLE_MODULES.has(g.key) && (
+                  <span className="ml-2 font-normal">(assigned in Distributor Orders → Manage Users)</span>
+                )}
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {g.roles.map((role) => (
+                  <Card key={role}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-lg">
+                          {ROLE_META[role].label}
+                          <span className="ml-2 align-middle text-xs font-normal text-muted-foreground">
+                            {TIER_LABELS[ROLE_META[role].tier]}
+                          </span>
+                        </CardTitle>
+                        <Badge variant="outline" className={ROLE_META[role].color}>
+                          {roleCounts[role] ?? 0} users
+                        </Badge>
+                      </div>
+                      <CardDescription>{ROLE_META[role].description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
         </TabsContent>
 
         <TabsContent value="modules" className="space-y-4">

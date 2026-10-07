@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
@@ -24,7 +24,6 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
@@ -43,190 +42,212 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Search, UserCog, Copy, KeyRound, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 import { ModulePermissionsForm, type ModulePermission } from "@/components/settings/ModulePermissionsForm";
+import { RoleAssignmentPanel, type RoleSourceUser } from "@/components/settings/RoleAssignmentPanel";
+import {
+  ROLE_GROUPS,
+  ROLE_META,
+  getModuleLabel,
+  getRoleFullLabel,
+  type AppRole,
+  type RoleModuleKey,
+} from "@/lib/roleCatalog";
 
 type AppUser = Database["public"]["Tables"]["app_users"]["Row"];
-type AppRole = Database["public"]["Enums"]["app_role"];
 
 interface UserWithRoles extends AppUser {
   roles: AppRole[];
 }
 
 const DEFAULT_PERMISSIONS: ModulePermission[] = [];
+const ALL = "__all__";
+const MAX_MODULE_BADGES = 3;
 
-const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
-  { value: "super_admin", label: "Super Admin" },
-  { value: "admin", label: "Admin" },
-  { value: "billing_officer", label: "Billing Officer (Sales + Purchase invoicing)" },
-  { value: "purchase_officer", label: "Purchase Officer (create POs)" },
-  { value: "purchase_manager", label: "Purchase Manager (approve POs)" },
-  { value: "purchase_qc_inspector", label: "Purchase QC Inspector (inspect & approve, no prices)" },
-  { value: "accounting_poster", label: "Accounting — Poster (entries only)" },
-  { value: "accounting_officer", label: "Accounting — Officer (no P&L / Balance Sheet)" },
-  { value: "accounting_manager", label: "Accounting — Manager (full + approve)" },
-  { value: "operational_manager", label: "Operational Manager" },
-  { value: "qa_manager", label: "Quality Assurance — Manager (full + approve)" },
-  { value: "qa_super_manager", label: "Quality Assurance — Super Manager (manager + set daily targets)" },
-  { value: "maintenance_manager", label: "Maintenance — Manager (full + approve)" },
-  { value: "sales_executive", label: "Sales Executive" },
-  { value: "order_management", label: "Order Management" },
-  { value: "floor_incharge", label: "Floor Incharge" },
-  { value: "private_label_distributor", label: "Private Label Distributor" },
-  { value: "private_label_manager", label: "Private Label Sales — Manager (full + approve)" },
-  { value: "private_label_officer", label: "Private Label Sales — Officer (create & edit)" },
-  { value: "private_label_viewer", label: "Private Label Sales — Viewer (read-only)" },
-  { value: "pettycash_handler", label: "Pettycash Handler" },
-  { value: "store_operator", label: "Store Operator" },
-  { value: "online_sales_packing", label: "Online Sales Packing" },
-  { value: "online_sales_admin", label: "Online Sales Admin (full module)" },
-  { value: "online_sales_manager", label: "Online Sales Manager (full module, no delete)" },
-  { value: "online_sales_agent", label: "Online Sales Agent (fulfilment only, no prices)" },
-  { value: "dispatch_operator", label: "Dispatch Operator (create dispatch, link store passes, no prices)" },
-  { value: "sales_order_manager", label: "Sales Order Management (orders + dispatch, no prices/invoices)" },
-  { value: "production_operator", label: "Production Operator (post production + planning, edit ≤48h)" },
-  { value: "closing_data_poster", label: "Closing Data Poster (Daily Stock Closing + Stock Closing only)" },
-  { value: "labour_productivity_approver", label: "Labour Productivity Approver (review & approve entries)" },
-  { value: "labour_productivity_poster", label: "Labour Productivity Poster (create & post entries)" },
-  { value: "labour_productivity_viewer", label: "Labour Productivity Viewer (read-only access)" },
-  { value: "labour_gate_pass_approver", label: "Labour Gate Pass Approver (approve worker half-day / short-leave passes)" },
-  { value: "labour_attendance_delete_approver", label: "Labour Attendance Delete Approver (approve requests to delete a worker's attendance marked by mistake)" },
-  { value: "staff_gate_pass_approver", label: "Staff Gate Pass Approver (approve HR staff half-day / short-leave passes)" },
-  // Distributor roles are intentionally NOT listed here: they require a distributor_id,
-  // which is assigned in the Distributor module's "Manage Users" page (Distributor Orders →
-  // Manage Users). Creating them here would leave distributor_id NULL and break isolation.
-  // Per-module access tiers — assign as many as a user needs; the user receives the
-  // union of every module scope they hold (manager = full + approve, officer = create/edit,
-  // viewer = read-only). Delete stays with super admin in all three tiers.
-  { value: "export_manager", label: "Export Sales — Manager (full + approve)" },
-  { value: "export_officer", label: "Export Sales — Officer (create & edit)" },
-  { value: "export_viewer", label: "Export Sales — Viewer (read-only)" },
-  { value: "master_data_manager", label: "Master Data — Manager (full + approve)" },
-  { value: "master_data_officer", label: "Master Data — Officer (create & edit)" },
-  { value: "master_data_viewer", label: "Master Data — Viewer (read-only)" },
-  { value: "hr_manager", label: "Human Resources — Manager (full + approve)" },
-  { value: "hr_officer", label: "Human Resources — Officer (create & edit)" },
-  { value: "hr_viewer", label: "Human Resources — Viewer (read-only)" },
-  { value: "wip_manager", label: "WIP Management — Manager (full + approve)" },
-  { value: "wip_officer", label: "WIP Management — Officer (create & edit)" },
-  { value: "wip_viewer", label: "WIP Management — Viewer (read-only)" },
-  { value: "rejections_manager", label: "Rejections & Wastages — Manager (full + approve)" },
-  { value: "rejections_officer", label: "Rejections & Wastages — Officer (create & edit)" },
-  { value: "rejections_viewer", label: "Rejections & Wastages — Viewer (read-only)" },
-  { value: "quality_score_manager", label: "Quality Score — Manager (full + approve)" },
-  { value: "quality_score_officer", label: "Quality Score — Officer (create & edit)" },
-  { value: "quality_score_viewer", label: "Quality Score — Viewer (read-only)" },
-  { value: "performance_manager", label: "Performance — Manager (full + approve)" },
-  { value: "performance_officer", label: "Performance — Officer (create & edit)" },
-  { value: "performance_viewer", label: "Performance — Viewer (read-only)" },
-  { value: "floor_inventory_manager", label: "Floor Inventory — Manager (full + approve)" },
-  { value: "floor_inventory_officer", label: "Floor Inventory — Officer (create & edit)" },
-  { value: "floor_inventory_viewer", label: "Floor Inventory — Viewer (read-only)" },
-  { value: "fixed_assets_manager", label: "Fixed Assets — Manager (full + approve)" },
-  { value: "fixed_assets_officer", label: "Fixed Assets — Officer (create & edit)" },
-  { value: "fixed_assets_viewer", label: "Fixed Assets — Viewer (read-only)" },
-  { value: "five_s_manager", label: "5S Audit — Manager (full + approve)" },
-  { value: "five_s_officer", label: "5S Audit — Officer (create & edit)" },
-  { value: "five_s_viewer", label: "5S Audit — Viewer (read-only)" },
-  { value: "hourly_production_manager", label: "Hourly Production — Manager (full + approve)" },
-  { value: "hourly_production_officer", label: "Hourly Production — Officer (create & edit)" },
-  { value: "hourly_production_viewer", label: "Hourly Production — Viewer (read-only)" },
-  { value: "rd_manager", label: "Product Dev & R&D — Manager (full + approve)" },
-  { value: "rd_officer", label: "Product Dev & R&D — Officer (create & edit)" },
-  { value: "rd_viewer", label: "Product Dev & R&D — Viewer (read-only)" },
-  { value: "crm_manager", label: "CRM — Manager (full + approve)" },
-  { value: "crm_officer", label: "CRM — Officer (create & edit)" },
-  { value: "crm_viewer", label: "CRM — Viewer (read-only)" },
-  { value: "marketing_manager", label: "Marketing — Manager (full + approve)" },
-  { value: "marketing_officer", label: "Marketing — Officer (create & edit)" },
-  { value: "marketing_viewer", label: "Marketing — Viewer (read-only)" },
-  // Project Management / QA / Maintenance keep their existing manager roles above
-  // (project_manager, qa_manager, maintenance_manager) as their manager tier.
-  { value: "projects_officer", label: "Project Management — Officer (create & edit)" },
-  { value: "projects_viewer", label: "Project Management — Viewer (read-only)" },
-  { value: "projects_super_manager", label: "Project Management — Super Manager (all projects, create, no delete)" },
-  { value: "qa_officer", label: "Quality Assurance — Officer (create & edit)" },
-  { value: "qa_viewer", label: "Quality Assurance — Viewer (read-only)" },
-  { value: "qa_inspector", label: "Quality Assurance — Inspector (inspection form only, create-only)" },
-  { value: "maintenance_officer", label: "Maintenance — Officer (create & edit)" },
-  { value: "maintenance_viewer", label: "Maintenance — Viewer (read-only)" },
-  { value: "expenses_manager", label: "Expenses — Manager (full + approve)" },
-  { value: "expenses_officer", label: "Expenses — Officer (create & edit)" },
-  { value: "expenses_viewer", label: "Expenses — Viewer (read-only)" },
-  { value: "material_consumption_manager", label: "Material Consumption — Manager (full + approve)" },
-  { value: "material_consumption_officer", label: "Material Consumption — Officer (create & edit)" },
-  { value: "material_consumption_viewer", label: "Material Consumption — Viewer (read-only)" },
-  { value: "machine_monitor_manager", label: "Machine Monitor — Manager (full + approve)" },
-  { value: "machine_monitor_officer", label: "Machine Monitor — Officer (create & edit)" },
-  { value: "machine_monitor_viewer", label: "Machine Monitor — Viewer (read-only)" },
-  { value: "production_manager", label: "Production — Manager (full + approve)" },
-  { value: "production_officer", label: "Production — Officer (create & edit)" },
-  { value: "production_viewer", label: "Production — Viewer (read-only)" },
-  { value: "helpdesk_manager", label: "Help Desk — Manager (manages all tickets)" },
-  { value: "gate_pass_manager", label: "Gate Pass — Manager (create, cancel, release held passes, close, backfill)" },
-  { value: "gate_pass_sample_manager", label: "Gate Pass — Sample Manager (approve / reject sample passes)" },
-  { value: "gate_pass_returnable_manager", label: "Gate Pass — Returnable Manager (approve / reject returnable passes)" },
-  { value: "gate_pass_jobwork_manager", label: "Gate Pass — Job Work Manager (approve / reject job work passes)" },
-  { value: "gate_pass_scrap_manager", label: "Gate Pass — Scrap Manager (approve / reject scrap passes)" },
-  { value: "gate_pass_officer", label: "Gate Pass — Officer (create & submit passes)" },
-  { value: "gate_pass_viewer", label: "Gate Pass — Viewer (read-only)" },
-  { value: "gate_security", label: "Gate Pass — Gate Security (gate check page only, no prices)" },
-  { value: "store_pass_manager", label: "Store Pass — Manager (issue, cancel issued passes, explain discrepancies)" },
-  { value: "store_pass_officer", label: "Store Pass — Officer / store keeper (make, issue & print passes; no linking)" },
-  { value: "store_pass_viewer", label: "Store Pass — Viewer (read-only)" },
-  { value: "dispatch_planner_manager", label: "Dispatch Planner — Manager (suggestions, pins, versions, vehicle master)" },
-  { value: "dispatch_planner_officer", label: "Dispatch Planner — Officer (run suggestions, pin lines, save versions, print)" },
-  { value: "dispatch_planner_viewer", label: "Dispatch Planner — Viewer (read-only)" },
-  { value: "pr_office_officer", label: "Purchase Requests — Office Supplies Officer (sees Office Supplies requests)" },
-  { value: "pr_office_approver", label: "Purchase Requests — Office Supplies Approver (Purchase approval for Office Supplies)" },
-  { value: "pr_raw_material_officer", label: "Purchase Requests — Raw Material Officer (sees Raw Material requests)" },
-  { value: "pr_raw_material_approver", label: "Purchase Requests — Raw Material Approver (Purchase approval for Raw Material)" },
-  { value: "pr_production_officer", label: "Purchase Requests — Production Supplies Officer (sees Production Supplies requests)" },
-  { value: "pr_production_approver", label: "Purchase Requests — Production Supplies Approver (Purchase approval for Production Supplies)" },
-  { value: "pr_spares_officer", label: "Purchase Requests — Spares & Parts Officer (sees Spares & Parts requests)" },
-  { value: "pr_spares_approver", label: "Purchase Requests — Spares & Parts Approver (Purchase approval for Spares & Parts)" },
-  { value: "manager", label: "Manager" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "operator", label: "Operator" },
-  { value: "viewer", label: "Viewer" },
-];
+interface UserFormValues {
+  user_id?: string;
+  password?: string;
+  full_name: string;
+  designation: string;
+  is_active?: boolean;
+  roles: AppRole[];
+}
 
-function RolesCheckboxGroup({
-  selected,
-  onChange,
-}: {
-  selected: AppRole[];
-  onChange: (roles: AppRole[]) => void;
-}) {
-  const toggle = (role: AppRole, checked: boolean) => {
-    if (checked) onChange([...selected, role]);
-    else onChange(selected.filter((r) => r !== role));
-  };
+/** Groups a user's roles by module: [{ module, roles }] in catalogue order. */
+function groupRolesByModule(roles: AppRole[]) {
+  return ROLE_GROUPS.map((g) => ({
+    module: g.key,
+    roles: g.roles.filter((r) => roles.includes(r)),
+  })).filter((g) => g.roles.length > 0);
+}
+
+function UserRolesCell({ roles }: { roles: AppRole[] }) {
+  const groups = groupRolesByModule(roles);
+  const unknown = roles.filter((r) => !ROLE_META[r]);
+  const shown = groups.slice(0, MAX_MODULE_BADGES);
+  const hidden = groups.slice(MAX_MODULE_BADGES);
+  const groupText = (g: (typeof groups)[number]) =>
+    g.module === "administration" || g.module === "general"
+      ? g.roles.map((r) => ROLE_META[r].label).join(", ")
+      : `${getModuleLabel(g.module)}: ${g.roles.map((r) => ROLE_META[r].label).join(", ")}`;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border p-3">
-      {ROLE_OPTIONS.map((opt) => (
-        <label
-          key={opt.value}
-          className="flex items-center gap-2 text-sm cursor-pointer"
-        >
-          <Checkbox
-            checked={selected.includes(opt.value)}
-            onCheckedChange={(c) => toggle(opt.value, c === true)}
-          />
-          {opt.label}
-        </label>
+    <div className="flex gap-1 flex-wrap max-w-md">
+      {shown.map((g) => (
+        <Badge key={g.module} variant="outline" className={ROLE_META[g.roles[0]].color}>
+          {groupText(g)}
+        </Badge>
       ))}
+      {unknown.map((r) => (
+        <Badge key={r} variant="outline">
+          {r.replace(/_/g, " ")}
+        </Badge>
+      ))}
+      {hidden.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="secondary" className="cursor-default">
+              +{hidden.length} more
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm">
+            <ul className="space-y-0.5 text-xs">
+              {hidden.map((g) => (
+                <li key={g.module}>{groupText(g)}</li>
+              ))}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
+  );
+}
+
+function UserFormTabs({
+  mode,
+  values,
+  onChange,
+  permissions,
+  onPermissionsChange,
+  copySources,
+  showPassword,
+  onTogglePassword,
+}: {
+  mode: "create" | "edit";
+  values: UserFormValues;
+  onChange: (values: UserFormValues) => void;
+  permissions: ModulePermission[];
+  onPermissionsChange: (permissions: ModulePermission[]) => void;
+  copySources: RoleSourceUser[];
+  showPassword?: boolean;
+  onTogglePassword?: () => void;
+}) {
+  const idPrefix = mode === "create" ? "new" : "edit";
+  return (
+    <Tabs defaultValue="details" className="w-full">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="details">Details</TabsTrigger>
+        <TabsTrigger value="roles">
+          Roles
+          <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+            {values.roles.length}
+          </Badge>
+        </TabsTrigger>
+        <TabsTrigger value="permissions">Module Permissions</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="details" className="space-y-4 pt-2">
+        {mode === "create" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}_user_id`}>User ID</Label>
+              <Input
+                id={`${idPrefix}_user_id`}
+                value={values.user_id ?? ""}
+                onChange={(e) => onChange({ ...values, user_id: e.target.value })}
+                placeholder="Enter user ID"
+              />
+            </div>
+          </>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}_full_name`}>Full Name</Label>
+          <Input
+            id={`${idPrefix}_full_name`}
+            value={values.full_name}
+            onChange={(e) => onChange({ ...values, full_name: e.target.value })}
+            placeholder="Enter full name"
+          />
+        </div>
+        {mode === "create" && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}_password`}>Password</Label>
+            <div className="relative">
+              <Input
+                id={`${idPrefix}_password`}
+                type={showPassword ? "text" : "password"}
+                value={values.password ?? ""}
+                onChange={(e) => onChange({ ...values, password: e.target.value })}
+                placeholder="Enter password"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={onTogglePassword}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}_designation`}>Designation</Label>
+          <Input
+            id={`${idPrefix}_designation`}
+            value={values.designation}
+            onChange={(e) => onChange({ ...values, designation: e.target.value })}
+            placeholder="Enter designation"
+          />
+        </div>
+        {mode === "edit" && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}_status`}>Status</Label>
+            <Select
+              value={values.is_active ? "active" : "inactive"}
+              onValueChange={(value) => onChange({ ...values, is_active: value === "active" })}
+            >
+              <SelectTrigger id={`${idPrefix}_status`}>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </TabsContent>
+
+      <TabsContent value="roles" className="pt-2">
+        <RoleAssignmentPanel
+          selected={values.roles}
+          onChange={(roles) => onChange({ ...values, roles })}
+          copySources={copySources}
+        />
+      </TabsContent>
+
+      <TabsContent value="permissions" className="pt-2">
+        <ModulePermissionsForm permissions={permissions} onChange={onPermissionsChange} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -234,6 +255,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [moduleFilter, setModuleFilter] = useState<string>(ALL);
+  const [roleFilter, setRoleFilter] = useState<string>(ALL);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -245,46 +268,55 @@ export default function UsersPage() {
   const [newUserPermissions, setNewUserPermissions] = useState<ModulePermission[]>(DEFAULT_PERMISSIONS);
   const [editUserPermissions, setEditUserPermissions] = useState<ModulePermission[]>([]);
   const isMobile = useIsMobile();
-  const [newUser, setNewUser] = useState({
+  const [newUser, setNewUser] = useState<UserFormValues>({
     user_id: "",
     full_name: "",
     password: "",
     designation: "",
-    roles: ["viewer"] as AppRole[],
+    roles: ["viewer"],
   });
-  const [editUser, setEditUser] = useState({
+  const [editUser, setEditUser] = useState<UserFormValues>({
     full_name: "",
     designation: "",
     is_active: true,
-    roles: ["viewer"] as AppRole[],
+    roles: ["viewer"],
   });
   const { toast } = useToast();
 
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const { data: usersData, error: usersError } = await supabase
-        .from("app_users")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const fetchAllRoles = async () => {
+        // Page through user_roles — a single request is capped at 1000 rows.
+        const PAGE = 1000;
+        const rows: { user_id: string; role: AppRole }[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const { data, error } = await supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .order("id")
+            .range(from, from + PAGE - 1);
+          if (error) throw error;
+          rows.push(...(data || []));
+          if (!data || data.length < PAGE) return rows;
+        }
+      };
+
+      const [{ data: usersData, error: usersError }, rolesData] = await Promise.all([
+        supabase.from("app_users").select("*").order("created_at", { ascending: false }),
+        fetchAllRoles(),
+      ]);
 
       if (usersError) throw usersError;
 
-      // Fetch roles for each user
-      const usersWithRoles = await Promise.all(
-        (usersData || []).map(async (user) => {
-          const { data: rolesData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id);
-          return {
-            ...user,
-            roles: (rolesData || []).map((r) => r.role),
-          };
-        })
-      );
+      const rolesByUser = new Map<string, AppRole[]>();
+      for (const { user_id, role } of rolesData) {
+        const list = rolesByUser.get(user_id) ?? [];
+        list.push(role);
+        rolesByUser.set(user_id, list);
+      }
 
-      setUsers(usersWithRoles);
+      setUsers((usersData || []).map((user) => ({ ...user, roles: rolesByUser.get(user.id) ?? [] })));
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({
@@ -313,9 +345,9 @@ export default function UsersPage() {
     try {
       // Create user using the RPC function
       const { data, error } = await supabase.rpc("create_app_user", {
-        p_user_id: newUser.user_id,
+        p_user_id: newUser.user_id ?? "",
         p_full_name: newUser.full_name,
-        p_password: newUser.password,
+        p_password: newUser.password ?? "",
         p_designation: newUser.designation || null,
       });
 
@@ -377,7 +409,7 @@ export default function UsersPage() {
 
   const handleResetPassword = async () => {
     if (!selectedUser || !newPassword) return;
-    
+
     try {
       const { error } = await supabase.rpc("reset_user_password", {
         p_user_uuid: selectedUser.id,
@@ -573,150 +605,43 @@ export default function UsersPage() {
     });
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+  // Users whose roles can be copied (excluding the user being edited).
+  const copySources = useMemo<RoleSourceUser[]>(
+    () =>
+      users
+        .filter((u) => u.roles.length > 0 && u.id !== selectedUser?.id)
+        .map((u) => ({ id: u.id, user_id: u.user_id, full_name: u.full_name, roles: u.roles })),
+    [users, selectedUser]
   );
 
-  const getRoleBadgeColor = (role: AppRole) => {
-    const colors: Record<AppRole, string> = {
-      super_admin: "bg-red-500/10 text-red-500",
-      admin: "bg-orange-500/10 text-orange-500",
-      manager: "bg-blue-500/10 text-blue-500",
-      supervisor: "bg-purple-500/10 text-purple-500",
-      operator: "bg-green-500/10 text-green-500",
-      viewer: "bg-gray-500/10 text-gray-500",
-      operational_manager: "bg-teal-500/10 text-teal-500",
-      qa_manager: "bg-cyan-500/10 text-cyan-500",
-      qa_super_manager: "bg-cyan-700/10 text-cyan-700",
-      maintenance_manager: "bg-amber-500/10 text-amber-500",
-      sales_executive: "bg-indigo-500/10 text-indigo-500",
-      order_management: "bg-pink-500/10 text-pink-500",
-      floor_incharge: "bg-lime-500/10 text-lime-500",
-      private_label_distributor: "bg-emerald-500/10 text-emerald-500",
-      private_label_manager: "bg-cyan-600/10 text-cyan-600",
-      private_label_officer: "bg-cyan-500/10 text-cyan-500",
-      private_label_viewer: "bg-cyan-400/10 text-cyan-400",
-      pettycash_handler: "bg-yellow-500/10 text-yellow-500",
-      store_operator: "bg-sky-500/10 text-sky-500",
-      project_manager: "bg-violet-500/10 text-violet-500",
-      online_sales_packing: "bg-rose-500/10 text-rose-500",
-      online_sales_admin: "bg-rose-700/10 text-rose-700",
-      online_sales_manager: "bg-rose-600/10 text-rose-600",
-      online_sales_agent: "bg-pink-600/10 text-pink-600",
-      accounting_poster: "bg-teal-500/10 text-teal-500",
-      accounting_officer: "bg-cyan-500/10 text-cyan-500",
-      accounting_manager: "bg-emerald-500/10 text-emerald-500",
-      billing_officer: "bg-fuchsia-500/10 text-fuchsia-500",
-      purchase_officer: "bg-teal-600/10 text-teal-600",
-      purchase_manager: "bg-blue-700/10 text-blue-700",
-      purchase_qc_inspector: "bg-emerald-600/10 text-emerald-600",
-      dispatch_operator: "bg-orange-600/10 text-orange-600",
-      sales_order_manager: "bg-indigo-600/10 text-indigo-600",
-      production_operator: "bg-blue-600/10 text-blue-600",
-      closing_data_poster: "bg-purple-600/10 text-purple-600",
-      distributor_sales: "bg-amber-500/10 text-amber-500",
-      distributor_manager: "bg-amber-600/10 text-amber-600",
-      distributor_admin: "bg-amber-700/10 text-amber-700",
-      labour_productivity_approver: "bg-purple-500/10 text-purple-500",
-      labour_productivity_poster: "bg-indigo-500/10 text-indigo-500",
-      labour_productivity_viewer: "bg-slate-500/10 text-slate-500",
-      labour_gate_pass_approver: "bg-emerald-500/10 text-emerald-600",
-      labour_attendance_delete_approver: "bg-rose-500/10 text-rose-600",
-      staff_gate_pass_approver: "bg-purple-500/10 text-purple-600",
-      export_manager: "bg-blue-600/10 text-blue-600",
-      export_officer: "bg-blue-500/10 text-blue-500",
-      export_viewer: "bg-blue-400/10 text-blue-400",
-      master_data_manager: "bg-emerald-600/10 text-emerald-600",
-      master_data_officer: "bg-emerald-500/10 text-emerald-500",
-      master_data_viewer: "bg-emerald-400/10 text-emerald-400",
-      hr_manager: "bg-amber-600/10 text-amber-600",
-      hr_officer: "bg-amber-500/10 text-amber-500",
-      hr_viewer: "bg-amber-400/10 text-amber-400",
-      wip_manager: "bg-violet-600/10 text-violet-600",
-      wip_officer: "bg-violet-500/10 text-violet-500",
-      wip_viewer: "bg-violet-400/10 text-violet-400",
-      rejections_manager: "bg-cyan-600/10 text-cyan-600",
-      rejections_officer: "bg-cyan-500/10 text-cyan-500",
-      rejections_viewer: "bg-cyan-400/10 text-cyan-400",
-      quality_score_manager: "bg-indigo-600/10 text-indigo-600",
-      quality_score_officer: "bg-indigo-500/10 text-indigo-500",
-      quality_score_viewer: "bg-indigo-400/10 text-indigo-400",
-      performance_manager: "bg-rose-600/10 text-rose-600",
-      performance_officer: "bg-rose-500/10 text-rose-500",
-      performance_viewer: "bg-rose-400/10 text-rose-400",
-      floor_inventory_manager: "bg-lime-600/10 text-lime-600",
-      floor_inventory_officer: "bg-lime-500/10 text-lime-500",
-      floor_inventory_viewer: "bg-lime-400/10 text-lime-400",
-      fixed_assets_manager: "bg-orange-600/10 text-orange-600",
-      fixed_assets_officer: "bg-orange-500/10 text-orange-500",
-      fixed_assets_viewer: "bg-orange-400/10 text-orange-400",
-      five_s_manager: "bg-teal-600/10 text-teal-600",
-      five_s_officer: "bg-teal-500/10 text-teal-500",
-      five_s_viewer: "bg-teal-400/10 text-teal-400",
-      hourly_production_manager: "bg-indigo-600/10 text-indigo-600",
-      hourly_production_officer: "bg-indigo-500/10 text-indigo-500",
-      hourly_production_viewer: "bg-indigo-400/10 text-indigo-400",
-      rd_manager: "bg-fuchsia-600/10 text-fuchsia-600",
-      rd_officer: "bg-fuchsia-500/10 text-fuchsia-500",
-      rd_viewer: "bg-fuchsia-400/10 text-fuchsia-400",
-      crm_manager: "bg-sky-600/10 text-sky-600",
-      crm_officer: "bg-sky-500/10 text-sky-500",
-      crm_viewer: "bg-sky-400/10 text-sky-400",
-      marketing_manager: "bg-purple-600/10 text-purple-600",
-      marketing_officer: "bg-purple-500/10 text-purple-500",
-      marketing_viewer: "bg-purple-400/10 text-purple-400",
-      projects_officer: "bg-blue-500/10 text-blue-500",
-      projects_viewer: "bg-blue-400/10 text-blue-400",
-      qa_officer: "bg-cyan-500/10 text-cyan-500",
-      qa_viewer: "bg-cyan-400/10 text-cyan-400",
-      qa_inspector: "bg-cyan-600/10 text-cyan-600",
-      maintenance_officer: "bg-amber-500/10 text-amber-500",
-      maintenance_viewer: "bg-amber-400/10 text-amber-400",
-      expenses_manager: "bg-yellow-600/10 text-yellow-600",
-      expenses_officer: "bg-yellow-500/10 text-yellow-500",
-      expenses_viewer: "bg-yellow-400/10 text-yellow-400",
-      material_consumption_manager: "bg-sky-600/10 text-sky-600",
-      material_consumption_officer: "bg-sky-500/10 text-sky-500",
-      material_consumption_viewer: "bg-sky-400/10 text-sky-400",
-      machine_monitor_manager: "bg-cyan-600/10 text-cyan-600",
-      machine_monitor_officer: "bg-cyan-500/10 text-cyan-500",
-      machine_monitor_viewer: "bg-cyan-400/10 text-cyan-400",
-      production_manager: "bg-orange-600/10 text-orange-600",
-      production_officer: "bg-orange-500/10 text-orange-500",
-      production_viewer: "bg-orange-400/10 text-orange-400",
-      helpdesk_manager: "bg-rose-600/10 text-rose-600",
-      gate_pass_manager: "bg-stone-700/10 text-stone-700",
-      gate_pass_officer: "bg-stone-600/10 text-stone-600",
-      gate_pass_viewer: "bg-stone-500/10 text-stone-500",
-      gate_pass_sample_manager: "bg-stone-700/10 text-stone-700",
-      gate_pass_returnable_manager: "bg-stone-700/10 text-stone-700",
-      gate_pass_jobwork_manager: "bg-stone-700/10 text-stone-700",
-      gate_pass_scrap_manager: "bg-stone-700/10 text-stone-700",
-      gate_security: "bg-slate-800/10 text-slate-800",
-      store_pass_manager: "bg-indigo-700/10 text-indigo-700",
-      store_pass_officer: "bg-indigo-600/10 text-indigo-600",
-      store_pass_viewer: "bg-indigo-500/10 text-indigo-500",
-      dispatch_planner_manager: "bg-cyan-700/10 text-cyan-700",
-      dispatch_planner_officer: "bg-cyan-600/10 text-cyan-600",
-      dispatch_planner_viewer: "bg-cyan-500/10 text-cyan-500",
-      pr_office_officer: "bg-violet-500/10 text-violet-500",
-      pr_office_approver: "bg-violet-700/10 text-violet-700",
-      pr_raw_material_officer: "bg-violet-500/10 text-violet-500",
-      pr_raw_material_approver: "bg-violet-700/10 text-violet-700",
-      pr_production_officer: "bg-violet-500/10 text-violet-500",
-      pr_production_approver: "bg-violet-700/10 text-violet-700",
-      pr_spares_officer: "bg-violet-500/10 text-violet-500",
-      pr_spares_approver: "bg-violet-700/10 text-violet-700",
-      projects_super_manager: "bg-blue-700/10 text-blue-700",
-    };
-    return colors[role] || "";
-  };
+  // Role filter options follow the module filter; only roles that some user holds.
+  const roleFilterOptions = useMemo(() => {
+    const held = new Set(users.flatMap((u) => u.roles));
+    return ROLE_GROUPS.filter((g) => moduleFilter === ALL || g.key === moduleFilter)
+      .flatMap((g) => g.roles)
+      .filter((r) => held.has(r));
+  }, [users, moduleFilter]);
+
+  const moduleFilterOptions = useMemo(() => {
+    const held = new Set(users.flatMap((u) => u.roles.map((r) => ROLE_META[r]?.module)));
+    return ROLE_GROUPS.filter((g) => held.has(g.key));
+  }, [users]);
+
+  const filteredUsers = users.filter((user) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      user.user_id.toLowerCase().includes(term) ||
+      user.full_name.toLowerCase().includes(term) ||
+      (user.designation ?? "").toLowerCase().includes(term);
+    const matchesModule =
+      moduleFilter === ALL || user.roles.some((r) => ROLE_META[r]?.module === (moduleFilter as RoleModuleKey));
+    const matchesRole = roleFilter === ALL || user.roles.includes(roleFilter as AppRole);
+    return matchesSearch && matchesModule && matchesRole;
+  });
 
   const columns = [
-    { 
-      key: "user_id", 
+    {
+      key: "user_id",
       header: "User ID",
       render: (item: UserWithRoles) => (
         <div className="flex items-center gap-2">
@@ -737,15 +662,7 @@ export default function UsersPage() {
     {
       key: "roles",
       header: "Roles",
-      render: (item: UserWithRoles) => (
-        <div className="flex gap-1 flex-wrap">
-          {item.roles.map((role) => (
-            <Badge key={role} variant="outline" className={getRoleBadgeColor(role)}>
-              {role.replace("_", " ")}
-            </Badge>
-          ))}
-        </div>
-      ),
+      render: (item: UserWithRoles) => <UserRolesCell roles={item.roles} />,
     },
     {
       key: "is_active",
@@ -797,6 +714,32 @@ export default function UsersPage() {
     },
   ];
 
+  const createForm = (
+    <UserFormTabs
+      mode="create"
+      values={newUser}
+      onChange={setNewUser}
+      permissions={newUserPermissions}
+      onPermissionsChange={setNewUserPermissions}
+      copySources={copySources}
+      showPassword={showPassword}
+      onTogglePassword={() => setShowPassword(!showPassword)}
+    />
+  );
+
+  const editForm = (
+    <UserFormTabs
+      // Remount per user so the role panel re-opens that user's modules.
+      key={selectedUser?.id ?? "none"}
+      mode="edit"
+      values={editUser}
+      onChange={setEditUser}
+      permissions={editUserPermissions}
+      onPermissionsChange={setEditUserPermissions}
+      copySources={copySources}
+    />
+  );
+
   return (
     <ERPLayout>
       <PageHeader
@@ -806,15 +749,49 @@ export default function UsersPage() {
       />
 
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+        <div className="flex flex-col lg:flex-row gap-3 justify-between">
+          <div className="flex flex-col sm:flex-row gap-2 flex-1">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select
+              value={moduleFilter}
+              onValueChange={(v) => {
+                setModuleFilter(v);
+                setRoleFilter(ALL);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="All modules" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All modules</SelectItem>
+                {moduleFilterOptions.map((g) => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full sm:w-64">
+                <SelectValue placeholder="All roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All roles</SelectItem>
+                {roleFilterOptions.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {getRoleFullLabel(r)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <Button onClick={() => setIsDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -822,7 +799,27 @@ export default function UsersPage() {
           </Button>
         </div>
 
-        {/* Add User - Mobile Drawer */}
+        {(moduleFilter !== ALL || roleFilter !== ALL) && (
+          <p className="text-sm text-muted-foreground">
+            {filteredUsers.length} user{filteredUsers.length === 1 ? "" : "s"} with{" "}
+            {roleFilter !== ALL
+              ? getRoleFullLabel(roleFilter as AppRole)
+              : `a ${getModuleLabel(moduleFilter as RoleModuleKey)} role`}
+            .{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                setModuleFilter(ALL);
+                setRoleFilter(ALL);
+              }}
+            >
+              Clear filters
+            </button>
+          </p>
+        )}
+
+        {/* Add User - Mobile Drawer / Desktop Dialog */}
         {isMobile === true ? (
           <Drawer open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DrawerContent>
@@ -832,87 +829,7 @@ export default function UsersPage() {
                   Add a new user to the system
                 </DrawerDescription>
               </DrawerHeader>
-              <ScrollArea className="max-h-[60vh] px-4">
-                <div className="space-y-4 py-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="user_id_mobile">User ID</Label>
-                    <Input
-                      id="user_id_mobile"
-                      value={newUser.user_id}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, user_id: e.target.value })
-                      }
-                      placeholder="Enter user ID"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name_mobile">Full Name</Label>
-                    <Input
-                      id="full_name_mobile"
-                      value={newUser.full_name}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, full_name: e.target.value })
-                      }
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password_mobile">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password_mobile"
-                        type={showPassword ? "text" : "password"}
-                        value={newUser.password}
-                        onChange={(e) =>
-                          setNewUser({ ...newUser, password: e.target.value })
-                        }
-                        placeholder="Enter password"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="designation_mobile">Designation</Label>
-                    <Input
-                      id="designation_mobile"
-                      value={newUser.designation}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, designation: e.target.value })
-                      }
-                      placeholder="Enter designation"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role_mobile">Roles</Label>
-                    <RolesCheckboxGroup
-                      selected={newUser.roles}
-                      onChange={(roles) => setNewUser({ ...newUser, roles })}
-                    />
-                  </div>
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="permissions">
-                      <AccordionTrigger className="text-sm font-medium">
-                        Module Permissions
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ModulePermissionsForm
-                          permissions={newUserPermissions}
-                          onChange={setNewUserPermissions}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              </ScrollArea>
+              <div className="max-h-[70vh] overflow-y-auto px-4">{createForm}</div>
               <DrawerFooter className="flex-row gap-2">
                 <DrawerClose asChild>
                   <Button variant="outline" className="flex-1">Cancel</Button>
@@ -923,92 +840,14 @@ export default function UsersPage() {
           </Drawer>
         ) : isMobile === false ? (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-4xl">
               <DialogHeader>
                 <DialogTitle>Create New User</DialogTitle>
                 <DialogDescription>
                   Add a new user to the system
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="user_id">User ID</Label>
-                    <Input
-                      id="user_id"
-                      value={newUser.user_id}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, user_id: e.target.value })
-                      }
-                      placeholder="Enter user ID"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
-                    <Input
-                      id="full_name"
-                      value={newUser.full_name}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, full_name: e.target.value })
-                      }
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        value={newUser.password}
-                        onChange={(e) =>
-                          setNewUser({ ...newUser, password: e.target.value })
-                        }
-                        placeholder="Enter password"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="designation">Designation</Label>
-                    <Input
-                      id="designation"
-                      value={newUser.designation}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, designation: e.target.value })
-                      }
-                      placeholder="Enter designation"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Roles</Label>
-                    <RolesCheckboxGroup
-                      selected={newUser.roles}
-                      onChange={(roles) => setNewUser({ ...newUser, roles })}
-                    />
-                  </div>
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="permissions">
-                      <AccordionTrigger className="text-sm font-medium">
-                        Module Permissions
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ModulePermissionsForm
-                          permissions={newUserPermissions}
-                          onChange={setNewUserPermissions}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-              </div>
+              <div className="max-h-[75vh] overflow-y-auto pr-2">{createForm}</div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
@@ -1071,7 +910,6 @@ export default function UsersPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit User Dialog */}
         {/* Edit User - Mobile Drawer / Desktop Dialog */}
         {isMobile === true ? (
           <Drawer open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -1082,69 +920,7 @@ export default function UsersPage() {
                   Update details for user: <strong>{selectedUser?.user_id}</strong>
                 </DrawerDescription>
               </DrawerHeader>
-              <ScrollArea className="max-h-[60vh] px-4">
-                <div className="space-y-4 py-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_full_name_mobile">Full Name</Label>
-                    <Input
-                      id="edit_full_name_mobile"
-                      value={editUser.full_name}
-                      onChange={(e) =>
-                        setEditUser({ ...editUser, full_name: e.target.value })
-                      }
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_designation_mobile">Designation</Label>
-                    <Input
-                      id="edit_designation_mobile"
-                      value={editUser.designation}
-                      onChange={(e) =>
-                        setEditUser({ ...editUser, designation: e.target.value })
-                      }
-                      placeholder="Enter designation"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_role_mobile">Roles</Label>
-                    <RolesCheckboxGroup
-                      selected={editUser.roles}
-                      onChange={(roles) => setEditUser({ ...editUser, roles })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_status_mobile">Status</Label>
-                    <Select
-                      value={editUser.is_active ? "active" : "inactive"}
-                      onValueChange={(value) =>
-                        setEditUser({ ...editUser, is_active: value === "active" })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="permissions">
-                      <AccordionTrigger className="text-sm font-medium">
-                        Module Permissions
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ModulePermissionsForm
-                          permissions={editUserPermissions}
-                          onChange={setEditUserPermissions}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              </ScrollArea>
+              <div className="max-h-[70vh] overflow-y-auto px-4">{editForm}</div>
               <DrawerFooter className="flex-row gap-2">
                 <DrawerClose asChild>
                   <Button variant="outline" className="flex-1" onClick={() => setSelectedUser(null)}>Cancel</Button>
@@ -1155,74 +931,14 @@ export default function UsersPage() {
           </Drawer>
         ) : isMobile === false ? (
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-4xl">
               <DialogHeader>
                 <DialogTitle>Edit User</DialogTitle>
                 <DialogDescription>
                   Update details for user: <strong>{selectedUser?.user_id}</strong>
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_full_name">Full Name</Label>
-                  <Input
-                    id="edit_full_name"
-                    value={editUser.full_name}
-                    onChange={(e) =>
-                      setEditUser({ ...editUser, full_name: e.target.value })
-                    }
-                    placeholder="Enter full name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_designation">Designation</Label>
-                  <Input
-                    id="edit_designation"
-                    value={editUser.designation}
-                    onChange={(e) =>
-                      setEditUser({ ...editUser, designation: e.target.value })
-                    }
-                    placeholder="Enter designation"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_role">Roles</Label>
-                  <RolesCheckboxGroup
-                    selected={editUser.roles}
-                    onChange={(roles) => setEditUser({ ...editUser, roles })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_status">Status</Label>
-                  <Select
-                    value={editUser.is_active ? "active" : "inactive"}
-                    onValueChange={(value) =>
-                      setEditUser({ ...editUser, is_active: value === "active" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="permissions">
-                    <AccordionTrigger className="text-sm font-medium">
-                      Module Permissions
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ModulePermissionsForm
-                        permissions={editUserPermissions}
-                        onChange={setEditUserPermissions}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </div>
+              <div className="max-h-[75vh] overflow-y-auto pr-2">{editForm}</div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setIsEditDialogOpen(false);
