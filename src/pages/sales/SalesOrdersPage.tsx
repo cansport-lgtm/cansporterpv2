@@ -841,6 +841,9 @@ export default function SalesOrdersPage() {
                                   {order.status.replace(/_/g, ' ')}
                                 </Badge>
                               )}
+                              {order.auto_cancelled_at && (
+                                <div className="mt-1 text-xs text-muted-foreground">Auto-cancelled (30 days)</div>
+                              )}
                               <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
                             </TableCell>
                             <TableCell className="text-sm">
