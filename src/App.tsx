@@ -392,6 +392,10 @@ import TransportersPage from "./pages/gate-pass/TransportersPage";
 import GateInwardFormPage from "./pages/gate-pass/GateInwardFormPage";
 import GateInwardDetailPage from "./pages/gate-pass/GateInwardDetailPage";
 import GateInwardRegisterPage from "./pages/purchase/GateInwardRegisterPage";
+import PurchaseRequestsPage from "./pages/purchase/PurchaseRequestsPage";
+import MyPurchaseRequestsPage from "./pages/purchase-requests/MyPurchaseRequestsPage";
+import PurchaseRequestFormPage from "./pages/purchase-requests/PurchaseRequestFormPage";
+import PurchaseRequestDetailPage from "./pages/purchase-requests/PurchaseRequestDetailPage";
 import StorePassListPage from "./pages/store-pass/StorePassListPage";
 import StorePassFormPage from "./pages/store-pass/StorePassFormPage";
 import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
@@ -643,6 +647,10 @@ const App = () => (
             <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
             <Route path="/my-gate-pass/new" element={<ProtectedRoute><MyGatePassFormPage /></ProtectedRoute>} />
             <Route path="/my-gate-pass/:id" element={<ProtectedRoute><MyGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests" element={<ProtectedRoute><MyPurchaseRequestsPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/new" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/:id/edit" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}
@@ -722,6 +730,8 @@ const App = () => (
             {/* Purchase Routes */}
             <Route path="/purchase/dashboard" element={<ProtectedRoute><PurchaseDashboard /></ProtectedRoute>} />
             <Route path="/purchase/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
+            <Route path="/purchase/requests" element={<ProtectedRoute><PurchaseRequestsPage /></ProtectedRoute>} />
+            <Route path="/purchase/requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
             <Route path="/purchase/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
             <Route path="/purchase/qc" element={<ProtectedRoute><PurchaseInspectionsPage /></ProtectedRoute>} />
             <Route path="/purchase/qc-parameters" element={<ProtectedRoute><QCParametersPage /></ProtectedRoute>} />

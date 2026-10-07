@@ -26,8 +26,8 @@ const DEFAULT_SLOTS: { key: string; label: string; description: string; usedBy: 
   { key: "accounts_payable", label: "Accounts Payable (Control)", description: "Credited at GRN, debited on supplier payment", usedBy: ["Phase 2B — Purchase"] },
   { key: "purchase_account_raw_material", label: "Purchase Dr — Raw Material", description: "Debited on GRN when PO category = raw_material", usedBy: ["Phase 2B — Purchase"] },
   { key: "purchase_account_office_supplies", label: "Purchase Dr — Office Supplies", description: "Debited on GRN when PO category = office_supplies", usedBy: ["Phase 2B — Purchase"] },
-  { key: "purchase_account_general_supplies", label: "Purchase Dr — General Supplies", description: "Debited on GRN when PO category = general_supplies", usedBy: ["Phase 2B — Purchase"] },
-  { key: "purchase_account_spare_maintenance", label: "Purchase Dr — Spare & Maintenance", description: "Debited on GRN when PO category = spare_maintenance", usedBy: ["Phase 2B — Purchase"] },
+  { key: "purchase_account_general_supplies", label: "Purchase Dr — Production Supplies", description: "Debited on GRN when PO category = general_supplies", usedBy: ["Phase 2B — Purchase"] },
+  { key: "purchase_account_spare_maintenance", label: "Purchase Dr — Spares & Parts", description: "Debited on GRN when PO category = spare_maintenance", usedBy: ["Phase 2B — Purchase"] },
   { key: "purchase_returns", label: "Purchase Returns", description: "Credited when goods are returned to supplier (debit-note)", usedBy: ["future — purchase returns"] },
   { key: "freight_inward", label: "Freight Inward (expense)", description: "Freight we pay on purchase deliveries. Credited on a GRN whose freight is recovered from the supplier (his payable is reduced by it); debited when inward freight vouchers are paid", usedBy: ["GRN freight — recover from supplier", "future — freight voucher posting"] },
   // Phase 3a - Production

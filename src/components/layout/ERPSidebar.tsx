@@ -790,11 +790,13 @@ const navigationItems: NavItem[] = [
   },
   {
     // No `module` key: every logged-in staff member can raise their own company
-    // work gate pass (the page itself needs the login linked to a staff record).
+    // work gate pass (the page itself needs the login linked to a staff record)
+    // and their own purchase requests.
     title: "Self Service",
     icon: DoorOpen,
     children: [
       { title: "My Gate Passes", href: "/my-gate-pass" },
+      { title: "My Purchase Requests", href: "/my-purchase-requests" },
     ],
   },
   {

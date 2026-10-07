@@ -1177,6 +1177,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // login, so every role may open them (the database checks the link on every write).
     if (route === '/my-gate-pass' || route.startsWith('/my-gate-pass/')) return true;
 
+    // My Purchase Requests: anyone raises their own purchase requests and follows
+    // them; department heads approve their department's here. The pages only act
+    // through the purchase_request_* database functions, which check who may do what.
+    if (route === '/my-purchase-requests' || route.startsWith('/my-purchase-requests/')) return true;
+
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (
       roles.some((r) =>
