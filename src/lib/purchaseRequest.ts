@@ -1,7 +1,7 @@
 // Shared definitions for Purchase Requests (PRQ-…): any department asks
 // Purchase to buy items; department head → Purchase → (above the value limit)
 // super admin. The rules live in the database: see
-// supabase/migrations/20261016120000_purchase_requests.sql.
+// supabase/migrations/20261016130000_purchase_requests.sql.
 // Every write goes through its purchase_request_* functions; the tables are read-only here.
 
 import { format } from "date-fns";

@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'qa_super_manager' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'labour_attendance_delete_approver' | 'production_manager' | 'production_officer' | 'production_viewer' | 'store_pass_manager' | 'store_pass_officer' | 'store_pass_viewer' | 'dispatch_planner_manager' | 'dispatch_planner_officer' | 'dispatch_planner_viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'qa_super_manager' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'labour_attendance_delete_approver' | 'production_manager' | 'production_officer' | 'production_viewer' | 'store_pass_manager' | 'store_pass_officer' | 'store_pass_viewer' | 'dispatch_planner_manager' | 'dispatch_planner_officer' | 'dispatch_planner_viewer' | 'pr_office_officer' | 'pr_office_approver' | 'pr_raw_material_officer' | 'pr_raw_material_approver' | 'pr_production_officer' | 'pr_production_approver' | 'pr_spares_officer' | 'pr_spares_approver';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -542,6 +542,32 @@ for (const r of ['sales_order_manager', 'dispatch_operator'] as const) {
   ROLE_MODULE_ACCESS[r].push('dispatch_planner');
   ROLE_ROUTE_RESTRICTIONS[r].push('/dispatch-planner');
 }
+// Purchase Request roles (an Officer and an Approver per purchase category). Confined to
+// Purchase → Purchase Requests (+ dashboard shell); My Purchase Requests is open to every
+// role anyway. Which categories they see and approve: hasPurchaseCategoryPermission and
+// lib/purchase/categories.ts. The approval itself is checked in the database.
+const PURCHASE_REQUEST_ROLE_NAMES = [
+  'pr_office_officer', 'pr_office_approver',
+  'pr_raw_material_officer', 'pr_raw_material_approver',
+  'pr_production_officer', 'pr_production_approver',
+  'pr_spares_officer', 'pr_spares_approver',
+];
+const PURCHASE_REQUEST_ROLE_CATEGORY: Record<string, { category: PurchaseCategoryPermission['category']; approver: boolean }> = {
+  pr_office_officer: { category: 'office_supplies', approver: false },
+  pr_office_approver: { category: 'office_supplies', approver: true },
+  pr_raw_material_officer: { category: 'raw_material', approver: false },
+  pr_raw_material_approver: { category: 'raw_material', approver: true },
+  pr_production_officer: { category: 'general_supplies', approver: false },
+  pr_production_approver: { category: 'general_supplies', approver: true },
+  pr_spares_officer: { category: 'spare_maintenance', approver: false },
+  pr_spares_approver: { category: 'spare_maintenance', approver: true },
+};
+for (const r of PURCHASE_REQUEST_ROLE_NAMES) {
+  ROLE_MODULE_ACCESS[r] = ['purchase', 'dashboard'];
+  ROLE_ROUTE_RESTRICTIONS[r] = ['/purchase/requests', '/dashboard'];
+  HARD_RESTRICTED_MODULE_ROLES.add(r);
+  STRICT_LOCKED_ROLES.add(r);
+}
 
 interface ModulePermission {
   module_name: string;
@@ -1044,6 +1070,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
+    // Purchase Request roles: view within Purchase so the Purchase Requests page renders.
+    // Their approval is per category (hasPurchaseCategoryPermission) and checked in the database.
+    if (roles.some(r => PURCHASE_REQUEST_ROLE_CATEGORY[r.role]) && module === 'purchase' && permission === 'view') return true;
     if (roles.some(r => r.role === 'dispatch_operator') && grantsWithinScope(['sales', 'domestic'])) return true;
     if (roles.some(r => r.role === 'sales_order_manager') && grantsWithinScope(['sales', 'domestic'])) return true;
     if (roles.some(r => r.role === 'production_operator') && grantsWithinScope(['production', 'planning'])) return true;
@@ -1127,6 +1156,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // more-restrictive role the same user also holds (e.g. accounting_officer, which
     // grants only view/create below) cannot veto the manager's approval rights.
     if (roles.some(r => r.role === 'purchase_manager')) return true;
+
+    // Purchase Request roles: an Officer views its category; an Approver also approves it.
+    // GRANT-ONLY so another role the user holds can still grant more.
+    if (roles.some(r => {
+      const pr = PURCHASE_REQUEST_ROLE_CATEGORY[r.role];
+      return pr && pr.category === category && (permission === 'view' || (permission === 'approve' && pr.approver));
+    })) return true;
 
     // Purchase QC Inspector records the inspection (create) and signs it off (approve)
     // for incoming material — both actions on the Quality Inspection page.

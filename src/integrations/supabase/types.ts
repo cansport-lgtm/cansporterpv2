@@ -17508,6 +17508,14 @@ export type Database = {
         | "dispatch_planner_manager"
         | "dispatch_planner_officer"
         | "dispatch_planner_viewer"
+        | "pr_office_officer"
+        | "pr_office_approver"
+        | "pr_raw_material_officer"
+        | "pr_raw_material_approver"
+        | "pr_production_officer"
+        | "pr_production_approver"
+        | "pr_spares_officer"
+        | "pr_spares_approver"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17809,6 +17817,14 @@ export const Constants = {
         "dispatch_planner_manager",
         "dispatch_planner_officer",
         "dispatch_planner_viewer",
+        "pr_office_officer",
+        "pr_office_approver",
+        "pr_raw_material_officer",
+        "pr_raw_material_approver",
+        "pr_production_officer",
+        "pr_production_approver",
+        "pr_spares_officer",
+        "pr_spares_approver",
       ],
       asset_category: [
         "office_assets",
