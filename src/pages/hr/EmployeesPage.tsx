@@ -41,9 +41,46 @@ interface Employee {
   photo_url?: string | null;
   field_duty_allowed?: boolean | null;
   app_user_id?: string | null;
+  ref1_name?: string | null;
+  ref1_relationship?: string | null;
+  ref1_cnic?: string | null;
+  ref1_contact?: string | null;
+  ref1_police_verification?: string | null;
+  ref1_verified_by?: string | null;
+  ref2_name?: string | null;
+  ref2_relationship?: string | null;
+  ref2_cnic?: string | null;
+  ref2_contact?: string | null;
+  ref2_police_verification?: string | null;
+  ref2_verified_by?: string | null;
   production_departments?: { id: string; name: string } | null;
   designations?: { id: string; name: string } | null;
 }
+
+// Two references (blood relations) per employee: ref1_* and ref2_* columns.
+const REFERENCE_NUMBERS = [1, 2] as const;
+const REFERENCE_FIELDS = ["name", "relationship", "cnic", "contact", "police_verification", "verified_by"] as const;
+type ReferenceField = (typeof REFERENCE_FIELDS)[number];
+type ReferenceKey = `ref${(typeof REFERENCE_NUMBERS)[number]}_${ReferenceField}`;
+const REFERENCE_KEYS = REFERENCE_NUMBERS.flatMap((n) => REFERENCE_FIELDS.map((f) => `ref${n}_${f}` as ReferenceKey));
+
+const RELATIONSHIPS = ["Father", "Mother", "Brother", "Sister", "Son", "Daughter", "Husband", "Wife", "Uncle", "Cousin"];
+const POLICE_VERIFICATION_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "verified", label: "Verified" },
+  { value: "not_verified", label: "Not Verified" },
+];
+
+const referencesFrom = (employee?: Employee | null) =>
+  Object.fromEntries(REFERENCE_KEYS.map((k) => [k, employee?.[k] || ""])) as Record<ReferenceKey, string>;
+
+// CNIC as 12345-1234567-1 while typing.
+const formatCnic = (value: string) => {
+  const d = value.replace(/\D/g, "").slice(0, 13);
+  if (d.length <= 5) return d;
+  if (d.length <= 12) return `${d.slice(0, 5)}-${d.slice(5)}`;
+  return `${d.slice(0, 5)}-${d.slice(5, 12)}-${d.slice(12)}`;
+};
 
 const EmployeesPage = () => {
   const queryClient = useQueryClient();
@@ -74,6 +111,7 @@ const EmployeesPage = () => {
     photo_url: "",
     field_duty_allowed: false,
     app_user_id: "",
+    ...referencesFrom(),
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -196,6 +234,7 @@ const EmployeesPage = () => {
         photo_url: data.photo_url || null,
         field_duty_allowed: data.field_duty_allowed,
         app_user_id: data.app_user_id || null,
+        ...Object.fromEntries(REFERENCE_KEYS.map((k) => [k, data[k]?.trim() || null])),
       };
 
       if (editingEmployee) {
@@ -297,6 +336,7 @@ const EmployeesPage = () => {
       photo_url: "",
       field_duty_allowed: false,
       app_user_id: "",
+      ...referencesFrom(),
     });
   };
 
@@ -322,6 +362,7 @@ const EmployeesPage = () => {
       photo_url: employee.photo_url || "",
       field_duty_allowed: Boolean(employee.field_duty_allowed),
       app_user_id: employee.app_user_id || "",
+      ...referencesFrom(employee),
     });
     setIsDialogOpen(true);
   };
@@ -664,6 +705,68 @@ const EmployeesPage = () => {
                   </div>
                 </div>
               </div>
+
+              {REFERENCE_NUMBERS.map((n) => {
+                const key = (f: ReferenceField) => `ref${n}_${f}` as ReferenceKey;
+                const set = (f: ReferenceField, value: string) => setFormData((p) => ({ ...p, [key(f)]: value }));
+                return (
+                  <div key={n} className="rounded-lg border p-4 space-y-3">
+                    <Label className="text-sm font-semibold text-muted-foreground">Reference {n} (blood relation)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Name</Label>
+                        <Input value={formData[key("name")]} onChange={(e) => set("name", e.target.value)} placeholder="Full name" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Relationship</Label>
+                        <Input
+                          value={formData[key("relationship")]}
+                          onChange={(e) => set("relationship", e.target.value)}
+                          placeholder="e.g., Father"
+                          list="employee-reference-relationships"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">CNIC</Label>
+                        <Input
+                          value={formData[key("cnic")]}
+                          onChange={(e) => set("cnic", formatCnic(e.target.value))}
+                          placeholder="12345-1234567-1"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Contact No.</Label>
+                        <Input value={formData[key("contact")]} onChange={(e) => set("contact", e.target.value)} placeholder="Phone number" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Police Verification</Label>
+                        <Select
+                          value={formData[key("police_verification")] || "none"}
+                          onValueChange={(val) => set("police_verification", val === "none" ? "" : val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Not set" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Not set</SelectItem>
+                            {POLICE_VERIFICATION_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Verified By</Label>
+                        <Input value={formData[key("verified_by")]} onChange={(e) => set("verified_by", e.target.value)} placeholder="Name of verifier" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <datalist id="employee-reference-relationships">
+                {RELATIONSHIPS.map((r) => <option key={r} value={r} />)}
+              </datalist>
 
               <div className="rounded-lg border p-4 space-y-3">
                 <Label className="text-sm font-semibold text-muted-foreground">Gate pass</Label>
