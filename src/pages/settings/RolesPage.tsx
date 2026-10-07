@@ -19,6 +19,7 @@ const roleDescriptions: Record<AppRole, string> = {
   viewer: "Read-only access to permitted modules",
   operational_manager: "Full access to Production and QA modules",
   qa_manager: "Quality Assurance – full access including approve (delete reserved for super admin)",
+  qa_super_manager: "Quality Assurance – everything the QA Manager can do, plus setting daily inspection targets (Daily Quality Plan); no delete",
   maintenance_manager: "Maintenance – full access including approve (delete reserved for super admin)",
   sales_executive: "Access to Sales module for order management",
   order_management: "View access to Sales and Production dashboards only",
@@ -139,6 +140,7 @@ const roleColors: Record<AppRole, string> = {
   viewer: "bg-gray-500/10 text-gray-500 border-gray-500/20",
   operational_manager: "bg-teal-500/10 text-teal-500 border-teal-500/20",
   qa_manager: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+  qa_super_manager: "bg-cyan-700/10 text-cyan-700 border-cyan-700/20",
   maintenance_manager: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   sales_executive: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
   order_management: "bg-pink-500/10 text-pink-500 border-pink-500/20",
@@ -260,6 +262,7 @@ export default function RolesPage() {
     viewer: 0,
     operational_manager: 0,
     qa_manager: 0,
+    qa_super_manager: 0,
     maintenance_manager: 0,
     sales_executive: 0,
     order_management: 0,
@@ -385,7 +388,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "labour_attendance_delete_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "dispatch_planner_manager", "dispatch_planner_officer", "dispatch_planner_viewer", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "qa_super_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "labour_attendance_delete_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "dispatch_planner_manager", "dispatch_planner_officer", "dispatch_planner_viewer", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>
