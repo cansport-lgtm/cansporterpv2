@@ -42,8 +42,8 @@ export async function printGRN(grnId: string): Promise<void> {
   const categoryLabel: Record<string, string> = {
     raw_material: "Raw Material",
     office_supplies: "Office Supplies",
-    general_supplies: "General Supplies",
-    spare_maintenance: "Spare & Maintenance",
+    general_supplies: "Production Supplies",
+    spare_maintenance: "Spares & Parts",
   };
 
   const rowsHtml = (items || []).length

@@ -104,8 +104,8 @@ export default function PurchaseReturnPage() {
                 <SelectContent>
                   <SelectItem value="raw_material">Raw Material</SelectItem>
                   <SelectItem value="office_supplies">Office Supplies</SelectItem>
-                  <SelectItem value="general_supplies">General Supplies</SelectItem>
-                  <SelectItem value="spare_maintenance">Spare & Maintenance</SelectItem>
+                  <SelectItem value="general_supplies">Production Supplies</SelectItem>
+                  <SelectItem value="spare_maintenance">Spares & Parts</SelectItem>
                 </SelectContent>
               </Select>
             </div>

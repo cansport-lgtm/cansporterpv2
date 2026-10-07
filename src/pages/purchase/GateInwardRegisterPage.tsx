@@ -33,8 +33,8 @@ import {
 const CATEGORIES = [
   { value: "raw_material", label: "Raw material" },
   { value: "office_supplies", label: "Office supplies" },
-  { value: "general_supplies", label: "General supplies" },
-  { value: "spare_maintenance", label: "Spare & maintenance" },
+  { value: "general_supplies", label: "Production supplies" },
+  { value: "spare_maintenance", label: "Spares & parts" },
 ];
 
 export default function GateInwardRegisterPage() {

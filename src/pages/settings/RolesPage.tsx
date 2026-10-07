@@ -461,7 +461,7 @@ export default function RolesPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
-                {["Raw Material", "Office Supplies", "General Supplies", "Spare & Maintenance"].map(
+                {["Raw Material", "Office Supplies", "Production Supplies", "Spares & Parts"].map(
                   (category) => (
                     <Card key={category} className="border-dashed">
                       <CardHeader className="py-3">

@@ -48,8 +48,8 @@ interface Supplier {
 const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
   { value: "raw_material", label: "Raw Material" },
   { value: "office_supplies", label: "Office Supplies" },
-  { value: "general_supplies", label: "General Supplies" },
-  { value: "spare_maintenance", label: "Spare & Maintenance" },
+  { value: "general_supplies", label: "Production Supplies" },
+  { value: "spare_maintenance", label: "Spares & Parts" },
 ];
 
 export default function SuppliersPage() {
