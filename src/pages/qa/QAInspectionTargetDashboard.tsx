@@ -55,8 +55,8 @@ export default function QAInspectionTargetDashboard() {
   const monthStart = format(startOfMonth(selectedMonth), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(selectedMonth), "yyyy-MM-dd");
 
-  // Check if user is super_admin
-  const isSuperAdmin = hasRole("super_admin");
+  // Inspection targets can be set by Super Admin and the QA Super Manager
+  const canEditTargets = hasRole("super_admin") || hasRole("qa_super_manager");
 
   // Fetch all active processes
   const { data: processes = [] } = useQuery({
@@ -436,11 +436,11 @@ export default function QAInspectionTargetDashboard() {
                 <CardTitle className="flex items-center gap-2">
                   <Target className="h-5 w-5" />
                   Set Daily Targets
-                  {!isSuperAdmin && (
+                  {!canEditTargets && (
                     <Badge variant="secondary" className="ml-2">View Only</Badge>
                   )}
                 </CardTitle>
-                {isSuperAdmin && (
+                {canEditTargets && (
                   <Button size="sm" onClick={handleSaveAllTargets} disabled={saveTargetMutation.isPending}>
                     <Save className="h-4 w-4 mr-2" />
                     Save All
@@ -448,9 +448,9 @@ export default function QAInspectionTargetDashboard() {
                 )}
               </CardHeader>
               <CardContent>
-                {!isSuperAdmin && (
+                {!canEditTargets && (
                   <div className="mb-4 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
-                    Only Super Admin can edit inspection targets. Targets automatically recur daily until changed.
+                    Only Super Admin and QA Super Manager can edit inspection targets. Targets automatically recur daily until changed.
                   </div>
                 )}
                 <div className="max-h-[400px] overflow-y-auto">
@@ -460,7 +460,7 @@ export default function QAInspectionTargetDashboard() {
                         <TableHead>Process</TableHead>
                         <TableHead className="w-24">Target</TableHead>
                         <TableHead className="w-20">Status</TableHead>
-                        {isSuperAdmin && <TableHead className="w-16"></TableHead>}
+                        {canEditTargets && <TableHead className="w-16"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -475,7 +475,7 @@ export default function QAInspectionTargetDashboard() {
                               {process.name}
                             </TableCell>
                             <TableCell>
-                              {isSuperAdmin ? (
+                              {canEditTargets ? (
                                 <Input
                                   type="number"
                                   min={0}
@@ -496,7 +496,7 @@ export default function QAInspectionTargetDashboard() {
                                 <Badge variant="secondary" className="text-xs">No Target</Badge>
                               )}
                             </TableCell>
-                            {isSuperAdmin && (
+                            {canEditTargets && (
                               <TableCell>
                                 <Button
                                   variant="ghost"

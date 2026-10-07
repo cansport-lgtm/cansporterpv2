@@ -282,6 +282,7 @@ const navigationItems: NavItem[] = [
       { title: "NCR / CAPA", href: "/qa/ncr-capa" },
       { title: "CAPA Dashboard", href: "/qa/capa-dashboard" },
       { title: "QA Release", href: "/qa/release", excludeRoles: ["operator"] },
+      { title: "Quality Report", href: "/qa/quality-report" },
       { title: "Dashboard", href: "/qa/dashboard" },
     ],
   },
