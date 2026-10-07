@@ -26,7 +26,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { PURCHASE_CATEGORY_OPTIONS, purchaseCategoryLabel } from "@/lib/purchase/categories";
+import { PURCHASE_CATEGORY_OPTIONS, purchaseCategoryLabel, purchaseRequestRoleCategories } from "@/lib/purchase/categories";
 import {
   PR_LIST_SELECT, PR_STATUS_META, errorMessage, fmtMoney, prDb, prStatusMeta,
 } from "@/lib/purchaseRequest";
@@ -46,17 +46,32 @@ export default function PurchaseRequestsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { roles, purchaseCategoryPermissions, canViewPrices } = useAuth();
+  const { roles, modulePermissions, purchaseCategoryPermissions, canViewPrices } = useAuth();
   const showPrices = canViewPrices();
   const isSuperAdmin = roles.some((r) => r.role === "super_admin");
   const isPurchaseManager = isSuperAdmin || roles.some((r) => r.role === "purchase_manager");
+  const roleNames = useMemo(() => roles.map((r) => r.role as string), [roles]);
   // Categories whose purchase approval this user gives (mirrors the database rule).
   const approveCategories = useMemo(
     () => isPurchaseManager
       ? PURCHASE_CATEGORY_OPTIONS.map((c) => c.value)
-      : purchaseCategoryPermissions.filter((p) => p.can_approve).map((p) => p.category),
-    [isPurchaseManager, purchaseCategoryPermissions],
+      : [...new Set([
+          ...purchaseCategoryPermissions.filter((p) => p.can_approve).map((p) => p.category),
+          ...purchaseRequestRoleCategories(roleNames, "approver"),
+        ])],
+    [isPurchaseManager, purchaseCategoryPermissions, roleNames],
   );
+  // Who sees every category: the Purchase module's own people. A user whose only
+  // Purchase access is a Purchase Request officer / approver role sees just its categories.
+  const seesAll = isPurchaseManager
+    || roleNames.some((r) => r === "purchase_officer" || r === "accounting_officer")
+    || modulePermissions.some((p) => p.module_name === "purchase" && p.can_view);
+  const visibleCategories = useMemo(
+    () => seesAll ? PURCHASE_CATEGORY_OPTIONS.map((c) => c.value)
+      : [...new Set([...approveCategories, ...purchaseRequestRoleCategories(roleNames, "officer")])],
+    [seesAll, approveCategories, roleNames],
+  );
+  const categoryOptions = PURCHASE_CATEGORY_OPTIONS.filter((c) => visibleCategories.includes(c.value));
 
   const [view, setView] = useState<View>(approveCategories.length > 0 ? "to_approve" : "all");
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 89), "yyyy-MM-dd"));
@@ -107,12 +122,13 @@ export default function PurchaseRequestsPage() {
     },
   });
 
+  const inScope = (r: PurchaseRequestListRow) => visibleCategories.includes(r.category);
   const queues = {
     to_approve: open.filter((r) => r.status === "pending_purchase" && approveCategories.includes(r.category)),
-    final: open.filter((r) => r.status === "pending_final"),
-    to_order: open.filter((r) => r.status === "approved" || r.status === "partially_ordered"),
+    final: open.filter((r) => r.status === "pending_final" && inScope(r)),
+    to_order: open.filter((r) => (r.status === "approved" || r.status === "partially_ordered") && inScope(r)),
   };
-  const base = view === "all" ? ranged : queues[view];
+  const base = view === "all" ? ranged.filter(inScope) : queues[view];
   const needle = search.trim().toLowerCase();
   const rows = base
     .filter((r) => category === "all" || r.category === category)
@@ -122,7 +138,7 @@ export default function PurchaseRequestsPage() {
       .some((x) => (x ?? "").toLowerCase().includes(needle)));
 
   const kpis = [
-    { label: "With department heads", value: open.filter((r) => r.status === "pending_hod").length, tone: "text-amber-600" },
+    { label: "With department heads", value: open.filter((r) => r.status === "pending_hod" && inScope(r)).length, tone: "text-amber-600" },
     { label: "Waiting for you", value: queues.to_approve.length, tone: "text-amber-600", view: "to_approve" as View },
     { label: "Final approval", value: queues.final.length, tone: "text-amber-600", view: "final" as View },
     { label: "Approved — to order", value: queues.to_order.length, tone: "text-emerald-600", view: "to_order" as View },
@@ -222,7 +238,7 @@ export default function PurchaseRequestsPage() {
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All categories</SelectItem>
-                  {PURCHASE_CATEGORY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {categoryOptions.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

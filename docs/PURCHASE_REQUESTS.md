@@ -4,8 +4,8 @@ A **purchase request** is how a department asks Purchase to buy items. One
 number series: `PRQ-000001`, `PRQ-000002`, … given only when a request saves
 successfully (Production Requirements already use `PR-YY-NNNN`).
 
-Database: `supabase/migrations/20261016120000_purchase_requests.sql`.
-Rollback in `supabase/rollbacks/20261016120000_purchase_requests_down.sql`.
+Database: `supabase/migrations/20261016130000_purchase_requests.sql`.
+Rollback in `supabase/rollbacks/20261016130000_purchase_requests_down.sql`.
 Shared code: `src/lib/purchaseRequest.ts`, category names in
 `src/lib/purchase/categories.ts`.
 
@@ -57,7 +57,7 @@ Rejected at any approval step (reason required) · Cancelled (see below)
 |---|---|
 | Raise, edit own draft, submit | **Any logged-in user** (Self Service → My Purchase Requests) |
 | Department head approval | Users set as **heads of that department** (any role); super admin may act for any department |
-| Purchase approval | `purchase_manager`, super admin, or a user with *approve* on that category in `purchase_category_permissions`. **Never on their own request** (super admin excepted) |
+| Purchase approval | The category's **Approver** role (below), `purchase_manager`, super admin, or a user with *approve* on that category in `purchase_category_permissions`. **Never on their own request** (super admin excepted) |
 | Final approval (above the limit) | **Super admin** only |
 | Settings: approval limit, department heads | **Super admin** only |
 
@@ -69,9 +69,29 @@ Every write goes through the `purchase_request_*` database functions, which
 check these rules; the tables are read-only to the app. Every action is logged
 in `purchase_request_events` and shown as the request's timeline.
 
-> There is no screen yet to grant per-category purchase permissions
-> (`purchase_category_permissions`), so in practice the Purchase approval is
-> given by purchase managers and super admins.
+### Roles per category
+
+Two roles for each category, given on **Settings → Users**
+(`20261016130100_purchase_request_roles.sql`, rights in
+`20261016130200_purchase_request_role_rights.sql`):
+
+| Category | Officer | Approver |
+|---|---|---|
+| Office Supplies | `pr_office_officer` | `pr_office_approver` |
+| Raw Material | `pr_raw_material_officer` | `pr_raw_material_approver` |
+| Production Supplies | `pr_production_officer` | `pr_production_approver` |
+| Spares & Parts | `pr_spares_officer` | `pr_spares_approver` |
+
+- **Officer**: opens Purchase → Purchase Requests and sees only its
+  category's requests (no other Purchase page); told when one is approved and
+  ready to order.
+- **Approver**: the officer's rights, plus the Purchase approval for its
+  category (lower quantities, set estimated rates, approve / reject); told when
+  one waits for Purchase.
+- A user can hold several (for example the spares approver and the production
+  officer). Their categories add up.
+- Purchase managers, purchase officers and accounting officers keep seeing
+  every category; anyone can still raise requests on My Purchase Requests.
 
 ## Pages
 
@@ -92,9 +112,9 @@ prices.
 | When | Who is told |
 |---|---|
 | Submitted | The department's heads (or Purchase, when the head raised it) |
-| Department head approved | Requester; purchase managers and the category's approvers |
+| Department head approved | Requester; purchase managers and the category's approvers (Approver role or category permission) |
 | Purchase approved, above the limit | Super admins; requester |
-| Approved | Requester; purchase officers and managers (ready to order) |
+| Approved | Requester; purchase officers and managers, and the category's Officer and Approver roles (ready to order) |
 | Rejected / cancelled | Requester (and Purchase, when rejected at final approval) |
 
 ## Settings

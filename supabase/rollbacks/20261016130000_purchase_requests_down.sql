@@ -1,5 +1,5 @@
 -- ============================================================================
--- Rollback of 20261016120000_purchase_requests.sql
+-- Rollback of 20261016130000_purchase_requests.sql
 -- ----------------------------------------------------------------------------
 -- Drops the purchase request functions, tables (with every request, line,
 -- event, department head and the settings row) and the number sequence.

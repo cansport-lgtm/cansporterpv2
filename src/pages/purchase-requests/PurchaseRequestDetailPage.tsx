@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { purchaseCategoryLabel } from "@/lib/purchase/categories";
+import { purchaseCategoryLabel, purchaseRequestRoleCategories } from "@/lib/purchase/categories";
 import {
   EVENT_LABEL, PR_SELECT, effectiveQty, errorMessage, fmtMoney, fmtQty, prDb, prStatusMeta,
   printPurchaseRequest, sortedItems, type PurchaseRequest,
@@ -113,7 +113,9 @@ export default function PurchaseRequestDetailPage() {
   const stage: Stage | null = !pr ? null
     : pr.status === "pending_hod" && (isSuperAdmin || myHeadDepartments.includes(pr.department_id)) ? "hod"
     : pr.status === "pending_purchase" && (!mine || isSuperAdmin)
-      && (isPurchaseManager || purchaseCategoryPermissions.some((p) => p.category === pr.category && p.can_approve)) ? "purchase"
+      && (isPurchaseManager
+        || purchaseRequestRoleCategories(roles.map((r) => r.role), "approver").includes(pr.category)
+        || purchaseCategoryPermissions.some((p) => p.category === pr.category && p.can_approve)) ? "purchase"
     : pr.status === "pending_final" && isSuperAdmin ? "final"
     : null;
   const editQty = stage === "hod" || stage === "purchase";

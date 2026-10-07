@@ -70,6 +70,14 @@ const roleDescriptions: Record<AppRole, string> = {
   dispatch_planner_manager: "Dispatch Planner – everything the officer can, plus the vehicle master and deleting saved plan versions",
   dispatch_planner_officer: "Dispatch Planner – run suggestions, pin / flag lines, save plan versions, print and export (reads only; nothing is dispatched or booked)",
   dispatch_planner_viewer: "Dispatch Planner – read-only access to the suggested plan, pending lines and saved versions",
+  pr_office_officer: "Purchase Requests – Office Supplies: sees the Office Supplies requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
+  pr_office_approver: "Purchase Requests – Office Supplies: the officer's rights plus the Purchase approval for Office Supplies (lower quantities, set estimated rates, approve / reject; never on own request)",
+  pr_raw_material_officer: "Purchase Requests – Raw Material: sees the Raw Material requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
+  pr_raw_material_approver: "Purchase Requests – Raw Material: the officer's rights plus the Purchase approval for Raw Material (lower quantities, set estimated rates, approve / reject; never on own request)",
+  pr_production_officer: "Purchase Requests – Production Supplies: sees the Production Supplies requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
+  pr_production_approver: "Purchase Requests – Production Supplies: the officer's rights plus the Purchase approval for Production Supplies (lower quantities, set estimated rates, approve / reject; never on own request)",
+  pr_spares_officer: "Purchase Requests – Spares & Parts: sees the Spares & Parts requests on Purchase → Purchase Requests (no other Purchase page); told when one is approved and ready to order",
+  pr_spares_approver: "Purchase Requests – Spares & Parts: the officer's rights plus the Purchase approval for Spares & Parts (lower quantities, set estimated rates, approve / reject; never on own request)",
   helpdesk_manager: "Help Desk – manages all support tickets (assign, comment, change status/priority, resolve) on the ticket admin board",
   export_manager: "Export Sales – full access including approve (delete reserved for super admin)",
   export_officer: "Export Sales – create and edit entries (no approve, no delete)",
@@ -249,6 +257,14 @@ const roleColors: Record<AppRole, string> = {
   dispatch_planner_manager: "bg-cyan-700/10 text-cyan-700 border-cyan-700/20",
   dispatch_planner_officer: "bg-cyan-600/10 text-cyan-600 border-cyan-600/20",
   dispatch_planner_viewer: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+  pr_office_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+  pr_office_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
+  pr_raw_material_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+  pr_raw_material_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
+  pr_production_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+  pr_production_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
+  pr_spares_officer: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+  pr_spares_approver: "bg-violet-700/10 text-violet-700 border-violet-700/20",
   projects_super_manager: "bg-blue-700/10 text-blue-700 border-blue-700/20",
 };
 
@@ -371,6 +387,14 @@ export default function RolesPage() {
     dispatch_planner_manager: 0,
     dispatch_planner_officer: 0,
     dispatch_planner_viewer: 0,
+    pr_office_officer: 0,
+    pr_office_approver: 0,
+    pr_raw_material_officer: 0,
+    pr_raw_material_approver: 0,
+    pr_production_officer: 0,
+    pr_production_approver: 0,
+    pr_spares_officer: 0,
+    pr_spares_approver: 0,
     projects_super_manager: 0,
   });
 
@@ -388,7 +412,7 @@ export default function RolesPage() {
     fetchRoleCounts();
   }, []);
 
-  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "qa_super_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "labour_attendance_delete_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "dispatch_planner_manager", "dispatch_planner_officer", "dispatch_planner_viewer", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
+  const roles: AppRole[] = ["super_admin", "admin", "operational_manager", "qa_manager", "qa_super_manager", "maintenance_manager", "sales_executive", "order_management", "floor_incharge", "private_label_distributor", "private_label_manager", "private_label_officer", "private_label_viewer", "pettycash_handler", "store_operator", "online_sales_packing", "online_sales_admin", "online_sales_manager", "online_sales_agent", "dispatch_operator", "sales_order_manager", "production_operator", "closing_data_poster", "accounting_poster", "accounting_officer", "accounting_manager", "billing_officer", "purchase_officer", "purchase_manager", "purchase_qc_inspector", "labour_productivity_approver", "labour_productivity_poster", "labour_productivity_viewer", "labour_gate_pass_approver", "labour_attendance_delete_approver", "staff_gate_pass_approver", "export_manager", "export_officer", "export_viewer", "master_data_manager", "master_data_officer", "master_data_viewer", "hr_manager", "hr_officer", "hr_viewer", "wip_manager", "wip_officer", "wip_viewer", "rejections_manager", "rejections_officer", "rejections_viewer", "performance_manager", "performance_officer", "performance_viewer", "floor_inventory_manager", "floor_inventory_officer", "floor_inventory_viewer", "fixed_assets_manager", "fixed_assets_officer", "fixed_assets_viewer", "five_s_manager", "five_s_officer", "five_s_viewer", "hourly_production_manager", "hourly_production_officer", "hourly_production_viewer", "rd_manager", "rd_officer", "rd_viewer", "crm_manager", "crm_officer", "crm_viewer", "marketing_manager", "marketing_officer", "marketing_viewer", "projects_super_manager", "projects_officer", "projects_viewer", "qa_officer", "qa_viewer", "qa_inspector", "maintenance_officer", "maintenance_viewer", "expenses_manager", "expenses_officer", "expenses_viewer", "material_consumption_manager", "material_consumption_officer", "material_consumption_viewer", "machine_monitor_manager", "machine_monitor_officer", "machine_monitor_viewer", "production_manager", "production_officer", "production_viewer", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager", "gate_pass_officer", "gate_pass_viewer", "gate_security", "store_pass_manager", "store_pass_officer", "store_pass_viewer", "dispatch_planner_manager", "dispatch_planner_officer", "dispatch_planner_viewer", "pr_office_officer", "pr_office_approver", "pr_raw_material_officer", "pr_raw_material_approver", "pr_production_officer", "pr_production_approver", "pr_spares_officer", "pr_spares_approver", "helpdesk_manager", "manager", "supervisor", "operator", "viewer"];
 
   return (
     <ERPLayout>

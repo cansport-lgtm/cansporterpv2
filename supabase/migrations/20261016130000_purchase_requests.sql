@@ -38,7 +38,7 @@
 -- Tables are read-only to clients: every write goes through the SECURITY
 -- DEFINER purchase_request_* functions below. Every action is logged in
 -- purchase_request_events.
--- Rollback: supabase/rollbacks/20261016120000_purchase_requests_down.sql
+-- Rollback: supabase/rollbacks/20261016130000_purchase_requests_down.sql
 -- ============================================================================
 
 -- 1. Tables ------------------------------------------------------------------
