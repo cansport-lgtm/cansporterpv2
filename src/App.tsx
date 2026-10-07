@@ -54,6 +54,7 @@ import CAPADashboardPage from "./pages/qa/CAPADashboardPage";
 import ProcessInspectionsDashboard from "./pages/qa/ProcessInspectionsDashboard";
 import QAReleasePage from "./pages/qa/QAReleasePage";
 import DailyQualityPlanPage from "./pages/qa/DailyQualityPlanPage";
+import QualityReportPage from "./pages/qa/QualityReportPage";
 import QAInspectionTargetDashboard from "./pages/qa/QAInspectionTargetDashboard";
 import ProcessInstructionsPage from "./pages/qa/ProcessInstructionsPage";
 import InstructionAcknowledgementPage from "./pages/qa/InstructionAcknowledgementPage";
@@ -609,6 +610,7 @@ const App = () => (
             <Route path="/qa/operator-inspection" element={<ProtectedRoute><OperatorInspectionPage /></ProtectedRoute>} />
             <Route path="/qa/process-inspections" element={<ProtectedRoute><ProcessInspectionsDashboard /></ProtectedRoute>} />
             <Route path="/qa/daily-plan" element={<ProtectedRoute><DailyQualityPlanPage /></ProtectedRoute>} />
+            <Route path="/qa/quality-report" element={<ProtectedRoute><QualityReportPage /></ProtectedRoute>} />
             <Route path="/qa/inspection-targets" element={<ProtectedRoute><QAInspectionTargetDashboard /></ProtectedRoute>} />
             <Route path="/qa/ncr-capa" element={<ProtectedRoute><NCRCAPAPage /></ProtectedRoute>} />
             <Route path="/qa/capa-dashboard" element={<ProtectedRoute><CAPADashboardPage /></ProtectedRoute>} />
