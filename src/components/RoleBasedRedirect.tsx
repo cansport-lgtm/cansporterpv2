@@ -5,7 +5,7 @@ import { Loader2, Factory } from 'lucide-react';
 /**
  * Redirects users to the appropriate dashboard based on their role.
  * - super_admin: Main Dashboard
- * - qa_manager: QA Dashboard
+ * - qa_manager / qa_super_manager: QA Dashboard
  * - maintenance_manager: Maintenance Dashboard
  * - operational_manager: Production Dashboard
  * - Others: First accessible module dashboard
@@ -40,8 +40,8 @@ export function RoleBasedRedirect() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // QA Manager goes to QA Dashboard
-  if (roles.some(r => r.role === 'qa_manager')) {
+  // QA Manager / QA Super Manager go to QA Dashboard
+  if (roles.some(r => r.role === 'qa_manager' || r.role === 'qa_super_manager')) {
     return <Navigate to="/qa/dashboard" replace />;
   }
 
