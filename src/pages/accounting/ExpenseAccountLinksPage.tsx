@@ -168,8 +168,8 @@ export default function ExpenseAccountLinksPage() {
         )}
 
         <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
-          <div><b className="text-foreground">How it is compared.</b> For each linked account and month, the amount paid or recorded by the source is set against the net debit on that account in the ledger. The ledger side counts only vouchers that also touch the funding account, such as Petty Cash 6002.</div>
-          <div>Petty cash counts every expense entry that is not rejected, by entry date. Trip fuel counts vouchers marked paid, by the date the cashier paid them. Nothing before the compare-from date is counted, on either side.</div>
+          <div><b className="text-foreground">How it is compared.</b> For each linked account and month, the amount recorded by the source is set against the net debit on that account in the ledger. The ledger side counts only vouchers that also touch the funding account, such as Petty Cash 6002.</div>
+          <div>Petty cash counts every expense entry that is not rejected, by entry date. Trip fuel counts approved vouchers, by the date HR approved them. Nothing before the compare-from date is counted, on either side.</div>
           <div>Sources that share an expense account are compared together against that one account. They should share the same compare-from date.</div>
         </div>
 

@@ -215,8 +215,8 @@ export const reconSummary = (rows: ReconRow[]) => ({
 export const differenceText = (diff: number | null, tolerance: number | null) => {
   if (diff == null || Math.abs(diff) <= (tolerance ?? 0)) return "";
   return diff > 0
-    ? `Paid / recorded Rs ${Math.round(diff).toLocaleString()} more than the ledger shows. Not posted yet, or posted to another account.`
-    : `Ledger shows Rs ${Math.round(-diff).toLocaleString()} more than was paid / recorded. Posted twice, or from another source.`;
+    ? `Recorded Rs ${Math.round(diff).toLocaleString()} more than the ledger shows. Not posted yet, or posted to another account.`
+    : `Ledger shows Rs ${Math.round(-diff).toLocaleString()} more than was recorded. Posted twice, or from another source.`;
 };
 
 // ---- Date presets (same set as the Expenses Analysis report) -----------------------
@@ -257,6 +257,6 @@ export function suggestExpenseAccount(label: string, accounts: CoaAccount[]): Co
   return hits.length === 1 ? hits[0] : null;
 }
 
-/** Calendar date (yyyy-MM-dd) of a timestamp in Pakistan time, the way the reconciliation dates a paid voucher. */
+/** Calendar date (yyyy-MM-dd) of a timestamp in Pakistan time, the way the reconciliation dates an approved voucher. */
 export const pkDate = (ts: string | null | undefined) =>
   ts ? new Date(ts).toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" }) : "";

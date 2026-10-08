@@ -40,8 +40,8 @@ extending `source_type` and the two source queries in `expense_link_reconciliati
 month.
 
 - **Records side**
-  - Trip fuel: vouchers with status `paid`, by the date the cashier paid them
-    (Asia/Karachi).
+  - Trip fuel: vouchers with status `approved` (and earlier `paid` ones), by the date
+    HR approved them (Asia/Karachi). HR approval is final, so there is no paid step.
   - Petty cash: `expense` entries whose approval status is not `rejected`, by entry
     date. (Entries are mostly still `pending`, so counting approved only would show
     nothing.)
@@ -56,7 +56,7 @@ against the ledger line) is a later step.
 
 ### Reading a difference
 
-- Records higher than the ledger: paid / recorded but not posted yet, or posted to
+- Records higher than the ledger: recorded but not posted yet, or posted to
   another account.
 - Ledger higher than the records: posted twice, or from another source.
 

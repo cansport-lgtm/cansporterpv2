@@ -235,7 +235,7 @@ export default function ExpenseReconciliationPage() {
         )}
 
         <p className="text-xs text-muted-foreground">
-          Records: petty cash expenses that are not rejected (by entry date) and trip fuel vouchers marked paid (by payment date). Ledger: net debit on the expense account in
+          Records: petty cash expenses that are not rejected (by entry date) and approved trip fuel vouchers (by approval date). Ledger: net debit on the expense account in
           vouchers that also touch the funding account. Differences within the tolerance of the link are treated as matched.
         </p>
       </div>

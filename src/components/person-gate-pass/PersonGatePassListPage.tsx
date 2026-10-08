@@ -30,7 +30,7 @@ type Row = Pick<PersonGatePass,
 };
 
 const liveFuel = (r: Row) => (r.fuel ?? []).find((f) => ["pending_approval", "approved", "paid"].includes(f.status)) ?? null;
-const FUEL_LABEL: Record<string, string> = { pending_approval: "awaiting HR", approved: "approved", paid: "paid" };
+const FUEL_LABEL: Record<string, string> = { pending_approval: "awaiting HR", approved: "approved", paid: "approved" };
 
 const effectText = (r: Row) =>
   marksAbsent(r) ? " · ABSENT" : r.pass_kind === "short_leave" && marksHalfDay(r) ? " · ½ day" : "";
@@ -144,7 +144,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(officialSummary.map((e) => ({
       Code: e.code, Name: e.name, Department: e.dept, Trips: e.trips, "Minutes outside": e.minutes, "Hours outside": Math.round((e.minutes / 60) * 100) / 100,
-      "Not scanned in": e.notScannedIn, "Still out": e.stillOut, "Km claimed": e.km, "Fuel approved / paid (Rs)": e.fuel, "Fuel awaiting HR (Rs)": e.fuelPending,
+      "Not scanned in": e.notScannedIn, "Still out": e.stillOut, "Km claimed": e.km, "Fuel approved (Rs)": e.fuel, "Fuel awaiting HR (Rs)": e.fuelPending,
       Destinations: [...e.destinations].join("; "),
     }))), "Summary");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.filter((r) => isOfficialDuty(r.pass_kind)).map((r) => ({
@@ -291,7 +291,7 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                         <TableCell className={cn("text-xs whitespace-nowrap", late > 0 && (official ? "text-amber-700 font-semibold" : "text-red-700 font-semibold"))}>{timeline(r)}</TableCell>
                         {hasOfficial && variant.key === "staff" && (
                           <TableCell className="text-xs whitespace-nowrap">
-                            {(() => { const f = liveFuel(r); return f ? <span className={cn(f.status === "paid" ? "text-emerald-700" : f.status === "approved" ? "text-sky-700" : "text-amber-700")}>Rs {Math.round(Number(f.amount)).toLocaleString()} · {FUEL_LABEL[f.status] ?? f.status}</span> : official && ["returned", "not_returned"].includes(r.status) ? <span className="text-muted-foreground">not claimed</span> : ""; })()}
+                            {(() => { const f = liveFuel(r); return f ? <span className={cn(f.status === "pending_approval" ? "text-amber-700" : "text-emerald-700")}>Rs {Math.round(Number(f.amount)).toLocaleString()} · {FUEL_LABEL[f.status] ?? f.status}</span> : official && ["returned", "not_returned"].includes(r.status) ? <span className="text-muted-foreground">not claimed</span> : ""; })()}
                           </TableCell>
                         )}
                         {!self && <TableCell className="text-xs text-muted-foreground">{r.creator?.full_name ?? ""}</TableCell>}

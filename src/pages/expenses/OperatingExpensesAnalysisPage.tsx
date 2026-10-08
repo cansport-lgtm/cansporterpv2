@@ -55,7 +55,7 @@ const fmtRs = (n: number) => `₹${Math.round(n).toLocaleString()}`;
  * Operating Expenses Analysis
  *
  * Month-wise analysis of operating expenses (petty cash expenses + general
- * expenses + utility bills + paid staff trip fuel). By default it analyses a full calendar year and
+ * expenses + utility bills + approved staff trip fuel). By default it analyses a full calendar year and
  * breaks the spend down month by month. A custom date-range filter can be
  * applied to scope the whole analysis to an arbitrary period.
  */
@@ -115,16 +115,16 @@ export default function OperatingExpensesAnalysisPage() {
     },
   });
 
-  // Staff trip fuel: cash vouchers marked paid, by the date the cashier paid them.
+  // Staff trip fuel: approved vouchers (HR approval is final; older ones marked paid count too), by approval date.
   const { data: tripFuel = [], isLoading: l4 } = useQuery({
     queryKey: ["opex-trip-fuel", rangeStartStr, rangeEndStr],
     queryFn: async () => {
       const { data, error } = await ppDb
         .from("staff_trip_fuel_vouchers")
-        .select("paid_at, amount")
-        .eq("status", "paid")
-        .gte("paid_at", `${rangeStartStr}T00:00:00+05:00`)
-        .lte("paid_at", `${rangeEndStr}T23:59:59.999+05:00`);
+        .select("approved_at, amount")
+        .in("status", ["approved", "paid"])
+        .gte("approved_at", `${rangeStartStr}T00:00:00+05:00`)
+        .lte("approved_at", `${rangeEndStr}T23:59:59.999+05:00`);
       if (error) throw error;
       return data || [];
     },
@@ -159,9 +159,9 @@ export default function OperatingExpensesAnalysisPage() {
         category: `Utility - ${b.utility_types?.name || "Other"}`,
       }),
     );
-    tripFuel.forEach((v: any) =>
+    tripFuel.forEach((v: { approved_at: string; amount: number }) =>
       rows.push({
-        date: pkDate(v.paid_at),
+        date: pkDate(v.approved_at),
         amount: Number(v.amount || 0),
         source: "Trip Fuel",
         category: "Staff Trip Fuel",
