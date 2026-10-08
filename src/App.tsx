@@ -245,6 +245,7 @@ import MonthlyReceiptViewPage from "./pages/consumption/MonthlyReceiptViewPage";
 import ConsumptionCategoriesPage from "./pages/consumption/ConsumptionCategoriesPage";
 import ConsumptionUsageReportPage from "./pages/consumption/ConsumptionUsageReportPage";
 import ValueTierUsageReportPage from "./pages/consumption/ValueTierUsageReportPage";
+import ReorderRequirementPage from "./pages/consumption/ReorderRequirementPage";
 
 // 5S Module pages
 import FiveSDashboard from "./pages/five-s/FiveSDashboard";
@@ -848,6 +849,7 @@ const App = () => (
             <Route path="/consumption/categories" element={<ProtectedRoute><ConsumptionCategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/usage-report" element={<ProtectedRoute><ConsumptionUsageReportPage /></ProtectedRoute>} />
             <Route path="/consumption/value-tier-report" element={<ProtectedRoute><ValueTierUsageReportPage /></ProtectedRoute>} />
+            <Route path="/consumption/reorder-requirement" element={<ProtectedRoute><ReorderRequirementPage /></ProtectedRoute>} />
             <Route path="/consumption/*" element={<ProtectedRoute><ComingSoon title="Material Consumption" /></ProtectedRoute>} />
 
 
