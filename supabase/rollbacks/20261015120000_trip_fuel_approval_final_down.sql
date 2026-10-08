@@ -1,0 +1,8 @@
+-- Rollback for 20261015120000_trip_fuel_approval_final.sql.
+-- This migration only replaces four functions, so rolling back means putting the
+-- earlier definitions back. They are all CREATE OR REPLACE, so run:
+--   * sections 5, 6 and 7 of supabase/migrations/20261006120000_staff_trip_fuel.sql
+--     (staff_trip_fuel_review, staff_trip_fuel_pay, staff_trip_fuel_cancel)
+--   * section 3 of supabase/migrations/20261013120000_expense_account_links.sql
+--     (expense_link_reconciliation)
+-- No table, column or row is changed by the migration, so there is no data to restore.

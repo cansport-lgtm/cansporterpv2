@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, Banknote, CheckCircle2, Clock, Download, Fuel, Gauge, Hourglass, Link2, Route as RouteIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Fuel, Gauge, Hourglass, Link2, Route as RouteIcon, ThumbsUp } from "lucide-react";
 
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { ppDb } from "@/lib/personGatePass";
-import { FUEL_KEYS, FUEL_SELECT, FUEL_STATUS_META, fmtKm, fmtRs, type TripFuelVoucher } from "@/lib/tripFuel";
+import { FUEL_FILTER_STATUSES, FUEL_KEYS, FUEL_SELECT, FUEL_STATUS_META, fmtKm, fmtRs, isApprovedFuel, type TripFuelVoucher } from "@/lib/tripFuel";
 import { PRESETS, STATUS_LABEL, TRIP_FUEL_REF, applyPreset, differenceText, groupReconciliation, useReconciliation } from "@/lib/expenseLinks";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 
@@ -26,17 +26,17 @@ const monthKey = (d: string) => d.slice(0, 7);
 const monthLabel = (k: string) => format(new Date(`${k}-01T00:00:00`), "MMM yyyy");
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${fmtRs(Math.abs(n))}`;
 
-type Agg = { name: string; sub?: string; trips: number; km: number; claimed: number; paid: number };
+type Agg = { name: string; sub?: string; trips: number; km: number; claimed: number; approved: number };
 
 function aggregate(rows: TripFuelVoucher[], keyOf: (v: TripFuelVoucher) => { key: string; name: string; sub?: string }): Agg[] {
   const map = new Map<string, Agg>();
   rows.forEach((v) => {
     const { key, name, sub } = keyOf(v);
-    const a = map.get(key) ?? { name, sub, trips: 0, km: 0, claimed: 0, paid: 0 };
+    const a = map.get(key) ?? { name, sub, trips: 0, km: 0, claimed: 0, approved: 0 };
     a.trips += 1;
     a.km += Number(v.km);
     a.claimed += Number(v.amount);
-    if (v.status === "paid") a.paid += Number(v.amount);
+    if (isApprovedFuel(v.status)) a.approved += Number(v.amount);
     map.set(key, a);
   });
   return [...map.values()].sort((a, b) => b.claimed - a.claimed);
@@ -82,7 +82,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
         (v) =>
           (staff === "all" || v.employee_id === staff) &&
           (dept === "all" || v.person?.production_departments?.name === dept) &&
-          (status === "all" ? true : status === "live" ? LIVE.includes(v.status) : v.status === status),
+          (status === "all" ? true : status === "live" ? LIVE.includes(v.status) : status === "approved" ? isApprovedFuel(v.status) : v.status === status),
       ),
     [all, staff, dept, status],
   );
@@ -96,8 +96,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
       trips: live.length,
       km,
       claimed,
-      paid: sum((v) => v.status === "paid"),
-      approvedUnpaid: sum((v) => v.status === "approved"),
+      approved: sum((v) => isApprovedFuel(v.status)),
       awaiting: sum((v) => v.status === "pending_approval"),
       awaitingCount: live.filter((v) => v.status === "pending_approval").length,
       avgTrip: live.length ? claimed / live.length : 0,
@@ -106,14 +105,14 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
   }, [live]);
 
   const monthly = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; trips: number; km: number; claimed: number; paid: number }>();
+    const map = new Map<string, { key: string; label: string; trips: number; km: number; claimed: number; approved: number }>();
     live.forEach((v) => {
       const k = monthKey(v.trip_date);
-      const m = map.get(k) ?? { key: k, label: monthLabel(k), trips: 0, km: 0, claimed: 0, paid: 0 };
+      const m = map.get(k) ?? { key: k, label: monthLabel(k), trips: 0, km: 0, claimed: 0, approved: 0 };
       m.trips += 1;
       m.km += Number(v.km);
       m.claimed += Number(v.amount);
-      if (v.status === "paid") m.paid += Number(v.amount);
+      if (isApprovedFuel(v.status)) m.approved += Number(v.amount);
       map.set(k, m);
     });
     return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
@@ -148,16 +147,16 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
       "Rate / km": Number(v.rate_per_km),
       Amount: Number(v.amount),
       Status: FUEL_STATUS_META[v.status]?.label ?? v.status,
-      "Paid on": v.paid_at ? format(new Date(v.paid_at), "yyyy-MM-dd") : "",
+      "Approved on": v.approved_at ? format(new Date(v.approved_at), "yyyy-MM-dd") : "",
     }))), "Vouchers");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthly.map((m) => ({ Month: m.label, Trips: m.trips, Km: Math.round(m.km * 10) / 10, Claimed: m.claimed, Paid: m.paid }))), "By month");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byStaff.map((a) => ({ Staff: a.name, Detail: a.sub ?? "", Trips: a.trips, Km: Math.round(a.km * 10) / 10, Claimed: a.claimed, Paid: a.paid }))), "By staff");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byDestination.map((a) => ({ Destination: a.name, Trips: a.trips, Km: Math.round(a.km * 10) / 10, Claimed: a.claimed, Paid: a.paid }))), "By destination");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthly.map((m) => ({ Month: m.label, Trips: m.trips, Km: Math.round(m.km * 10) / 10, Claimed: m.claimed, Approved: m.approved }))), "By month");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byStaff.map((a) => ({ Staff: a.name, Detail: a.sub ?? "", Trips: a.trips, Km: Math.round(a.km * 10) / 10, Claimed: a.claimed, Approved: a.approved }))), "By staff");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byDestination.map((a) => ({ Destination: a.name, Trips: a.trips, Km: Math.round(a.km * 10) / 10, Claimed: a.claimed, Approved: a.approved }))), "By destination");
     if (scope === "accounting" && fuelRecon.length) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fuelRecon.map((r) => ({
         Account: r.expense_account_code ? `${r.expense_account_code} ${r.expense_account_name}` : "Not linked",
         Month: monthLabel(monthKey(r.month)),
-        "Paid vouchers": r.source_amount,
+        "Approved vouchers": r.source_amount,
         Ledger: r.gl_amount ?? "",
         Difference: r.difference ?? "",
         Status: STATUS_LABEL[r.status],
@@ -170,7 +169,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
     trips: list.reduce((s, a) => s + a.trips, 0),
     km: list.reduce((s, a) => s + a.km, 0),
     claimed: list.reduce((s, a) => s + a.claimed, 0),
-    paid: list.reduce((s, a) => s + a.paid, 0),
+    approved: list.reduce((s, a) => s + a.approved, 0),
   });
 
   const aggTable = (title: string, first: string, list: Agg[]) => {
@@ -187,7 +186,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                   <TableHead className="text-right">Trips</TableHead>
                   <TableHead className="text-right">Km</TableHead>
                   <TableHead className="text-right">Claimed</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
+                  <TableHead className="text-right">Approved</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,7 +198,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                     <TableCell className="text-right">{a.trips}</TableCell>
                     <TableCell className="text-right">{fmtKm(a.km)}</TableCell>
                     <TableCell className="text-right">{fmtRs(a.claimed)}</TableCell>
-                    <TableCell className="text-right">{fmtRs(a.paid)}</TableCell>
+                    <TableCell className="text-right">{fmtRs(a.approved)}</TableCell>
                   </TableRow>
                 ))}
                 {list.length > 0 && (
@@ -208,7 +207,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                     <TableCell className="text-right">{t.trips}</TableCell>
                     <TableCell className="text-right">{fmtKm(t.km)}</TableCell>
                     <TableCell className="text-right">{fmtRs(t.claimed)}</TableCell>
-                    <TableCell className="text-right">{fmtRs(t.paid)}</TableCell>
+                    <TableCell className="text-right">{fmtRs(t.approved)}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -262,9 +261,9 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-[190px] h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="live">Pending, approved and paid</SelectItem>
+              <SelectItem value="live">Awaiting HR and approved</SelectItem>
               <SelectItem value="all">Everything</SelectItem>
-              {Object.entries(FUEL_STATUS_META).map(([k, m]) => <SelectItem key={k} value={k}>{m.label}</SelectItem>)}
+              {FUEL_FILTER_STATUSES.map((k) => <SelectItem key={k} value={k}>{FUEL_STATUS_META[k].label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -273,11 +272,11 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
 
       {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">Could not load trip fuel: {(error as { message?: string }).message}</div>}
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Trips" value={String(kpi.trips)} icon={RouteIcon} description={`${fmtKm(kpi.km)} travelled`} />
-        <MetricCard title="Claimed" value={fmtRs(kpi.claimed)} icon={Fuel} description={`${fmtRs(kpi.avgTrip)} per trip`} />
-        <MetricCard title="Paid" value={fmtRs(kpi.paid)} icon={Banknote} description="cash handed over" />
-        <MetricCard title="Approved, not paid" value={fmtRs(kpi.approvedUnpaid)} icon={Clock} description="waiting at the cashier" />
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <MetricCard title="Trips" value={String(kpi.trips)} icon={RouteIcon} description={`${fmtRs(kpi.avgTrip)} per trip`} />
+        <MetricCard title="Distance" value={fmtKm(kpi.km)} icon={Gauge} description="travelled" />
+        <MetricCard title="Claimed" value={fmtRs(kpi.claimed)} icon={Fuel} description="awaiting HR and approved" />
+        <MetricCard title="Approved" value={fmtRs(kpi.approved)} icon={ThumbsUp} description="cash payable by the cashier" />
         <MetricCard title="Awaiting HR" value={fmtRs(kpi.awaiting)} icon={Hourglass} description={`${kpi.awaitingCount} claim${kpi.awaitingCount === 1 ? "" : "s"}`} />
         <MetricCard title="Cost per km" value={kpi.perKm ? `Rs ${kpi.perKm.toFixed(2)}` : "—"} icon={Gauge} description="claimed ÷ km" />
       </div>
@@ -294,7 +293,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
             ) : !hasLink ? (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 flex gap-2">
                 <AlertTriangle className="h-5 w-5 shrink-0 text-amber-700" />
-                <div>Staff trip fuel is not linked to an expense account{unlinkedAmount ? `, and ${fmtRs(unlinkedAmount)} was paid in this period` : ""}. <Link className="underline" to="/accounting/expense-links">Link it</Link> to check it against the ledger.</div>
+                <div>Staff trip fuel is not linked to an expense account{unlinkedAmount ? `, and ${fmtRs(unlinkedAmount)} was approved in this period` : ""}. <Link className="underline" to="/accounting/expense-links">Link it</Link> to check it against the ledger.</div>
               </div>
             ) : fuelGroups.filter((g) => g.kind === "linked").map((g) => (
               <div key={g.key} className="space-y-2">
@@ -311,7 +310,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Month</TableHead>
-                      <TableHead className="text-right">Paid vouchers{g.labels.length > 1 ? " + others" : ""}</TableHead>
+                      <TableHead className="text-right">Approved vouchers{g.labels.length > 1 ? " + others" : ""}</TableHead>
                       <TableHead className="text-right">Ledger</TableHead>
                       <TableHead className="text-right">Difference</TableHead>
                       <TableHead>What it means</TableHead>
@@ -332,7 +331,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
-              The ledger check counts vouchers by the day the cashier marked them paid, and only from the compare-from date of the link. The tables on this page are by trip date.
+              The ledger check counts approved vouchers by the day HR approved them, and only from the compare-from date of the link. The tables on this page are by trip date.
             </p>
           </CardContent>
         </Card>
@@ -356,7 +355,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                   <Tooltip formatter={(value: number, name) => [name === "Km" ? fmtKm(value) : fmtRs(value), name]} />
                   <Legend />
                   <Bar yAxisId="rs" dataKey="claimed" name="Claimed" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                  <Bar yAxisId="rs" dataKey="paid" name="Paid" fill="#10b981" radius={[2, 2, 0, 0]} />
+                  <Bar yAxisId="rs" dataKey="approved" name="Approved" fill="#10b981" radius={[2, 2, 0, 0]} />
                   <Line yAxisId="km" type="monotone" dataKey="km" name="Km" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -381,8 +380,8 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                   <TableHead className="text-right">Trips</TableHead>
                   <TableHead className="text-right">Km</TableHead>
                   <TableHead className="text-right">Claimed</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Not paid yet</TableHead>
+                  <TableHead className="text-right">Approved</TableHead>
+                  <TableHead className="text-right">Awaiting HR</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -394,8 +393,8 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                     <TableCell className="text-right">{m.trips}</TableCell>
                     <TableCell className="text-right">{fmtKm(m.km)}</TableCell>
                     <TableCell className="text-right">{fmtRs(m.claimed)}</TableCell>
-                    <TableCell className="text-right">{fmtRs(m.paid)}</TableCell>
-                    <TableCell className="text-right">{fmtRs(m.claimed - m.paid)}</TableCell>
+                    <TableCell className="text-right">{fmtRs(m.approved)}</TableCell>
+                    <TableCell className="text-right">{fmtRs(m.claimed - m.approved)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -405,7 +404,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Claimed counts vouchers that are awaiting approval, approved or paid. Rejected and cancelled vouchers are left out unless the status filter asks for them.
+        Claimed counts vouchers that are awaiting approval or approved. Rejected and cancelled vouchers are left out unless the status filter asks for them.
         {scope === "hr" && " The accounting side of this fuel is checked in the Accounting module."}
       </p>
     </div>

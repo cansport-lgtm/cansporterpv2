@@ -133,9 +133,14 @@ managed by hand.
 ```
 trip over (pass returned / not scanned in) → staff member or HR claims → pending_approval
   → HR manager approves → approved (voucher printed, cash collected from the cashier)
-  → cashier marks paid → paid
-rejected (HR manager) · cancelled (claimant or HR manager, before paid)
+rejected (HR manager) · cancelled (claimant or HR manager while pending; HR manager only once approved)
 ```
+
+**HR approval is final.** There is no "mark paid" step: the cashier pays cash against
+the printed voucher and nothing is recorded for that (migration
+`20261015120000_trip_fuel_approval_final.sql`). `staff_trip_fuel_pay` now refuses.
+Vouchers that were marked paid earlier (TFV-000001) keep status `paid`, are shown and
+counted as approved, and keep their paid-by / paid-at details.
 
 - **Where.** The **Trip fuel** card on the pass page (HR pass page and My Gate
   Passes), shown once the official duty pass has been scanned Out and In. One
@@ -151,32 +156,32 @@ rejected (HR manager) · cancelled (claimant or HR manager, before paid)
   Rate and figures are frozen on the voucher.
 - **Voucher.** `TFV-000001` … with staff, pass, date, route, odometer or km,
   rate, amount and signature lines (claimed by, approved by HR, paid by cashier,
-  received by). Printable from the pass page and the cashier's page.
+  received by; the cashier and receiver sign by hand). Printable from the pass page
+  and the Trip Fuel Vouchers page.
 - **Roles.** Claim: the staff member on the pass (self-service) or HR. Approve
-  / reject: `hr_manager` (and super admin), always. Mark paid: `pettycash_handler`,
-  `expenses_manager`, `expenses_officer` (and super admin). Cancel before paid:
-  the claimant or an HR manager. No new role.
+  / reject: `hr_manager` (and super admin), always. Cancel: the claimant or an HR
+  manager while the claim is pending; only an HR manager once it is approved (cash
+  may already be out, so settle that with the staff member by hand). No new role.
 - **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for HR**;
-  **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the cashier's queue
-  (approved, waiting for cash), history with filters and Excel export, and the
-  settings. The staff register shows the voucher on each trip and km / fuel per
+  **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the register of
+  every voucher (filters, print, Excel export) and holds the settings. The staff register shows the voucher on each trip and km / fuel per
   person in the Company work summary and its export.
 - **Notifications.** Claim → HR managers. Approved → claimant and cashiers
-  (`pettycash_handler`, `expenses_manager`). Rejected / paid → claimant.
+  (`pettycash_handler`, `expenses_manager`): "approved for Rs X, the cashier pays it
+  in cash against the printed voucher". Rejected → claimant.
   Cancelled → claimant, HR managers (and cashiers when it was already approved).
 
 ### Trip fuel analysis and the ledger check
 
 - **HR → Trip Fuel Analysis** (`/hr/trip-fuel-analysis`, `hr_manager`, `hr_officer`,
-  super admin): trips, km, claimed, paid, approved-not-paid, awaiting HR, cost per
-  km; by staff, destination and month; filters for dates, staff, department and
+  super admin): trips, distance, claimed, approved, awaiting HR, cost per km; by staff, destination and month; filters for dates, staff, department and
   status; Excel export. No ledger figures.
 - **Accounting → Reports → Trip Fuel Analysis** (`/accounting/trip-fuel-analysis`):
   the same analysis plus a **Ledger check** against the expense account the fuel is
   linked to (see `docs/EXPENSE_ACCOUNT_LINKS.md`).
 - Trip fuel also appears as its own bar in **Expenses → Operating Expenses
-  Analysis** (paid vouchers, by the date the cashier paid them).
-- The analysis tables are by **trip date**; the ledger check is by **payment date**.
+  Analysis** (approved vouchers, by the date HR approved them).
+- The analysis tables are by **trip date**; the ledger check is by **approval date**.
 
 ## Half day marking (HR attendance)
 

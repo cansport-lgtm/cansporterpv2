@@ -12,16 +12,21 @@ export type TripFuelStatus = "pending_approval" | "approved" | "paid" | "rejecte
 
 export const FUEL_STATUS_META: Record<TripFuelStatus, { label: string; variant: "warning" | "success" | "destructive" | "secondary" | "info" | "soft" }> = {
   pending_approval: { label: "Awaiting HR approval", variant: "warning" },
-  approved: { label: "Approved · collect cash", variant: "info" },
-  paid: { label: "Paid", variant: "success" },
+  approved: { label: "Approved", variant: "success" },
+  // Vouchers marked paid before approval became final; they count as approved.
+  paid: { label: "Approved", variant: "success" },
   rejected: { label: "Rejected", variant: "destructive" },
   cancelled: { label: "Cancelled", variant: "secondary" },
 };
 
 export const fuelStatusMeta = (s: string) => FUEL_STATUS_META[s as TripFuelStatus] ?? { label: s, variant: "secondary" as const };
 
+/** Approval by the HR manager is final: there is no separate "mark paid" step. */
 export const FUEL_APPROVE_ROLES = ["super_admin", "hr_manager"];
-export const FUEL_PAY_ROLES = ["super_admin", "pettycash_handler", "expenses_manager", "expenses_officer"];
+/** Statuses that count as approved fuel (paid is an older status for the same thing). */
+export const isApprovedFuel = (status: string) => status === "approved" || status === "paid";
+/** Statuses offered in filters; "approved" covers the older paid ones too. */
+export const FUEL_FILTER_STATUSES: TripFuelStatus[] = ["pending_approval", "approved", "rejected", "cancelled"];
 export const FUEL_SETTINGS_ROLES = ["super_admin"];
 
 export type TripFuelVoucher = {
@@ -193,7 +198,7 @@ export function printTripFuelVoucher(v: TripFuelVoucher, pass?: Pick<PersonGateP
     <div class="sign">
       <div>Claimed by<br><b>${esc(v.creator?.full_name ?? "")}</b><br><span class="muted">${esc(fmtDT(v.created_at))}</span></div>
       <div>Approved by (HR)<br><b>${esc(v.approver?.full_name ?? "")}</b><br><span class="muted">${v.approved_at ? esc(fmtDT(v.approved_at)) : "&nbsp;"}</span></div>
-      <div>Paid by (cashier)<br><b>${esc(v.payer?.full_name ?? "")}</b><br><span class="muted">${v.paid_at ? esc(fmtDT(v.paid_at)) : "&nbsp;"}</span></div>
+      <div>Paid by (cashier)<br><b>${esc(v.payer?.full_name ?? "")}</b><br>&nbsp;</div>
       <div>Received by<br>&nbsp;<br>&nbsp;</div>
     </div>
   </div>`;
