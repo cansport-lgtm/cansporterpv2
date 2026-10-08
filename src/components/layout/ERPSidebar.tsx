@@ -99,6 +99,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/planning/dashboard" },
       { title: "Weekly Planning", href: "/planning/weekly" },
+      { title: "Production Requirement", href: "/planning/requirements" },
       { title: "Job Orders", href: "/planning/job-orders" },
       { title: "Job Order Departments", href: "/planning/job-order-departments", superAdminOnly: true },
       { title: "Store Department", href: "/planning/store-management" },

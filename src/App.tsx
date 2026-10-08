@@ -183,6 +183,7 @@ import DailyStockClosingPage from "./pages/planning/DailyStockClosingPage";
 import DailyClosingDashboard from "./pages/planning/DailyClosingDashboard";
 import MonthlyProductionPage from "./pages/planning/MonthlyProductionPage";
 import SkilledLabourPlanningPage from "./pages/planning/SkilledLabourPlanningPage";
+import ProductionRequirementPage from "./pages/planning/ProductionRequirementPage";
 
 // Labour Productivity pages
 import LabourProductivityDashboard from "./pages/labour/LabourProductivityDashboard";
@@ -821,6 +822,7 @@ const App = () => (
             {/* Production Planning Routes */}
             <Route path="/planning/dashboard" element={<ProtectedRoute><ProductionPlanningDashboard /></ProtectedRoute>} />
             <Route path="/planning/weekly" element={<ProtectedRoute><WeeklyPlanningPage /></ProtectedRoute>} />
+            <Route path="/planning/requirements" element={<ProtectedRoute><ProductionRequirementPage /></ProtectedRoute>} />
             <Route path="/planning/capacity" element={<ProtectedRoute><CapacityMasterPage /></ProtectedRoute>} />
             <Route path="/planning/items" element={<ProtectedRoute><PlanningItemMasterPage /></ProtectedRoute>} />
             <Route path="/planning/stock-closing" element={<ProtectedRoute><DailyStockClosingPage /></ProtectedRoute>} />
