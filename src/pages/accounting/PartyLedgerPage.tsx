@@ -28,6 +28,8 @@ const sb = supabase as any;
 
 const VALID_TYPES = new Set(["all", "customer", "supplier", "employee", "other"]);
 
+type LedgerInvoice = { id: string; invoiceNumber: string; customerName: string; notes: string | null };
+
 export default function PartyLedgerPage() {
   const [searchParams] = useSearchParams();
   const initialType = (() => {
@@ -136,58 +138,65 @@ export default function PartyLedgerPage() {
   const { data: dispatchInvoiceMap } = useQuery({
     queryKey: ["acc-pl-dispatch-invoice-map", dispatchIdsToResolve, partyId],
     queryFn: async () => {
-      if (!dispatchIdsToResolve.length) return {} as Record<string, { id: string; notes: string | null }>;
+      if (!dispatchIdsToResolve.length) return {} as Record<string, LedgerInvoice[]>;
       // A single dispatch can be split into several invoices for DIFFERENT billing
-      // parties (one delivery challan, multiple customers). The ledger row we're
-      // resolving belongs to `partyId`, so we must pick the invoice for THIS party
-      // — keying purely on dispatch_id would surface another customer's invoice.
+      // parties (one delivery challan, multiple customers), and several ship-to
+      // shops of the SAME billing party (e.g. KK Sports + Multan Sports, both
+      // billed to KK Sports) each get their own invoice. The party's one AR
+      // voucher covers all of the latter, so list every invoice that bills to
+      // `partyId` — not just the first, which hid the sibling shops' invoices.
       const { data, error } = await sb
         .from("domestic_invoices")
-        .select("id, dispatch_id, notes, customer:customers(accounting_party_id)")
+        .select("id, invoice_number, dispatch_id, notes, customer:customers(name, accounting_party_id)")
         .in("dispatch_id", dispatchIdsToResolve);
       if (error) throw error;
-      // Group by dispatch so we can prefer the party-matching invoice and fall
-      // back to the sole invoice when a legacy customer has no billing party set.
       const byDispatch: Record<string, any[]> = {};
       (data || []).forEach((r: any) => {
         if (!r.dispatch_id) return;
         (byDispatch[r.dispatch_id] ||= []).push(r);
       });
-      const map: Record<string, { id: string; notes: string | null }> = {};
+      const map: Record<string, LedgerInvoice[]> = {};
       Object.entries(byDispatch).forEach(([dispatchId, invoices]) => {
-        const match =
-          invoices.find((r) => r.customer?.accounting_party_id === partyId) ||
-          (invoices.length === 1 ? invoices[0] : null);
-        if (match) map[dispatchId] = { id: match.id, notes: match.notes };
+        let matches = invoices.filter((r) => r.customer?.accounting_party_id === partyId);
+        // Fall back to the sole invoice when a legacy customer has no billing party set.
+        if (!matches.length && invoices.length === 1) matches = invoices;
+        if (!matches.length) return;
+        map[dispatchId] = matches
+          .map((r) => ({
+            id: r.id,
+            invoiceNumber: r.invoice_number || "",
+            customerName: r.customer?.name || "",
+            notes: r.notes,
+          }))
+          .sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber));
       });
       return map;
     },
     enabled: dispatchIdsToResolve.length > 0 && !!partyId,
   });
 
-  // Resolve a voucher's underlying source document so we can open it as a modal
-  // directly over the ledger.
-  //   - domestic_sales:  source_reference_id is a dispatch id; we look up the invoice.
-  //   - purchase:        source_reference_id IS the GRN id (the purchase invoice).
-  type SourceDoc = { kind: "invoice"; id: string } | { kind: "grn"; id: string } | null;
-  const resolveSourceDoc = (v: any): SourceDoc => {
-    if (!v?.source_reference_id) return null;
-    if (v.source_module === "domestic_sales") {
-      const inv = dispatchInvoiceMap?.[v.source_reference_id];
-      return inv ? { kind: "invoice", id: inv.id } : null;
+  // The sales invoices behind a domestic_sales voucher (source_reference_id is a dispatch id).
+  const invoicesFor = (v: any): LedgerInvoice[] => {
+    if (v?.source_module === "domestic_sales" && v?.source_reference_id) {
+      return dispatchInvoiceMap?.[v.source_reference_id] || [];
     }
-    if (v.source_module === "purchase") {
-      return { kind: "grn", id: v.source_reference_id };
-    }
-    return null;
+    return [];
   };
 
-  // The sales-invoice note for a row (shown in the ledger so it's visible without opening the invoice).
+  // "INV-1 (Shop A), INV-2 (Shop B)" — printed with the narration so every
+  // invoice billed to this party is visible on the ledger, PDF and Excel.
+  const invoiceLabelFor = (v: any): string | null => {
+    const invs = invoicesFor(v);
+    if (!invs.length) return null;
+    return invs
+      .map((i) => (i.customerName ? `${i.invoiceNumber} (${i.customerName})` : i.invoiceNumber))
+      .join(", ");
+  };
+
+  // The sales-invoice notes for a row (shown in the ledger so they're visible without opening the invoice).
   const invoiceNoteFor = (v: any): string | null => {
-    if (v?.source_module === "domestic_sales" && v?.source_reference_id) {
-      return dispatchInvoiceMap?.[v.source_reference_id]?.notes || null;
-    }
-    return null;
+    const notes = invoicesFor(v).map((i) => i.notes).filter(Boolean);
+    return notes.length ? notes.join(" | ") : null;
   };
 
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
@@ -238,7 +247,11 @@ export default function PartyLedgerPage() {
       Date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
       Voucher: [r.voucher?.voucher_type, r.voucher?.voucher_number].filter(Boolean).join(" "),
       "Against A/c": r.account?.name || "",
-      Narration: [r.line_narration || r.voucher?.narration || "", invoiceNoteFor(r.voucher) ? `Note: ${invoiceNoteFor(r.voucher)}` : ""]
+      Narration: [
+        r.line_narration || r.voucher?.narration || "",
+        invoiceLabelFor(r.voucher) ? `Invoices: ${invoiceLabelFor(r.voucher)}` : "",
+        invoiceNoteFor(r.voucher) ? `Note: ${invoiceNoteFor(r.voucher)}` : "",
+      ]
         .filter(Boolean)
         .join(" — "),
       Debit: Number(r.debit_amount) > 0 ? Number(r.debit_amount) : "",
@@ -269,13 +282,9 @@ export default function PartyLedgerPage() {
   // Voucher number + source-document action buttons. Shared by the desktop table
   // and the mobile card list so both stay in sync.
   const renderVoucherActions = (r: any) => {
-    const sourceDoc = resolveSourceDoc(r.voucher);
-    const openSource = () => {
-      if (!sourceDoc) return;
-      if (sourceDoc.kind === "invoice") setViewInvoiceId(sourceDoc.id);
-      else if (sourceDoc.kind === "grn") setViewGRNId(sourceDoc.id);
-    };
-    const sourceTitle = sourceDoc?.kind === "grn" ? "Open purchase invoice (GRN)" : "Open source invoice";
+    // Purchase vouchers: source_reference_id IS the GRN id (the purchase invoice).
+    const grnId = r.voucher?.source_module === "purchase" ? r.voucher?.source_reference_id : null;
+    const invoices = invoicesFor(r.voucher);
     return (
       <>
         <Badge variant="outline" className="font-mono text-[10px] mr-1">{r.voucher?.voucher_type}</Badge>
@@ -287,21 +296,26 @@ export default function PartyLedgerPage() {
         >
           {r.voucher?.voucher_number}
         </button>
-        {sourceDoc && (
-          <button type="button" onClick={openSource} className="text-primary hover:underline inline-flex items-center ml-1 align-middle" title={sourceTitle}>
+        {grnId && (
+          <button type="button" onClick={() => setViewGRNId(grnId)} className="text-primary hover:underline inline-flex items-center ml-1 align-middle" title="Open purchase invoice (GRN)">
             <FileText className="h-3 w-3" />
           </button>
         )}
-        {sourceDoc?.kind === "invoice" && (
-          <button type="button" onClick={() => setEditInvoiceId(sourceDoc.id)} className="text-primary hover:underline inline-flex items-center ml-1 align-middle" title="Edit invoice">
-            <Pencil className="h-3 w-3" />
-          </button>
-        )}
-        {sourceDoc?.kind === "invoice" && (
-          <button type="button" onClick={() => setPrintInvoiceId(sourceDoc.id)} className="text-primary hover:underline inline-flex items-center ml-1 align-middle" title="Print invoice">
-            <Printer className="h-3 w-3" />
-          </button>
-        )}
+        {invoices.map((inv) => (
+          <div key={inv.id} className="flex items-center gap-1 mt-0.5 text-[11px]">
+            <button type="button" onClick={() => setViewInvoiceId(inv.id)} className="text-primary hover:underline inline-flex items-center gap-0.5" title={`Open invoice${inv.customerName ? ` — ${inv.customerName}` : ""}`}>
+              <FileText className="h-3 w-3" />
+              {inv.invoiceNumber}
+            </button>
+            {inv.customerName && <span className="text-muted-foreground truncate max-w-[110px]">{inv.customerName}</span>}
+            <button type="button" onClick={() => setEditInvoiceId(inv.id)} className="text-primary hover:underline inline-flex items-center" title="Edit invoice">
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button type="button" onClick={() => setPrintInvoiceId(inv.id)} className="text-primary hover:underline inline-flex items-center" title="Print invoice">
+              <Printer className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
       </>
     );
   };
@@ -313,7 +327,9 @@ export default function PartyLedgerPage() {
       date: r.voucher?.voucher_date ? format(parseISO(r.voucher.voucher_date), "dd MMM yyyy") : "",
       voucher: `${r.voucher?.voucher_type || ""} ${r.voucher?.voucher_number || ""}`.trim(),
       against: r.account?.name || "-",
-      narration: r.line_narration || r.voucher?.narration || "-",
+      narration: [r.line_narration || r.voucher?.narration || "-", invoiceLabelFor(r.voucher) ? `Invoices: ${invoiceLabelFor(r.voucher)}` : ""]
+        .filter(Boolean)
+        .join(" — "),
       debit: Number(r.debit_amount) > 0 ? Number(r.debit_amount).toLocaleString() : "",
       credit: Number(r.credit_amount) > 0 ? Number(r.credit_amount).toLocaleString() : "",
       balance: r.runningBalance.toLocaleString(),
@@ -417,6 +433,7 @@ export default function PartyLedgerPage() {
                     <td className="py-1.5">{r.account?.name || "—"}</td>
                     <td className="py-1.5">
                       {r.line_narration || r.voucher?.narration || "—"}
+                      {invoiceLabelFor(r.voucher) && <div className="text-[10px] text-gray-600">Invoices: {invoiceLabelFor(r.voucher)}</div>}
                       {invoiceNoteFor(r.voucher) && <div className="text-[10px] text-gray-600">Note: {invoiceNoteFor(r.voucher)}</div>}
                     </td>
                     <td className="text-right py-1.5">{Number(r.debit_amount) > 0 ? `Rs. ${Number(r.debit_amount).toLocaleString()}` : "—"}</td>
