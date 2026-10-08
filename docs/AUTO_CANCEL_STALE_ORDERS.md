@@ -6,7 +6,7 @@ pg_cron) runs `public.auto_cancel_stale_orders(30)` and cancels orders that are
 
 | Order | Cancelled when status is | …and none of these exist |
 |---|---|---|
-| Sales order | draft, confirmed, in production, ready | a dispatch (single or multi-order), dispatched dozens on any line |
+| Sales order | draft, confirmed, in production, ready | a dispatch line made from one of its lines, dispatched dozens on any line |
 | Purchase order | draft, pending approval, approved, ordered | a GRN, a QC inspection, a gate inward entry that is not cancelled/rejected, received quantity on any line, a close-short |
 
 Partly dispatched / partly received orders are never auto-cancelled; close
