@@ -343,7 +343,8 @@ export default function ProductionDashboard() {
   });
 
 
-  // Trend data based on view mode
+  // Trend data based on view mode (only Local Final + Final Ball output)
+  const TREND_DEPT_CODES = ['LOCAL_FINAL', 'FANCY_FINAL'];
   const { data: trendData } = useQuery({
     queryKey: ['production-trend', viewMode, dateStr],
     queryFn: async () => {
@@ -362,7 +363,8 @@ export default function ProductionDashboard() {
         const results = await Promise.all(months.map(async (month) => {
           const { data, error } = await supabase
             .from('production_entries')
-            .select('quantity_produced, quantity_rejected')
+            .select('quantity_produced, quantity_rejected, production_departments!inner(code)')
+            .in('production_departments.code', TREND_DEPT_CODES)
             .gte('entry_date', month.start)
             .lte('entry_date', month.end);
           
@@ -386,7 +388,8 @@ export default function ProductionDashboard() {
         
         const { data, error } = await supabase
           .from('production_entries')
-          .select('entry_date, quantity_produced, quantity_rejected')
+          .select('entry_date, quantity_produced, quantity_rejected, production_departments!inner(code)')
+          .in('production_departments.code', TREND_DEPT_CODES)
           .in('entry_date', days);
         
         if (error) throw error;
