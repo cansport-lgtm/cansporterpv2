@@ -510,6 +510,7 @@ const navigationItems: NavItem[] = [
       { title: "Analysis", href: "/consumption/analysis" },
       { title: "Usage Report", href: "/consumption/usage-report" },
       { title: "Value Tier Usage Report", href: "/consumption/value-tier-report" },
+      { title: "Reorder Requirement", href: "/consumption/reorder-requirement" },
     ],
   },
   {
