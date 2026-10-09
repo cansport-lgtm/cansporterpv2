@@ -129,6 +129,8 @@ export type GatePass = {
   party_kind: string | null;
   party_id: string | null;
   party_name: string;
+  /** Who takes the goods out: an outsider needs a vehicle number, a company official does not. */
+  handled_by: "outsider" | "company";
   vehicle_number: string | null;
   driver_name: string | null;
   driver_contact: string | null;
@@ -292,8 +294,8 @@ export function printGatePass(p: GatePass, qrSvg: string) {
       <div><span class="muted">Date</span> <b>${esc(format(new Date(p.pass_date), "dd MMM yyyy"))}</b></div>
       <div><span class="muted">Type</span> <b>${esc(passTypeMeta(p.pass_type).label)}</b></div>
       <div><span class="muted">Approval</span> <b>${esc(approval || statusMeta(p.status).label)}</b></div>
-      <div><span class="muted">Vehicle</span> <b>${esc(p.vehicle_number || "Hand carry")}</b></div>
-      <div><span class="muted">Driver</span> <b>${esc([p.driver_name, p.driver_contact].filter(Boolean).join(" · "))}</b></div>
+      <div><span class="muted">Vehicle</span> <b>${esc(p.vehicle_number || (p.handled_by === "company" ? "Company official" : "Hand carry"))}</b></div>
+      <div><span class="muted">${p.handled_by === "company" ? "Official" : "Driver"}</span> <b>${esc([p.driver_name, p.driver_contact].filter(Boolean).join(" · "))}</b></div>
       <div style="grid-column: span 2"><span class="muted">Party</span> <b>${esc(p.party_name)}</b></div>
       ${dispatches ? `<div style="grid-column: span 2"><span class="muted">Dispatches</span> <b>${esc(dispatches)}</b></div>` : ""}
       ${freightLine ? `<div style="grid-column: span 2"><span class="muted">Freight</span> <b>${esc(freightLine)}</b></div>` : ""}

@@ -300,8 +300,8 @@ function OfficeGateCheckPage() {
                 </div>
                 <div className="text-sm text-muted-foreground">{pass.party_name}</div>
                 <div className="text-sm">
-                  Vehicle on pass: <b>{pass.vehicle_number || "none (hand carry / courier)"}</b>
-                  {pass.driver_name ? <> · Driver: <b>{pass.driver_name}</b></> : null}
+                  Vehicle on pass: <b>{pass.vehicle_number || (pass.handled_by === "company" ? "none (company official)" : "none (hand carry / courier)")}</b>
+                  {pass.driver_name ? <> · {pass.handled_by === "company" ? "Official" : "Driver"}: <b>{pass.driver_name}</b></> : null}
                 </div>
               </CardContent>
             </Card>
