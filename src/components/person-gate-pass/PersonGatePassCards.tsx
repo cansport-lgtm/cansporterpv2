@@ -5,7 +5,11 @@ import { AlertTriangle, ClipboardCheck, DoorOpen, Siren, UserMinus } from "lucid
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { fmtTime, overdueMinutes, passKeys, ppDb, todayPk, useLivePersonPasses, type PersonPassVariant } from "@/lib/personGatePass";
+import { fmtTime, overdueMinutes, passKeys, ppDb, todayPk, useLivePersonPasses, type LivePersonPass, type PersonPassVariant } from "@/lib/personGatePass";
+
+/** Out right now. A half day never scans back in, so its pass stays "out" — it is done once its day is over. */
+const isOutsideNow = (p: LivePersonPass, today: string) =>
+  p.status === "out" && !(p.pass_kind === "half_day" && p.pass_date !== today);
 
 /** The four summary cards: approvals waiting, outside now, half days this month, old passes scanned again. */
 export function PersonGatePassCards({ variant, compact = false }: { variant: PersonPassVariant; compact?: boolean }) {
@@ -41,9 +45,9 @@ export function PersonGatePassCards({ variant, compact = false }: { variant: Per
   });
 
   const pending = live.filter((p) => p.status === "pending_approval").length;
-  const outside = live.filter((p) => p.status === "out");
-  const overdue = outside.filter((p) => overdueMinutes(p) > 0).length;
   const today = todayPk();
+  const outside = live.filter((p) => isOutsideNow(p, today));
+  const overdue = outside.filter((p) => overdueMinutes(p) > 0).length;
   const approvedToday = live.filter((p) => p.status === "approved" && p.pass_date === today).length;
   const base = variant.basePath;
 
@@ -78,8 +82,9 @@ export function PersonGatePassCards({ variant, compact = false }: { variant: Per
 /** People outside right now, overdue first. Hidden when nobody is out. */
 export function OutsideNowPanel({ variant }: { variant: PersonPassVariant }) {
   const { data: live = [] } = useLivePersonPasses(variant);
+  const today = todayPk();
   const out = live
-    .filter((p) => p.status === "out")
+    .filter((p) => isOutsideNow(p, today))
     .map((p) => ({ ...p, late: overdueMinutes(p) }))
     .sort((a, b) => b.late - a.late || (a.gate_out_at ?? "").localeCompare(b.gate_out_at ?? ""));
   if (out.length === 0) return null;

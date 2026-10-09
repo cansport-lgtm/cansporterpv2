@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { RescanAlerts } from "@/components/gate-pass/RescanAlerts";
 import { fmtQty, gpDb, passTypeMeta, statusMeta, todayPk } from "@/lib/gatePass";
 import { fmtRs } from "@/lib/gatePassFreight";
+import { giDb } from "@/lib/gateInward";
 
 type PassRow = {
   id: string; pass_number: string; pass_type: string; status: string; party_name: string;
@@ -44,6 +45,16 @@ export default function GatePassDashboardPage() {
         .select("gate_pass_id, pass_number, pass_type, party_name, expected_return_date, is_overdue, balance, status")
         .in("status", ["out", "partially_returned"]);
       if (error) throw error;
+      return data ?? [];
+    },
+  });
+  // Passes whose goods are back at the gate (Gate Inward) and wait for the store to receive them.
+  const { data: atGate = [] } = useQuery<{ gate_pass_id: string; entry_number: string }[]>({
+    queryKey: ["gate-inward", "at-gate-passes", "dashboard"],
+    queryFn: async () => {
+      const { data, error } = await giDb.from("gate_inward_entries").select("gate_pass_id, entry_number")
+        .eq("status", "at_gate").not("gate_pass_id", "is", null);
+      if (error) return [];
       return data ?? [];
     },
   });
@@ -85,7 +96,9 @@ export default function GatePassDashboardPage() {
     open.filter((l) => Number(l.balance) > 0).forEach((l) => m.set(l.gate_pass_id, l));
     return [...m.values()];
   }, [open]);
-  const overdue = outside.filter((l) => l.is_overdue);
+  const atGateByPass = useMemo(() => new Map(atGate.map((e) => [e.gate_pass_id, e.entry_number])), [atGate]);
+  const overdue = outside.filter((l) => l.is_overdue && !atGateByPass.has(l.gate_pass_id));
+  const backAtGate = outside.filter((l) => atGateByPass.has(l.gate_pass_id));
   const byType = useMemo(() => {
     const m = new Map<string, number>();
     recent.filter((r) => r.gate_out_at && r.gate_out_at >= `${monthStart}`).forEach((r) => m.set(r.pass_type, (m.get(r.pass_type) ?? 0) + 1));
@@ -140,11 +153,17 @@ export default function GatePassDashboardPage() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Overdue returns</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {overdue.length === 0 && <p className="text-sm text-muted-foreground">Nothing overdue.</p>}
+              {overdue.length === 0 && backAtGate.length === 0 && <p className="text-sm text-muted-foreground">Nothing overdue.</p>}
               {overdue.map((l) => (
                 <Link key={l.gate_pass_id} to={`/gate-pass/passes/${l.gate_pass_id}`} className="block rounded-lg border p-2 text-sm hover:bg-muted/50">
                   <div className="font-semibold">{l.pass_number} · {passTypeMeta(l.pass_type).label} · {l.party_name}</div>
                   <div className="text-xs text-red-700">Due {l.expected_return_date ? format(new Date(l.expected_return_date), "dd MMM yyyy") : ""}</div>
+                </Link>
+              ))}
+              {backAtGate.map((l) => (
+                <Link key={l.gate_pass_id} to={`/gate-pass/passes/${l.gate_pass_id}`} className="block rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-sm hover:bg-amber-50">
+                  <div className="font-semibold">{l.pass_number} · {passTypeMeta(l.pass_type).label} · {l.party_name}</div>
+                  <div className="text-xs text-amber-800">Back at gate on {atGateByPass.get(l.gate_pass_id)} — receive it in Gate Inward to clear the pass</div>
                 </Link>
               ))}
             </CardContent>
