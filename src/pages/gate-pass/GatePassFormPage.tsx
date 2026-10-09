@@ -102,6 +102,8 @@ export default function GatePassFormPage() {
   // open past midnight. Only send a date someone chose; otherwise the server stamps
   // today's Pakistan date at save.
   const [dateChosen, setDateChosen] = useState(false);
+  // Who takes the goods out: an outsider always needs a vehicle number, a company official does not.
+  const [handledBy, setHandledBy] = useState<"outsider" | "company">("outsider");
   const [vehicle, setVehicle] = useState("");
   const [driver, setDriver] = useState("");
   const [driverContact, setDriverContact] = useState("");
@@ -146,6 +148,7 @@ export default function GatePassFormPage() {
     setPassType(editing.pass_type);
     setPassDate(editing.pass_date);
     setDateChosen(true);
+    setHandledBy(editing.handled_by ?? "outsider");
     setVehicle(editing.vehicle_number ?? "");
     setDriver(editing.driver_name ?? "");
     setDriverContact(editing.driver_contact ?? "");
@@ -343,6 +346,7 @@ export default function GatePassFormPage() {
       const data: Record<string, unknown> = {
         pass_type: passType,
         ...(dateChosen ? { pass_date: passDate } : {}),
+        handled_by: handledBy,
         vehicle_number: vehicle,
         driver_name: driver,
         driver_contact: driverContact,
@@ -461,21 +465,31 @@ export default function GatePassFormPage() {
           <div className="space-y-4 min-w-0">
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-base">2. Vehicle and driver</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div>
                   <Label htmlFor="gp-date">Date</Label>
                   <Input id="gp-date" type="date" value={passDate} onChange={(e) => { setPassDate(e.target.value); setDateChosen(true); }} />
                 </div>
                 <div>
-                  <Label htmlFor="gp-vehicle">Vehicle no.{passType === "sales" ? " *" : ""}</Label>
-                  <Input id="gp-vehicle" value={vehicle} placeholder={passType === "sales" ? "e.g. LES-4471" : "Blank = hand carry / courier"} onChange={(e) => setVehicle(e.target.value.toUpperCase())} />
+                  <Label htmlFor="gp-handled-by">Handled by *</Label>
+                  <Select value={handledBy} onValueChange={(v) => setHandledBy(v as "outsider" | "company")}>
+                    <SelectTrigger id="gp-handled-by"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="outsider">Outsider</SelectItem>
+                      <SelectItem value="company">Company official</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="gp-driver">Driver name</Label>
+                  <Label htmlFor="gp-vehicle">Vehicle no.{handledBy === "outsider" ? " *" : ""}</Label>
+                  <Input id="gp-vehicle" value={vehicle} placeholder={handledBy === "outsider" ? "e.g. LES-4471" : "Not needed (optional)"} onChange={(e) => setVehicle(e.target.value.toUpperCase())} />
+                </div>
+                <div>
+                  <Label htmlFor="gp-driver">{handledBy === "company" ? "Official name *" : "Driver name"}</Label>
                   <Input id="gp-driver" value={driver} onChange={(e) => setDriver(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="gp-contact">Driver phone / CNIC</Label>
+                  <Label htmlFor="gp-contact">{handledBy === "company" ? "Official phone / CNIC" : "Driver phone / CNIC"}</Label>
                   <Input id="gp-contact" value={driverContact} onChange={(e) => setDriverContact(e.target.value)} />
                 </div>
                 <div>
