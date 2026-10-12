@@ -43,6 +43,19 @@ const ConsumptionCategoriesPage = () => {
     },
   });
 
+  const { data: subcategoryCounts = {} } = useQuery({
+    queryKey: ["consumption-subcategories", "counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("consumption_subcategories").select("category_id");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((row) => {
+        counts[row.category_id] = (counts[row.category_id] || 0) + 1;
+      });
+      return counts;
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const payload = {
@@ -70,6 +83,9 @@ const ConsumptionCategoriesPage = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (subcategoryCounts[id]) {
+        throw new Error("Cannot delete category that has sub-categories. Delete or move them first.");
+      }
       const { data: materials } = await supabase
         .from("consumption_raw_materials")
         .select("id")
@@ -122,6 +138,11 @@ const ConsumptionCategoriesPage = () => {
   const columns = [
     { key: "code", header: "Code", render: (item: ConsumptionCategory) => <span className="font-medium">{item.code}</span> },
     { key: "name", header: "Name" },
+    {
+      key: "subcategories",
+      header: "Sub-categories",
+      render: (item: ConsumptionCategory) => subcategoryCounts[item.id] || 0,
+    },
     {
       key: "is_active",
       header: "Status",

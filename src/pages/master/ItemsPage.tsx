@@ -48,6 +48,7 @@ interface Item {
   description: string | null;
   category: PurchaseCategory | null;
   raw_material_category_id: string | null;
+  raw_material_subcategory_id: string | null;
   raw_material_value_category: MaterialValueCategory | null;
   uom_id: string | null;
   unit_price: number | null;
@@ -84,6 +85,7 @@ export default function ItemsPage() {
     description: "",
     category: "" as PurchaseCategory | "",
     raw_material_category_id: "",
+    raw_material_subcategory_id: "",
     raw_material_value_category: "" as MaterialValueCategory | "",
     uom_id: "",
     unit_price: 0,
@@ -134,6 +136,20 @@ export default function ItemsPage() {
     },
   });
 
+  // Raw-material sub-categories (consumption module's Sub-Category Master).
+  const { data: rmSubcategories = [] } = useQuery({
+    queryKey: ["consumption-subcategories-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_subcategories")
+        .select("id, name, category_id")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Stock-closing frequency lives on the consumption mirror of each
   // raw-material item (consumption_raw_materials.closing_frequency).
   const { data: rmFrequencies = {} } = useQuery({
@@ -160,6 +176,12 @@ export default function ItemsPage() {
         raw_material_category_id:
           data.category === "raw_material" && data.raw_material_category_id
             ? data.raw_material_category_id
+            : null,
+        raw_material_subcategory_id:
+          data.category === "raw_material" &&
+          data.raw_material_category_id &&
+          data.raw_material_subcategory_id
+            ? data.raw_material_subcategory_id
             : null,
         raw_material_value_category:
           data.category === "raw_material" && data.raw_material_value_category
@@ -208,6 +230,7 @@ export default function ItemsPage() {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-rm-frequencies"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials"] });
       toast.success(selectedItem ? "Item updated" : "Item created");
       resetForm();
     },
@@ -239,6 +262,7 @@ export default function ItemsPage() {
       description: "",
       category: "",
       raw_material_category_id: "",
+      raw_material_subcategory_id: "",
       raw_material_value_category: "",
       uom_id: "",
       unit_price: 0,
@@ -261,6 +285,7 @@ export default function ItemsPage() {
       description: item.description || "",
       category: item.category || "",
       raw_material_category_id: item.raw_material_category_id || "",
+      raw_material_subcategory_id: item.raw_material_subcategory_id || "",
       raw_material_value_category: item.raw_material_value_category || "",
       uom_id: item.uom_id || "",
       unit_price: item.unit_price || 0,
@@ -296,7 +321,8 @@ export default function ItemsPage() {
       render: (item: Item) => {
         const label = CATEGORIES.find((c) => c.value === item.category)?.label || "-";
         const rmCategory = rmCategories.find((c) => c.id === item.raw_material_category_id)?.name;
-        return rmCategory ? `${label} · ${rmCategory}` : label;
+        const rmSubcategory = rmSubcategories.find((c) => c.id === item.raw_material_subcategory_id)?.name;
+        return [label, rmCategory, rmSubcategory].filter(Boolean).join(" · ");
       },
     },
     {
@@ -463,7 +489,15 @@ export default function ItemsPage() {
                   <Select
                     value={formData.raw_material_category_id}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, raw_material_category_id: value })
+                      setFormData({
+                        ...formData,
+                        raw_material_category_id: value,
+                        // Sub-categories belong to one category; reset on change.
+                        raw_material_subcategory_id:
+                          value === formData.raw_material_category_id
+                            ? formData.raw_material_subcategory_id
+                            : "",
+                      })
                     }
                   >
                     <SelectTrigger>
@@ -481,6 +515,36 @@ export default function ItemsPage() {
                     Used by the consumption module to group this material. Manage
                     categories in Material Consumption → Category Master.
                   </p>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="raw_material_subcategory_id">Sub-Category (optional)</Label>
+                    <Select
+                      value={formData.raw_material_subcategory_id || "none"}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          raw_material_subcategory_id: value === "none" ? "" : value,
+                        })
+                      }
+                      disabled={!formData.raw_material_category_id}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No sub-category</SelectItem>
+                        {rmSubcategories
+                          .filter((sub) => sub.category_id === formData.raw_material_category_id)
+                          .map((sub) => (
+                            <SelectItem key={sub.id} value={sub.id}>
+                              {sub.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Manage sub-categories in Material Consumption → Sub-Category Master.
+                    </p>
+                  </div>
                   <div className="space-y-2 pt-2">
                     <Label htmlFor="raw_material_value_category">Value Tier (HP / MP / CM)</Label>
                     <Select
