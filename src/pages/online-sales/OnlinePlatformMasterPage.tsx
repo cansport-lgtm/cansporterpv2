@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Store, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Platform {
@@ -52,16 +53,16 @@ export default function OnlinePlatformMasterPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.code.trim()) {
-      toast.error("Name and code are required");
+    if (!form.name.trim()) {
+      toast.error("Name is required");
       return;
     }
     if (editingId) {
-      const { error } = await supabase.from("online_platforms").update({ name: form.name.trim(), code: form.code.trim().toUpperCase(), commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active, updated_at: new Date().toISOString() }).eq("id", editingId);
+      const { error } = await supabase.from("online_platforms").update({ name: form.name.trim(), commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active, updated_at: new Date().toISOString() }).eq("id", editingId);
       if (error) { toast.error(error.message); return; }
       toast.success("Platform updated");
     } else {
-      const { error } = await supabase.from("online_platforms").insert({ name: form.name.trim(), code: form.code.trim().toUpperCase(), commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active });
+      const { error } = await supabase.from("online_platforms").insert({ name: form.name.trim(), code: "", commission_pct: form.commission_pct.trim() === "" ? 0 : Number(form.commission_pct), is_active: form.is_active });
       if (error) { toast.error(error.message); return; }
       toast.success("Platform created");
     }
@@ -140,10 +141,7 @@ export default function OnlinePlatformMasterPage() {
               <Label>Platform Name *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Amazon" />
             </div>
-            <div>
-              <Label>Code *</Label>
-              <Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. AMZ" className="uppercase" />
-            </div>
+            <AutoCodeField entity="online_platforms" value={form.code} isEdit={!!editingId} label="Code" className="" />
             <div>
               <Label>Commission % (deducted in P&L)</Label>
               <Input type="number" min="0" max="100" step="0.01" value={form.commission_pct} onChange={e => setForm(p => ({ ...p, commission_pct: e.target.value }))} placeholder="e.g. 5" />

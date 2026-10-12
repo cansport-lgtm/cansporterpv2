@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Badge } from "@/components/ui/badge";
 
 interface ConsumptionProduct {
@@ -152,7 +153,6 @@ export default function ConsumptionProductsPage() {
     mutationFn: async (data: typeof formData & { id?: string }) => {
       const linkedToProduction = data.grade_id !== "none";
       const productPayload = {
-        code: data.code,
         name: data.name,
         unit: data.unit,
         description: data.description,
@@ -168,6 +168,8 @@ export default function ConsumptionProductsPage() {
       };
 
       let productId = data.id;
+      // Codes are assigned by the database on insert and never change.
+      let productCode = data.code;
       if (productId) {
         const { error } = await supabase
           .from("consumption_products")
@@ -177,11 +179,12 @@ export default function ConsumptionProductsPage() {
       } else {
         const { data: inserted, error } = await supabase
           .from("consumption_products")
-          .insert(productPayload)
-          .select("id")
+          .insert({ ...productPayload, code: "" })
+          .select("id, code")
           .single();
         if (error) throw error;
         productId = inserted.id;
+        productCode = inserted.code;
       }
 
       // Intermediate products also live in the raw-materials master so they
@@ -190,7 +193,7 @@ export default function ConsumptionProductsPage() {
       const linked = linkedMaterialFor(productId);
       if (data.is_intermediate) {
         const rmPayload = {
-          code: data.code,
+          code: productCode,
           name: data.name,
           unit: data.unit,
           category: INTERMEDIATE_CATEGORY,
@@ -438,15 +441,12 @@ export default function ConsumptionProductsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Code *</Label>
-                  <Input
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    placeholder="PRD001"
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="consumption_products"
+                  value={editingProduct?.code}
+                  isEdit={!!editingProduct}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label>Unit</Label>
                   <Select value={formData.unit} onValueChange={(v) => setFormData({ ...formData, unit: v })}>

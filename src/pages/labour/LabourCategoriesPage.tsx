@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,14 +51,13 @@ const LabourCategoriesPage = () => {
     mutationFn: async (data: typeof formData) => {
       const payload = {
         name: data.name.trim(),
-        code: data.code.trim().toUpperCase(),
         is_active: data.is_active,
       };
       if (editingCategory) {
         const { error } = await supabase.from("labour_categories").update(payload).eq("id", editingCategory.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("labour_categories").insert(payload);
+        const { error } = await supabase.from("labour_categories").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -110,7 +110,7 @@ const LabourCategoriesPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.code) {
+    if (!formData.name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -180,10 +180,12 @@ const LabourCategoriesPage = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
-              <div>
-                <Label>Code *</Label>
-                <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} placeholder="e.g., SKL" required />
-              </div>
+              <AutoCodeField
+                entity="labour_categories"
+                value={editingCategory?.code}
+                isEdit={!!editingCategory}
+                label="Code"
+              />
               <div>
                 <Label>Name *</Label>
                 <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Skilled" required />

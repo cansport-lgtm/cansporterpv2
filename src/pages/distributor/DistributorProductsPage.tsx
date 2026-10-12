@@ -40,6 +40,7 @@ import {
 import { Package, Pencil, Trash2, Search, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Database } from "@/integrations/supabase/types";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 type DistributorProduct = Database["public"]["Tables"]["distributor_products"]["Row"];
 
@@ -148,9 +149,9 @@ export default function DistributorProductsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!activeDistributorId) throw new Error("No distributor selected");
+      // Code is assigned by the database on insert and locked thereafter.
       const payload = {
         distributor_id: activeDistributorId,
-        code: form.code.trim() || null,
         name: form.name.trim(),
         company_product_id: form.company_product_id || null,
         price: Number(form.price) || 0,
@@ -166,7 +167,7 @@ export default function DistributorProductsPage() {
           .eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("distributor_products").insert(payload);
+        const { error } = await supabase.from("distributor_products").insert({ ...payload, code: null });
         if (error) throw error;
       }
     },
@@ -393,10 +394,7 @@ export default function DistributorProductsPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
-                <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Optional" />
-              </div>
+              <AutoCodeField entity="distributor_products" value={editing?.code} isEdit={!!editing} label="Code" id="code" />
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

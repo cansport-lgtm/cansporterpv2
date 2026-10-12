@@ -25,6 +25,7 @@ import { Package, Plus, Pencil, Search, Factory, Settings, Trash2 } from "lucide
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const STOCK_CATEGORIES = [
   { value: "raw_material", label: "Raw Material" },
@@ -159,7 +160,6 @@ export default function FloorInventoryStockPage() {
           .from("floor_inventory_stock")
           .update({
             item_name: data.item_name,
-            item_code: data.item_code || null,
             location_id: data.location_id || null,
             category: data.category,
             quantity: Number(data.quantity),
@@ -172,7 +172,7 @@ export default function FloorInventoryStockPage() {
         // Insert stock record
         const { error } = await supabase.from("floor_inventory_stock").insert({
           item_name: data.item_name,
-          item_code: data.item_code || null,
+          item_code: null,
           location_id: data.location_id || null,
           category: data.category,
           quantity: Number(data.quantity),
@@ -563,14 +563,13 @@ export default function FloorInventoryStockPage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Item Code</Label>
-                <Input
-                  value={formData.item_code}
-                  onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
-                  placeholder="Optional"
-                />
-              </div>
+              <AutoCodeField
+                entity="floor_inventory_stock"
+                reuse={formData.item_name}
+                value={editingItem?.item_code}
+                isEdit={!!editingItem}
+                label="Item Code"
+              />
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select

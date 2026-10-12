@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Package, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface OnlineItem {
@@ -60,9 +61,9 @@ export default function OnlineItemMasterPage() {
       toast.error("Name is required");
       return;
     }
+    // Code is assigned by the database on insert and locked thereafter.
     const payload = {
       name: form.name.trim(),
-      code: form.code.trim().toUpperCase() || null,
       description: form.description.trim() || null,
       price: form.price.trim() === "" ? 0 : Number(form.price),
       cost_price: form.cost_price.trim() === "" ? 0 : Number(form.cost_price),
@@ -75,7 +76,7 @@ export default function OnlineItemMasterPage() {
       if (error) { toast.error(error.message); return; }
       toast.success("Item updated");
     } else {
-      const { error } = await supabase.from("online_items").insert(payload as any);
+      const { error } = await supabase.from("online_items").insert({ ...payload, code: null } as any);
       if (error) { toast.error(error.message); return; }
       toast.success("Item created");
     }
@@ -171,10 +172,7 @@ export default function OnlineItemMasterPage() {
               <Label>Item Name *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Cricket Bat" />
             </div>
-            <div>
-              <Label>Code</Label>
-              <Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. CB001" className="uppercase" />
-            </div>
+            <AutoCodeField entity="online_items" value={form.code} isEdit={!!editingId} label="Code" className="" />
             <div>
               <Label>Description</Label>
               <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} />

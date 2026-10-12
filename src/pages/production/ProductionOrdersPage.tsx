@@ -9,6 +9,7 @@ import { OrderManagementLayout } from "@/components/layout/OrderManagementLayout
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -242,7 +243,7 @@ export default function ProductionOrdersPage() {
       const { data: result, error } = await supabase
         .from("customers")
         .insert({
-          code: data.code,
+          code: "",
           name: data.name,
           contact_person: data.contact_person || null,
           phone: data.phone || null,
@@ -275,7 +276,7 @@ export default function ProductionOrdersPage() {
       const { data: result, error } = await supabase
         .from("products")
         .insert({
-          code: data.code,
+          code: "",
           name: data.name,
           grade_id: data.grade_id || null,
           description: data.description || null,
@@ -1142,14 +1143,7 @@ export default function ProductionOrdersPage() {
             <DialogTitle>Add New Customer</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Customer Code *</Label>
-              <Input
-                value={newCustomer.code}
-                onChange={(e) => setNewCustomer((prev) => ({ ...prev, code: e.target.value }))}
-                placeholder="e.g., CUST001"
-              />
-            </div>
+            <AutoCodeField entity="customers" label="Customer Code" />
             <div className="space-y-2">
               <Label>Customer Name *</Label>
               <Input
@@ -1181,7 +1175,7 @@ export default function ProductionOrdersPage() {
             </Button>
             <Button
               onClick={() => createCustomerMutation.mutate(newCustomer)}
-              disabled={!newCustomer.code || !newCustomer.name || createCustomerMutation.isPending}
+              disabled={!newCustomer.name || createCustomerMutation.isPending}
             >
               {createCustomerMutation.isPending ? "Adding..." : "Add Customer"}
             </Button>
@@ -1202,14 +1196,7 @@ export default function ProductionOrdersPage() {
             <DialogTitle>Add New Product</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Product Code *</Label>
-              <Input
-                value={newProduct.code}
-                onChange={(e) => setNewProduct((prev) => ({ ...prev, code: e.target.value }))}
-                placeholder="e.g., PROD001"
-              />
-            </div>
+            <AutoCodeField entity="products" label="Product Code" />
             <div className="space-y-2">
               <Label>Product Name *</Label>
               <Input
@@ -1251,7 +1238,7 @@ export default function ProductionOrdersPage() {
             </Button>
             <Button
               onClick={() => createProductMutation.mutate(newProduct)}
-              disabled={!newProduct.code || !newProduct.name || createProductMutation.isPending}
+              disabled={!newProduct.name || createProductMutation.isPending}
             >
               {createProductMutation.isPending ? "Adding..." : "Add Product"}
             </Button>

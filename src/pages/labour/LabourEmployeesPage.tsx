@@ -5,6 +5,7 @@ import { Plus, Search, Pencil, Trash2, Upload, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +177,6 @@ const LabourEmployeesPage = () => {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const payload = {
-        employee_code: data.employee_code.trim(),
         full_name: data.full_name.trim(),
         department_id: data.department_id || null,
         contact_number: data.contact_number?.trim() || null,
@@ -198,20 +198,9 @@ const LabourEmployeesPage = () => {
           .eq("id", editingEmployee.id);
         if (error) throw error;
       } else {
-        // Check for duplicate employee code
-        const { data: existing } = await supabase
-          .from("labour_employees")
-          .select("id")
-          .eq("employee_code", data.employee_code.trim())
-          .maybeSingle();
-        
-        if (existing) {
-          throw new Error("Employee code already exists. Please use a unique code.");
-        }
-
         const { error } = await supabase
           .from("labour_employees")
-          .insert(payload);
+          .insert({ ...payload, employee_code: "" }); // code assigned by the DB (trg_00_auto_code)
         if (error) throw error;
       }
     },
@@ -304,7 +293,7 @@ const LabourEmployeesPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.employee_code || !formData.full_name) {
+    if (!formData.full_name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -459,16 +448,12 @@ const LabourEmployeesPage = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Employee Code *</Label>
-                <Input
-                  value={formData.employee_code}
-                  onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
-                  placeholder="e.g., LAB-001"
-                  disabled={!!editingEmployee && !canEditCode}
-                  required
-                />
-              </div>
+              <AutoCodeField
+                entity="labour_employees"
+                value={editingEmployee?.employee_code}
+                isEdit={!!editingEmployee}
+                label="Employee Code"
+              />
               <div>
                 <Label>Full Name *</Label>
                 <Input

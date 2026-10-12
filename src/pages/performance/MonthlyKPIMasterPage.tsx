@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,6 @@ export default function MonthlyKPIMasterPage() {
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
       const payload = {
-        code: values.code,
         name: values.name,
         description: values.description || null,
         category: values.category || "general",
@@ -62,7 +62,7 @@ export default function MonthlyKPIMasterPage() {
         const { error } = await supabase.from("performance_monthly_kpis").update(payload).eq("id", editingKPI.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("performance_monthly_kpis").insert(payload);
+        const { error } = await supabase.from("performance_monthly_kpis").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -158,10 +158,12 @@ export default function MonthlyKPIMasterPage() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Code</Label>
-                  <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="MK001" />
-                </div>
+                <AutoCodeField
+                  entity="performance_monthly_kpis"
+                  value={editingKPI?.code}
+                  isEdit={!!editingKPI}
+                  label="Code"
+                />
                 <div>
                   <Label>Category</Label>
                   <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="general" />
@@ -188,7 +190,7 @@ export default function MonthlyKPIMasterPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={() => saveMutation.mutate(form)} disabled={!form.code || !form.name}>
+              <Button onClick={() => saveMutation.mutate(form)} disabled={!form.name}>
                 {editingKPI ? "Update" : "Create"}
               </Button>
             </DialogFooter>

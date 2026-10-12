@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -178,8 +179,8 @@ const LabourProductivityEntryPage = () => {
     try {
       setUploadingEmployeePhoto(true);
       const ext = file.name.split(".").pop() || "jpg";
-      const codePart = (employeeFormData.employee_code || "emp").replace(/[^a-zA-Z0-9_-]/g, "");
-      const path = `${codePart}-${Date.now()}.${ext}`;
+      // Code is assigned by the DB on insert, so the path can't depend on it.
+      const path = `emp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("labour-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
@@ -625,21 +626,10 @@ const LabourProductivityEntryPage = () => {
 
   const saveEmployeeMutation = useMutation({
     mutationFn: async (data: typeof employeeFormData) => {
-      // Check for duplicate employee code
-      const { data: existing } = await supabase
-        .from("labour_employees")
-        .select("id")
-        .eq("employee_code", data.employee_code.trim())
-        .maybeSingle();
-      
-      if (existing) {
-        throw new Error("Employee code already exists. Please use a unique code.");
-      }
-
       const { error } = await supabase
         .from("labour_employees")
         .insert({
-          employee_code: data.employee_code.trim(),
+          employee_code: "", // assigned by the DB (trg_00_auto_code)
           full_name: data.full_name.trim(),
           department_id: data.department_id || null,
           contact_number: data.contact_number?.trim() || null,
@@ -1250,7 +1240,7 @@ const LabourProductivityEntryPage = () => {
 
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!employeeFormData.employee_code || !employeeFormData.full_name) {
+    if (!employeeFormData.full_name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -2087,15 +2077,7 @@ const LabourProductivityEntryPage = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Employee Code *</Label>
-                <Input
-                  value={employeeFormData.employee_code}
-                  onChange={(e) => setEmployeeFormData({ ...employeeFormData, employee_code: e.target.value })}
-                  placeholder="e.g., LAB-001"
-                  required
-                />
-              </div>
+              <AutoCodeField entity="labour_employees" label="Employee Code" />
               <div>
                 <Label>Full Name *</Label>
                 <Input

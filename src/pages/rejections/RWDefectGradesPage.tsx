@@ -22,6 +22,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface DefectGrade {
   id: string;
@@ -71,13 +72,11 @@ export default function RWDefectGradesPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form.code.trim()) throw new Error("Code is required");
       if (!form.name.trim()) throw new Error("Name is required");
       if (form.onward_route === "cover_then_store" && form.covered_output_grade_id === "none") {
         throw new Error("A grade that is covered before sale must say what it becomes");
       }
       const payload = {
-        code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         name_urdu: form.name_urdu.trim() || null,
         defect_type: form.defect_type,
@@ -93,7 +92,7 @@ export default function RWDefectGradesPage() {
       };
       const q = editing
         ? (supabase as any).from("rw_defect_grades").update(payload).eq("id", editing.id)
-        : (supabase as any).from("rw_defect_grades").insert(payload);
+        : (supabase as any).from("rw_defect_grades").insert({ ...payload, code: "" });
       const { error } = await q;
       if (error) throw error;
     },
@@ -228,10 +227,12 @@ export default function RWDefectGradesPage() {
             </DialogHeader>
             <div className="grid gap-3">
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Code</Label>
-                  <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="REJ_SPOT" />
-                </div>
+                <AutoCodeField
+                  entity="rw_defect_grades"
+                  value={editing?.code}
+                  isEdit={!!editing}
+                  label="Code"
+                />
                 <div>
                   <Label className="text-xs">Sort order</Label>
                   <Input

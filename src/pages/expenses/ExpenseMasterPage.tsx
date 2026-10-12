@@ -27,6 +27,7 @@
  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  import { Badge } from "@/components/ui/badge";
  import { toast } from "sonner";
+ import { AutoCodeField } from "@/components/shared/AutoCodeField";
  import { Database, Plus, Pencil, Trash2, FolderOpen, Receipt } from "lucide-react";
  
  interface ExpenseCategory {
@@ -77,14 +78,16 @@
  
    const saveMutation = useMutation({
      mutationFn: async (data: typeof formData) => {
+       // Code is assigned by the database on insert and locked thereafter.
+       const { code: _code, ...payload } = data;
        if (editingCategory) {
          const { error } = await supabase
            .from("expense_categories")
-           .update(data)
+           .update(payload)
            .eq("id", editingCategory.id);
          if (error) throw error;
        } else {
-         const { error } = await supabase.from("expense_categories").insert(data);
+         const { error } = await supabase.from("expense_categories").insert({ ...payload, code: "" });
          if (error) throw error;
        }
      },
@@ -149,8 +152,8 @@
  
    const handleSubmit = (e: React.FormEvent) => {
      e.preventDefault();
-     if (!formData.code || !formData.name) {
-       toast.error("Code and Name are required");
+     if (!formData.name) {
+       toast.error("Name is required");
        return;
      }
      saveMutation.mutate(formData);
@@ -341,17 +344,13 @@
            </DialogHeader>
            <form onSubmit={handleSubmit} className="space-y-4">
              <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label htmlFor="code">Code *</Label>
-                 <Input
-                   id="code"
-                   value={formData.code}
-                   onChange={(e) =>
-                     setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                   }
-                   placeholder="e.g., TRV-001"
-                 />
-               </div>
+               <AutoCodeField
+                 entity="expense_categories"
+                 value={editingCategory?.code}
+                 isEdit={!!editingCategory}
+                 label="Code"
+                 id="code"
+               />
                <div className="space-y-2">
                  <Label htmlFor="name">Category Name *</Label>
                  <Input

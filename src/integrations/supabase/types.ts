@@ -17199,6 +17199,14 @@ export type Database = {
       }
     }
     Functions: {
+      auto_code_next: {
+        Args: { p_entity: string; p_group?: string | null; p_reuse?: string | null }
+        Returns: string
+      }
+      auto_code_preview: {
+        Args: { p_entity: string; p_group?: string | null; p_reuse?: string | null }
+        Returns: string
+      }
       next_customer_sku_code: {
         Args: { p_party_id: string }
         Returns: string

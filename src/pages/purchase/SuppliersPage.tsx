@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +95,6 @@ export default function SuppliersPage() {
       // `sb` bypasses the generated types for the accounting bridge columns/table.
       const sb = supabase as any;
       const payload = {
-        code: data.code,
         name: data.name,
         contact_person: data.contact_person || null,
         email: data.email || null,
@@ -116,7 +116,7 @@ export default function SuppliersPage() {
         if (error) throw error;
 
         // Keep the linked accounting party in sync so it shows correctly in AP.
-        // (code left NULL to match party convention + avoid UNIQUE(code) clashes)
+        // (code left NULL: the database assigns the next party code on insert)
         if (selectedSupplier.accounting_party_id) {
           await sb
             .from('accounting_parties')
@@ -144,7 +144,8 @@ export default function SuppliersPage() {
 
         const { error } = await sb
           .from('suppliers')
-          .insert({ ...payload, accounting_party_id: party?.id ?? null });
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          .insert({ ...payload, code: '', accounting_party_id: party?.id ?? null });
         if (error) throw error;
       }
     },
@@ -296,14 +297,12 @@ export default function SuppliersPage() {
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Code *</Label>
-                    <Input
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      placeholder="SUP-001"
-                    />
-                  </div>
+                  <AutoCodeField
+                    entity="suppliers"
+                    value={selectedSupplier?.code}
+                    isEdit={!!selectedSupplier}
+                    label="Code"
+                  />
                   <div className="space-y-2">
                     <Label>Name *</Label>
                     <Input
@@ -412,7 +411,7 @@ export default function SuppliersPage() {
                   <Button variant="outline" onClick={resetForm}>Cancel</Button>
                   <Button
                     onClick={() => saveMutation.mutate(formData)}
-                    disabled={!formData.code || !formData.name || saveMutation.isPending}
+                    disabled={!formData.name || saveMutation.isPending}
                   >
                     {saveMutation.isPending ? 'Saving...' : 'Save'}
                   </Button>

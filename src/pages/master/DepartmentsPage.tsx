@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Database, Plus, Pencil, Trash2, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,13 +75,13 @@ export default function DepartmentsPage() {
       if (data.id) {
         const { error } = await supabase
           .from("production_departments")
-          .update({ code: data.code, name: data.name, sequence_order: data.sequence_order, is_active: data.is_active })
+          .update({ name: data.name, sequence_order: data.sequence_order, is_active: data.is_active })
           .eq("id", data.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("production_departments")
-          .insert({ code: data.code, name: data.name, sequence_order: data.sequence_order, is_active: data.is_active });
+          .insert({ code: "", name: data.name, sequence_order: data.sequence_order, is_active: data.is_active });
         if (error) throw error;
       }
     },
@@ -191,10 +192,7 @@ export default function DepartmentsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input id="code" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} required />
-                </div>
+                <AutoCodeField entity="production_departments" id="code" value={selectedItem?.code} isEdit={!!selectedItem} label="Code" />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />

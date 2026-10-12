@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Database, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -169,7 +170,6 @@ export default function ItemsPage() {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
       const payload = {
-        code: data.code,
         name: data.name,
         description: data.description || null,
         category: data.category || null,
@@ -209,7 +209,8 @@ export default function ItemsPage() {
       } else {
         const { data: inserted, error } = await supabase
           .from("items")
-          .insert(payload)
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          .insert({ ...payload, code: "" })
           .select("consumption_raw_material_id")
           .single();
         if (error) throw error;
@@ -407,17 +408,13 @@ export default function ItemsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="items"
+                  group={formData.category || null}
+                  value={selectedItem?.code}
+                  isEdit={!!selectedItem}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input
