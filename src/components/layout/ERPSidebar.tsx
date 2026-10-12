@@ -502,6 +502,7 @@ const navigationItems: NavItem[] = [
       { title: "Products Master", href: "/consumption/products" },
       { title: "Raw Materials", href: "/consumption/raw-materials" },
       { title: "Category Master", href: "/consumption/categories" },
+      { title: "Sub-Category Master", href: "/consumption/subcategories" },
       { title: "Consumption BOM", href: "/consumption/bom" },
       { title: "Stock Closing", href: "/consumption/stock-closing" },
       { title: "Stock Closing Dashboard", href: "/consumption/stock-closing-dashboard" },

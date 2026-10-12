@@ -28,6 +28,7 @@ interface RawMaterial {
   name: string;
   unit: string;
   category: string | null;
+  subcategory: string | null;
   description: string | null;
   priority: string | null;
   is_active: boolean;
@@ -51,6 +52,8 @@ export default function RawMaterialsPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [valueCategoryFilter, setValueCategoryFilter] = useState<MaterialValueCategory | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("all");
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["consumption-raw-materials"],
@@ -83,6 +86,25 @@ export default function RawMaterialsPage() {
     },
   });
 
+  const categoryOptions = useMemo(
+    () => Array.from(new Set((materials || []).map((m) => m.category).filter((c): c is string => !!c))).sort(),
+    [materials]
+  );
+
+  // Sub-categories present under the selected category.
+  const subcategoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (materials || [])
+            .filter((m) => m.category === categoryFilter)
+            .map((m) => m.subcategory)
+            .filter((c): c is string => !!c)
+        )
+      ).sort(),
+    [materials, categoryFilter]
+  );
+
   // Client-side search across code, name, category and the linked item —
   // the full list is already loaded, so filtering as you type is instant.
   const filteredMaterials = useMemo(() => {
@@ -91,19 +113,22 @@ export default function RawMaterialsPage() {
       if (valueCategoryFilter !== "all" && material.value_category !== valueCategoryFilter) {
         return false;
       }
+      if (categoryFilter !== "all" && material.category !== categoryFilter) return false;
+      if (subcategoryFilter !== "all" && material.subcategory !== subcategoryFilter) return false;
       if (!needle) return true;
       const linked = linkedItemByRmId[material.id];
       const haystack = [
         material.code,
         material.name,
         material.category || "",
+        material.subcategory || "",
         linked ? `${linked.code} ${linked.name}` : "",
       ]
         .join(" ")
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [materials, linkedItemByRmId, searchTerm, valueCategoryFilter]);
+  }, [materials, linkedItemByRmId, searchTerm, valueCategoryFilter, categoryFilter, subcategoryFilter]);
 
   return (
     <ERPLayout>
@@ -124,7 +149,7 @@ export default function RawMaterialsPage() {
           <span>
             Raw materials are maintained centrally in <strong>Master Data → Items</strong> (category “Raw Material”).
             This list mirrors those items and updates automatically, so the BOM, stock closing and reports always use
-            the same raw materials. Add or edit materials — including their raw-material category — in the Items master.
+            the same raw materials. Add or edit materials — including their raw-material category and sub-category — in the Items master.
           </span>
         </div>
 
@@ -134,10 +159,42 @@ export default function RawMaterialsPage() {
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by code, name, category or linked item…"
+              placeholder="Search by code, name, category, sub-category or linked item…"
               className="pl-9"
             />
           </div>
+          <Select
+            value={categoryFilter}
+            onValueChange={(value) => {
+              setCategoryFilter(value);
+              setSubcategoryFilter("all");
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {categoryOptions.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter} disabled={categoryFilter === "all"}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Sub-category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sub-categories</SelectItem>
+              {subcategoryOptions.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={valueCategoryFilter}
             onValueChange={(value) => setValueCategoryFilter(value as MaterialValueCategory | "all")}
@@ -167,6 +224,7 @@ export default function RawMaterialsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>Sub-Category</TableHead>
                     <TableHead>Value Tier</TableHead>
                     <TableHead className="text-right">Cost Value</TableHead>
                     <TableHead>Linked Item</TableHead>
@@ -178,13 +236,13 @@ export default function RawMaterialsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center">Loading...</TableCell>
+                      <TableCell colSpan={11} className="text-center">Loading...</TableCell>
                     </TableRow>
                   ) : filteredMaterials?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground">
-                        {searchTerm
-                          ? `No raw materials match “${searchTerm}”.`
+                      <TableCell colSpan={11} className="text-center text-muted-foreground">
+                        {searchTerm || categoryFilter !== "all"
+                          ? "No raw materials match the current search or filters."
                           : "No raw materials found. Add raw-material items in the Items master."}
                       </TableCell>
                     </TableRow>
@@ -195,6 +253,7 @@ export default function RawMaterialsPage() {
                         <TableCell className="font-medium">{material.name}</TableCell>
                         <TableCell>{material.unit}</TableCell>
                         <TableCell>{material.category || "-"}</TableCell>
+                        <TableCell>{material.subcategory || "-"}</TableCell>
                         <TableCell>
                           {material.value_category ? (
                             <Badge variant="outline">{materialValueCategoryCode(material.value_category)}</Badge>
@@ -236,7 +295,9 @@ export default function RawMaterialsPage() {
                 <div className="p-4 text-center text-muted-foreground">Loading...</div>
               ) : filteredMaterials?.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
-                  {searchTerm ? `No raw materials match “${searchTerm}”.` : "No raw materials found."}
+                  {searchTerm || categoryFilter !== "all"
+                    ? "No raw materials match the current search or filters."
+                    : "No raw materials found."}
                 </div>
               ) : (
                 filteredMaterials?.map((material) => (
@@ -250,7 +311,12 @@ export default function RawMaterialsPage() {
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                       <span className="font-mono">{material.code}</span>
                       <span>{material.unit}</span>
-                      {material.category && <span>{material.category}</span>}
+                      {material.category && (
+                        <span>
+                          {material.category}
+                          {material.subcategory && ` › ${material.subcategory}`}
+                        </span>
+                      )}
                       <span>₹{(material.cost_value || 0).toFixed(2)}</span>
                       {linkedItemByRmId[material.id] && (
                         <span>↔ {linkedItemByRmId[material.id].code}</span>

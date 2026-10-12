@@ -1418,6 +1418,44 @@ export type Database = {
         }
         Relationships: []
       }
+      consumption_subcategories: {
+        Row: {
+          category_id: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consumption_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consumption_production_entry: {
         Row: {
           created_at: string | null
@@ -1549,6 +1587,7 @@ export type Database = {
           name: string
           priority: string | null
           source_product_id: string | null
+          subcategory: string | null
           threshold: number | null
           unit: string | null
           updated_at: string | null
@@ -1568,6 +1607,7 @@ export type Database = {
           name: string
           priority?: string | null
           source_product_id?: string | null
+          subcategory?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -1587,6 +1627,7 @@ export type Database = {
           name?: string
           priority?: string | null
           source_product_id?: string | null
+          subcategory?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -6572,6 +6613,7 @@ export type Database = {
           min_stock: number | null
           name: string
           raw_material_category_id: string | null
+          raw_material_subcategory_id: string | null
           raw_material_value_category:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6593,6 +6635,7 @@ export type Database = {
           min_stock?: number | null
           name: string
           raw_material_category_id?: string | null
+          raw_material_subcategory_id?: string | null
           raw_material_value_category?:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6614,6 +6657,7 @@ export type Database = {
           min_stock?: number | null
           name?: string
           raw_material_category_id?: string | null
+          raw_material_subcategory_id?: string | null
           raw_material_value_category?:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6642,6 +6686,13 @@ export type Database = {
             columns: ["raw_material_category_id"]
             isOneToOne: false
             referencedRelation: "consumption_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_raw_material_subcategory_id_fkey"
+            columns: ["raw_material_subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_subcategories"
             referencedColumns: ["id"]
           },
           {
