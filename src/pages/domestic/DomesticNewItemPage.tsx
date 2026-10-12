@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -137,7 +138,6 @@ export default function DomesticNewItemPage() {
         const { error } = await supabase
           .from("products")
           .update({
-            code: data.code,
             name: data.name,
             description: data.description || null,
             uom_id: data.uom_id || null,
@@ -147,7 +147,8 @@ export default function DomesticNewItemPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("products").insert({
-          code: data.code,
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          code: "",
           name: data.name,
           description: data.description || null,
           uom_id: data.uom_id || null,
@@ -183,8 +184,8 @@ export default function DomesticNewItemPage() {
   };
 
   const handleSubmit = () => {
-    if (!formData.code || !formData.name) {
-      toast.error("Please fill in code and name");
+    if (!formData.name) {
+      toast.error("Please fill in name");
       return;
     }
     saveMutation.mutate(formData);
@@ -256,15 +257,13 @@ export default function DomesticNewItemPage() {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Item Code *</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="Enter item code"
-                  />
-                </div>
+                <AutoCodeField
+                  entity="products"
+                  id="code"
+                  value={editingProduct?.code}
+                  isEdit={!!editingProduct}
+                  label="Item Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Item Name *</Label>
                   <Input

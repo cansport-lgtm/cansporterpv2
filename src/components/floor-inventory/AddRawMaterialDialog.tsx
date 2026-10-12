@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const ITEM_UNITS = [
   { value: "bags", label: "Bags" },
@@ -62,7 +63,7 @@ export function AddRawMaterialDialog({ open, onOpenChange }: AddRawMaterialDialo
         .from("floor_inventory_stock")
         .insert({
           item_name: data.item_name,
-          item_code: data.item_code || null,
+          item_code: null,
           category: "raw_material",
           unit: data.unit,
           production_floor: data.production_floor || null,
@@ -136,14 +137,7 @@ export function AddRawMaterialDialog({ open, onOpenChange }: AddRawMaterialDialo
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Item Code</Label>
-              <Input
-                value={formData.item_code}
-                onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
-                placeholder="Optional"
-              />
-            </div>
+            <AutoCodeField entity="floor_inventory_stock" reuse={formData.item_name} label="Item Code" />
             <div className="space-y-2">
               <Label>Item Name *</Label>
               <Input

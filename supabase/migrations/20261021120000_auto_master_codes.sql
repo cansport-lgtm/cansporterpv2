@@ -28,6 +28,10 @@
 --                 the first 3 letters of the group, then the default prefix.
 --   leading_digit like learned, but the prefix is the leading digit of
 --                 4-digit codes (chart of accounts: 5xxx = expenses).
+--
+-- reuse_by_column: for tables holding several rows of the same thing (floor
+-- inventory keeps one row per item per location), a new row reuses the code
+-- already given to another row with the same value in that column.
 -- ============================================================
 
 -- 1) Series configuration.
@@ -46,14 +50,23 @@ CREATE TABLE IF NOT EXISTS public.auto_code_series (
   shared_series     jsonb NOT NULL DEFAULT '[]'::jsonb,
   -- Rows matching every key/value here are left alone (another trigger owns them).
   skip_if           jsonb NOT NULL DEFAULT '{}'::jsonb,
-  lock_key          text
+  lock_key          text,
+  reuse_by_column   text
 );
 
 ALTER TABLE public.auto_code_series ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Read auto_code_series" ON public.auto_code_series FOR SELECT USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies
+                  WHERE schemaname = 'public' AND tablename = 'auto_code_series'
+                    AND policyname = 'Read auto_code_series') THEN
+    CREATE POLICY "Read auto_code_series" ON public.auto_code_series FOR SELECT USING (true);
+  END IF;
+END;
+$$;
 
 -- 2) Next code for an entity (no locking; callers lock when inserting).
-CREATE OR REPLACE FUNCTION public.auto_code_next(p_entity text, p_group text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.auto_code_next(p_entity text, p_group text DEFAULT NULL, p_reuse text DEFAULT NULL)
 RETURNS text
 LANGUAGE plpgsql
 STABLE
@@ -77,6 +90,19 @@ BEGIN
   SELECT * INTO cfg FROM public.auto_code_series WHERE entity = p_entity;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No auto-code series configured for %', p_entity;
+  END IF;
+
+  -- Same thing already coded on another row: reuse that code.
+  IF cfg.reuse_by_column IS NOT NULL AND NULLIF(btrim(p_reuse), '') IS NOT NULL THEN
+    EXECUTE format(
+      'SELECT btrim(%1$I::text) FROM public.%2$I
+        WHERE lower(btrim(%3$I::text)) = lower(btrim($1)) AND NULLIF(btrim(%1$I::text), '''') IS NOT NULL
+        LIMIT 1',
+      cfg.code_column, cfg.table_name, cfg.reuse_by_column)
+    INTO v_candidate USING p_reuse;
+    IF v_candidate IS NOT NULL THEN
+      RETURN v_candidate;
+    END IF;
   END IF;
 
   v_prefix := NULL;
@@ -155,17 +181,17 @@ END;
 $$;
 
 -- 3) Preview for the forms.
-CREATE OR REPLACE FUNCTION public.auto_code_preview(p_entity text, p_group text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.auto_code_preview(p_entity text, p_group text DEFAULT NULL, p_reuse text DEFAULT NULL)
 RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT public.auto_code_next(p_entity, p_group);
+  SELECT public.auto_code_next(p_entity, p_group, p_reuse);
 $$;
 
-GRANT EXECUTE ON FUNCTION public.auto_code_preview(text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.auto_code_preview(text, text, text) TO anon, authenticated;
 
 -- 4) Trigger: fill the code on insert when it was left blank.
 --    TG_ARGV[0] is the entity key in auto_code_series.
@@ -201,7 +227,8 @@ BEGIN
 
   v_code := public.auto_code_next(
     cfg.entity,
-    CASE WHEN cfg.group_column IS NOT NULL THEN v_row ->> cfg.group_column END);
+    CASE WHEN cfg.group_column IS NOT NULL THEN v_row ->> cfg.group_column END,
+    CASE WHEN cfg.reuse_by_column IS NOT NULL THEN v_row ->> cfg.reuse_by_column END);
 
   NEW := jsonb_populate_record(NEW, jsonb_build_object(cfg.code_column, v_code));
   RETURN NEW;
@@ -265,6 +292,9 @@ VALUES
   ('maintenance_types', 'maintenance_types', 'code', 'MT-', 3, NULL, 'none', '{}', false, '[]', '{}', NULL),
   ('utility_types', 'utility_types', 'code', 'UT-', 3, NULL, 'none', '{}', false, '[]', '{}', NULL)
 ON CONFLICT (entity) DO NOTHING;
+
+-- Floor inventory keeps one row per item per location: an item keeps one code.
+UPDATE public.auto_code_series SET reuse_by_column = 'item_name' WHERE entity = 'floor_inventory_stock';
 
 -- 6) Attach the trigger to every configured table.
 DO $$

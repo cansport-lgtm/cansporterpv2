@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,8 +84,8 @@ export default function MachinesPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.code || !formData.name) {
-      toast.error("Please fill in required fields (Code and Name)");
+    if (!formData.name) {
+      toast.error("Please fill in required fields (Name)");
       return;
     }
 
@@ -93,7 +94,6 @@ export default function MachinesPage() {
         const { error } = await supabase
           .from("machines")
           .update({
-            code: formData.code,
             name: formData.name,
             machine_type: formData.machine_type || null,
             manufacturer: formData.manufacturer || null,
@@ -111,7 +111,8 @@ export default function MachinesPage() {
         toast.success("Machine updated successfully");
       } else {
         const { error } = await supabase.from("machines").insert({
-          code: formData.code,
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          code: "",
           name: formData.name,
           machine_type: formData.machine_type || null,
           manufacturer: formData.manufacturer || null,
@@ -309,14 +310,12 @@ export default function MachinesPage() {
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Code *</Label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="e.g., MCH-001"
-                />
-              </div>
+              <AutoCodeField
+                entity="machines"
+                value={editingMachine?.code}
+                isEdit={!!editingMachine}
+                label="Code"
+              />
               <div>
                 <Label>Machine Type</Label>
                 <Input

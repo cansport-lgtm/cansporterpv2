@@ -31,6 +31,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface LossReason {
   id: string;
@@ -135,7 +136,6 @@ export default function HourlyLossReasonsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         category: form.category.trim() || null,
         is_active: form.is_active,
@@ -150,7 +150,7 @@ export default function HourlyLossReasonsPage() {
       } else {
         const { data, error } = await (supabase as any)
           .from("hourly_loss_reasons")
-          .insert(payload)
+          .insert({ ...payload, code: "" })
           .select("id")
           .single();
         if (error) throw error;
@@ -225,8 +225,8 @@ export default function HourlyLossReasonsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.code || !form.name) {
-      toast.error("Code and Name are required");
+    if (!form.name) {
+      toast.error("Name is required");
       return;
     }
     saveMutation.mutate();
@@ -351,15 +351,12 @@ export default function HourlyLossReasonsPage() {
             <ScrollArea className="flex-1 pr-3">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Code *</Label>
-                    <Input
-                      value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value })}
-                      placeholder="e.g., MCH_BD"
-                      required
-                    />
-                  </div>
+                  <AutoCodeField
+                    entity="hourly_loss_reasons"
+                    value={editing?.code}
+                    isEdit={!!editing}
+                    label="Code"
+                  />
                   <div>
                     <Label>Category</Label>
                     <Input

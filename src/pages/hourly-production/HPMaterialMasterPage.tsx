@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Package, Plus, Pencil, Trash2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,9 +45,8 @@ export default function HPMaterialMasterPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form.code.trim() || !form.name.trim()) throw new Error("Code and Name are required");
+      if (!form.name.trim()) throw new Error("Name is required");
       const payload = {
-        code: form.code.trim(),
         name: form.name.trim(),
         unit: form.unit.trim() || "pcs",
         category: form.category.trim() || null,
@@ -56,7 +56,7 @@ export default function HPMaterialMasterPage() {
         const { error } = await supabase.from("hp_materials").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("hp_materials").insert(payload);
+        const { error } = await supabase.from("hp_materials").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -150,7 +150,7 @@ export default function HPMaterialMasterPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Material</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Code *</Label><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} /></div>
+            <AutoCodeField entity="hp_materials" value={editing?.code} isEdit={!!editing} label="Code" className="" />
             <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Unit</Label><Input value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} /></div>

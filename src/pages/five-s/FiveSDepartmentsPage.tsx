@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Database, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,6 @@ export default function FiveSDepartmentsPage() {
         const { error } = await supabase
           .from("five_s_departments")
           .update({
-            code: data.code,
             name: data.name,
             sequence_order: data.sequence_order,
             is_active: data.is_active,
@@ -76,7 +76,7 @@ export default function FiveSDepartmentsPage() {
         const { error } = await supabase
           .from("five_s_departments")
           .insert({
-            code: data.code,
+            code: "", // assigned by the DB (trg_00_auto_code)
             name: data.name,
             sequence_order: data.sequence_order,
             is_active: data.is_active,
@@ -202,17 +202,13 @@ export default function FiveSDepartmentsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="five_s_departments"
+                  id="code"
+                  value={selectedItem?.code}
+                  isEdit={!!selectedItem}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input

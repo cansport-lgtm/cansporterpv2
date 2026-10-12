@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSalesOrderForm } from "@/components/sales/MobileSalesOrderForm";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-500',
@@ -287,36 +288,11 @@ export default function SalesOrdersPage() {
   // Add product mutation
   const addProductMutation = useMutation({
     mutationFn: async (productData: typeof newProduct) => {
-      // Check if product code already exists (including inactive products)
-      const { data: existingProduct } = await supabase
-        .from('products')
-        .select('id, is_active')
-        .eq('code', productData.code)
-        .maybeSingle();
-
-      if (existingProduct) {
-        if (!existingProduct.is_active) {
-          // Reactivate the inactive product
-          const { data, error } = await supabase
-            .from('products')
-            .update({
-              name: productData.name,
-              description: productData.description || null,
-              is_active: true,
-            })
-            .eq('id', existingProduct.id)
-            .select()
-            .single();
-          if (error) throw error;
-          return data;
-        }
-        throw new Error('Product code already exists. Please use a different code.');
-      }
-
+      // Code is assigned by the database (trg_00_auto_code) on insert.
       const { data, error } = await supabase
         .from('products')
         .insert({
-          code: productData.code,
+          code: '',
           name: productData.name,
           description: productData.description || null,
           is_active: true,
@@ -343,7 +319,6 @@ export default function SalesOrdersPage() {
       const { error } = await supabase
         .from('products')
         .update({
-          code: productData.code,
           name: productData.name,
           description: productData.description || null,
         })
@@ -1126,17 +1101,12 @@ export default function SalesOrdersPage() {
               <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
                 <h4 className="font-medium">{editingProduct ? 'Edit Product' : 'Add New Product'}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Product Code *</Label>
-                    <Input
-                      value={editingProduct ? editingProduct.code : newProduct.code}
-                      onChange={(e) => editingProduct 
-                        ? setEditingProduct({ ...editingProduct, code: e.target.value })
-                        : setNewProduct({ ...newProduct, code: e.target.value })
-                      }
-                      placeholder="e.g., SKU001"
-                    />
-                  </div>
+                  <AutoCodeField
+                    entity="products"
+                    value={editingProduct?.code}
+                    isEdit={!!editingProduct}
+                    label="Product Code"
+                  />
                   <div className="space-y-2">
                     <Label>Product Name *</Label>
                     <Input
@@ -1173,14 +1143,14 @@ export default function SalesOrdersPage() {
                     type="button"
                     onClick={() => {
                       if (editingProduct) {
-                        if (!editingProduct.code || !editingProduct.name) {
-                          toast.error('Code and Name are required');
+                        if (!editingProduct.name) {
+                          toast.error('Name is required');
                           return;
                         }
                         editProductMutation.mutate(editingProduct);
                       } else {
-                        if (!newProduct.code || !newProduct.name) {
-                          toast.error('Code and Name are required');
+                        if (!newProduct.name) {
+                          toast.error('Name is required');
                           return;
                         }
                         addProductMutation.mutate(newProduct);

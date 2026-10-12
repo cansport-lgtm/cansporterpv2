@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,7 +128,6 @@ export default function PlanningItemMasterPage() {
           .from("planning_items")
           .update({
             department_id: item.department_id,
-            code: item.code,
             name: item.name,
             description: item.description || null,
             is_active: item.is_active,
@@ -142,7 +142,8 @@ export default function PlanningItemMasterPage() {
       } else {
         const { error } = await supabase.from("planning_items").insert({
           department_id: item.department_id,
-          code: item.code,
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          code: "",
           name: item.name,
           description: item.description || null,
           is_active: item.is_active,
@@ -219,10 +220,6 @@ export default function PlanningItemMasterPage() {
   const handleSave = () => {
     if (!formData.department_id) {
       toast.error("Please select a department");
-      return;
-    }
-    if (!formData.code.trim()) {
-      toast.error("Please enter item code");
       return;
     }
     if (!formData.name.trim()) {
@@ -380,14 +377,13 @@ export default function PlanningItemMasterPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Item Code *</Label>
-                  <Input
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g., CUT-001"
-                  />
-                </div>
+                <AutoCodeField
+                  entity="planning_items"
+                  group={formData.department_id || null}
+                  value={editingItem?.code}
+                  isEdit={!!editingItem?.id}
+                  label="Item Code"
+                />
                 <div className="space-y-2">
                   <Label>Item Name *</Label>
                   <Input

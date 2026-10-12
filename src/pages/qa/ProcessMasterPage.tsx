@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,7 +121,6 @@ export default function ProcessMasterPage() {
         const { error } = await supabase
           .from("qa_processes")
           .update({
-           code: data.code,
             name: data.name,
             description: data.description,
             department_id: data.department_id || null,
@@ -133,7 +133,7 @@ export default function ProcessMasterPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("qa_processes").insert({
-          code: data.code,
+          code: "", // assigned by the DB (trg_00_auto_code)
           name: data.name,
           description: data.description,
           department_id: data.department_id || null,
@@ -413,15 +413,12 @@ export default function ProcessMasterPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Code *</Label>
-                  <Input
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g., DRAW-01"
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="qa_processes"
+                  value={selectedProcess?.code}
+                  isEdit={!!selectedProcess}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label>Sequence Order</Label>
                   <Input

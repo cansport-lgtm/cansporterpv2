@@ -4,6 +4,7 @@ import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -145,12 +146,15 @@ export default function InventoryLocationsPage() {
   };
 
   const handleSubmit = () => {
-    if (!formData.code || !formData.name) {
-      toast.error("Code and Name are required");
+    if (!formData.name) {
+      toast.error("Name is required");
       return;
     }
+    // Code is assigned by the database on insert and never changed on edit.
     saveMutation.mutate(
-      selectedLocation ? { ...formData, id: selectedLocation.id } : formData
+      selectedLocation
+        ? { ...formData, code: selectedLocation.code, id: selectedLocation.id }
+        : { ...formData, code: "" }
     );
   };
 
@@ -224,16 +228,12 @@ export default function InventoryLocationsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Code *</Label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) =>
-                    setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                  }
-                  placeholder="e.g., WH-001"
-                />
-              </div>
+              <AutoCodeField
+                entity="inventory_locations"
+                value={selectedLocation?.code}
+                isEdit={!!selectedLocation}
+                label="Code"
+              />
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input

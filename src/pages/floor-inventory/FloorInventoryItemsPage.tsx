@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import {
   Dialog,
   DialogContent,
@@ -113,7 +114,6 @@ export default function FloorInventoryItemsPage() {
           .from("floor_inventory_stock")
           .update({
             item_name: data.item_name,
-            item_code: data.item_code || null,
             category: data.category,
             unit: data.unit,
             production_floor: data.production_floor || null,
@@ -124,7 +124,7 @@ export default function FloorInventoryItemsPage() {
         // Create a new item entry with 0 quantity
         const { error } = await supabase.from("floor_inventory_stock").insert({
           item_name: data.item_name,
-          item_code: data.item_code || null,
+          item_code: null,
           category: data.category,
           unit: data.unit,
           production_floor: data.production_floor || null,
@@ -301,14 +301,13 @@ export default function FloorInventoryItemsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Item Code</Label>
-                <Input
-                  value={formData.item_code}
-                  onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
-                  placeholder="Optional"
-                />
-              </div>
+              <AutoCodeField
+                entity="floor_inventory_stock"
+                reuse={formData.item_name}
+                value={editingItem?.item_code}
+                isEdit={!!editingItem}
+                label="Item Code"
+              />
               <div className="space-y-2">
                 <Label>Item Name *</Label>
                 <Input

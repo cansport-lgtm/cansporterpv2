@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -115,7 +116,6 @@ export default function ReasonsPage() {
         const { error } = await supabase
           .from("defect_reasons")
           .update({
-            code: data.code,
             name: data.name,
             severity: data.severity,
             is_active: data.is_active,
@@ -124,7 +124,7 @@ export default function ReasonsPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("defect_reasons").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           severity: data.severity,
           is_active: data.is_active,
@@ -161,7 +161,6 @@ export default function ReasonsPage() {
         const { error } = await supabase
           .from("downtime_reasons")
           .update({
-            code: data.code,
             name: data.name,
             category: data.category || null,
             is_planned: data.is_planned,
@@ -171,7 +170,7 @@ export default function ReasonsPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("downtime_reasons").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           category: data.category || null,
           is_planned: data.is_planned,
@@ -390,15 +389,13 @@ export default function ReasonsPage() {
               className="space-y-4"
             >
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={defectForm.code}
-                    onChange={(e) => setDefectForm({ ...defectForm, code: e.target.value })}
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="defect_reasons"
+                  id="code"
+                  value={selectedDefect?.code}
+                  isEdit={!!selectedDefect}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input
@@ -467,15 +464,13 @@ export default function ReasonsPage() {
               className="space-y-4"
             >
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dt-code">Code</Label>
-                  <Input
-                    id="dt-code"
-                    value={downtimeForm.code}
-                    onChange={(e) => setDowntimeForm({ ...downtimeForm, code: e.target.value })}
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="downtime_reasons"
+                  id="dt-code"
+                  value={selectedDowntime?.code}
+                  isEdit={!!selectedDowntime}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="dt-name">Name</Label>
                   <Input

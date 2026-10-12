@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,7 +87,6 @@ export default function MachineMonitorMachinesPage() {
     mutationFn: async (values: typeof form & { id?: string }) => {
       const payload = {
         name: values.name,
-        code: values.code,
         department: values.department || null,
         location: values.location || null,
         sort_order: values.sort_order,
@@ -102,7 +102,7 @@ export default function MachineMonitorMachinesPage() {
       } else {
         const { error } = await supabase
           .from("machine_monitor_machines")
-          .insert(payload);
+          .insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -190,8 +190,8 @@ export default function MachineMonitorMachinesPage() {
   };
 
   const handleSave = () => {
-    if (!form.name || !form.code) {
-      toast.error("Name and Code are required");
+    if (!form.name) {
+      toast.error("Name is required");
       return;
     }
     saveMutation.mutate(editing ? { ...form, id: editing.id } : form);
@@ -308,10 +308,12 @@ export default function MachineMonitorMachinesPage() {
                 <Label>Machine Name *</Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
-              <div>
-                <Label>Code *</Label>
-                <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-              </div>
+              <AutoCodeField
+                entity="machine_monitor_machines"
+                value={editing?.code}
+                isEdit={!!editing}
+                label="Code"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

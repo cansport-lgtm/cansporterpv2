@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -73,7 +74,6 @@ export default function GradesPage() {
         const { error } = await supabase
           .from("grades")
           .update({
-            code: data.code,
             name: data.name,
             description: data.description || null,
             is_active: data.is_active,
@@ -82,7 +82,7 @@ export default function GradesPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("grades").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           description: data.description || null,
           is_active: data.is_active,
@@ -209,17 +209,13 @@ export default function GradesPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="grades"
+                  id="code"
+                  value={selectedItem?.code}
+                  isEdit={!!selectedItem}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input

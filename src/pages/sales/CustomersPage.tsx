@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,7 +121,6 @@ export default function CustomersPage() {
   const saveMutation = useMutation({
     mutationFn: async (data: CustomerFormData) => {
       const payload = {
-        code: data.code,
         name: data.name,
         contact_person: data.contact_person || null,
         email: data.email || null,
@@ -143,7 +143,8 @@ export default function CustomersPage() {
       } else {
         const { error } = await supabase
           .from('customers')
-          .insert(payload);
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          .insert({ ...payload, code: '' });
         if (error) throw error;
       }
     },
@@ -245,8 +246,8 @@ export default function CustomersPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.code || !formData.name) {
-      toast.error('Code and Name are required');
+    if (!formData.name) {
+      toast.error('Name is required');
       return;
     }
     saveMutation.mutate(formData);
@@ -304,15 +305,12 @@ export default function CustomersPage() {
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Customer Code *</Label>
-                          <Input
-                            value={formData.code}
-                            onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                            placeholder="e.g., CUST001"
-                            required
-                          />
-                        </div>
+                        <AutoCodeField
+                          entity="customers"
+                          value={editingCustomer?.code}
+                          isEdit={!!editingCustomer}
+                          label="Customer Code"
+                        />
                         <div className="space-y-2">
                           <Label>Name *</Label>
                           <Input

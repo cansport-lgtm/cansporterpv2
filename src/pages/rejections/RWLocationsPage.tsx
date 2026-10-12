@@ -22,6 +22,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface Location {
   id: string;
@@ -77,10 +78,8 @@ export default function RWLocationsPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form.code.trim()) throw new Error("Code is required");
       if (!form.name.trim()) throw new Error("Name is required");
       const payload = {
-        code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         name_urdu: form.name_urdu.trim() || null,
         location_type: form.location_type,
@@ -89,7 +88,7 @@ export default function RWLocationsPage() {
       };
       const q = editing
         ? (supabase as any).from("rw_locations").update(payload).eq("id", editing.id)
-        : (supabase as any).from("rw_locations").insert(payload);
+        : (supabase as any).from("rw_locations").insert({ ...payload, code: "" });
       const { error } = await q;
       if (error) throw error;
     },
@@ -217,10 +216,12 @@ export default function RWLocationsPage() {
               <DialogTitle>{editing ? "Edit location" : "Add location"}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-3">
-              <div>
-                <Label className="text-xs">Code</Label>
-                <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="LF-CHEAP" />
-              </div>
+              <AutoCodeField
+                entity="rw_locations"
+                value={editing?.code}
+                isEdit={!!editing}
+                label="Code"
+              />
               <div>
                 <Label className="text-xs">Name</Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

@@ -12,13 +12,19 @@ import { Label } from "@/components/ui/label";
  */
 
 /** Preview of the code the database will assign to a new record. */
-export function useNextCode(entity: string, group?: string | null, enabled = true) {
+export function useNextCode(
+  entity: string,
+  group?: string | null,
+  enabled = true,
+  reuse?: string | null,
+) {
   return useQuery({
-    queryKey: ["auto-code", entity, group ?? null],
+    queryKey: ["auto-code", entity, group ?? null, reuse ?? null],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("auto_code_preview", {
         p_entity: entity,
         p_group: group ?? null,
+        p_reuse: reuse ?? null,
       });
       if (error) throw error;
       return data as string;
@@ -34,6 +40,8 @@ interface AutoCodeFieldProps {
   entity: string;
   /** Value of the series' grouping column (item type, category, ...), if any. */
   group?: string | null;
+  /** For series that reuse an existing code (same item name), the value to match. */
+  reuse?: string | null;
   /** The record's current code when editing; omit/empty when creating. */
   value?: string | null;
   /** True when editing an existing record. */
@@ -46,13 +54,14 @@ interface AutoCodeFieldProps {
 export function AutoCodeField({
   entity,
   group,
+  reuse,
   value,
   isEdit = false,
   label = "Code",
   id,
   className,
 }: AutoCodeFieldProps) {
-  const { data: nextCode, isLoading } = useNextCode(entity, group, !isEdit);
+  const { data: nextCode, isLoading } = useNextCode(entity, group, !isEdit, reuse);
 
   const shown = isEdit ? value || "" : nextCode || "";
   const placeholder = isEdit ? "" : isLoading ? "Generating…" : "Auto-generated";

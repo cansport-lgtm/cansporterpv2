@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface ConsumptionCategory {
   id: string;
@@ -60,14 +61,13 @@ const ConsumptionCategoriesPage = () => {
     mutationFn: async (data: typeof formData) => {
       const payload = {
         name: data.name.trim(),
-        code: data.code.trim().toUpperCase(),
         is_active: data.is_active,
       };
       if (editingCategory) {
         const { error } = await supabase.from("consumption_categories").update(payload).eq("id", editingCategory.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("consumption_categories").insert(payload);
+        const { error } = await supabase.from("consumption_categories").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -122,7 +122,7 @@ const ConsumptionCategoriesPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.code) {
+    if (!formData.name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -190,10 +190,13 @@ const ConsumptionCategoriesPage = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
-              <div>
-                <Label>Code *</Label>
-                <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} placeholder="e.g., CHM" required />
-              </div>
+              <AutoCodeField
+                entity="consumption_categories"
+                value={editingCategory?.code}
+                isEdit={!!editingCategory}
+                label="Code"
+                className="space-y-0"
+              />
               <div>
                 <Label>Name *</Label>
                 <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Chemicals" required />
