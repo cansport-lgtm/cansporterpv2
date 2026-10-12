@@ -30,6 +30,7 @@ import {
 import { Building, Pencil, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Database } from "@/integrations/supabase/types";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 type Distributor = Database["public"]["Tables"]["distributors"]["Row"];
 
@@ -68,8 +69,8 @@ export default function DistributorsMasterPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Code is assigned by the database on insert and locked thereafter.
       const payload = {
-        code: form.code.trim(),
         name: form.name.trim(),
         contact_person: form.contact_person.trim() || null,
         phone: form.phone.trim() || null,
@@ -84,7 +85,7 @@ export default function DistributorsMasterPage() {
         const { error } = await supabase.from("distributors").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("distributors").insert(payload);
+        const { error } = await supabase.from("distributors").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -133,8 +134,8 @@ export default function DistributorsMasterPage() {
   };
 
   const handleSave = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      toast.error("Code and Name are required");
+    if (!form.name.trim()) {
+      toast.error("Name is required");
       return;
     }
     saveMutation.mutate();
@@ -214,10 +215,7 @@ export default function DistributorsMasterPage() {
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Code *</Label>
-                <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="e.g. DIST-01" />
-              </div>
+              <AutoCodeField entity="distributors" value={editing?.code} isEdit={!!editing} label="Code" id="code" />
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Distributor name" />

@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Search, Tags } from "lucide-react";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface AssetCategory {
   id: string;
@@ -65,13 +66,13 @@ export default function FixedAssetCategoriesPage() {
       if (editingCategory) {
         const { error } = await supabase
           .from("fixed_asset_categories")
-          .update({ code: data.code, name: data.name, description: data.description || null, is_active: data.is_active, updated_at: new Date().toISOString() })
+          .update({ name: data.name, description: data.description || null, is_active: data.is_active, updated_at: new Date().toISOString() })
           .eq("id", editingCategory.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("fixed_asset_categories")
-          .insert({ code: data.code, name: data.name, description: data.description || null, is_active: data.is_active });
+          .insert({ code: "", name: data.name, description: data.description || null, is_active: data.is_active });
         if (error) throw error;
       }
     },
@@ -136,8 +137,8 @@ export default function FixedAssetCategoriesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.code.trim() || !formData.name.trim()) {
-      toast.error("Code and Name are required");
+    if (!formData.name.trim()) {
+      toast.error("Name is required");
       return;
     }
     saveMutation.mutate(formData);
@@ -230,10 +231,7 @@ export default function FixedAssetCategoriesPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Code *</Label>
-                  <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} placeholder="e.g. OA" />
-                </div>
+                <AutoCodeField entity="fixed_asset_categories" value={editingCategory?.code} isEdit={!!editingCategory} label="Code" />
                 <div className="space-y-2">
                   <Label>Name *</Label>
                   <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Office Assets" />

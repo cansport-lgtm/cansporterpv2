@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { isSimilarPartyName } from "@/lib/accounting/partyNameSimilarity";
 import { Plus, Edit, Search } from "lucide-react";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const sb = supabase as any;
 
@@ -80,10 +81,11 @@ export default function AccountingPartiesPage() {
     mutationFn: async (formData: PartyForm) => {
       // Trim the name so stray trailing spaces don't create lookup mismatches
       // (e.g. a party that silently fails to match in voucher dropdowns).
+      // Code is assigned by the database on insert and locked thereafter.
+      const { code: _code, ...rest } = formData;
       const payload = {
-        ...formData,
+        ...rest,
         name: formData.name.trim(),
-        code: formData.code.trim() || null,
         credit_days: formData.credit_days.trim() === "" ? null : Math.max(0, Math.round(Number(formData.credit_days)) || 0),
         credit_limit: formData.credit_limit.trim() === "" ? null : Math.max(0, Number(formData.credit_limit) || 0),
       };
@@ -91,7 +93,7 @@ export default function AccountingPartiesPage() {
         const { error } = await sb.from("accounting_parties").update(payload).eq("id", editId);
         if (error) throw error;
       } else {
-        const { error } = await sb.from("accounting_parties").insert(payload);
+        const { error } = await sb.from("accounting_parties").insert({ ...payload, code: null });
         if (error) throw error;
       }
     },
@@ -187,7 +189,13 @@ export default function AccountingPartiesPage() {
               <DialogHeader><DialogTitle>{editId ? "Edit" : "New"} Party</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
-                  <div><Label>Code</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Optional" /></div>
+                  <AutoCodeField
+                    entity="accounting_parties"
+                    value={form.code}
+                    isEdit={!!editId}
+                    label="Code"
+                    className=""
+                  />
                   <div className="col-span-2">
                     <Label>Type</Label>
                     <Select value={form.party_type} onValueChange={(v: PartyType) => setForm({ ...form, party_type: v })}>
