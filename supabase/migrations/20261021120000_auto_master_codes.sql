@@ -22,8 +22,9 @@
 -- Group modes:
 --   none          one series per table (prefix column).
 --   fixed         prefix chosen from group_prefixes by the group value.
---   learned       prefix = the most common prefix already used by rows in the
---                 same group (e.g. spare parts in MECHANICAL use "MECH-");
+--   learned       prefix = the most common simple prefix (letters + optional
+--                 dash, e.g. "MECH-") already used by rows in the same group;
+--                 structured codes like "TOL-WP-LDS-01-0136" are ignored;
 --                 falls back to group_prefixes, then (if derive_from_group)
 --                 the first 3 letters of the group, then the default prefix.
 --   leading_digit like learned, but the prefix is the leading digit of
@@ -114,7 +115,7 @@ BEGIN
         'SELECT p FROM (
            SELECT regexp_replace(btrim(%1$I::text), ''[0-9]+$'', '''') AS p
              FROM public.%2$I
-            WHERE %3$I::text = $1 AND btrim(%1$I::text) ~ ''[^0-9][0-9]+$''
+            WHERE %3$I::text = $1 AND btrim(%1$I::text) ~ ''^[A-Za-z]+-?[0-9]+$''
          ) s GROUP BY p ORDER BY count(*) DESC, p LIMIT 1',
         cfg.code_column, cfg.table_name, cfg.group_column)
       INTO v_prefix USING p_group;
@@ -147,15 +148,21 @@ BEGIN
   v_series := jsonb_build_array(jsonb_build_object('table', cfg.table_name, 'column', cfg.code_column))
               || cfg.shared_series;
 
+  -- The digit width follows the most common width in the series, so one
+  -- mistyped code (e.g. "MCH-01110") doesn't widen every new code.
   FOR v_part IN SELECT * FROM jsonb_array_elements(v_series) LOOP
     EXECUTE format(
-      'SELECT (m[1])::numeric, length(m[1]) FROM (
-         SELECT regexp_match(btrim(%1$I::text), $1) AS m FROM public.%2$I
-       ) s WHERE m IS NOT NULL ORDER BY 1 DESC, 2 DESC LIMIT 1',
+      'SELECT max(n), mode() WITHIN GROUP (ORDER BY l) FROM (
+         SELECT (m[1])::numeric AS n, length(m[1]) AS l FROM (
+           SELECT regexp_match(btrim(%1$I::text), $1) AS m FROM public.%2$I
+         ) s WHERE m IS NOT NULL
+       ) t',
       v_part ->> 'column', v_part ->> 'table')
     INTO v_num, v_len USING v_regex;
     IF v_num IS NOT NULL AND v_num > v_max THEN
       v_max := v_num;
+    END IF;
+    IF v_max_len = 0 AND v_len IS NOT NULL THEN
       v_max_len := v_len;
     END IF;
   END LOOP;
@@ -267,7 +274,8 @@ VALUES
   ('distributor_products', 'distributor_products', 'code', '', 3, NULL, 'none', '{}', false, '[]', '{}', NULL),
   ('distributor_customers', 'distributor_customers', 'code', '', 2, NULL, 'none', '{}', false, '[]', '{}', NULL),
   ('accounting_parties', 'accounting_parties', 'code', 'PTY-', 4, NULL, 'none', '{}', false, '[]', '{}', NULL),
-  ('accounting_chart_of_accounts', 'accounting_chart_of_accounts', 'code', '9', 3, 'account_type', 'leading_digit',
+  -- Chart of accounts: standard leading digit per account type (5xxx = expense).
+  ('accounting_chart_of_accounts', 'accounting_chart_of_accounts', 'code', '9', 3, 'account_type', 'fixed',
      '{"asset":"1","liability":"2","equity":"3","revenue":"4","expense":"5"}', false, '[]', '{}', NULL),
   ('production_departments', 'production_departments', 'code', 'DEPT-', 3, NULL, 'none', '{}', false, '[]', '{}', NULL),
   ('production_sub_departments', 'production_sub_departments', 'code', 'SDEPT-', 3, NULL, 'none', '{}', false, '[]', '{}', NULL),
