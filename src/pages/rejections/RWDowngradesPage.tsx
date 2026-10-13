@@ -71,12 +71,12 @@ export default function RWDowngradesPage() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: [DOWNGRADES_KEY, fromDate, toDate],
     queryFn: async () => {
-      const { data, error } = await dgDb
-        .from("rw_downgrades")
-        .select("*")
-        .gte("request_date", fromDate)
-        .lte("request_date", toDate)
-        .order("created_at", { ascending: false });
+      // The form date is the server's (Karachi) date. When the range runs to
+      // today, leave it open-ended so a device clock that lags the server
+      // cannot hide forms raised today.
+      let q = dgDb.from("rw_downgrades").select("*").gte("request_date", fromDate);
+      if (toDate < format(new Date(), "yyyy-MM-dd")) q = q.lte("request_date", toDate);
+      const { data, error } = await q.order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as Downgrade[];
     },
