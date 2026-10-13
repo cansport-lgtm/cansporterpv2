@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RescanAlerts } from "@/components/gate-pass/RescanAlerts";
+import { UnscannedAlerts } from "@/components/gate-pass/UnscannedAlerts";
 import { fmtQty, gpDb, passTypeMeta, statusMeta, todayPk } from "@/lib/gatePass";
 import { fmtRs } from "@/lib/gatePassFreight";
 import { giDb } from "@/lib/gateInward";
@@ -122,6 +123,7 @@ export default function GatePassDashboardPage() {
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
         <PageHeader title="Gate Pass Dashboard" description="What is at the gate, waiting, held and outside the factory" icon={LayoutDashboard} />
 
+        <UnscannedAlerts />
         <RescanAlerts />
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">

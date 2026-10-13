@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { BookOpen, Plus, Settings2 } from "lucide-react";
+import { BookOpen, Plus, Settings2, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -41,6 +42,7 @@ export default function PaperBooksPage() {
   const [spoil, setSpoil] = useState<{ serial: number } | null>(null);
   const [spoilReason, setSpoilReason] = useState("");
   const [settings, setSettings] = useState({ days: "7", pct: "10" });
+  const [alert, setAlert] = useState({ on: true, hours: "24", time: "09:00" });
 
   const { data: books = [] } = useQuery<Book[]>({
     queryKey: ["gate-pass-books"],
@@ -70,7 +72,10 @@ export default function PaperBooksPage() {
       return data ?? [];
     },
   });
-  const { data: savedSettings } = useQuery<{ backfill_max_days: number; scrap_overweight_pct: number } | null>({
+  const { data: savedSettings } = useQuery<{
+    backfill_max_days: number; scrap_overweight_pct: number;
+    unscanned_alert_enabled: boolean; unscanned_alert_hours: number; unscanned_alert_time: string;
+  } | null>({
     queryKey: ["gate-pass-settings"],
     queryFn: async () => {
       const { data, error } = await gpDb.from("gate_pass_settings").select("*").maybeSingle();
@@ -79,7 +84,13 @@ export default function PaperBooksPage() {
     },
   });
   useEffect(() => {
-    if (savedSettings) setSettings({ days: String(savedSettings.backfill_max_days), pct: String(savedSettings.scrap_overweight_pct) });
+    if (!savedSettings) return;
+    setSettings({ days: String(savedSettings.backfill_max_days), pct: String(savedSettings.scrap_overweight_pct) });
+    setAlert({
+      on: savedSettings.unscanned_alert_enabled ?? true,
+      hours: String(savedSettings.unscanned_alert_hours ?? 24),
+      time: (savedSettings.unscanned_alert_time ?? "09:00").slice(0, 5),
+    });
   }, [savedSettings]);
   useEffect(() => {
     if (!selected && books.length) setSelected(books.find((b) => b.is_active)?.id ?? books[0].id);
@@ -252,6 +263,36 @@ export default function PaperBooksPage() {
               <Button disabled={call.isPending}
                 onClick={() => call.mutate({ fn: "gate_pass_settings_save", args: { p_backfill_days: Number(settings.days), p_scrap_overweight_pct: Number(settings.pct) }, done: "Settings saved" })}>
                 Save settings
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {isSuperAdmin && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2"><Siren className="h-4 w-4" /> Unscanned gate pass alert</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Alert super admins when a goods gate pass is not scanned at the gate within the hours below, counted from when it was created.
+                The alert repeats once a day until the pass is scanned out, cancelled or rejected.
+              </p>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-end gap-4">
+              <div className="flex items-center gap-2 h-10">
+                <Switch id="ua-on" checked={alert.on} onCheckedChange={(v) => setAlert({ ...alert, on: v })} />
+                <Label htmlFor="ua-on">Alerts on</Label>
+              </div>
+              <div>
+                <Label htmlFor="ua-hours">Alert after (hours)</Label>
+                <Input id="ua-hours" type="number" min="1" max="168" className="w-32" value={alert.hours} onChange={(e) => setAlert({ ...alert, hours: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="ua-time">Daily alert time (Pakistan)</Label>
+                <Input id="ua-time" type="time" className="w-36" value={alert.time} onChange={(e) => setAlert({ ...alert, time: e.target.value })} />
+              </div>
+              <Button disabled={call.isPending || !alert.hours || !alert.time}
+                onClick={() => call.mutate({ fn: "gate_pass_unscanned_settings_save", args: { p_enabled: alert.on, p_hours: Number(alert.hours), p_time: alert.time }, done: "Alert settings saved" })}>
+                Save alert settings
               </Button>
             </CardContent>
           </Card>
