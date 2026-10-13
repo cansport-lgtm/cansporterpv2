@@ -160,7 +160,11 @@ export function ProtectedRoute({
 
     // For store operator, redirect back to stock closing page if accessing unauthorized page
     if (roles.some((r) => (r.role as string) === 'store_operator')) {
-      if (location.pathname !== '/consumption/stock-closing' && !location.pathname.startsWith('/purchase/gate-inward')) {
+      if (
+        location.pathname !== '/consumption/stock-closing' &&
+        location.pathname !== '/consumption/reorder-requirement' &&
+        !location.pathname.startsWith('/purchase/gate-inward')
+      ) {
         return <Navigate to="/consumption/stock-closing" replace />;
       }
     }

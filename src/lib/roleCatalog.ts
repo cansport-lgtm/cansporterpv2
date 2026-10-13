@@ -250,7 +250,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "material_consumption",
     label: "Store Operator (stock closing only)",
     tier: "special",
-    description: "Access to Stock Closing page in Material Consumption module only",
+    description: "Access to Stock Closing and Reorder Requirement pages in Material Consumption module only",
     color: "bg-sky-500/10 text-sky-500 border-sky-500/20",
   },
 
