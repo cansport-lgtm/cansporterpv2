@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import { MATERIAL_VALUE_CATEGORIES } from "@/lib/materialValueCategory";
+import { MATERIAL_QUERY_KEYS } from "@/components/materials/useMaterialData";
 
 type PurchaseCategory = SupabaseDatabase["public"]["Enums"]["purchase_category"];
 type MaterialValueCategory = SupabaseDatabase["public"]["Enums"]["raw_material_value_category"];
@@ -238,6 +239,7 @@ export default function ItemsPage() {
       queryClient.invalidateQueries({ queryKey: ["consumption-rm-frequencies"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials"] });
+      queryClient.invalidateQueries({ queryKey: MATERIAL_QUERY_KEYS.items });
       toast.success(selectedItem ? "Item updated" : "Item created");
       resetForm();
     },
@@ -253,6 +255,7 @@ export default function ItemsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: MATERIAL_QUERY_KEYS.items });
       toast.success("Item deleted");
       setDeleteDialogOpen(false);
       setSelectedItem(null);
