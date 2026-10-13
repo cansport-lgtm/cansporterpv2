@@ -79,8 +79,8 @@ export function ProductsTable({
   const slotWidth = showMaterials ? (100 - fixed) / slots.length : 0;
   const colCount = BASE_COLS.length + 1 + (showMaterials ? slots.length + 1 : 0);
 
-  const th = "overflow-hidden bg-muted px-1.5 py-2 text-left align-bottom text-[9.5px] font-semibold uppercase leading-[1.15] tracking-tight text-muted-foreground first:pl-2.5";
-  const td = "overflow-hidden px-1.5 py-2 align-middle first:pl-2.5";
+  const th = "overflow-hidden bg-muted px-1 2xl:px-1.5 py-2 text-left align-bottom text-[9.5px] font-semibold uppercase leading-[1.15] tracking-tight text-muted-foreground first:pl-2.5";
+  const td = "overflow-hidden px-1 py-2 2xl:px-1.5 align-middle first:pl-2.5";
 
   return (
     <div className="max-h-[calc(100vh-15rem)] min-h-[16rem] overflow-auto rounded-lg border bg-card">
@@ -219,13 +219,13 @@ export function ProductsTable({
                           <div className="min-w-0">
                             <span
                               className={cn(
-                                "line-clamp-2 text-[11.5px] font-medium leading-tight [overflow-wrap:anywhere]",
+                                "line-clamp-2 text-[11px] font-medium leading-tight [overflow-wrap:anywhere] 2xl:text-[11.5px]",
                                 row.inherited && "italic text-foreground/75",
                               )}
                             >
                               {it?.name ?? "Inactive item"}
                             </span>
-                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10.5px] text-muted-foreground">
+                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] tracking-tight text-muted-foreground 2xl:text-[10.5px] 2xl:tracking-normal">
                               <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STOCK_DOT[level])} />
                               <span className="truncate">
                                 {qty}
