@@ -433,13 +433,13 @@ export function QuickEditGrid({
       <p className="text-xs text-muted-foreground">
         Material cells are dropdowns · each change saves on its own · existing columns are unchanged and read-only here.
       </p>
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="max-h-[calc(100vh-15rem)] min-h-[16rem] overflow-auto rounded-lg border bg-card">
         <table className="w-full min-w-[1500px] text-xs">
-          <thead>
+          <thead className="sticky top-0 z-20 bg-muted">
             <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <th className="px-2 py-2 w-10">Saved</th>
-              <th className="px-2 py-2">Code</th>
-              <th className="px-2 py-2">Name</th>
+              <th className="sticky left-0 z-10 bg-muted px-2 py-2">Code</th>
+              <th className="sticky left-[64px] z-10 bg-muted px-2 py-2 shadow-[1px_0_0_hsl(var(--border))]">Name</th>
               <th className="px-2 py-2">Grade</th>
               {slots.map((s) => <th key={s.key} className="px-2 py-2 bg-primary/5 text-primary">{s.label}</th>)}
             </tr>
@@ -455,8 +455,8 @@ export function QuickEditGrid({
                       rs?.s === "saved" ? <Check className="h-4 w-4 text-emerald-600" /> :
                       rs?.s === "editing" ? <span className="font-bold text-primary">●</span> : null}
                   </td>
-                  <td className="px-2 py-2">{p.code}</td>
-                  <td className="px-2 py-2 font-medium whitespace-nowrap">
+                  <td className="sticky left-0 z-10 w-[64px] min-w-[64px] bg-card px-2 py-2">{p.code}</td>
+                  <td className="sticky left-[64px] z-10 bg-card px-2 py-2 font-medium whitespace-nowrap shadow-[1px_0_0_hsl(var(--border))]">
                     {p.name}
                     {(rs?.s === "error" || rs?.s === "editing") && (
                       <div className={cn("font-normal", rs.s === "error" ? "text-red-600" : "text-primary")}>{rs.msg}</div>
