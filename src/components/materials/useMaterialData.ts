@@ -77,7 +77,13 @@ export const MATERIAL_QUERY_KEYS = {
 export function useMaterialData(enabled = true) {
   const slotsQ = useQuery({ queryKey: MATERIAL_QUERY_KEYS.slots, queryFn: fetchSlots, enabled });
   const materialsQ = useQuery({ queryKey: MATERIAL_QUERY_KEYS.materials, queryFn: fetchProductMaterials, enabled });
-  const itemsQ = useQuery({ queryKey: MATERIAL_QUERY_KEYS.items, queryFn: fetchMaterialItems, enabled });
+  // Refetch on focus so items added in another tab show up in the pickers.
+  const itemsQ = useQuery({
+    queryKey: MATERIAL_QUERY_KEYS.items,
+    queryFn: fetchMaterialItems,
+    enabled,
+    refetchOnWindowFocus: true,
+  });
 
   const categoriesQ = useQuery({
     queryKey: ["consumption-categories-for-materials"],
