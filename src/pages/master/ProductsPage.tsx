@@ -3,13 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { DataTable } from "@/components/shared/DataTable";
+import { ProductsTable } from "@/components/materials/ProductsTable";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { AutoCodeField } from "@/components/shared/AutoCodeField";
-import { Database, Plus, Pencil, Trash2, AlertTriangle, Layers, Grid3x3, Settings2, ClipboardCheck } from "lucide-react";
+import { Database, Plus, AlertTriangle, Layers, Grid3x3, Settings2, ClipboardCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -40,13 +39,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ProductOwnerType } from "@/lib/customerSkus";
-import { cn } from "@/lib/utils";
-import { fmtQty, type SlotKey } from "@/lib/productMaterials";
+import type { SlotKey } from "@/lib/productMaterials";
 import {
   effectiveMaterials,
   MATERIAL_QUERY_KEYS,
-  STOCK_DOT,
-  STOCK_TEXT,
   stockLevel,
   useMaterialData,
 } from "@/components/materials/useMaterialData";
@@ -445,130 +441,6 @@ export default function ProductsPage() {
     toast.success(`Materials copied from ${src.code} — review and Save`);
   };
 
-  // Pinned while scrolling sideways: Code + Name on the left, Actions on the right.
-  const PIN = "sticky z-10 bg-card";
-  const columns = [
-    { key: "code", header: "Code", className: `${PIN} left-0 w-[76px] min-w-[76px]` },
-    {
-      key: "name",
-      header: "Name",
-      className: `${PIN} left-[76px] min-w-[150px] shadow-[1px_0_0_hsl(var(--border))]`,
-    },
-    {
-      key: "owner",
-      header: "Owner",
-      render: (item: Product) =>
-        item.owner_type === "customer" ? (
-          <div className="flex flex-col gap-0.5">
-            <Badge variant="secondary" className="w-fit text-xs">
-              {(item.customer_party_id && customerById.get(item.customer_party_id)?.name) ?? "Customer"}
-            </Badge>
-            {item.base_product_id && productById.get(item.base_product_id) && (
-              <span className="text-xs text-muted-foreground">
-                base: {productById.get(item.base_product_id)?.code}
-              </span>
-            )}
-          </div>
-        ) : (
-          <Badge variant="outline" className="w-fit text-xs">
-            Own
-          </Badge>
-        ),
-    },
-    {
-      key: "grades.name",
-      header: "Grade",
-      render: (item: Product) => item.grades?.name || "-",
-    },
-    {
-      key: "units_of_measure.name",
-      header: "UOM",
-      render: (item: Product) => item.units_of_measure?.name || "-",
-    },
-    { key: "standard_output_rate", header: "Std Output" },
-    {
-      key: "planning_items.name",
-      header: "Planning Item",
-      className: "min-w-[180px]",
-      render: (item: Product) =>
-        item.planning_items
-          ? `${item.planning_items.code} — ${item.planning_items.name}`
-          : <span className="text-amber-600 text-xs">⚠ not linked</span>,
-    },
-    {
-      key: "standard_cost",
-      header: "Std Cost / Dz",
-      render: (item: Product) =>
-        item.standard_cost != null
-          ? `Rs. ${Number(item.standard_cost).toLocaleString()}`
-          : <span className="text-amber-600 text-xs">⚠ unset</span>,
-    },
-    {
-      key: "standard_selling_price",
-      header: "Std Sell / Dz",
-      render: (item: Product) =>
-        item.standard_selling_price != null && Number(item.standard_selling_price) > 0
-          ? `Rs. ${Number(item.standard_selling_price).toLocaleString()}`
-          : <span className="text-amber-600 text-xs">⚠ unset</span>,
-    },
-    {
-      key: "is_active",
-      header: "Status",
-      render: (item: Product) => (
-        <span className={item.is_active ? "text-green-500" : "text-red-500"}>
-          {item.is_active ? "Active" : "Inactive"}
-        </span>
-      ),
-    },
-    ...(material.slots.length > 0 ? [{
-      key: "color",
-      header: "Color",
-      render: (item: Product) => item.color || <span className="text-muted-foreground">—</span>,
-    }] : []),
-    ...material.slots.map((slot) => ({
-      key: `material_${slot.key}`,
-      header: slot.label,
-      render: (item: Product) => {
-        const row = effectiveMaterials(item, material.byProduct).get(slot.key);
-        if (!row) return <span className="text-muted-foreground">—</span>;
-        const it = material.itemById.get(row.item_id);
-        const level = stockLevel(material.stock.get(row.item_id));
-        return (
-          <div className="flex min-w-[130px] items-start gap-1.5" title={STOCK_TEXT[level]}>
-            <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", STOCK_DOT[level])} />
-            <div>
-              <div className="whitespace-nowrap">{it?.name ?? "Inactive item"}</div>
-              <div className="text-xs text-muted-foreground whitespace-nowrap">
-                {fmtQty(Number(row.qty_per_dozen), it?.unit)} / dz
-                {Number(row.wastage_pct) > 0 ? ` · ${Number(row.wastage_pct)}%` : ""}
-                {row.inherited ? " · from base" : ""}
-              </div>
-            </div>
-          </div>
-        );
-      },
-    })),
-    {
-      key: "actions",
-      header: "Actions",
-      className: `${PIN} right-0 shadow-[-1px_0_0_hsl(var(--border))]`,
-      render: (item: Product) => (
-        <div className="flex gap-2">
-          {canEdit && (
-            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
   const filterTabs: { key: OwnerFilter; label: string }[] = [
     { key: "all", label: "All" },
     { key: "own", label: "Own SKUs" },
@@ -664,11 +536,19 @@ export default function ProductsPage() {
             userId={user?.id ?? null}
           />
         ) : (
-          <DataTable
-            columns={columns}
-            data={visibleProducts}
+          <ProductsTable
+            products={visibleProducts}
+            slots={material.slots}
+            byProduct={material.byProduct}
+            itemById={material.itemById}
+            stock={material.stock}
+            customerName={(id) => customerById.get(id)?.name}
+            productCode={(id) => productById.get(id)?.code}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onEdit={(p) => handleEdit(p as Product)}
+            onDelete={(p) => handleDelete(p as Product)}
             emptyMessage={isLoading ? "Loading..." : "No products found"}
-            fitScreen
           />
         )}
 

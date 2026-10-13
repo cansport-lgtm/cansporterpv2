@@ -24,12 +24,6 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   className?: string;
   expandedRowRender?: (item: T) => React.ReactNode;
-  /**
-   * Wide tables: the table scrolls inside a box that fits the screen, so the
-   * sideways scrollbar is always visible and the header row stays on top.
-   * Columns can pin themselves with sticky left/right classes.
-   */
-  fitScreen?: boolean;
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -39,7 +33,6 @@ export function DataTable<T extends { id: string | number }>({
   emptyMessage = "No data available",
   className,
   expandedRowRender,
-  fitScreen = false,
 }: DataTableProps<T>) {
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
@@ -66,28 +59,17 @@ export function DataTable<T extends { id: string | number }>({
 
   const hasExpandable = !!expandedRowRender;
 
-  // fitScreen renders a bare <table> so this box (not Table's own wrapper)
-  // is the scroll container that sticky header / columns stick to.
-  const TableEl = fitScreen ? BareTable : Table;
-
   return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card overflow-x-auto",
-        fitScreen && "max-h-[calc(100vh-15rem)] min-h-[16rem] overflow-auto",
-        className
-      )}
-    >
-      <TableEl>
-        <TableHeader className={cn(fitScreen && "sticky top-0 z-20 bg-muted shadow-[0_1px_0_hsl(var(--border))]")}>
-          <TableRow className={cn("bg-muted/50 hover:bg-muted/50", fitScreen && "bg-muted hover:bg-muted")}>
+    <div className={cn("rounded-lg border bg-card overflow-x-auto", className)}>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
             {hasExpandable && <TableHead className="w-10" />}
             {columns.map((column) => (
               <TableHead
                 key={String(column.key)}
                 className={cn(
                   "text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-                  fitScreen && "whitespace-nowrap bg-muted",
                   column.className
                 )}
               >
@@ -150,11 +132,7 @@ export function DataTable<T extends { id: string | number }>({
             ))
           )}
         </TableBody>
-      </TableEl>
+      </Table>
     </div>
   );
-}
-
-function BareTable({ children }: { children: React.ReactNode }) {
-  return <table className="w-full caption-bottom text-sm">{children}</table>;
 }
