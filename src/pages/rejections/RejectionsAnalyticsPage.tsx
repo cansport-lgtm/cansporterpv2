@@ -118,8 +118,11 @@ export default function RejectionsAnalyticsPage() {
   const { data: downgrades = [] } = useQuery({
     queryKey: ["an-dg", fromDate, toDate, deptFilter],
     queryFn: async () => {
+      // approved_on is the server's (Karachi) date: when the range runs to today,
+      // leave it open-ended so a lagging device clock cannot hide approvals.
       let q = dgDb.from("rw_downgrades").select("*").eq("status", "approved")
-        .gte("approved_on", fromDate).lte("approved_on", toDate).order("approved_on", { ascending: false });
+        .gte("approved_on", fromDate).order("approved_on", { ascending: false });
+      if (toDate < todayStr) q = q.lte("approved_on", toDate);
       if (deptFilter !== "all") q = q.eq("department_id", deptFilter);
       const { data } = await q;
       return (data || []) as Downgrade[];
