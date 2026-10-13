@@ -35,6 +35,8 @@ import {
   LifeBuoy,
   DoorOpen,
   CalendarRange,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import cansportLogo from "@/assets/cansport-logo.png";
@@ -833,12 +837,37 @@ const navigationItems: NavItem[] = [
 interface ERPSidebarProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
-export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
+const DESKTOP_QUERY = "(min-width: 1024px)"; // Tailwind `lg`
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_QUERY);
+    const onChange = () => setIsDesktop(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isDesktop;
+};
+
+export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: ERPSidebarProps) {
   const location = useLocation();
   const { canAccessModule, canAccessRoute, roles, hasModulePermission } = useAuth();
   const [isAddRawMaterialOpen, setIsAddRawMaterialOpen] = useState(false);
+
+  // The icon rail only applies on desktop; the mobile drawer always shows full labels.
+  const isDesktop = useIsDesktop();
+  const isRail = collapsed && isDesktop;
+  // Module whose flyout submenu is open while in rail mode
+  const [openFlyout, setOpenFlyout] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOpenFlyout(null);
+  }, [location.pathname, location.search, isRail]);
 
   // Check if user is super_admin
   const isSuperAdmin = roles.some(r => r.role === 'super_admin');
@@ -995,19 +1024,45 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-[transform,width] duration-300 lg:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+          isRail && "w-[72px]"
         )}
       >
         {/* Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <img
-              src={cansportLogo}
-              alt="Cansport Global Industries"
-              className="h-10 w-auto object-contain"
-            />
-          </div>
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-sidebar-border",
+            isRail ? "justify-center px-2" : "justify-between px-4"
+          )}
+        >
+          {!isRail && (
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={cansportLogo}
+                alt="Cansport Global Industries"
+                className="h-10 w-auto object-contain"
+              />
+            </div>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:inline-flex shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                onClick={onToggleCollapsed}
+                aria-label={isRail ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!isRail}
+              >
+                {isRail ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {isRail ? "Expand sidebar" : "Collapse sidebar"}
+              <span className="ml-2 text-muted-foreground">Ctrl+B</span>
+            </TooltipContent>
+          </Tooltip>
           <Button
             variant="ghost"
             size="icon"
@@ -1019,7 +1074,135 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 h-[calc(100vh-8rem)] scrollbar-thin">
+        <nav
+          className={cn(
+            "flex-1 overflow-y-auto py-4 h-[calc(100vh-8rem)] scrollbar-thin",
+            isRail ? "px-2 overflow-x-hidden" : "px-3"
+          )}
+        >
+          {isRail ? (
+            <div className="flex flex-col items-center gap-1">
+              {filteredNavigationItems.map((item) => {
+                const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
+                // Same visual language as the expanded menu: prominent modules and an
+                // active direct link get the brand gradient, an active module gets the accent.
+                const gradient = item.prominent || (itemActive && !!item.href);
+                const railButtonClass = cn(
+                  "group relative flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200",
+                  gradient
+                    ? "bg-brand-gradient text-primary-foreground shadow-soft"
+                    : itemActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
+                );
+                const icon = (
+                  <item.icon
+                    className={cn(
+                      "h-5 w-5 transition-transform group-hover:scale-110",
+                      gradient ? "text-primary-foreground" : item.color,
+                    )}
+                  />
+                );
+
+                if (item.href) {
+                  return (
+                    <Tooltip key={item.title}>
+                      <TooltipTrigger asChild>
+                        <Link to={item.href} aria-label={item.title} className={railButtonClass}>
+                          {icon}
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.title}</TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <Popover
+                    key={item.title}
+                    open={openFlyout === item.title}
+                    onOpenChange={(open) => setOpenFlyout(open ? item.title : null)}
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <button type="button" aria-label={item.title} className={railButtonClass}>
+                            {itemActive && !item.prominent && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
+                            )}
+                            {icon}
+                          </button>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      {openFlyout !== item.title && (
+                        <TooltipContent side="right">{item.title}</TooltipContent>
+                      )}
+                    </Tooltip>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      sideOffset={12}
+                      className="w-60 p-2 max-h-[80vh] overflow-y-auto"
+                    >
+                      {item.prominent && item.quickHref ? (
+                        <Link
+                          to={item.quickHref}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-accent"
+                        >
+                          <item.icon className={cn("h-4 w-4", item.color)} />
+                          {item.title}
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 text-sm font-semibold">
+                          <item.icon className={cn("h-4 w-4", item.color)} />
+                          {item.title}
+                        </div>
+                      )}
+                      <div className="mt-1 space-y-0.5 border-t border-border pt-1">
+                        {item.hasQuickAction && item.title === "Floor Inventory" && (
+                          <button
+                            onClick={() => {
+                              setOpenFlyout(null);
+                              setIsAddRawMaterialOpen(true);
+                            }}
+                            className="flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors text-primary hover:bg-accent font-medium"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Raw Material
+                          </button>
+                        )}
+                        {item.children?.map((child, idx) =>
+                          child.isHeader ? (
+                            <div
+                              key={`hdr-${child.title}-${idx}`}
+                              className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none"
+                            >
+                              {child.title}
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.title}
+                              to={child.href}
+                              state={child.state}
+                              onClick={() => setOpenFlyout(null)}
+                              className={cn(
+                                "block rounded-lg px-3 py-1.5 text-sm transition-colors",
+                                isActiveRoute(child.href) && !child.state
+                                  ? "bg-primary/10 text-primary font-semibold"
+                                  : "text-foreground/75 hover:text-foreground hover:bg-accent"
+                              )}
+                            >
+                              {child.title}
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
+            </div>
+          ) : (
           <div className="space-y-0.5">
             {filteredNavigationItems.map((item) => {
               const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
@@ -1151,17 +1334,34 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
               );
             })}
           </div>
+          )}
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-3 bg-sidebar/80">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="h-4 w-4 mr-3" />
-            Logout
-          </Button>
+        <div className={cn("border-t border-sidebar-border bg-sidebar/80", isRail ? "p-2 flex justify-center" : "p-3")}>
+          {isRail ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Logout"
+                  className="text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Logout</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="h-4 w-4 mr-3" />
+              Logout
+            </Button>
+          )}
         </div>
       </aside>
 
