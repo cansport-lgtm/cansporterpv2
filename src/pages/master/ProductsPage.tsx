@@ -445,9 +445,15 @@ export default function ProductsPage() {
     toast.success(`Materials copied from ${src.code} — review and Save`);
   };
 
+  // Pinned while scrolling sideways: Code + Name on the left, Actions on the right.
+  const PIN = "sticky z-10 bg-card";
   const columns = [
-    { key: "code", header: "Code" },
-    { key: "name", header: "Name" },
+    { key: "code", header: "Code", className: `${PIN} left-0 w-[76px] min-w-[76px]` },
+    {
+      key: "name",
+      header: "Name",
+      className: `${PIN} left-[76px] min-w-[150px] shadow-[1px_0_0_hsl(var(--border))]`,
+    },
     {
       key: "owner",
       header: "Owner",
@@ -483,6 +489,7 @@ export default function ProductsPage() {
     {
       key: "planning_items.name",
       header: "Planning Item",
+      className: "min-w-[180px]",
       render: (item: Product) =>
         item.planning_items
           ? `${item.planning_items.code} — ${item.planning_items.name}`
@@ -544,6 +551,7 @@ export default function ProductsPage() {
     {
       key: "actions",
       header: "Actions",
+      className: `${PIN} right-0 shadow-[-1px_0_0_hsl(var(--border))]`,
       render: (item: Product) => (
         <div className="flex gap-2">
           {canEdit && (
@@ -660,6 +668,7 @@ export default function ProductsPage() {
             columns={columns}
             data={visibleProducts}
             emptyMessage={isLoading ? "Loading..." : "No products found"}
+            fitScreen
           />
         )}
 
