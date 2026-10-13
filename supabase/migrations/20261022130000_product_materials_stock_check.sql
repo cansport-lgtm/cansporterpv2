@@ -691,7 +691,7 @@ BEGIN
 
     IF v_prev.id IS NOT NULL THEN
       UPDATE public.material_checks SET status = 'superseded' WHERE id = v_prev.id;
-  END IF;
+    END IF;
   END IF;
 
   -- Alert only when something needs attention (or an earlier alert changed).
@@ -873,11 +873,16 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.status = 'confirmed' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'confirmed') THEN
-    PERFORM public.material_check_run('sales_order', NEW.id, NEW.created_by);
-  ELSIF NEW.status = 'cancelled' AND TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
-    PERFORM public.material_check_close('sales_order', NEW.id, 'cancelled');
-  END IF;
+  -- Warning only: a problem in the check must never stop the order saving.
+  BEGIN
+    IF NEW.status = 'confirmed' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'confirmed') THEN
+      PERFORM public.material_check_run('sales_order', NEW.id, NEW.created_by);
+    ELSIF NEW.status = 'cancelled' AND TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
+      PERFORM public.material_check_close('sales_order', NEW.id, 'cancelled');
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'material check skipped for sales order %: %', NEW.id, SQLERRM;
+  END;
   RETURN NEW;
 END;
 $$;
@@ -905,7 +910,11 @@ BEGIN
        AND so.id IN (
          SELECT order_id FROM changed_rows)
   LOOP
-    PERFORM public.material_check_run('sales_order', r.id, r.created_by);
+    BEGIN
+      PERFORM public.material_check_run('sales_order', r.id, r.created_by);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'material re-check skipped for sales order %: %', r.id, SQLERRM;
+    END;
   END LOOP;
   RETURN NULL;
 END;
@@ -937,12 +946,17 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.status = 'approved' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'approved') THEN
-    PERFORM public.material_check_run('distributor_order', NEW.id, coalesce(NEW.approved_by, NEW.created_by));
-  ELSIF NEW.status IN ('rejected', 'cancelled') AND TG_OP = 'UPDATE'
-        AND OLD.status IS DISTINCT FROM NEW.status THEN
-    PERFORM public.material_check_close('distributor_order', NEW.id, NEW.status);
-  END IF;
+  -- Warning only: a problem in the check must never stop the approval.
+  BEGIN
+    IF NEW.status = 'approved' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'approved') THEN
+      PERFORM public.material_check_run('distributor_order', NEW.id, coalesce(NEW.approved_by, NEW.created_by));
+    ELSIF NEW.status IN ('rejected', 'cancelled') AND TG_OP = 'UPDATE'
+          AND OLD.status IS DISTINCT FROM NEW.status THEN
+      PERFORM public.material_check_close('distributor_order', NEW.id, NEW.status);
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'material check skipped for distributor order %: %', NEW.id, SQLERRM;
+  END;
   RETURN NEW;
 END;
 $$;
@@ -967,7 +981,11 @@ BEGIN
      WHERE d.status = 'approved'
        AND d.id IN (SELECT order_id FROM changed_rows)
   LOOP
-    PERFORM public.material_check_run('distributor_order', r.id, r.actor);
+    BEGIN
+      PERFORM public.material_check_run('distributor_order', r.id, r.actor);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'material re-check skipped for distributor order %: %', r.id, SQLERRM;
+    END;
   END LOOP;
   RETURN NULL;
 END;
