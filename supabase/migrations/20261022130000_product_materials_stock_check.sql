@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS public.product_material_slots (
 );
 
 ALTER TABLE public.product_material_slots ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all access to product_material_slots" ON public.product_material_slots;
-CREATE POLICY "Allow all access to product_material_slots"
+DROP POLICY IF EXISTS allow_all_product_material_slots ON public.product_material_slots;
+CREATE POLICY allow_all_product_material_slots
   ON public.product_material_slots FOR ALL USING (true) WITH CHECK (true);
 
 INSERT INTO public.product_material_slots (key, label, sort_order, customer_override) VALUES
@@ -56,8 +56,8 @@ INSERT INTO public.product_material_slots (key, label, sort_order, customer_over
 ON CONFLICT (key) DO NOTHING;
 
 -- Best-effort first mapping from existing category / sub-category names:
--- a matching sub-category (e.g. "Packaging > PVC SLEEVES") wins, else a
--- category with a matching name (e.g. "Felt", "Stamps", "Cartons").
+-- a matching sub-category (e.g. Packaging > PVC SLEEVES) wins, else a
+-- category with a matching name (e.g. Felt, Stamps, Cartons).
 -- Anything not matched stays empty and is set on Products / SKUs → Column setup.
 DO $$
 DECLARE
@@ -112,8 +112,8 @@ CREATE TABLE IF NOT EXISTS public.product_materials (
 CREATE INDEX IF NOT EXISTS idx_product_materials_item ON public.product_materials(item_id);
 
 ALTER TABLE public.product_materials ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all access to product_materials" ON public.product_materials;
-CREATE POLICY "Allow all access to product_materials"
+DROP POLICY IF EXISTS allow_all_product_materials ON public.product_materials;
+CREATE POLICY allow_all_product_materials
   ON public.product_materials FOR ALL USING (true) WITH CHECK (true);
 
 DROP TRIGGER IF EXISTS update_product_materials_updated_at ON public.product_materials;
@@ -143,15 +143,15 @@ BEGIN
   END IF;
   IF TG_OP = 'INSERT' OR NEW.item_id IS DISTINCT FROM OLD.item_id THEN
     IF coalesce(v_item.is_active, true) = false THEN
-      RAISE EXCEPTION 'Item "%" is inactive', v_item.name;
+      RAISE EXCEPTION 'Item % is inactive', v_item.name;
     END IF;
     IF v_slot.category_id IS NULL THEN
-      RAISE EXCEPTION 'Column "%" has no category set. Set it in Products / SKUs → Column setup', v_slot.label;
+      RAISE EXCEPTION 'Column % has no category set. Set it in Products / SKUs > Column setup', v_slot.label;
     END IF;
     IF v_item.raw_material_category_id IS DISTINCT FROM v_slot.category_id
        OR (v_slot.subcategory_id IS NOT NULL
            AND v_item.raw_material_subcategory_id IS DISTINCT FROM v_slot.subcategory_id) THEN
-      RAISE EXCEPTION 'Item "%" does not belong to the % column''s category', v_item.name, v_slot.label;
+      RAISE EXCEPTION 'Item % does not belong to the % column''s category', v_item.name, v_slot.label;
     END IF;
   END IF;
 
@@ -183,8 +183,8 @@ CREATE INDEX IF NOT EXISTS idx_product_material_log_product
   ON public.product_material_log(product_id, changed_at DESC);
 
 ALTER TABLE public.product_material_log ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read product_material_log" ON public.product_material_log;
-CREATE POLICY "Allow read product_material_log"
+DROP POLICY IF EXISTS allow_read_product_material_log ON public.product_material_log;
+CREATE POLICY allow_read_product_material_log
   ON public.product_material_log FOR SELECT USING (true);
 
 CREATE OR REPLACE FUNCTION public.product_materials_log_change()
@@ -553,10 +553,10 @@ CREATE INDEX IF NOT EXISTS idx_material_check_lines_item ON public.material_chec
 
 ALTER TABLE public.material_checks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.material_check_lines ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read material_checks" ON public.material_checks;
-CREATE POLICY "Allow read material_checks" ON public.material_checks FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Allow read material_check_lines" ON public.material_check_lines;
-CREATE POLICY "Allow read material_check_lines" ON public.material_check_lines FOR SELECT USING (true);
+DROP POLICY IF EXISTS allow_read_material_checks ON public.material_checks;
+CREATE POLICY allow_read_material_checks ON public.material_checks FOR SELECT USING (true);
+DROP POLICY IF EXISTS allow_read_material_check_lines ON public.material_check_lines;
+CREATE POLICY allow_read_material_check_lines ON public.material_check_lines FOR SELECT USING (true);
 
 -- Roles that receive stock alerts.
 CREATE OR REPLACE FUNCTION public.material_alert_roles()
@@ -565,9 +565,27 @@ LANGUAGE sql
 IMMUTABLE
 AS $$ SELECT ARRAY['store_operator', 'purchase_manager', 'purchase_officer', 'admin', 'super_admin']::app_role[] $$;
 
+-- Rows of a computed check carried as jsonb (no temp tables needed).
+CREATE OR REPLACE FUNCTION public.material_check_rows(p_rows jsonb)
+RETURNS TABLE (
+  item_id uuid, item_name text, unit text, slots text, used_by text, needed numeric,
+  stock_now numeric, last_count_date date, stock_after numeric, min_stock numeric,
+  max_stock numeric, result text, count_is_old boolean, suggest_qty numeric
+)
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT * FROM jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) AS r(
+    item_id uuid, item_name text, unit text, slots text, used_by text, needed numeric,
+    stock_now numeric, last_count_date date, stock_after numeric, min_stock numeric,
+    max_stock numeric, result text, count_is_old boolean, suggest_qty numeric)
+$$;
+
 -- Run the check for one order, save the snapshot and notify when something
 -- is wrong. Skips orders with no lines and re-runs whose result did not
--- change. Returns the new check id (or the unchanged open one).
+-- change. A re-run within 2 minutes of the previous one (an edit form saving
+-- its lines one by one) moves the existing alert onto the new snapshot
+-- instead of sending another. Returns the open check id.
 CREATE OR REPLACE FUNCTION public.material_check_run(
   p_source_type text, p_source_id uuid, p_actor uuid DEFAULT NULL)
 RETURNS uuid
@@ -577,6 +595,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_prev       public.material_checks%ROWTYPE;
+  v_rows_json  jsonb;
   v_id         uuid;
   v_number     text;
   v_label      text;
@@ -592,6 +611,8 @@ DECLARE
   v_title      text;
   v_msg        text;
   v_reason     text;
+  v_merge      boolean;
+  v_bad        boolean;
 BEGIN
   IF p_source_type = 'sales_order' THEN
     SELECT so.order_number,
@@ -607,22 +628,20 @@ BEGIN
       FROM public.distributor_orders d WHERE d.id = p_source_id;
   END IF;
 
-  CREATE TEMP TABLE IF NOT EXISTS _mc_rows ON COMMIT DROP AS
-    SELECT * FROM public.material_check_compute(p_source_type, p_source_id) LIMIT 0;
-  TRUNCATE _mc_rows;
-  INSERT INTO _mc_rows SELECT * FROM public.material_check_compute(p_source_type, p_source_id);
+  SELECT coalesce(jsonb_agg(to_jsonb(c)), '[]'::jsonb) INTO v_rows_json
+    FROM public.material_check_compute(p_source_type, p_source_id) c;
 
   SELECT count(*),
-         count(*) FILTER (WHERE result = 'short'),
-         count(*) FILTER (WHERE result = 'below_min'),
-         count(*) FILTER (WHERE result = 'unknown'),
-         count(*) FILTER (WHERE result = 'not_set'),
-         count(*) FILTER (WHERE count_is_old AND result <> 'unknown'),
-         count(*) FILTER (WHERE result = 'ok'),
-         md5(coalesce(string_agg(coalesce(item_id::text, item_name) || ':' || needed::text || ':' || result
-                                 || ':' || count_is_old::text, '|' ORDER BY coalesce(item_id::text, item_name)), ''))
+         count(*) FILTER (WHERE r.result = 'short'),
+         count(*) FILTER (WHERE r.result = 'below_min'),
+         count(*) FILTER (WHERE r.result = 'unknown'),
+         count(*) FILTER (WHERE r.result = 'not_set'),
+         count(*) FILTER (WHERE r.count_is_old AND r.result <> 'unknown'),
+         count(*) FILTER (WHERE r.result = 'ok'),
+         md5(coalesce(string_agg(coalesce(r.item_id::text, r.item_name) || ':' || r.needed::text || ':' || r.result
+                                 || ':' || r.count_is_old::text, '|' ORDER BY coalesce(r.item_id::text, r.item_name)), ''))
     INTO v_rows, v_short, v_below, v_unknown, v_not_set, v_old, v_ok, v_sig
-    FROM _mc_rows;
+    FROM public.material_check_rows(v_rows_json) r;
 
   SELECT * INTO v_prev FROM public.material_checks
    WHERE source_type = p_source_type AND source_id = p_source_id AND status = 'open'
@@ -638,91 +657,70 @@ BEGIN
     RETURN v_prev.id;
   END IF;
 
-  v_reason := CASE WHEN v_prev.id IS NULL THEN 'confirmed' ELSE 'updated' END;
+  v_merge := v_prev.id IS NOT NULL AND v_prev.created_at > now() - interval '2 minutes';
+  v_reason := CASE WHEN v_prev.id IS NULL THEN 'confirmed'
+                   WHEN v_merge THEN v_prev.reason
+                   ELSE 'updated' END;
+  v_bad := v_short + v_below + v_unknown + v_not_set + v_old > 0;
 
-  -- Several saves in a row (an edit form saving its lines one by one): refresh
-  -- the check made moments ago and its alert instead of sending another one.
-  IF v_prev.id IS NOT NULL AND v_prev.created_at > now() - interval '2 minutes' THEN
-    v_id := v_prev.id;
-    UPDATE public.material_checks
-       SET short_count = v_short, below_min_count = v_below, unknown_count = v_unknown,
-           not_set_count = v_not_set, old_count = v_old, ok_count = v_ok, signature = v_sig
-     WHERE id = v_id;
-    CREATE TEMP TABLE IF NOT EXISTS _mc_keep ON COMMIT DROP AS
-      SELECT item_id, purchase_status, po_reference, status_updated_by, status_updated_at
-        FROM public.material_check_lines LIMIT 0;
-    TRUNCATE _mc_keep;
-    INSERT INTO _mc_keep
-      SELECT item_id, purchase_status, po_reference, status_updated_by, status_updated_at
-        FROM public.material_check_lines WHERE check_id = v_id AND item_id IS NOT NULL;
-    DELETE FROM public.material_check_lines WHERE check_id = v_id;
-    INSERT INTO public.material_check_lines
-      (check_id, item_id, item_name, unit, slots, used_by, needed, stock_now, last_count_date,
-       stock_after, min_stock, max_stock, result, count_is_old, suggest_qty,
-       purchase_status, po_reference, status_updated_by, status_updated_at)
-    SELECT v_id, r.item_id, r.item_name, r.unit, r.slots, r.used_by, r.needed, r.stock_now,
-           r.last_count_date, r.stock_after, r.min_stock, r.max_stock, r.result, r.count_is_old,
-           r.suggest_qty,
-           coalesce(k.purchase_status, 'new'), k.po_reference, k.status_updated_by, k.status_updated_at
-      FROM _mc_rows r
-      LEFT JOIN _mc_keep k ON k.item_id = r.item_id;
-    v_reason := v_prev.reason;
-  ELSE
-    INSERT INTO public.material_checks
-      (source_type, source_id, order_number, order_label, order_link, reason,
-       short_count, below_min_count, unknown_count, not_set_count, old_count, ok_count,
-       signature, created_by)
-    VALUES
-      (p_source_type, p_source_id, v_number, v_label, v_link, v_reason,
-       v_short, v_below, v_unknown, v_not_set, v_old, v_ok, v_sig, p_actor)
-    RETURNING id INTO v_id;
+  INSERT INTO public.material_checks
+    (source_type, source_id, order_number, order_label, order_link, reason,
+     short_count, below_min_count, unknown_count, not_set_count, old_count, ok_count,
+     signature, created_by)
+  VALUES
+    (p_source_type, p_source_id, v_number, v_label, v_link, v_reason,
+     v_short, v_below, v_unknown, v_not_set, v_old, v_ok, v_sig, p_actor)
+  RETURNING id INTO v_id;
 
-    INSERT INTO public.material_check_lines
-      (check_id, item_id, item_name, unit, slots, used_by, needed, stock_now, last_count_date,
-       stock_after, min_stock, max_stock, result, count_is_old, suggest_qty,
-       purchase_status, po_reference, status_updated_by, status_updated_at)
-    SELECT v_id, r.item_id, r.item_name, r.unit, r.slots, r.used_by, r.needed, r.stock_now,
-           r.last_count_date, r.stock_after, r.min_stock, r.max_stock, r.result, r.count_is_old,
-           r.suggest_qty,
-           coalesce(pl.purchase_status, 'new'), pl.po_reference, pl.status_updated_by, pl.status_updated_at
-      FROM _mc_rows r
-      LEFT JOIN public.material_check_lines pl
-        ON v_prev.id IS NOT NULL AND pl.check_id = v_prev.id AND pl.item_id = r.item_id;
+  -- Purchase follow-up already recorded for an item carries over.
+  INSERT INTO public.material_check_lines
+    (check_id, item_id, item_name, unit, slots, used_by, needed, stock_now, last_count_date,
+     stock_after, min_stock, max_stock, result, count_is_old, suggest_qty,
+     purchase_status, po_reference, status_updated_by, status_updated_at)
+  SELECT v_id, r.item_id, r.item_name, r.unit, r.slots, r.used_by, r.needed, r.stock_now,
+         r.last_count_date, r.stock_after, r.min_stock, r.max_stock, r.result, r.count_is_old,
+         r.suggest_qty,
+         coalesce(pl.purchase_status, 'new'), pl.po_reference, pl.status_updated_by, pl.status_updated_at
+    FROM public.material_check_rows(v_rows_json) r
+    LEFT JOIN public.material_check_lines pl
+      ON v_prev.id IS NOT NULL AND pl.check_id = v_prev.id AND pl.item_id = r.item_id;
 
-    IF v_prev.id IS NOT NULL THEN
-      UPDATE public.material_checks SET status = 'superseded' WHERE id = v_prev.id;
-    END IF;
+  IF v_prev.id IS NOT NULL THEN
+    UPDATE public.material_checks SET status = 'superseded' WHERE id = v_prev.id;
   END IF;
 
   -- Alert only when something needs attention (or an earlier alert changed).
-  IF v_short + v_below + v_unknown + v_not_set + v_old > 0 OR v_prev.id IS NOT NULL THEN
+  IF v_bad OR v_prev.id IS NOT NULL THEN
     v_title := CASE
-      WHEN v_reason = 'updated' THEN 'Updated — ' || coalesce(v_number, v_label) || ' re-checked'
-      WHEN v_short > 0 THEN 'Material short — ' || coalesce(v_number, v_label)
-      WHEN v_below > 0 THEN 'Below min stock — ' || coalesce(v_number, v_label)
-      ELSE 'Stock check warning — ' || coalesce(v_number, v_label)
+      WHEN v_reason = 'updated' THEN 'Updated - ' || coalesce(v_number, v_label) || ' re-checked'
+      WHEN v_short > 0 THEN 'Material short - ' || coalesce(v_number, v_label)
+      WHEN v_below > 0 THEN 'Below min stock - ' || coalesce(v_number, v_label)
+      ELSE 'Stock check warning - ' || coalesce(v_number, v_label)
     END;
 
-    SELECT concat_ws(' · ',
+    SELECT concat_ws(' | ',
              CASE WHEN v_short > 0 THEN v_short || ' short' END,
              CASE WHEN v_below > 0 THEN v_below || ' below min stock' END,
              CASE WHEN v_unknown > 0 THEN v_unknown || ' stock unknown' END,
              CASE WHEN v_not_set > 0 THEN v_not_set || ' product(s) with materials not set' END,
              CASE WHEN v_old > 0 THEN v_old || ' old count' END,
-             CASE WHEN v_short + v_below + v_unknown + v_not_set + v_old = 0 THEN 'All materials OK now' END)
+             CASE WHEN NOT v_bad THEN 'All materials OK now' END)
            || coalesce('. ' || (
-             SELECT string_agg(item_name || ' short by ' || rtrim(to_char(-stock_after, 'FM999,999,990.###'), '.') || ' ' || coalesce(unit, ''), '; ')
-               FROM (SELECT * FROM _mc_rows WHERE result = 'short' ORDER BY stock_after LIMIT 3) s), '')
+             SELECT string_agg(s.item_name || ' short by ' || rtrim(to_char(-s.stock_after, 'FM999,999,990.###'), '.') || ' ' || coalesce(s.unit, ''), '; ')
+               FROM (SELECT * FROM public.material_check_rows(v_rows_json) x
+                      WHERE x.result = 'short' ORDER BY x.stock_after LIMIT 3) s), '')
            || '. ' || v_label || ' order.'
       INTO v_msg;
 
-    IF v_id = v_prev.id THEN
+    IF v_merge THEN
       UPDATE public.notifications
          SET title = left(v_title, 200),
              message = v_msg,
-             type = CASE WHEN v_short + v_below + v_unknown + v_not_set + v_old > 0 THEN 'error' ELSE 'info' END
-       WHERE reference_type = 'material_check' AND reference_id = v_id;
-      IF NOT FOUND AND v_short + v_below + v_unknown + v_not_set + v_old > 0 THEN
+             type = CASE WHEN v_bad THEN 'error' ELSE 'info' END,
+             link = '/purchase/material-shortages?check=' || v_id,
+             reference_id = v_id
+       WHERE reference_type = 'material_check' AND reference_id = v_prev.id;
+      IF NOT FOUND AND v_bad THEN
         PERFORM public.notify_role(public.material_alert_roles(), left(v_title, 200), v_msg, 'error', 'stock',
           '/purchase/material-shortages?check=' || v_id, 'material_check', v_id, p_actor, NULL);
       END IF;
@@ -731,7 +729,7 @@ BEGIN
         public.material_alert_roles(),
         left(v_title, 200),
         v_msg,
-        CASE WHEN v_short + v_below + v_unknown + v_not_set + v_old > 0 THEN 'error' ELSE 'info' END,
+        CASE WHEN v_bad THEN 'error' ELSE 'info' END,
         'stock',
         '/purchase/material-shortages?check=' || v_id,
         'material_check',
@@ -766,9 +764,9 @@ BEGIN
 
   UPDATE public.notifications
      SET type = 'info',
-         title = left('Order ' || p_reason || ' — stock alert closed: ' || title, 200)
+         title = left('Order ' || p_reason || ' - stock alert closed: ' || title, 200)
    WHERE reference_type = 'material_check' AND reference_id = ANY (v_ids)
-     AND title NOT LIKE 'Order % — stock alert closed:%';
+     AND title NOT LIKE 'Order % - stock alert closed:%';
 END;
 $$;
 
@@ -1042,8 +1040,8 @@ BEGIN
 
   RETURN public.notify_role(
     public.material_alert_roles(),
-    'Morning summary — material stock',
-    concat_ws(' · ',
+    'Morning summary - material stock',
+    concat_ws(' | ',
       CASE WHEN v_short > 0 THEN v_short || ' materials short' END,
       v_orders || ' order' || CASE WHEN v_orders = 1 THEN '' ELSE 's' END || ' affected',
       CASE WHEN v_below > 0 THEN v_below || ' below min stock' END,
@@ -1082,7 +1080,7 @@ BEGIN
 
   RETURN public.notify_role(
     ARRAY['store_operator', 'closing_data_poster']::app_role[],
-    'Stock count missing — ' || v_count || ' daily item' || CASE WHEN v_count > 1 THEN 's' ELSE '' END,
+    'Stock count missing - ' || v_count || ' daily item' || CASE WHEN v_count > 1 THEN 's' ELSE '' END,
     left(v_names, 900) || ' not counted today. Stock alerts depend on fresh counts.',
     'warning', 'stock', '/consumption/stock-closing', 'material_count_reminder', NULL, NULL, NULL);
 END;

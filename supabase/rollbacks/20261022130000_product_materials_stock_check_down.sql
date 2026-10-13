@@ -32,6 +32,7 @@ DROP FUNCTION IF EXISTS public.material_check_close(text, uuid, text);
 DROP FUNCTION IF EXISTS public.material_check_run(text, uuid, uuid);
 DROP FUNCTION IF EXISTS public.material_check_preview(text, uuid);
 DROP FUNCTION IF EXISTS public.material_check_compute(text, uuid);
+DROP FUNCTION IF EXISTS public.material_check_rows(jsonb);
 DROP FUNCTION IF EXISTS public.material_alert_roles();
 DROP FUNCTION IF EXISTS public.material_suggest_qty(numeric, numeric, numeric, numeric);
 DROP FUNCTION IF EXISTS public.item_stock_now(uuid[]);
