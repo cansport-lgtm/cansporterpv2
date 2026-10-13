@@ -267,11 +267,13 @@ export default function ProductsPage() {
         standard_cost: data.standard_cost || null,
         standard_selling_price: data.standard_selling_price || null,
         planning_item_id: data.planning_item_id || null,
-        color: data.color.trim() || null,
         owner_type: data.owner_type,
         customer_party_id: customer ? data.customer_party_id : null,
         base_product_id: customer ? data.base_product_id || null : null,
         is_active: data.is_active,
+        // products.color arrives with the material migration; only send it
+        // once that migration is live (its slot table then has rows).
+        ...(material.slots.length > 0 ? { color: data.color.trim() || null } : {}),
       };
       let productId = data.id;
       if (data.id) {
@@ -511,11 +513,11 @@ export default function ProductsPage() {
         </span>
       ),
     },
-    {
+    ...(material.slots.length > 0 ? [{
       key: "color",
       header: "Color",
       render: (item: Product) => item.color || <span className="text-muted-foreground">—</span>,
-    },
+    }] : []),
     ...material.slots.map((slot) => ({
       key: `material_${slot.key}`,
       header: slot.label,
@@ -602,7 +604,7 @@ export default function ProductsPage() {
                 Setup Check
               </Link>
             </Button>
-            {canEdit && (
+            {canEdit && material.slots.length > 0 && (
               <>
                 <Button type="button" size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
                   <Layers className="mr-1 h-4 w-4" />
@@ -918,6 +920,7 @@ export default function ProductsPage() {
                   Stock item this product is dispatched from. Used by the Monthly Production report — unlinked products are flagged there.
                 </p>
               </div>
+              {material.slots.length > 0 && (<>
               <div className="space-y-2">
                 <Label htmlFor="color">Color</Label>
                 <Input
@@ -947,6 +950,7 @@ export default function ProductsPage() {
                 onCopyFrom={copyMaterialsFrom}
                 readOnly={!canEdit}
               />
+              </>)}
               <div className="flex items-center gap-2">
                 <Switch
                   id="is_active"

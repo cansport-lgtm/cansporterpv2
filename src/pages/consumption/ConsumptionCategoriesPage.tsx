@@ -63,7 +63,10 @@ const ConsumptionCategoriesPage = () => {
       const payload = {
         name: data.name.trim(),
         is_active: data.is_active,
-        requires_subcategory: data.requires_subcategory,
+        // Column added by the product-materials migration: only send it once live.
+        ...(categories.some((c) => "requires_subcategory" in c)
+          ? { requires_subcategory: data.requires_subcategory }
+          : {}),
       };
       if (editingCategory) {
         const { error } = await supabase.from("consumption_categories").update(payload).eq("id", editingCategory.id);
