@@ -151,7 +151,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "production",
     label: "Closing Data Poster (daily stock closing)",
     tier: "special",
-    description: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption) – limited to those two pages only",
+    description: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption), and views Reorder Requirement – limited to those pages only",
     color: "bg-purple-600/10 text-purple-600 border-purple-600/20",
   },
 

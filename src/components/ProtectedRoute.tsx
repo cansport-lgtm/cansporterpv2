@@ -216,9 +216,9 @@ export function ProtectedRoute({
     }
 
     // For closing data poster, redirect to the Planning Daily Stock Closing page when
-    // accessing anything outside their two allowed stock-closing pages.
+    // accessing anything outside their stock-closing and reorder requirement pages.
     if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {
-      const allowed = ['/planning/stock-closing', '/consumption/stock-closing'];
+      const allowed = ['/planning/stock-closing', '/consumption/stock-closing', '/consumption/reorder-requirement'];
       if (!allowed.includes(location.pathname)) {
         return <Navigate to="/planning/stock-closing" replace />;
       }

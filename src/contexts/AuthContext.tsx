@@ -247,7 +247,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   production_operator: ['/production', '/planning', '/dashboard'],
   // Closing Data Poster: ONLY the two stock-closing pages — Daily Stock Closing (Planning)
   // and Stock Closing (Material Consumption). Nothing else in those modules is reachable.
-  closing_data_poster: ['/planning/stock-closing', '/consumption/stock-closing'],
+  closing_data_poster: ['/planning/stock-closing', '/consumption/stock-closing', '/consumption/reorder-requirement'],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
