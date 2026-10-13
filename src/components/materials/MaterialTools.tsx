@@ -37,40 +37,69 @@ function useInvalidateMaterials() {
 
 // ------------------------------------------------------------ Column setup
 
+const LABEL_MAX = 24;
+
 export function ColumnSetupDialog({
   open,
   onOpenChange,
   slots,
   categories,
   subcategories,
+  canRename,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   slots: MaterialSlot[];
   categories: CategoryRef[];
   subcategories: SubcategoryRef[];
+  /** Only a super admin can rename columns. */
+  canRename: boolean;
 }) {
   const invalidate = useInvalidateMaterials();
-  const [rows, setRows] = useState<Record<string, { category_id: string; subcategory_id: string }>>({});
+  const [rows, setRows] = useState<Record<string, { label: string; category_id: string; subcategory_id: string }>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    const r: Record<string, { category_id: string; subcategory_id: string }> = {};
-    for (const s of slots) r[s.key] = { category_id: s.category_id ?? "", subcategory_id: s.subcategory_id ?? "" };
+    const r: Record<string, { label: string; category_id: string; subcategory_id: string }> = {};
+    for (const s of slots) r[s.key] = { label: s.label, category_id: s.category_id ?? "", subcategory_id: s.subcategory_id ?? "" };
     setRows(r);
   }, [open, slots]);
 
+  const nameError = (() => {
+    if (!canRename) return null;
+    const names = slots.map((s) => (rows[s.key]?.label ?? s.label).trim());
+    if (names.some((n) => !n)) return "Every column needs a name";
+    if (names.some((n) => n.length > LABEL_MAX)) return `Column names can be at most ${LABEL_MAX} characters`;
+    const lower = names.map((n) => n.toLowerCase());
+    if (new Set(lower).size !== lower.length) return "Two columns cannot have the same name";
+    return null;
+  })();
+
   const save = async () => {
+    if (nameError) {
+      toast.error(nameError);
+      return;
+    }
     setSaving(true);
     try {
       for (const s of slots) {
         const r = rows[s.key];
         if (!r) continue;
-        if ((r.category_id || null) === s.category_id && (r.subcategory_id || null) === s.subcategory_id) continue;
+        const label = canRename ? r.label.trim() : s.label;
+        if (
+          label === s.label &&
+          (r.category_id || null) === s.category_id &&
+          (r.subcategory_id || null) === s.subcategory_id
+        ) continue;
         const { error } = await db
           .from("product_material_slots")
-          .update({ category_id: r.category_id || null, subcategory_id: r.subcategory_id || null, updated_at: new Date().toISOString() })
+          .update({
+            ...(label !== s.label ? { label } : {}),
+            category_id: r.category_id || null,
+            subcategory_id: r.subcategory_id || null,
+            updated_at: new Date().toISOString(),
+          })
           .eq("key", s.key);
         if (error) throw error;
       }
@@ -93,17 +122,29 @@ export function ColumnSetupDialog({
         <p className="text-sm text-muted-foreground">
           Which raw-material category (and sub-category) each column's dropdown lists. Linked by ID, so renaming a
           category or sub-category never breaks it.
+          {canRename
+            ? " You can also rename a column; the new name shows on every page and in alerts. Materials already set are kept."
+            : " Only a super admin can rename columns."}
         </p>
         <div className="space-y-3">
           {slots.map((s) => {
-            const r = rows[s.key] ?? { category_id: "", subcategory_id: "" };
+            const r = rows[s.key] ?? { label: s.label, category_id: "", subcategory_id: "" };
             const subs = subcategories.filter((x) => x.category_id === r.category_id);
             return (
-              <div key={s.key} className="grid grid-cols-[120px_1fr_1fr] items-center gap-3">
-                <Label>{s.label}</Label>
+              <div key={s.key} className="grid grid-cols-[160px_1fr_1fr] items-center gap-3">
+                {canRename ? (
+                  <Input
+                    value={r.label}
+                    maxLength={LABEL_MAX}
+                    aria-label={`Name of the ${s.label} column`}
+                    onChange={(e) => setRows({ ...rows, [s.key]: { ...r, label: e.target.value } })}
+                  />
+                ) : (
+                  <Label>{s.label}</Label>
+                )}
                 <Select
                   value={r.category_id || "none"}
-                  onValueChange={(v) => setRows({ ...rows, [s.key]: { category_id: v === "none" ? "" : v, subcategory_id: "" } })}
+                  onValueChange={(v) => setRows({ ...rows, [s.key]: { ...r, category_id: v === "none" ? "" : v, subcategory_id: "" } })}
                 >
                   <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                   <SelectContent>
@@ -126,9 +167,10 @@ export function ColumnSetupDialog({
             );
           })}
         </div>
+        {nameError && <p className="text-sm text-destructive">{nameError}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <Button onClick={save} disabled={saving || !!nameError}>{saving ? "Saving…" : "Save"}</Button>
         </div>
       </DialogContent>
     </Dialog>

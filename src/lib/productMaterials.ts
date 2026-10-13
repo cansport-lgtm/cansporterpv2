@@ -18,7 +18,8 @@ export type SlotKey =
   | "theli"
   | "bags"
   | "sleeve"
-  | "cartons";
+  | "cartons"
+  | "master_packing_2";
 
 export interface MaterialSlot {
   key: SlotKey;
@@ -113,6 +114,7 @@ export const SLOT_KEYS: SlotKey[] = [
   "bags",
   "sleeve",
   "cartons",
+  "master_packing_2",
 ];
 
 // ---------------------------------------------------------------- loaders
