@@ -71,7 +71,7 @@ export function OrdersWaitingOnMaterial() {
                       : c.unknown_count > 0
                         ? "Stock unknown"
                         : c.not_set_count > 0
-                          ? "Materials not set"
+                          ? "Set the materials"
                           : c.below_min_count > 0
                             ? "Can start · below min stock"
                             : "Old stock count"}
