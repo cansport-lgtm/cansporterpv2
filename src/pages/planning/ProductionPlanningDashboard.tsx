@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OrdersWaitingOnMaterial } from "@/components/materials/OrdersWaitingOnMaterial";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -235,6 +236,8 @@ export default function ProductionPlanningDashboard() {
           </TabsList>
 
           <TabsContent value="planning" className="space-y-6">
+            <OrdersWaitingOnMaterial />
+
             {/* Week Navigation */}
             <Card>
               <CardContent className="py-4">

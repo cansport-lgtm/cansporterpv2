@@ -211,7 +211,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   pettycash_handler: ['/expenses/petty-cash', '/expenses/trip-fuel', '/expenses/freight-vouchers'], // Petty cash handler: petty cash, trip fuel vouchers and freight vouchers they pay
-  store_operator: ['/consumption/stock-closing', '/consumption/reorder-requirement', '/purchase/gate-inward'], // Store operator: stock closing + reorder requirement + gate inward register
+  store_operator: ['/consumption/stock-closing', '/consumption/reorder-requirement', '/purchase/gate-inward', '/purchase/material-shortages'], // Store operator: stock closing + reorder requirement + gate inward register + raw-material shortage alerts
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   projects_super_manager: ['/projects', '/dashboard'], // Projects Super Manager: whole Project Management module
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
@@ -274,6 +274,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/orders',
     '/purchase/grn',
     '/purchase/gate-inward',
+    '/purchase/material-shortages',
   ],
   // Purchase Manager: full purchase operations incl. approvals, invoices and returns.
   purchase_manager: [
@@ -286,6 +287,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/qc-parameters',
     '/purchase/invoices',
     '/purchase/returns',
+    '/purchase/material-shortages',
   ],
   // Purchase QC Inspector: ONLY the Quality Inspection page. No orders, goods
   // receipt, invoices, returns, suppliers or dashboard (all of which expose

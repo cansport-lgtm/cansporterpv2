@@ -163,6 +163,7 @@ export function ProtectedRoute({
       if (
         location.pathname !== '/consumption/stock-closing' &&
         location.pathname !== '/consumption/reorder-requirement' &&
+        location.pathname !== '/purchase/material-shortages' &&
         !location.pathname.startsWith('/purchase/gate-inward')
       ) {
         return <Navigate to="/consumption/stock-closing" replace />;

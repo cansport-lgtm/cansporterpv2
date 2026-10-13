@@ -419,7 +419,19 @@ export default function DistributorProductsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="unit">Unit</Label>
-                <Input id="unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="e.g. dozen, ctn" />
+                {/* Dropdown so the raw-material stock check can convert to dozens (Pieces ÷ 12). */}
+                <Select value={form.unit || undefined} onValueChange={(v) => setForm({ ...form, unit: v })}>
+                  <SelectTrigger id="unit">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dozen">Dozen</SelectItem>
+                    <SelectItem value="Pieces">Pieces (÷ 12 for stock check)</SelectItem>
+                    {form.unit && !["Dozen", "Pieces"].includes(form.unit) && (
+                      <SelectItem value={form.unit}>{form.unit} (old — pick Dozen or Pieces)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="flex items-center gap-2">

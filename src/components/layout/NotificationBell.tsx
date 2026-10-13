@@ -87,12 +87,16 @@ export function NotificationBell() {
           </div>
         ) : (
           <div className="max-h-96 overflow-y-auto">
-            {recent.map((n) => (
+            {recent.map((n) => {
+              // Raw-material stock alerts stand out in red.
+              const stockAlert = n.module === "stock" && n.type === "error";
+              return (
               <DropdownMenuItem
                 key={n.id}
                 className={cn(
                   "flex flex-col items-start gap-1 py-3 cursor-pointer",
-                  !n.is_read && "bg-muted/40"
+                  !n.is_read && "bg-muted/40",
+                  stockAlert && "border-l-4 border-l-red-600 bg-red-50 focus:bg-red-100 dark:bg-red-950/40 dark:focus:bg-red-950/60"
                 )}
                 onClick={() => handleClick(n)}
               >
@@ -103,7 +107,7 @@ export function NotificationBell() {
                       TYPE_DOT_COLORS[n.type] ?? TYPE_DOT_COLORS.info
                     )}
                   />
-                  <span className={cn("text-sm flex-1 truncate", !n.is_read ? "font-semibold" : "font-medium")}>
+                  <span className={cn("text-sm flex-1 truncate", !n.is_read ? "font-semibold" : "font-medium", stockAlert && "text-red-700 dark:text-red-300")}>
                     {n.title}
                   </span>
                   <span className="text-[10px] text-muted-foreground shrink-0">
@@ -116,7 +120,8 @@ export function NotificationBell() {
                   </span>
                 )}
               </DropdownMenuItem>
-            ))}
+              );
+            })}
           </div>
         )}
         <DropdownMenuSeparator />

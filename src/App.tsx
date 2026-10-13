@@ -248,6 +248,8 @@ import ConsumptionSubcategoriesPage from "./pages/consumption/ConsumptionSubcate
 import ConsumptionUsageReportPage from "./pages/consumption/ConsumptionUsageReportPage";
 import ValueTierUsageReportPage from "./pages/consumption/ValueTierUsageReportPage";
 import ReorderRequirementPage from "./pages/consumption/ReorderRequirementPage";
+import MaterialShortagesPage from "./pages/purchase/MaterialShortagesPage";
+import MaterialSetupCheckPage from "./pages/master/MaterialSetupCheckPage";
 
 // 5S Module pages
 import FiveSDashboard from "./pages/five-s/FiveSDashboard";
@@ -741,6 +743,7 @@ const App = () => (
             <Route path="/purchase/qc" element={<ProtectedRoute><PurchaseInspectionsPage /></ProtectedRoute>} />
             <Route path="/purchase/qc-parameters" element={<ProtectedRoute><QCParametersPage /></ProtectedRoute>} />
             <Route path="/purchase/grn" element={<ProtectedRoute><GoodsReceiptPage /></ProtectedRoute>} />
+            <Route path="/purchase/material-shortages" element={<ProtectedRoute><MaterialShortagesPage /></ProtectedRoute>} />
             <Route path="/purchase/gate-inward" element={<ProtectedRoute><GateInwardRegisterPage /></ProtectedRoute>} />
             <Route path="/purchase/gate-inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
             <Route path="/purchase/invoices" element={<ProtectedRoute><PurchaseInvoicesPage /></ProtectedRoute>} />
@@ -770,6 +773,7 @@ const App = () => (
             <Route path="/master/departments" element={<ProtectedRoute><DepartmentsPage /></ProtectedRoute>} />
             <Route path="/master/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
             <Route path="/master/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+            <Route path="/master/setup-check" element={<ProtectedRoute><MaterialSetupCheckPage /></ProtectedRoute>} />
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />

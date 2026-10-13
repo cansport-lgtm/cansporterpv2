@@ -17,6 +17,7 @@ import { useSalesOrdersList, SALES_ORDER_PERIOD_OPTIONS, type SalesOrderPeriod, 
 import { SalesOrdersListFooter } from "@/components/sales/SalesOrdersListFooter";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, Pencil, ChevronDown, ChevronRight } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DispatchProgress } from "@/components/sales/DispatchProgress";
@@ -258,9 +259,11 @@ export default function SalesOrdersPage() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
       toast.success('Status updated');
+      // The stock check ran in the database on confirm; warn the confirmer.
+      if (vars.status === 'confirmed') void toastMaterialCheckResult('sales_order', vars.id);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -826,6 +829,13 @@ export default function SalesOrdersPage() {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
+                                <OrderMaterialCheckButton
+                                  sourceType="sales_order"
+                                  sourceId={order.id}
+                                  orderNumber={order.order_number}
+                                  preview={order.status === 'draft'}
+                                  size="icon"
+                                />
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
@@ -961,6 +971,13 @@ export default function SalesOrdersPage() {
                         Rs. {Number(order.net_amount || 0).toLocaleString()}
                       </div>
                       <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <OrderMaterialCheckButton
+                          sourceType="sales_order"
+                          sourceId={order.id}
+                          orderNumber={order.order_number}
+                          preview={order.status === 'draft'}
+                          size="icon"
+                        />
                         {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' && (
                           <Select 
                             value={order.status} 

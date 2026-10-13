@@ -129,11 +129,11 @@ export default function ItemsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_categories")
-        .select("id, name")
+        .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as { id: string; name: string; requires_subcategory?: boolean }[];
     },
   });
 
@@ -169,6 +169,12 @@ export default function ItemsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
+      // Packing Material / Master Packing items need a sub-category: the
+      // Products page material columns filter on it.
+      const rmCat = rmCategories.find((c) => c.id === data.raw_material_category_id);
+      if (data.category === "raw_material" && rmCat?.requires_subcategory && !data.raw_material_subcategory_id) {
+        throw new Error(`Pick a Sub-Category: it is required for ${rmCat.name}`);
+      }
       const payload = {
         name: data.name,
         description: data.description || null,
@@ -513,7 +519,11 @@ export default function ItemsPage() {
                     categories in Material Consumption → Category Master.
                   </p>
                   <div className="space-y-2 pt-2">
-                    <Label htmlFor="raw_material_subcategory_id">Sub-Category (optional)</Label>
+                    <Label htmlFor="raw_material_subcategory_id">
+                      {rmCategories.find((c) => c.id === formData.raw_material_category_id)?.requires_subcategory
+                        ? "Sub-Category *"
+                        : "Sub-Category (optional)"}
+                    </Label>
                     <Select
                       value={formData.raw_material_subcategory_id || "none"}
                       onValueChange={(value) =>

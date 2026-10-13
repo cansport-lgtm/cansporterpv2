@@ -20,6 +20,7 @@ interface ConsumptionCategory {
   name: string;
   code: string;
   is_active: boolean;
+  requires_subcategory?: boolean;
   created_at: string;
 }
 
@@ -30,7 +31,7 @@ const ConsumptionCategoriesPage = () => {
   const [editingCategory, setEditingCategory] = useState<ConsumptionCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<ConsumptionCategory | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState({ name: "", code: "", is_active: true });
+  const [formData, setFormData] = useState({ name: "", code: "", is_active: true, requires_subcategory: false });
 
   const { data: categories = [] } = useQuery({
     queryKey: ["consumption-categories"],
@@ -62,6 +63,10 @@ const ConsumptionCategoriesPage = () => {
       const payload = {
         name: data.name.trim(),
         is_active: data.is_active,
+        // Column added by the product-materials migration: only send it once live.
+        ...(categories.some((c) => "requires_subcategory" in c)
+          ? { requires_subcategory: data.requires_subcategory }
+          : {}),
       };
       if (editingCategory) {
         const { error } = await supabase.from("consumption_categories").update(payload).eq("id", editingCategory.id);
@@ -111,12 +116,12 @@ const ConsumptionCategoriesPage = () => {
   const resetForm = () => {
     setIsDialogOpen(false);
     setEditingCategory(null);
-    setFormData({ name: "", code: "", is_active: true });
+    setFormData({ name: "", code: "", is_active: true, requires_subcategory: false });
   };
 
   const handleEdit = (cat: ConsumptionCategory) => {
     setEditingCategory(cat);
-    setFormData({ name: cat.name, code: cat.code, is_active: cat.is_active });
+    setFormData({ name: cat.name, code: cat.code, is_active: cat.is_active, requires_subcategory: !!cat.requires_subcategory });
     setIsDialogOpen(true);
   };
 
@@ -141,7 +146,12 @@ const ConsumptionCategoriesPage = () => {
     {
       key: "subcategories",
       header: "Sub-categories",
-      render: (item: ConsumptionCategory) => subcategoryCounts[item.id] || 0,
+      render: (item: ConsumptionCategory) => (
+        <span>
+          {subcategoryCounts[item.id] || 0}
+          {item.requires_subcategory && <Badge variant="outline" className="ml-2 text-xs">required</Badge>}
+        </span>
+      ),
     },
     {
       key: "is_active",
@@ -204,6 +214,13 @@ const ConsumptionCategoriesPage = () => {
               <div className="flex items-center gap-3">
                 <Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} />
                 <Label>Active</Label>
+              </div>
+              <div className="flex items-start gap-3">
+                <Switch checked={formData.requires_subcategory} onCheckedChange={(checked) => setFormData({ ...formData, requires_subcategory: checked })} />
+                <div>
+                  <Label>Sub-category required</Label>
+                  <p className="text-xs text-muted-foreground">Items in this category can't be saved without a sub-category (e.g. Packing Material, Master Packing).</p>
+                </div>
               </div>
             </div>
             <DialogFooter className="mt-6">
