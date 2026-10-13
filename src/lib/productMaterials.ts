@@ -251,7 +251,7 @@ export const RESULT_LABEL: Record<CheckResult, string> = {
   short: "Short",
   below_min: "Below min stock",
   unknown: "Stock unknown",
-  not_set: "Materials not set",
+  not_set: "Set the materials",
   ok: "OK",
 };
 
@@ -269,7 +269,10 @@ export function summarize(lines: CheckLine[]): string {
   if (c.short) parts.push(`${c.short} short`);
   if (c.below_min) parts.push(`${c.below_min} below min stock`);
   if (c.unknown) parts.push(`${c.unknown} stock unknown`);
-  if (c.not_set) parts.push(`${c.not_set} product(s) with materials not set`);
+  if (c.not_set) {
+    const names = lines.filter((l) => l.result === "not_set").map((l) => l.item_name);
+    parts.push(`Set the materials for ${names.join(", ")}`);
+  }
   if (c.old) parts.push(`${c.old} old count`);
   return parts.join(" · ");
 }
