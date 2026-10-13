@@ -55,52 +55,42 @@ INSERT INTO public.product_material_slots (key, label, sort_order, customer_over
   ('cartons',      'Cartons',      7, true)
 ON CONFLICT (key) DO NOTHING;
 
--- Best-effort first mapping from existing category / sub-category names.
+-- Best-effort first mapping from existing category / sub-category names:
+-- a matching sub-category (e.g. "Packaging > PVC SLEEVES") wins, else a
+-- category with a matching name (e.g. "Felt", "Stamps", "Cartons").
 -- Anything not matched stays empty and is set on Products / SKUs → Column setup.
 DO $$
 DECLARE
-  v_packing uuid;
-  v_master  uuid;
+  r record;
+  v_cat uuid;
+  v_sub uuid;
 BEGIN
-  SELECT id INTO v_packing FROM public.consumption_categories
-   WHERE lower(trim(name)) = 'packing material' LIMIT 1;
-  SELECT id INTO v_master FROM public.consumption_categories
-   WHERE lower(trim(name)) = 'master packing' LIMIT 1;
-
-  UPDATE public.product_material_slots s
-     SET category_id = c.id
-    FROM (SELECT id FROM public.consumption_categories WHERE lower(name) LIKE 'felt%' ORDER BY name LIMIT 1) c
-   WHERE s.key = 'felt' AND s.category_id IS NULL;
-
-  UPDATE public.product_material_slots s
-     SET category_id = c.id
-    FROM (SELECT id FROM public.consumption_categories
-           WHERE lower(name) LIKE '%stamp%' OR lower(name) LIKE '%logo%' ORDER BY name LIMIT 1) c
-   WHERE s.key = 'stamp_logo' AND s.category_id IS NULL;
-
-  IF v_master IS NOT NULL THEN
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('felt',         ARRAY['%felt%']),
+      ('stamp_logo',   ARRAY['%stamp%', '%logo%']),
+      ('packing_roll', ARRAY['%packing roll%']),
+      ('theli',        ARRAY['%theli%']),
+      ('bags',         ARRAY['bag', 'bags', '% bag', '% bags', 'pouch%']),
+      ('sleeve',       ARRAY['%sleeve%']),
+      ('cartons',      ARRAY['%carton%', 'master packing'])
+    ) AS m(key, patterns)
+  LOOP
+    v_cat := NULL; v_sub := NULL;
+    SELECT sc.category_id, sc.id INTO v_cat, v_sub
+      FROM public.consumption_subcategories sc
+     WHERE coalesce(sc.is_active, true) AND lower(trim(sc.name)) LIKE ANY (r.patterns)
+     ORDER BY sc.name LIMIT 1;
+    IF v_cat IS NULL THEN
+      SELECT c.id INTO v_cat
+        FROM public.consumption_categories c
+       WHERE coalesce(c.is_active, true) AND lower(trim(c.name)) LIKE ANY (r.patterns)
+       ORDER BY c.name LIMIT 1;
+    END IF;
     UPDATE public.product_material_slots
-       SET category_id = v_master
-     WHERE key = 'cartons' AND category_id IS NULL;
-  END IF;
-
-  IF v_packing IS NOT NULL THEN
-    UPDATE public.product_material_slots s
-       SET category_id = v_packing,
-           subcategory_id = (
-             SELECT sc.id FROM public.consumption_subcategories sc
-              WHERE sc.category_id = v_packing
-                AND lower(trim(sc.name)) = ANY (
-                  CASE s.key
-                    WHEN 'packing_roll' THEN ARRAY['packing roll', 'packing rolls']
-                    WHEN 'theli'        THEN ARRAY['theli', 'thelis']
-                    WHEN 'bags'         THEN ARRAY['bag', 'bags']
-                    WHEN 'sleeve'       THEN ARRAY['sleeve', 'sleeves']
-                  END)
-              LIMIT 1)
-     WHERE s.key IN ('packing_roll', 'theli', 'bags', 'sleeve')
-       AND s.category_id IS NULL;
-  END IF;
+       SET category_id = v_cat, subcategory_id = v_sub
+     WHERE key = r.key AND category_id IS NULL AND v_cat IS NOT NULL;
+  END LOOP;
 END $$;
 
 -- ------------------------------------------------------------
