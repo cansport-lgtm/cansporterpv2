@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { productsForCustomerParty, partyIdOfCustomer } from '@/lib/customerSkus';
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DispatchProgress } from "@/components/sales/DispatchProgress";
@@ -226,9 +227,10 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders', segment] });
       toast.success('Status updated');
+      if (vars.status === 'confirmed') void toastMaterialCheckResult('sales_order', vars.id);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -624,6 +626,13 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <OrderMaterialCheckButton
+                              sourceType="sales_order"
+                              sourceId={order.id}
+                              orderNumber={order.order_number}
+                              preview={order.status === 'draft'}
+                              size="icon"
+                            />
                             <Button variant="ghost" size="icon" onClick={() => setViewOrder(order)}>
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -708,6 +717,13 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                             </SelectContent>
                           </Select>
                         )}
+                        <OrderMaterialCheckButton
+                          sourceType="sales_order"
+                          sourceId={order.id}
+                          orderNumber={order.order_number}
+                          preview={order.status === 'draft'}
+                          size="icon"
+                        />
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewOrder(order)}>
                           <Eye className="h-4 w-4" />
                         </Button>

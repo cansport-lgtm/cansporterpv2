@@ -23,6 +23,7 @@ import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, CalendarClock, Check, ChevronsUpDown } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -271,10 +272,13 @@ export default function DomesticSalesOrdersPage() {
           if (itemsError) throw itemsError;
         }
       }
+      return newOrder;
     },
-    onSuccess: () => {
+    onSuccess: (newOrder) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders', 'domestic'] });
       toast.success('Order created');
+      // Domestic orders are confirmed on save: the stock check already ran.
+      if (newOrder?.id) void toastMaterialCheckResult('sales_order', newOrder.id, newOrder.order_number);
       handleCloseDialog();
     },
     onError: (error: Error) => {
@@ -291,9 +295,10 @@ export default function DomesticSalesOrdersPage() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders', 'domestic'] });
       toast.success('Status updated');
+      if (vars.status === 'confirmed') void toastMaterialCheckResult('sales_order', vars.id);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -1136,6 +1141,13 @@ export default function DomesticSalesOrdersPage() {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
+                                <OrderMaterialCheckButton
+                                  sourceType="sales_order"
+                                  sourceId={order.id}
+                                  orderNumber={order.order_number}
+                                  preview={order.status === 'draft'}
+                                  size="icon"
+                                />
                                 <Button variant="ghost" size="icon" onClick={() => setViewOrder(order)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -1307,6 +1319,13 @@ export default function DomesticSalesOrdersPage() {
                           </Select>
                         ) : <span />}
                         <div className="flex gap-1">
+                          <OrderMaterialCheckButton
+                            sourceType="sales_order"
+                            sourceId={order.id}
+                            orderNumber={order.order_number}
+                            preview={order.status === 'draft'}
+                            size="icon"
+                          />
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewOrder(order)}>
                             <Eye className="h-4 w-4" />
                           </Button>

@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ClipboardCheck, Check, X, Pencil } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { toast } from "sonner";
 
 interface PendingOrder {
@@ -141,9 +142,11 @@ export default function DistributorApprovalsPage() {
         .eq("id", order.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, order) => {
       queryClient.invalidateQueries({ queryKey: ["distributor_orders"] });
       toast.success("Order approved");
+      // The stock check ran in the database on approval; warn the approver.
+      void toastMaterialCheckResult("distributor_order", order.id, order.order_number);
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to approve order"),
   });
@@ -203,6 +206,12 @@ export default function DistributorApprovalsPage() {
           <Button variant="outline" size="sm" onClick={() => { setEditorOrderId(o.id); setEditorOpen(true); }}>
             <Pencil className="h-3 w-3 mr-1" /> Edit
           </Button>
+          <OrderMaterialCheckButton
+            sourceType="distributor_order"
+            sourceId={o.id}
+            orderNumber={o.order_number}
+            preview={o.status !== "approved"}
+          />
         </div>
       ),
     },
