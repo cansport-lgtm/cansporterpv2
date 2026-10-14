@@ -1,6 +1,6 @@
 # Private Label Job Orders — Plan
 
-Status: **plan only, nothing built yet.** Open questions are at the end.
+Status: **built.** See `docs/PRIVATE_LABEL_JOB_ORDERS.md` for how it works now. The decisions below changed parts of this plan.
 
 ## Goal
 
@@ -131,11 +131,11 @@ RLS follows the existing planning tables, with policies dropped first (`DROP POL
    - check its log,
    - confirm the normal JO numbers and page are unchanged.
 
-## Open questions (defaults in brackets)
+## Decisions (answered)
 
-1. **Level of grade / size / packing / logo.** Per line, so one order can hold several grades and sizes, or one set per order? [per line, with the logo on the header and an optional per-line override]
-2. **Size.** Free text, or should we create a Size master list? [free text with suggestions]
-3. **Master packing.** Pick from a list (e.g. Master Packing items from the material columns), or free text plus qty? [free text plus qty]
-4. **Customer.** Must every private-label order be linked to a customer in the system? [yes]
-5. **Number format.** Is `PLJO-YY-NNNN` OK? [yes]
-6. **Who can create and issue?** The same as job orders (planning module), or restricted further? [same as job orders]
+1. **Grade is set once per order** ("one order per grade ball"). Lines are sizes: size, qty, packing, master packing and packs per master. One logo per order, plus optional artwork files; there is no per-line logo.
+2. **Size comes from a Size list** (`private_label_sizes`), managed with the Sizes button on the page.
+3. **Master packing is picked from a list**: the items of the Cartons and Master Packing 2 material columns. Packs per master is typed.
+4. Every order is linked to a customer.
+5. The number format is `PLJO-YY-NNNN`.
+6. The same people as Job Orders can create and issue.
