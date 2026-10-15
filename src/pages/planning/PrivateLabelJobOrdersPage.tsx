@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Eye, KeyRound, Plus, Ruler, Tag } from "lucide-react";
+import { Eye, KeyRound, Palette, Plus, Ruler, Tag } from "lucide-react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { PrivateLabelJobOrderDialog } from "@/components/planning/PrivateLabelJobOrderDialog";
 import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizesDialog";
+import { PrivateLabelColorsDialog } from "@/components/planning/PrivateLabelColorsDialog";
 import { PrivateLabelFloorPinDialog } from "@/components/planning/PrivateLabelFloorPinDialog";
 import {
   fetchOrders,
@@ -58,6 +59,7 @@ export default function PrivateLabelJobOrdersPage() {
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
   const [sizesOpen, setSizesOpen] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
   const [floorPinOpen, setFloorPinOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
@@ -93,6 +95,10 @@ export default function PrivateLabelJobOrdersPage() {
           <Button variant="outline" onClick={() => setSizesOpen(true)}>
             <Ruler className="mr-2 h-4 w-4" />
             Sizes
+          </Button>
+          <Button variant="outline" onClick={() => setColorsOpen(true)}>
+            <Palette className="mr-2 h-4 w-4" />
+            Colors
           </Button>
           <Button onClick={() => setDialog({ id: null })}>
             <Plus className="mr-2 h-4 w-4" />
@@ -255,6 +261,7 @@ export default function PrivateLabelJobOrdersPage() {
         />
       )}
       <PrivateLabelSizesDialog open={sizesOpen} onOpenChange={setSizesOpen} />
+      <PrivateLabelColorsDialog open={colorsOpen} onOpenChange={setColorsOpen} />
       {isSuperAdmin && <PrivateLabelFloorPinDialog open={floorPinOpen} onOpenChange={setFloorPinOpen} />}
     </ERPLayout>
   );

@@ -108,7 +108,10 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
                   return (
                     <TableRow key={l.item_id}>
                       <TableCell>
-                        <div className="font-medium">{l.size_name}</div>
+                        <div className="font-medium">
+                          {l.size_name}
+                          {l.color_name && <span className="font-normal text-muted-foreground"> · {l.color_name}</span>}
+                        </div>
                         <div className="text-xs text-muted-foreground">{l.packing_label}</div>
                       </TableCell>
                       <TableCell className="text-right">{l.ordered.toLocaleString()}</TableCell>

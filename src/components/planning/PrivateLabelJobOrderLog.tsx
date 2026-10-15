@@ -31,6 +31,7 @@ const FIELD_LABEL: Record<string, string> = {
   remarks: "Remarks",
   cancel_reason: "Cancel reason",
   size: "Size",
+  color: "Color",
   quantity: "Qty (Dz)",
   packing: "Packing",
   master_packing: "Master packing",
