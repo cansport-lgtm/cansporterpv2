@@ -9,7 +9,8 @@
 --    pljo_floor_set_pin().
 -- 2. private_label_floor_pin_failures: wrong PINs. 10 wrong PINs within
 --    10 minutes lock the floor page for everyone until the window passes,
---    so the PIN cannot be guessed by trying every number.
+--    so the PIN cannot be guessed by trying every number. Only wrong PINs
+--    since the last PIN change count, so a new PIN starts clean.
 -- 3. pljo_floor_orders(pin): Issued orders for the floor list.
 --    pljo_floor_order_detail(pin, id): one Issued order, shaped for printing.
 --    pljo_floor_log_printed(pin, id): records a floor print in the order log.
@@ -70,9 +71,6 @@ BEGIN
     SET pin_hash = EXCLUDED.pin_hash,
         pin_changed_at = EXCLUDED.pin_changed_at,
         pin_changed_by = EXCLUDED.pin_changed_by;
-
-  -- A new PIN starts with a clean slate.
-  DELETE FROM public.private_label_floor_pin_failures;
 END;
 $$;
 
@@ -103,14 +101,15 @@ SET search_path = public
 AS $$
 DECLARE
   v_hash text;
+  v_changed timestamptz;
 BEGIN
-  SELECT pin_hash INTO v_hash FROM public.private_label_floor_settings;
+  SELECT pin_hash, pin_changed_at INTO v_hash, v_changed FROM public.private_label_floor_settings;
   IF v_hash IS NULL THEN
     RETURN 'not_set';
   END IF;
 
   IF (SELECT count(*) FROM public.private_label_floor_pin_failures
-       WHERE failed_at > now() - interval '10 minutes') >= 10 THEN
+       WHERE failed_at > greatest(now() - interval '10 minutes', v_changed)) >= 10 THEN
     RETURN 'locked';
   END IF;
 
@@ -119,7 +118,6 @@ BEGIN
   END IF;
 
   INSERT INTO public.private_label_floor_pin_failures DEFAULT VALUES;
-  DELETE FROM public.private_label_floor_pin_failures WHERE failed_at < now() - interval '1 day';
   RETURN 'invalid';
 END;
 $$;
