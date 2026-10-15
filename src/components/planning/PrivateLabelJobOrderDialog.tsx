@@ -84,10 +84,10 @@ function toForm(d: PljoDetail): PljoForm {
     id: o.id,
     order_date: o.order_date,
     required_by_date: o.required_by_date ?? "",
-    customer_id: o.customer_id,
+    customer_id: o.customer_id ?? "",
     // Empty = "Same as customer" (ticked).
-    billing_customer_id: o.billing_customer_id === o.customer_id ? "" : o.billing_customer_id,
-    grade_id: o.grade_id,
+    billing_customer_id: o.billing_customer_id === o.customer_id ? "" : o.billing_customer_id ?? "",
+    grade_id: o.grade_id ?? "",
     brand_name: o.brand_name ?? "",
     customer_po_ref: o.customer_po_ref ?? "",
     priority: o.priority,
@@ -97,7 +97,7 @@ function toForm(d: PljoDetail): PljoForm {
 }
 
 /** Adds the saved value as an option when it is no longer in the active list. */
-function withSaved(options: SearchableSelectOption[], id: string | undefined, label: string | undefined) {
+function withSaved(options: SearchableSelectOption[], id: string | null | undefined, label: string | undefined) {
   if (!id || options.some((o) => o.value === id)) return options;
   return [...options, { value: id, label: `${label || "—"} (inactive)` }];
 }

@@ -1,4 +1,5 @@
-// Floor page: enter dozens produced per size for one private label job order.
+// Floor page: enter dozens produced per line (size, or product on company
+// orders) for one private label / company product job order.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -60,6 +61,7 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
     }
   };
 
+  const isCompany = order.order_type === "company";
   const lines = data?.lines ?? [];
   const ordered = lines.reduce((s, l) => s + l.ordered, 0);
   const done = lines.reduce((s, l) => s + l.done, 0);
@@ -69,10 +71,10 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Production — {order.pl_job_order_number} · {order.customer_name}
+            Production — {order.pl_job_order_number} · {order.customer_name ?? "Company products"}
           </DialogTitle>
           <DialogDescription>
-            Enter the dozens made now for each size. They are added to what is already done. Use a minus number to
+            Enter the dozens made now for each {isCompany ? "product" : "size"}. They are added to what is already done. Use a minus number to
             correct a mistake.
           </DialogDescription>
         </DialogHeader>
@@ -96,7 +98,7 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Size</TableHead>
+                  <TableHead>{isCompany ? "Product" : "Size"}</TableHead>
                   <TableHead className="text-right">Ordered</TableHead>
                   <TableHead className="text-right">Done</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
@@ -110,7 +112,14 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
                     <TableRow key={l.item_id}>
                       <TableCell>
                         <div className="font-medium">
-                          {l.size_name}
+                          {l.product_name ? (
+                            <>
+                              <span className="font-mono text-xs font-normal text-muted-foreground">{l.product_code}</span>{" "}
+                              {l.product_name}
+                            </>
+                          ) : (
+                            l.size_name
+                          )}
                           {l.color_name && <span className="font-normal text-muted-foreground"> · {l.color_name}</span>}
                         </div>
                         <div className="text-xs text-muted-foreground">{l.packing_label}</div>
