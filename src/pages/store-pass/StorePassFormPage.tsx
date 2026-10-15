@@ -169,7 +169,7 @@ export default function StorePassFormPage() {
                       <TableHead>Item *</TableHead>
                       <TableHead className="w-56">Product (optional)</TableHead>
                       <TableHead className="text-right w-28">Dozens</TableHead>
-                      <TableHead className="text-right w-28">Cartons</TableHead>
+                      <TableHead className="text-right w-28">Packages (carton/bora)</TableHead>
                       <TableHead>Remark</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
@@ -198,7 +198,7 @@ export default function StorePassFormPage() {
                               onChange={(e) => setLine(l.key, { quantity: e.target.value.replace(/[^0-9.]/g, "") })} />
                           </TableCell>
                           <TableCell>
-                            <Input aria-label={`Cartons ${n + 1}`} inputMode="numeric" className={cn("h-10 text-right tabular-nums", bad && "border-amber-500")} value={l.packages}
+                            <Input aria-label={`Packages ${n + 1}`} inputMode="numeric" className={cn("h-10 text-right tabular-nums", bad && "border-amber-500")} value={l.packages}
                               onChange={(e) => setLine(l.key, { packages: e.target.value.replace(/[^0-9]/g, "") })} />
                           </TableCell>
                           <TableCell>
@@ -222,7 +222,7 @@ export default function StorePassFormPage() {
                         </Button>
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">{fmtQty(totals.quantity)} dz</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">{totals.packages} ctn</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{totals.packages} pkg</TableCell>
                       <TableCell colSpan={2} className="text-xs text-muted-foreground">{filled.length} item(s){incomplete ? ` · ${incomplete} without a quantity` : ""}</TableCell>
                     </TableRow>
                   </tfoot>
@@ -267,7 +267,7 @@ export default function StorePassFormPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">SP number</span><span className="font-medium">{editing?.pass_number ?? "Given on save"}</span></div>
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Dispatch plan</span><span className="font-medium text-right">{planNo || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span className="font-medium">{filled.length}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-medium">{fmtQty(totals.quantity)} dz · {totals.packages} ctn</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-medium">{fmtQty(totals.quantity)} dz · {totals.packages} pkg</span></div>
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Handed over to</span><span className="font-medium text-right">{handedTo || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Photo</span><span className={cn("font-medium", photoPath ? "text-emerald-700" : "text-amber-700")}>{photoPath ? "Taken" : "Missing"}</span></div>
               </CardContent>
