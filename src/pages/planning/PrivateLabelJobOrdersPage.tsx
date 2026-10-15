@@ -6,16 +6,25 @@ import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import { PrivateLabelJobOrderDialog } from "@/components/planning/PrivateLabelJobOrderDialog";
 import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizesDialog";
 import { PrivateLabelFloorPinDialog } from "@/components/planning/PrivateLabelFloorPinDialog";
-import { fetchOrders, isImage, publicUrl, statusVariant, type PljoOrder } from "@/lib/privateLabelJobOrder";
+import {
+  fetchOrders,
+  isImage,
+  producedPct,
+  publicUrl,
+  statusVariant,
+  type PljoOrder,
+} from "@/lib/privateLabelJobOrder";
 
 const PLANNING_EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -135,6 +144,7 @@ export default function PrivateLabelJobOrdersPage() {
                   <TableHead>Logo</TableHead>
                   <TableHead className="text-right">Sizes</TableHead>
                   <TableHead className="text-right">Total Dz</TableHead>
+                  <TableHead>Produced</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Open</TableHead>
@@ -143,13 +153,13 @@ export default function PrivateLabelJobOrdersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">
                       No private label job orders
                     </TableCell>
                   </TableRow>
@@ -157,6 +167,8 @@ export default function PrivateLabelJobOrdersPage() {
                   filtered.map((o) => {
                     const lines = o.private_label_job_order_items ?? [];
                     const total = lines.reduce((s, l) => s + Number(l.quantity || 0), 0);
+                    const produced = (o.private_label_job_order_progress ?? []).reduce((s, p) => s + Number(p.dozens), 0);
+                    const pctDone = producedPct(produced, total);
                     const logo = o.private_label_job_order_attachments?.find((a) => a.kind === "logo");
                     return (
                       <TableRow key={o.id} className="cursor-pointer" onClick={() => setDialog({ id: o.id })}>
@@ -185,6 +197,29 @@ export default function PrivateLabelJobOrdersPage() {
                         </TableCell>
                         <TableCell className="text-right">{lines.length}</TableCell>
                         <TableCell className="text-right">{total.toLocaleString()}</TableCell>
+                        <TableCell className="min-w-[130px]">
+                          {o.status === "Draft" ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="text-xs">
+                                {produced.toLocaleString()} Dz · {pctDone}%
+                              </div>
+                              <Progress
+                                value={pctDone}
+                                className={cn("h-2", o.production_done_at && "[&>div]:bg-green-600")}
+                              />
+                              {o.production_done_at && (
+                                <div
+                                  className="text-xs font-medium text-green-700"
+                                  title={o.production_done_by_name ?? undefined}
+                                >
+                                  Production done
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={priorityColor(o.priority)}>
                             {o.priority}

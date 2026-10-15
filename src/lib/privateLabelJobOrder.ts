@@ -86,6 +86,10 @@ export interface PljoOrder {
   grades: { name: string } | null;
   private_label_job_order_items: { quantity: number }[];
   private_label_job_order_attachments: Pick<PljoAttachment, "kind" | "file_path" | "mime_type">[];
+  /** Floor production entries (list query only). */
+  private_label_job_order_progress?: { dozens: number }[];
+  production_done_at?: string | null;
+  production_done_by_name?: string | null;
 }
 
 /** A saved line, with names for display and printing. */
@@ -145,6 +149,10 @@ export function publicUrl(path: string): string {
   return supabase.storage.from(PLJO_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+/** Produced share of the ordered dozens, 0–100. */
+export const producedPct = (done: number, total: number) =>
+  total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
 export const isImage = (mime: string | null | undefined) => !!mime && mime.startsWith("image/");
 
 /** Inner packs and master packs for a line: rounded up, 0 when not computable. */
@@ -181,7 +189,7 @@ export async function fetchOrders(filters: {
   let q = db
     .from("private_label_job_orders")
     .select(
-      "*, customers(name), grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type)",
+      "*, customers(name), grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)",
     )
     .order("order_date", { ascending: false })
     .order("pl_job_order_number", { ascending: false });
@@ -455,6 +463,25 @@ export interface FloorOrder {
   logo_path: string | null;
   logo_mime: string | null;
   last_printed_at: string | null;
+  done_dozens: number;
+  production_done_at: string | null;
+  production_done_by_name: string | null;
+}
+
+export interface FloorProgressLine {
+  item_id: string;
+  size_name: string;
+  packing_label: string;
+  ordered: number;
+  done: number;
+}
+
+export interface FloorProgressEntry {
+  id: string;
+  dozens: number;
+  entered_by_name: string | null;
+  created_at: string;
+  size_name: string;
 }
 
 export class FloorPinError extends Error {
@@ -491,6 +518,38 @@ export async function fetchFloorOrderDetail(pin: string, id: string): Promise<Pl
 
 export async function logFloorPrinted(pin: string, id: string) {
   await floorRpc("pljo_floor_log_printed", { p_pin: pin, p_job_order_id: id });
+}
+
+export async function fetchFloorProgress(
+  pin: string,
+  id: string,
+): Promise<{ lines: FloorProgressLine[]; entries: FloorProgressEntry[] }> {
+  const data = await floorRpc<{ lines: FloorProgressLine[]; entries: FloorProgressEntry[] }>("pljo_floor_progress", {
+    p_pin: pin,
+    p_job_order_id: id,
+  });
+  return {
+    lines: data.lines.map((l) => ({ ...l, ordered: Number(l.ordered), done: Number(l.done) })),
+    entries: data.entries.map((e) => ({ ...e, dozens: Number(e.dozens) })),
+  };
+}
+
+export async function addFloorProgress(
+  pin: string,
+  id: string,
+  entries: { item_id: string; dozens: number }[],
+  enteredBy: string,
+) {
+  await floorRpc("pljo_floor_add_progress", {
+    p_pin: pin,
+    p_job_order_id: id,
+    p_entries: entries,
+    p_entered_by: enteredBy,
+  });
+}
+
+export async function setFloorDone(pin: string, id: string, done: boolean, by: string) {
+  await floorRpc("pljo_floor_set_done", { p_pin: pin, p_job_order_id: id, p_done: done, p_by: by });
 }
 
 export async function fetchFloorPinStatus(): Promise<{ is_set: boolean; changed_at?: string }> {

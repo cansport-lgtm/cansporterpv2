@@ -6,11 +6,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { Loader2, Lock, Printer, RefreshCw, Tag } from "lucide-react";
+import { CheckCircle2, ClipboardEdit, Loader2, Lock, Printer, RefreshCw, RotateCcw, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
+import { PrivateLabelFloorProgressDialog } from "@/components/planning/PrivateLabelFloorProgressDialog";
 import { cn } from "@/lib/utils";
 import {
   FloorPinError,
@@ -18,7 +31,9 @@ import {
   fetchFloorOrders,
   isImage,
   logFloorPrinted,
+  producedPct as pct,
   publicUrl,
+  setFloorDone,
   type FloorOrder,
   type FloorPinStatus,
 } from "@/lib/privateLabelJobOrder";
@@ -26,6 +41,7 @@ import { printPrivateLabelJobOrder } from "@/lib/privateLabelJobOrderPrint";
 
 const REFRESH_INTERVAL = 15000;
 const PIN_STORAGE_KEY = "pljo-floor-pin";
+const NAME_STORAGE_KEY = "pljo-floor-name";
 
 const PIN_MESSAGE: Partial<Record<FloorPinStatus, string>> = {
   invalid: "Wrong PIN. Try again.",
@@ -52,6 +68,22 @@ const readPin = () => {
     return localStorage.getItem(PIN_STORAGE_KEY) || "";
   } catch {
     return "";
+  }
+};
+
+const readName = () => {
+  try {
+    return localStorage.getItem(NAME_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+
+const writeName = (name: string) => {
+  try {
+    localStorage.setItem(NAME_STORAGE_KEY, name);
+  } catch {
+    // Storage blocked: the name just isn't remembered.
   }
 };
 
@@ -113,10 +145,21 @@ function PinScreen({ message, onUnlock }: { message: string | null; onUnlock: (p
   );
 }
 
-function OrderCard({ order, printing, onPrint }: { order: FloorOrder; printing: boolean; onPrint: () => void }) {
+interface OrderCardProps {
+  order: FloorOrder;
+  printing: boolean;
+  onPrint: () => void;
+  onUpdate: () => void;
+  onDone: () => void;
+}
+
+function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProps) {
   const overdue = order.required_by_date && order.required_by_date < format(new Date(), "yyyy-MM-dd");
+  const total = Number(order.total_dozens);
+  const done = Number(order.done_dozens);
+  const isDone = !!order.production_done_at;
   return (
-    <div className="flex flex-col gap-3 rounded-xl border-2 bg-card p-4">
+    <div className={cn("flex flex-col gap-3 rounded-xl border-2 bg-card p-4", isDone && "border-green-500 bg-green-50/40")}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-mono text-sm font-semibold">{order.pl_job_order_number}</div>
@@ -164,10 +207,40 @@ function OrderCard({ order, printing, onPrint }: { order: FloorOrder; printing: 
         </span>
       </div>
 
-      <Button className="mt-auto w-full" onClick={onPrint} disabled={printing}>
-        {printing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-        Print
-      </Button>
+      <div className="space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Produced</span>
+          <span className="font-semibold">
+            {done.toLocaleString()} / {total.toLocaleString()} Dz ({pct(done, total)}%)
+          </span>
+        </div>
+        <Progress value={pct(done, total)} className={cn(isDone && "[&>div]:bg-green-600")} />
+        {isDone && (
+          <div className="text-xs font-medium text-green-700">
+            Production done {format(new Date(order.production_done_at!), "dd MMM HH:mm")}
+            {order.production_done_by_name ? ` · ${order.production_done_by_name}` : ""}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-auto grid grid-cols-3 gap-2">
+        <Button variant="outline" onClick={onUpdate} disabled={isDone} title="Enter production">
+          <ClipboardEdit className="mr-1 h-4 w-4" />
+          Update
+        </Button>
+        <Button
+          variant={isDone ? "outline" : "default"}
+          className={cn(!isDone && "bg-green-600 hover:bg-green-700")}
+          onClick={onDone}
+        >
+          {isDone ? <RotateCcw className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
+          {isDone ? "Reopen" : "Done"}
+        </Button>
+        <Button variant="outline" onClick={onPrint} disabled={printing}>
+          {printing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />}
+          Print
+        </Button>
+      </div>
     </div>
   );
 }
@@ -178,6 +251,15 @@ export default function PrivateLabelFloorPage() {
   const [pinMessage, setPinMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [progressOrder, setProgressOrder] = useState<FloorOrder | null>(null);
+  const [doneOrder, setDoneOrder] = useState<FloorOrder | null>(null);
+  const [savingDone, setSavingDone] = useState(false);
+  const [enteredBy, setEnteredBy] = useState(readName);
+
+  const changeName = (name: string) => {
+    setEnteredBy(name);
+    writeName(name);
+  };
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -247,10 +329,41 @@ export default function PrivateLabelFloorPage() {
     }
   };
 
+  const handlePinError = (e: FloorPinError) => {
+    if (e.status === "invalid" || e.status === "not_set") lock(e.status);
+    else {
+      toast.error(PIN_MESSAGE[e.status] ?? "Could not save");
+      qc.invalidateQueries({ queryKey: ["pljo-floor"] });
+    }
+  };
+
+  const confirmDone = async () => {
+    if (!doneOrder) return;
+    const marking = !doneOrder.production_done_at;
+    if (marking && !enteredBy.trim()) {
+      toast.error("Enter your name");
+      return;
+    }
+    setSavingDone(true);
+    try {
+      await setFloorDone(pin, doneOrder.id, marking, enteredBy);
+      toast.success(marking ? "Marked as done" : "Reopened");
+      setDoneOrder(null);
+      qc.invalidateQueries({ queryKey: ["pljo-floor"] });
+    } catch (e) {
+      if (e instanceof FloorPinError) handlePinError(e);
+      else toast.error("Could not save. Try again.");
+    } finally {
+      setSavingDone(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter((o) =>
+    // Orders still in production first; the server already sorts by priority.
+    const sorted = [...orders].sort((a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at));
+    if (!q) return sorted;
+    return sorted.filter((o) =>
       [o.pl_job_order_number, o.customer_name, o.brand_name, o.customer_po_ref, o.grade_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
@@ -260,6 +373,9 @@ export default function PrivateLabelFloorPage() {
   if (!pin) return <PinScreen message={pinMessage} onUnlock={unlock} />;
 
   const notPrinted = orders.filter((o) => !o.last_printed_at).length;
+  const doneCount = orders.filter((o) => o.production_done_at).length;
+  const totalDz = orders.reduce((s, o) => s + Number(o.total_dozens), 0);
+  const doneDz = orders.reduce((s, o) => s + Number(o.done_dozens), 0);
 
   return (
     <div className="min-h-screen bg-background p-4 text-foreground">
@@ -293,10 +409,24 @@ export default function PrivateLabelFloorPage() {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Issued orders</div>
           <div className="text-4xl font-bold">{orders.length}</div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <div className="text-sm text-muted-foreground">Production done</div>
+          <div className="text-4xl font-bold text-green-600">
+            {doneCount}
+            <span className="text-xl text-muted-foreground"> / {orders.length}</span>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <div className="text-sm text-muted-foreground">Produced (all orders)</div>
+          <div className="text-4xl font-bold">{pct(doneDz, totalDz)}%</div>
+          <div className="text-xs text-muted-foreground">
+            {doneDz.toLocaleString()} / {totalDz.toLocaleString()} Dz
+          </div>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Not printed yet</div>
@@ -315,10 +445,77 @@ export default function PrivateLabelFloorPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((o) => (
-            <OrderCard key={o.id} order={o} printing={printingId === o.id} onPrint={() => print(o)} />
+            <OrderCard
+              key={o.id}
+              order={o}
+              printing={printingId === o.id}
+              onPrint={() => print(o)}
+              onUpdate={() => setProgressOrder(o)}
+              onDone={() => setDoneOrder(o)}
+            />
           ))}
         </div>
       )}
+
+      {progressOrder && (
+        <PrivateLabelFloorProgressDialog
+          pin={pin}
+          order={progressOrder}
+          enteredBy={enteredBy}
+          onEnteredByChange={changeName}
+          onPinError={(e) => {
+            setProgressOrder(null);
+            handlePinError(e);
+          }}
+          onClose={(saved) => {
+            setProgressOrder(null);
+            if (saved) qc.invalidateQueries({ queryKey: ["pljo-floor"] });
+          }}
+        />
+      )}
+
+      <AlertDialog open={!!doneOrder} onOpenChange={(o) => !o && setDoneOrder(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {doneOrder?.production_done_at ? "Reopen production?" : "Mark production done?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {doneOrder && (
+                <>
+                  {doneOrder.pl_job_order_number} · {doneOrder.customer_name}. Produced{" "}
+                  {Number(doneOrder.done_dozens).toLocaleString()} of {Number(doneOrder.total_dozens).toLocaleString()} Dz
+                  {!doneOrder.production_done_at && Number(doneOrder.done_dozens) < Number(doneOrder.total_dozens) && (
+                    <span className="mt-2 block font-medium text-destructive">
+                      {(Number(doneOrder.total_dozens) - Number(doneOrder.done_dozens)).toLocaleString()} Dz are still
+                      short of the order.
+                    </span>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {doneOrder && !doneOrder.production_done_at && (
+            <div className="space-y-1">
+              <Label>Your name</Label>
+              <Input value={enteredBy} onChange={(e) => changeName(e.target.value)} />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingDone}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={savingDone}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDone();
+              }}
+            >
+              {savingDone && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {doneOrder?.production_done_at ? "Reopen" : "Mark done"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="mt-6 flex items-center justify-end gap-2 text-xs text-muted-foreground">
         <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
