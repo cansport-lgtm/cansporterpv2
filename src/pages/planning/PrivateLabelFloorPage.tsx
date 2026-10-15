@@ -1,4 +1,5 @@
-// Floor page for Private Label Job Orders (/floor/private-label).
+// Floor page for Private Label Job Orders (/floor/private-label). Company
+// Product Job Orders (CJO-*) are shown here too, with a tab per order type.
 //
 // No ERP login: the supervisor unlocks it with the floor PIN, which a super
 // admin sets on the Private Label Job Orders page. The PIN is checked by the
@@ -6,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { CheckCircle2, ClipboardEdit, Loader2, Lock, Printer, RefreshCw, RotateCcw, Tag } from "lucide-react";
+import { CheckCircle2, ClipboardEdit, Factory, Loader2, Lock, Printer, RefreshCw, RotateCcw, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrivateLabelFloorProgressDialog } from "@/components/planning/PrivateLabelFloorProgressDialog";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +38,7 @@ import {
   setFloorDone,
   type FloorOrder,
   type FloorPinStatus,
+  type PljoOrderType,
 } from "@/lib/privateLabelJobOrder";
 import { printPrivateLabelJobOrder } from "@/lib/privateLabelJobOrderPrint";
 
@@ -43,12 +46,14 @@ const REFRESH_INTERVAL = 15000;
 const PIN_STORAGE_KEY = "pljo-floor-pin";
 const NAME_STORAGE_KEY = "pljo-floor-name";
 
+type TypeFilter = "all" | PljoOrderType;
+
 const PIN_MESSAGE: Partial<Record<FloorPinStatus, string>> = {
   invalid: "Wrong PIN. Try again.",
   locked: "Too many wrong PINs. The page is locked for a few minutes.",
   not_set: "No floor PIN has been set yet. Ask a super admin to set it on Private Label Job Orders → Floor PIN.",
   not_found: "This job order is no longer Issued.",
-  short: "Not every size is at 100% yet, so it cannot be marked done.",
+  short: "Not every line is at 100% yet, so it cannot be marked done.",
 };
 
 const priorityColor = (p: string) => {
@@ -121,7 +126,7 @@ function PinScreen({ message, onUnlock }: { message: string | null; onUnlock: (p
             <Tag className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">Private Label Job Orders</h1>
+            <h1 className="text-lg font-bold">Private Label &amp; Company Job Orders</h1>
             <p className="text-sm text-muted-foreground">Enter the floor PIN</p>
           </div>
         </div>
@@ -159,14 +164,24 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
   const total = Number(order.total_dozens);
   const done = Number(order.done_dozens);
   const isDone = !!order.production_done_at;
-  // Done only at 100%; the database checks every size, this is the quick guard.
+  const isCompany = order.order_type === "company";
+  const products = order.product_names ? order.product_names.split(", ") : [];
+  // Done only at 100%; the database checks every line, this is the quick guard.
   const short = Math.max(0, total - done);
   return (
-    <div className={cn("flex flex-col gap-3 rounded-xl border-2 bg-card p-4", isDone && "border-green-500 bg-green-50/40")}>
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border-2 bg-card p-4",
+        isCompany && "border-sky-200",
+        isDone && "border-green-500 bg-green-50/40",
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-mono text-sm font-semibold">{order.pl_job_order_number}</div>
-          <div className="text-lg font-bold leading-tight">{order.customer_name}</div>
+          <div className="text-lg font-bold leading-tight">
+            {isCompany ? "Company products" : order.customer_name}
+          </div>
           {order.billing_customer_name && (
             <div className="text-sm text-muted-foreground">Bill to: {order.billing_customer_name}</div>
           )}
@@ -177,25 +192,43 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
             Printed {formatDistanceToNow(new Date(order.last_printed_at), { addSuffix: true })}
           </Badge>
         ) : (
-          <Badge className="shrink-0 bg-fuchsia-600 text-white hover:bg-fuchsia-600">New</Badge>
+          <Badge className={cn("shrink-0 text-white", isCompany ? "bg-sky-600 hover:bg-sky-600" : "bg-fuchsia-600 hover:bg-fuchsia-600")}>
+            New
+          </Badge>
         )}
       </div>
 
-      <div className="flex h-28 items-center justify-center rounded-lg border bg-muted/30">
-        {order.logo_path && isImage(order.logo_mime) ? (
-          <img src={publicUrl(order.logo_path)} alt="Logo" className="max-h-24 max-w-full object-contain" />
-        ) : (
-          <span className="text-xs text-muted-foreground">{order.logo_path ? "Logo file (see print)" : "No logo"}</span>
-        )}
-      </div>
+      {isCompany ? (
+        <div className="h-28 overflow-y-auto rounded-lg border bg-sky-50/40 p-2 text-sm">
+          {products.length > 0 ? (
+            <ul className="space-y-0.5">
+              {products.map((p, i) => (
+                <li key={i} className="truncate font-medium" title={p}>
+                  {p}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <span className="text-xs text-muted-foreground">No products</span>
+          )}
+        </div>
+      ) : (
+        <div className="flex h-28 items-center justify-center rounded-lg border bg-muted/30">
+          {order.logo_path && isImage(order.logo_mime) ? (
+            <img src={publicUrl(order.logo_path)} alt="Logo" className="max-h-24 max-w-full object-contain" />
+          ) : (
+            <span className="text-xs text-muted-foreground">{order.logo_path ? "Logo file (see print)" : "No logo"}</span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">Grade</div>
-          <div className="font-semibold">{order.grade_name}</div>
+          <div className="font-semibold">{order.grade_name ?? "—"}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Sizes</div>
+          <div className="text-xs text-muted-foreground">{isCompany ? "Products" : "Sizes"}</div>
           <div className="font-semibold">{order.line_count}</div>
         </div>
         <div>
@@ -205,6 +238,15 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
+        {isCompany ? (
+          <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-700">
+            Company
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700">
+            Private Label
+          </Badge>
+        )}
         <Badge variant="outline" className={priorityColor(order.priority)}>
           {order.priority}
         </Badge>
@@ -258,6 +300,7 @@ export default function PrivateLabelFloorPage() {
   const [pin, setPin] = useState(readPin);
   const [pinMessage, setPinMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [progressOrder, setProgressOrder] = useState<FloorOrder | null>(null);
   const [doneOrder, setDoneOrder] = useState<FloorOrder | null>(null);
@@ -368,26 +411,43 @@ export default function PrivateLabelFloorPage() {
     }
   };
 
+  // Orders of the chosen tab; the stats and the list both follow it.
+  const typeOrders = useMemo(
+    () => (typeFilter === "all" ? orders : orders.filter((o) => (o.order_type ?? "private_label") === typeFilter)),
+    [orders, typeFilter],
+  );
+  const typeCount = (t: PljoOrderType) =>
+    orders.filter((o) => (o.order_type ?? "private_label") === t && !o.production_done_at).length;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Done orders are hidden unless asked for, then listed after the rest.
-    const sorted = (showDone ? [...orders] : orders.filter((o) => !o.production_done_at)).sort(
+    const sorted = (showDone ? [...typeOrders] : typeOrders.filter((o) => !o.production_done_at)).sort(
       (a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at),
     );
     if (!q) return sorted;
     return sorted.filter((o) =>
-      [o.pl_job_order_number, o.customer_name, o.billing_customer_name, o.brand_name, o.customer_po_ref, o.grade_name]
+      [
+        o.pl_job_order_number,
+        o.customer_name,
+        o.billing_customer_name,
+        o.brand_name,
+        o.customer_po_ref,
+        o.grade_name,
+        o.product_names,
+        o.product_codes,
+      ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [orders, search, showDone]);
+  }, [typeOrders, search, showDone]);
 
   if (!pin) return <PinScreen message={pinMessage} onUnlock={unlock} />;
 
-  const notPrinted = orders.filter((o) => !o.last_printed_at).length;
-  const doneCount = orders.filter((o) => o.production_done_at).length;
-  const totalDz = orders.reduce((s, o) => s + Number(o.total_dozens), 0);
-  const doneDz = orders.reduce((s, o) => s + Number(o.done_dozens), 0);
+  const notPrinted = typeOrders.filter((o) => !o.last_printed_at).length;
+  const doneCount = typeOrders.filter((o) => o.production_done_at).length;
+  const totalDz = typeOrders.reduce((s, o) => s + Number(o.total_dozens), 0);
+  const doneDz = typeOrders.reduce((s, o) => s + Number(o.done_dozens), 0);
 
   return (
     <div className="min-h-screen bg-background p-4 text-foreground">
@@ -397,13 +457,13 @@ export default function PrivateLabelFloorPage() {
             <Tag className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Private Label Job Orders</h1>
+            <h1 className="text-2xl font-bold">Private Label &amp; Company Job Orders</h1>
             <p className="text-sm text-muted-foreground">{format(now, "EEEE, d MMM yyyy — hh:mm:ss a")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search number, customer, brand, grade…"
+            placeholder="Search number, customer, brand, product, grade…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
@@ -421,6 +481,22 @@ export default function PrivateLabelFloorPage() {
         </div>
       </div>
 
+      <Tabs value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)} className="mb-4">
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="all" className="px-4 py-2 text-base">
+            All ({typeCount("private_label") + typeCount("company")})
+          </TabsTrigger>
+          <TabsTrigger value="private_label" className="px-4 py-2 text-base">
+            <Tag className="mr-2 h-4 w-4 text-fuchsia-600" />
+            Private Label ({typeCount("private_label")})
+          </TabsTrigger>
+          <TabsTrigger value="company" className="px-4 py-2 text-base">
+            <Factory className="mr-2 h-4 w-4 text-sky-600" />
+            Company Products ({typeCount("company")})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {pinStatus === "locked" && (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {PIN_MESSAGE.locked}
@@ -430,13 +506,13 @@ export default function PrivateLabelFloorPage() {
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Issued orders</div>
-          <div className="text-4xl font-bold">{orders.length}</div>
+          <div className="text-4xl font-bold">{typeOrders.length}</div>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Production done</div>
           <div className="text-4xl font-bold text-green-600">
             {doneCount}
-            <span className="text-xl text-muted-foreground"> / {orders.length}</span>
+            <span className="text-xl text-muted-foreground"> / {typeOrders.length}</span>
           </div>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
@@ -458,8 +534,12 @@ export default function PrivateLabelFloorPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center text-muted-foreground">
-          {orders.length === 0
-            ? "No issued private label job orders"
+          {typeOrders.length === 0
+            ? typeFilter === "company"
+              ? "No issued company product job orders"
+              : typeFilter === "private_label"
+                ? "No issued private label job orders"
+                : "No issued job orders"
             : search.trim()
               ? "No orders match the search"
               : "All orders are done"}
@@ -505,7 +585,7 @@ export default function PrivateLabelFloorPage() {
             <AlertDialogDescription>
               {doneOrder && (
                 <>
-                  {doneOrder.pl_job_order_number} · {doneOrder.customer_name}. Produced{" "}
+                  {doneOrder.pl_job_order_number} · {doneOrder.customer_name ?? "Company products"}. Produced{" "}
                   {Number(doneOrder.done_dozens).toLocaleString()} of {Number(doneOrder.total_dozens).toLocaleString()} Dz
                 </>
               )}

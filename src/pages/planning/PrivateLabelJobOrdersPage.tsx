@@ -63,8 +63,8 @@ export default function PrivateLabelJobOrdersPage() {
   const [floorPinOpen, setFloorPinOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["pljo-list", status, fromDate, toDate],
-    queryFn: () => fetchOrders({ status, from: fromDate, to: toDate }),
+    queryKey: ["pljo-list", "private_label", status, fromDate, toDate],
+    queryFn: () => fetchOrders({ type: "private_label", status, from: fromDate, to: toDate }),
   });
 
   const filtered = useMemo(() => {

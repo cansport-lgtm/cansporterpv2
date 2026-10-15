@@ -1,11 +1,16 @@
-// Private Label Job Orders (Production Planning).
+// Private Label Job Orders and Company Product Job Orders (Production Planning).
 //
-// Separate from normal job orders: own tables, own number series
-// (PLJO-YY-NNNN, set by the database), own page. One order = one customer +
-// one grade; each line is a size + color + qty (dozens) + packing.
+// Separate from normal job orders: own tables, own number series (set by the
+// database), own pages. Both kinds share the same tables, told apart by
+// order_type:
+// - private_label (PLJO-YY-NNNN): one customer + one grade; each line is a
+//   size + color + qty (dozens) + packing.
+// - company (CJO-YY-NNNN, supabase/migrations/20261030120000_company_job_orders.sql):
+//   no customer; each line is one of our own sellable products + qty + packing.
 // Status rules and the change log live in the database
 // (supabase/migrations/20261024120000_private_label_job_orders.sql).
 import { supabase } from "@/integrations/supabase/client";
+import { isSellableStockCategory } from "@/lib/stockCategories";
 
 // The new tables are not in the generated types yet.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +21,7 @@ export const PLJO_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const PLJO_LOGO_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp", "application/pdf"];
 
 export type PljoStatus = "Draft" | "Issued" | "Closed" | "Cancelled";
+export type PljoOrderType = "private_label" | "company";
 export type PljoPriority = "low" | "medium" | "high" | "critical";
 export type PljoAttachmentKind = "logo" | "artwork";
 
@@ -33,8 +39,11 @@ export interface PljoColor extends PljoSize {
 
 export interface PljoLine {
   id?: string;
+  /** Private label lines. */
   size_id: string;
   color_id: string;
+  /** Company lines. */
+  product_id: string;
   quantity: number | string;
   packing_type_id: string;
   remarks: string;
@@ -70,10 +79,12 @@ export interface PljoAttachment {
 export interface PljoOrder {
   id: string;
   pl_job_order_number: string;
+  order_type: PljoOrderType;
   order_date: string;
   required_by_date: string | null;
-  customer_id: string;
-  grade_id: string;
+  /** Null on company orders (as are the billing customer and grade). */
+  customer_id: string | null;
+  grade_id: string | null;
   brand_name: string | null;
   customer_po_ref: string | null;
   priority: PljoPriority;
@@ -84,11 +95,14 @@ export interface PljoOrder {
   cancelled_at: string | null;
   cancel_reason: string | null;
   created_at: string;
-  billing_customer_id: string;
+  billing_customer_id: string | null;
   customers: { name: string } | null;
   billing_customer: { name: string } | null;
   grades: { name: string } | null;
-  private_label_job_order_items: { quantity: number }[];
+  private_label_job_order_items: {
+    quantity: number;
+    products?: { code: string; name: string; grades: { name: string } | null } | null;
+  }[];
   private_label_job_order_attachments: Pick<PljoAttachment, "kind" | "file_path" | "mime_type">[];
   /** Floor production entries (list query only). */
   private_label_job_order_progress?: { dozens: number }[];
@@ -102,6 +116,9 @@ export interface PljoSavedLine extends PljoLine {
   size_name: string;
   color_name: string;
   color_swatch: string | null;
+  product_code: string;
+  product_name: string;
+  product_grade: string;
   packing_label: string;
 }
 
@@ -122,6 +139,7 @@ export interface PljoLogEntry {
 export const blankLine = (sort_order = 0): PljoLine => ({
   size_id: "",
   color_id: "",
+  product_id: "",
   quantity: "",
   packing_type_id: "",
   remarks: "",
@@ -175,6 +193,46 @@ export function validateForm(form: PljoForm): string | null {
   return null;
 }
 
+/** Company Product Job Order form: no customer, brand or header grade. */
+export interface CjoForm {
+  id?: string;
+  order_date: string;
+  required_by_date: string;
+  priority: PljoPriority;
+  remarks: string;
+  lines: PljoLine[];
+}
+
+export const blankCompanyForm = (): CjoForm => ({
+  order_date: new Date().toISOString().split("T")[0],
+  required_by_date: "",
+  priority: "medium",
+  remarks: "",
+  lines: [blankLine(0)],
+});
+
+/** First problem with a company form, or null when it can be saved. */
+export function validateCompanyForm(form: CjoForm): string | null {
+  if (!form.order_date) return "Enter the order date";
+  if (form.lines.length === 0) return "Add at least one line";
+  for (const [i, l] of form.lines.entries()) {
+    const n = i + 1;
+    if (!l.product_id) return `Line ${n}: select the product`;
+    if (!(Number(l.quantity) > 0)) return `Line ${n}: enter a quantity`;
+    if (!l.packing_type_id) return `Line ${n}: select the packing`;
+  }
+  return null;
+}
+
+/** An own (company) product that can go on a company job order. */
+export interface CompanyProduct {
+  id: string;
+  code: string;
+  name: string;
+  grade_name: string | null;
+  stock_category: string;
+}
+
 // ------------------------------------------------------------ reads
 
 // The orders table links to customers twice (customer, billing customer),
@@ -184,6 +242,7 @@ const CUSTOMER_EMBEDS =
   "billing_customer:customers!private_label_job_orders_billing_customer_id_fkey(name)";
 
 export async function fetchOrders(filters: {
+  type: PljoOrderType;
   status: string;
   from: string;
   to: string;
@@ -191,8 +250,9 @@ export async function fetchOrders(filters: {
   let q = db
     .from("private_label_job_orders")
     .select(
-      `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)`,
+      `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity, products(code, name, grades(name))), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)`,
     )
+    .eq("order_type", filters.type)
     .order("order_date", { ascending: false })
     .order("pl_job_order_number", { ascending: false });
   if (filters.status !== "all") q = q.eq("status", filters.status);
@@ -214,7 +274,9 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
       .single(),
     db
       .from("private_label_job_order_items")
-      .select("*, private_label_sizes(name), private_label_colors(name, swatch), packing_types(label)")
+      .select(
+        "*, private_label_sizes(name), private_label_colors(name, swatch), products(code, name, grades(name)), packing_types(label)",
+      )
       .eq("job_order_id", id)
       .order("sort_order"),
     db.from("private_label_job_order_attachments").select("*").eq("job_order_id", id).order("created_at"),
@@ -226,9 +288,10 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
     order: o.data as PljoOrder,
     lines: ((l.data ?? []) as Record<string, unknown>[]).map((r) => ({
       id: r.id as string,
-      size_id: r.size_id as string,
+      size_id: (r.size_id as string) ?? "",
       // Lines saved before colors existed have none.
       color_id: (r.color_id as string) ?? "",
+      product_id: (r.product_id as string) ?? "",
       quantity: Number(r.quantity),
       packing_type_id: r.packing_type_id as string,
       remarks: (r.remarks as string) ?? "",
@@ -236,6 +299,9 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
       size_name: (r.private_label_sizes as { name?: string } | null)?.name ?? "",
       color_name: (r.private_label_colors as { name?: string } | null)?.name ?? "",
       color_swatch: (r.private_label_colors as { swatch?: string | null } | null)?.swatch ?? null,
+      product_code: (r.products as { code?: string } | null)?.code ?? "",
+      product_name: (r.products as { name?: string } | null)?.name ?? "",
+      product_grade: (r.products as { grades?: { name?: string } | null } | null)?.grades?.name ?? "",
       packing_label: (r.packing_types as { label?: string } | null)?.label ?? "",
     })),
     attachments: (a.data ?? []) as PljoAttachment[],
@@ -250,6 +316,30 @@ export async function fetchLog(id: string): Promise<PljoLogEntry[]> {
     .order("changed_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as PljoLogEntry[];
+}
+
+/**
+ * Active own (company) products in a sellable stock category (Standard /
+ * Final Ball). A product without a planning item counts as Standard. The
+ * database checks the same rule on every saved line.
+ */
+export async function fetchCompanyProducts(): Promise<CompanyProduct[]> {
+  const { data, error } = await db
+    .from("products")
+    .select("id, code, name, is_active, grades(name), planning_items(stock_category)")
+    .eq("owner_type", "own")
+    .order("name");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[])
+    .filter((p) => p.is_active !== false)
+    .map((p) => ({
+      id: p.id as string,
+      code: p.code as string,
+      name: p.name as string,
+      grade_name: (p.grades as { name?: string } | null)?.name ?? null,
+      stock_category: (p.planning_items as { stock_category?: string } | null)?.stock_category || "standard",
+    }))
+    .filter((p) => isSellableStockCategory(p.stock_category));
 }
 
 export async function fetchSizes(includeInactive = false): Promise<PljoSize[]> {
@@ -304,8 +394,9 @@ export async function saveColor(color: {
 }
 
 const linePayload = (l: PljoLine, i: number) => ({
-  size_id: l.size_id,
+  size_id: l.size_id || null,
   color_id: l.color_id || null,
+  product_id: l.product_id || null,
   quantity: Number(l.quantity),
   packing_type_id: l.packing_type_id,
   remarks: l.remarks.trim() || null,
@@ -335,7 +426,39 @@ export async function saveOrder(
     remarks: form.remarks.trim() || null,
   };
 
-  let id = form.id;
+  return saveHeaderAndLines(form.id, header, form.lines, existingLines, onHeaderSaved);
+}
+
+/** Save a Company Product Job Order (header + lines). Returns the order id. */
+export async function saveCompanyOrder(
+  form: CjoForm,
+  existingLines: PljoSavedLine[],
+  onHeaderSaved?: (id: string) => void,
+): Promise<string> {
+  const header = {
+    order_date: form.order_date,
+    required_by_date: form.required_by_date || null,
+    priority: form.priority,
+    remarks: form.remarks.trim() || null,
+  };
+  // order_type is set once, on insert; the database ignores later changes.
+  return saveHeaderAndLines(
+    form.id,
+    form.id ? header : { ...header, order_type: "company" },
+    form.lines,
+    existingLines,
+    onHeaderSaved,
+  );
+}
+
+async function saveHeaderAndLines(
+  existingId: string | undefined,
+  header: Record<string, unknown>,
+  lines: PljoLine[],
+  existingLines: PljoSavedLine[],
+  onHeaderSaved?: (id: string) => void,
+): Promise<string> {
+  let id = existingId;
   if (id) {
     const { error } = await db.from("private_label_job_orders").update(header).eq("id", id);
     if (error) throw error;
@@ -347,14 +470,14 @@ export async function saveOrder(
   // Lets the caller re-sync (and open a new order) even if a line fails below.
   onHeaderSaved?.(id!);
 
-  const keep = new Set(form.lines.filter((l) => l.id).map((l) => l.id));
+  const keep = new Set(lines.filter((l) => l.id).map((l) => l.id));
   const removed = existingLines.filter((l) => !keep.has(l.id)).map((l) => l.id);
   if (removed.length) {
     const { error } = await db.from("private_label_job_order_items").delete().in("id", removed);
     if (error) throw error;
   }
 
-  for (const [i, l] of form.lines.entries()) {
+  for (const [i, l] of lines.entries()) {
     const payload = linePayload(l, i);
     if (l.id) {
       const before = existingLines.find((e) => e.id === l.id);
@@ -466,6 +589,7 @@ export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_foun
 export interface FloorOrder {
   id: string;
   pl_job_order_number: string;
+  order_type: PljoOrderType;
   order_date: string;
   required_by_date: string | null;
   brand_name: string | null;
@@ -473,9 +597,14 @@ export interface FloorOrder {
   priority: PljoPriority;
   remarks: string | null;
   issued_at: string | null;
-  customer_name: string;
+  /** Null on company orders. */
+  customer_name: string | null;
   billing_customer_name: string | null;
-  grade_name: string;
+  /** Company orders: the grades of their products, comma separated. */
+  grade_name: string | null;
+  /** Company orders: product names / codes in line order. */
+  product_names: string | null;
+  product_codes: string | null;
   total_dozens: number;
   line_count: number;
   logo_path: string | null;
@@ -490,6 +619,9 @@ export interface FloorProgressLine {
   item_id: string;
   size_name: string;
   color_name: string;
+  /** Company lines. */
+  product_code: string;
+  product_name: string;
   packing_label: string;
   ordered: number;
   done: number;
@@ -500,6 +632,7 @@ export interface FloorProgressEntry {
   dozens: number;
   entered_by_name: string | null;
   created_at: string;
+  /** The line's label: its size, or its product on company orders. */
   size_name: string;
 }
 
@@ -527,7 +660,9 @@ export async function fetchFloorOrderDetail(pin: string, id: string): Promise<Pl
     order: data.order,
     lines: data.lines.map((l) => ({
       ...l,
+      size_id: l.size_id ?? "",
       color_id: l.color_id ?? "",
+      product_id: l.product_id ?? "",
       quantity: Number(l.quantity),
     })),
     attachments: data.attachments,

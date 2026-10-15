@@ -30,6 +30,7 @@ const FIELD_LABEL: Record<string, string> = {
   status: "Status",
   remarks: "Remarks",
   cancel_reason: "Cancel reason",
+  product: "Product",
   size: "Size",
   color: "Color",
   quantity: "Qty (Dz)",
