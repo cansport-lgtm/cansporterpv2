@@ -2,7 +2,7 @@
 import { format, parseISO } from "date-fns";
 import cansportLogo from "@/assets/cansport-logo.png";
 import { esc, printDocument } from "@/lib/printDocument";
-import { isImage, lineTotals, publicUrl, type PljoDetail } from "@/lib/privateLabelJobOrder";
+import { isImage, publicUrl, type PljoDetail } from "@/lib/privateLabelJobOrder";
 
 const companyLogoUrl =
   typeof window !== "undefined" ? new URL(cansportLogo, window.location.origin).href : cansportLogo;
@@ -20,24 +20,16 @@ export function printPrivateLabelJobOrder(detail: PljoDetail) {
   const logo = attachments.find((a) => a.kind === "logo");
 
   let totalQty = 0;
-  let totalPacks = 0;
-  let totalMasters = 0;
   const rows = lines
     .map((l, i) => {
       const qty = Number(l.quantity);
-      const { packs, masters } = lineTotals(qty, l.packing_dozens, Number(l.packs_per_master));
       totalQty += qty;
-      totalPacks += packs;
-      totalMasters += masters;
       return `<tr>
         <td>${i + 1}</td>
         <td class="bold">${esc(l.size_name)}</td>
-        <td class="num">${qty.toLocaleString()}</td>
+        <td>${esc(l.color_name || "—")}</td>
+        <td class="num bold">${qty.toLocaleString()}</td>
         <td>${esc(l.packing_label)}</td>
-        <td class="num">${packs ? packs.toLocaleString() : "—"}</td>
-        <td>${esc(l.master_packing_name)}</td>
-        <td class="num">${Number(l.packs_per_master).toLocaleString()}</td>
-        <td class="num bold">${masters ? masters.toLocaleString() : "—"}</td>
         <td>${esc(l.remarks)}</td>
       </tr>`;
     })
@@ -84,14 +76,11 @@ export function printPrivateLabelJobOrder(detail: PljoDetail) {
 
       <table>
         <thead><tr>
-          <th>#</th><th>Size</th><th class="num">Qty (Dz)</th><th>Packing</th><th class="num">Packs</th>
-          <th>Master Packing</th><th class="num">Packs / Master</th><th class="num">Master Packs</th><th>Remarks</th>
+          <th>#</th><th>Size</th><th>Color</th><th class="num">Qty (Dz)</th><th>Packing</th><th>Remarks</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr>
-          <td></td><td>Total</td><td class="num">${totalQty.toLocaleString()}</td><td></td>
-          <td class="num">${totalPacks.toLocaleString()}</td><td></td><td></td>
-          <td class="num">${totalMasters.toLocaleString()}</td><td></td>
+          <td></td><td>Total</td><td></td><td class="num">${totalQty.toLocaleString()}</td><td></td><td></td>
         </tr></tfoot>
       </table>
 

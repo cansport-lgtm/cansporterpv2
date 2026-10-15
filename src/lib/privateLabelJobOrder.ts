@@ -2,11 +2,10 @@
 //
 // Separate from normal job orders: own tables, own number series
 // (PLJO-YY-NNNN, set by the database), own page. One order = one customer +
-// one grade; each line is a size + qty (dozens) + packing + master packing.
+// one grade; each line is a size + color + qty (dozens) + packing.
 // Status rules and the change log live in the database
 // (supabase/migrations/20261024120000_private_label_job_orders.sql).
 import { supabase } from "@/integrations/supabase/client";
-import { fetchMaterialItems, fetchSlots, type MaterialItem } from "@/lib/productMaterials";
 
 // The new tables are not in the generated types yet.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,9 +14,6 @@ const db = supabase as any;
 export const PLJO_BUCKET = "private-label-logos";
 export const PLJO_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const PLJO_LOGO_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp", "application/pdf"];
-
-// Products / SKUs material columns whose items count as master packing.
-export const MASTER_PACKING_SLOTS = ["cartons", "master_packing_2"] as const;
 
 export type PljoStatus = "Draft" | "Issued" | "Closed" | "Cancelled";
 export type PljoPriority = "low" | "medium" | "high" | "critical";
@@ -30,13 +26,17 @@ export interface PljoSize {
   is_active: boolean;
 }
 
+export interface PljoColor extends PljoSize {
+  /** Hex shown as a dot next to the name. */
+  swatch: string | null;
+}
+
 export interface PljoLine {
   id?: string;
   size_id: string;
+  color_id: string;
   quantity: number | string;
   packing_type_id: string;
-  master_packing_item_id: string;
-  packs_per_master: number | string;
   remarks: string;
   sort_order: number;
 }
@@ -100,9 +100,9 @@ export interface PljoOrder {
 export interface PljoSavedLine extends PljoLine {
   id: string;
   size_name: string;
+  color_name: string;
+  color_swatch: string | null;
   packing_label: string;
-  packing_dozens: number;
-  master_packing_name: string;
 }
 
 export interface PljoDetail {
@@ -121,10 +121,9 @@ export interface PljoLogEntry {
 
 export const blankLine = (sort_order = 0): PljoLine => ({
   size_id: "",
+  color_id: "",
   quantity: "",
   packing_type_id: "",
-  master_packing_item_id: "",
-  packs_per_master: "",
   remarks: "",
   sort_order,
 });
@@ -160,13 +159,6 @@ export const producedPct = (done: number, total: number) =>
 
 export const isImage = (mime: string | null | undefined) => !!mime && mime.startsWith("image/");
 
-/** Inner packs and master packs for a line: rounded up, 0 when not computable. */
-export function lineTotals(quantity: number, dozensPerPack: number, packsPerMaster: number) {
-  const packs = dozensPerPack > 0 ? Math.ceil(quantity / dozensPerPack) : 0;
-  const masters = packs > 0 && packsPerMaster > 0 ? Math.ceil(packs / packsPerMaster) : 0;
-  return { packs, masters };
-}
-
 /** First problem with the form, or null when it can be saved. */
 export function validateForm(form: PljoForm): string | null {
   if (!form.customer_id) return "Select the customer";
@@ -176,10 +168,9 @@ export function validateForm(form: PljoForm): string | null {
   for (const [i, l] of form.lines.entries()) {
     const n = i + 1;
     if (!l.size_id) return `Line ${n}: select the size`;
+    if (!l.color_id) return `Line ${n}: select the color`;
     if (!(Number(l.quantity) > 0)) return `Line ${n}: enter a quantity`;
     if (!l.packing_type_id) return `Line ${n}: select the packing`;
-    if (!l.master_packing_item_id) return `Line ${n}: select the master packing`;
-    if (!(Number(l.packs_per_master) > 0)) return `Line ${n}: enter packs per master packing`;
   }
   return null;
 }
@@ -223,7 +214,7 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
       .single(),
     db
       .from("private_label_job_order_items")
-      .select("*, private_label_sizes(name), packing_types(label, dozens), items(name)")
+      .select("*, private_label_sizes(name), private_label_colors(name, swatch), packing_types(label)")
       .eq("job_order_id", id)
       .order("sort_order"),
     db.from("private_label_job_order_attachments").select("*").eq("job_order_id", id).order("created_at"),
@@ -236,16 +227,16 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
     lines: ((l.data ?? []) as Record<string, unknown>[]).map((r) => ({
       id: r.id as string,
       size_id: r.size_id as string,
+      // Lines saved before colors existed have none.
+      color_id: (r.color_id as string) ?? "",
       quantity: Number(r.quantity),
       packing_type_id: r.packing_type_id as string,
-      master_packing_item_id: r.master_packing_item_id as string,
-      packs_per_master: Number(r.packs_per_master),
       remarks: (r.remarks as string) ?? "",
       sort_order: Number(r.sort_order) || 0,
       size_name: (r.private_label_sizes as { name?: string } | null)?.name ?? "",
+      color_name: (r.private_label_colors as { name?: string } | null)?.name ?? "",
+      color_swatch: (r.private_label_colors as { swatch?: string | null } | null)?.swatch ?? null,
       packing_label: (r.packing_types as { label?: string } | null)?.label ?? "",
-      packing_dozens: Number((r.packing_types as { dozens?: number } | null)?.dozens) || 0,
-      master_packing_name: (r.items as { name?: string } | null)?.name ?? "",
     })),
     attachments: (a.data ?? []) as PljoAttachment[],
   };
@@ -269,19 +260,12 @@ export async function fetchSizes(includeInactive = false): Promise<PljoSize[]> {
   return (data ?? []) as PljoSize[];
 }
 
-/** Items of the Master Packing material columns (Products / SKUs > Column setup). */
-export async function fetchMasterPackingItems(): Promise<MaterialItem[]> {
-  const [slots, items] = await Promise.all([fetchSlots(), fetchMaterialItems()]);
-  const mapped = slots.filter(
-    (s) => (MASTER_PACKING_SLOTS as readonly string[]).includes(s.key) && s.category_id,
-  );
-  return items.filter((i) =>
-    mapped.some(
-      (s) =>
-        i.raw_material_category_id === s.category_id &&
-        (!s.subcategory_id || i.raw_material_subcategory_id === s.subcategory_id),
-    ),
-  );
+export async function fetchColors(includeInactive = false): Promise<PljoColor[]> {
+  let q = db.from("private_label_colors").select("id, name, swatch, sort_order, is_active");
+  if (!includeInactive) q = q.eq("is_active", true);
+  const { data, error } = await q.order("sort_order").order("name");
+  if (error) throw error;
+  return (data ?? []) as PljoColor[];
 }
 
 // ------------------------------------------------------------ writes
@@ -297,12 +281,33 @@ export async function saveSize(size: { id?: string; name: string; sort_order: nu
   }
 }
 
+export async function saveColor(color: {
+  id?: string;
+  name: string;
+  swatch: string | null;
+  sort_order: number;
+  is_active: boolean;
+}) {
+  const payload = {
+    name: color.name.trim(),
+    swatch: color.swatch,
+    sort_order: color.sort_order,
+    is_active: color.is_active,
+  };
+  const { error } = color.id
+    ? await db.from("private_label_colors").update(payload).eq("id", color.id)
+    : await db.from("private_label_colors").insert(payload);
+  if (error) {
+    if (error.code === "23505") throw new Error(`Color "${payload.name}" already exists`);
+    throw error;
+  }
+}
+
 const linePayload = (l: PljoLine, i: number) => ({
   size_id: l.size_id,
+  color_id: l.color_id || null,
   quantity: Number(l.quantity),
   packing_type_id: l.packing_type_id,
-  master_packing_item_id: l.master_packing_item_id,
-  packs_per_master: Number(l.packs_per_master),
   remarks: l.remarks.trim() || null,
   sort_order: i,
 });
@@ -484,6 +489,7 @@ export interface FloorOrder {
 export interface FloorProgressLine {
   item_id: string;
   size_name: string;
+  color_name: string;
   packing_label: string;
   ordered: number;
   done: number;
@@ -521,9 +527,8 @@ export async function fetchFloorOrderDetail(pin: string, id: string): Promise<Pl
     order: data.order,
     lines: data.lines.map((l) => ({
       ...l,
+      color_id: l.color_id ?? "",
       quantity: Number(l.quantity),
-      packs_per_master: Number(l.packs_per_master),
-      packing_dozens: Number(l.packing_dozens) || 0,
     })),
     attachments: data.attachments,
   };

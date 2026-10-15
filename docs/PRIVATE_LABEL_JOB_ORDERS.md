@@ -2,7 +2,7 @@
 
 Production Planning → **Private Label Job Orders** (`/planning/private-label-job-orders`).
 
-A separate job order form for private-label work. Each order covers **one customer and one grade (ball)**. Each line is a **size** with its quantity, packing and master packing. Every change is kept in a **log**.
+A separate job order form for private-label work. Each order covers **one customer and one grade (ball)**. Each line is a **size** with its color, quantity and packing. Every change is kept in a **log**.
 
 Database: `supabase/migrations/20261024120000_private_label_job_orders.sql`.
 Rollback: `supabase/rollbacks/20261024120000_private_label_job_orders_down.sql`.
@@ -30,14 +30,14 @@ Code:
 | **Logo** | uploaded file (PNG, JPG, SVG, WEBP or PDF, up to 10 MB), or one of the customer's logos from Customer Logos | to issue |
 | Artwork / other files | uploaded | no |
 | Lines: **Size** | Size list (**Sizes** button on the page) | yes |
+| Lines: **Color** | Color list (**Colors** button on the page): Peach, Golden, Standard Yellow to start | yes |
 | Lines: Qty (dozens) | typed | yes |
 | Lines: **Packing** | Packing Master (`packing_types`, e.g. "12 Dz CTN") | yes |
-| Lines: **Master packing** | items of the **Cartons** and **Master Packing 2** columns. Their categories are set on Products / SKUs → Column setup | yes |
-| Lines: Packs per master | typed | yes |
 
-- **Packs** = qty ÷ the packing's dozens, rounded up.
-- **Master packs** = packs ÷ packs per master, rounded up.
-- Both are calculated on the form and the print, not stored.
+Master packing and packs per master were removed from the form
+(`supabase/migrations/20261028120000_private_label_colors.sql`). The columns
+stay in the database as optional, so lines saved before keep their values.
+Lines saved before colors existed have no color.
 
 ### Logo handling
 - **Copied when picked.** A logo picked from Customer Logos is copied into the order. Changing or deleting the customer's logo later doesn't change an order that has already been issued.
@@ -72,7 +72,7 @@ Each order has a **Log** tab with the time, the user and what changed. Every ent
 | Created | The order is first saved (records the full header) |
 | Edited | Header fields change (old → new) |
 | Issued, Closed, Cancelled | The status changes |
-| Line added / changed / removed | A line changes (with size, qty, packing and master packing) |
+| Line added / changed / removed | A line changes (with size, color, qty and packing) |
 | Logo uploaded / removed, Artwork uploaded / removed | A file is added or removed |
 | Printed | The form is printed (via `pljo_log_printed`) |
 
@@ -86,7 +86,7 @@ One A4 page per order, printed with the iframe `printDocument()` helper. It show
 - the company header, the **PLJO number**, dates, priority and status,
 - the customer, brand and PO, the **grade**,
 - the **logo**,
-- the sizes table with packing, master packing and calculated packs, plus totals,
+- the sizes table with color, qty and packing, plus the total dozens,
 - remarks and signature boxes.
 
 Printing is available once an order is issued.

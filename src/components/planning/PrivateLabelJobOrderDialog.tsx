@@ -32,11 +32,10 @@ import {
   checkFile,
   copyCustomerLogo,
   deleteDraft,
-  fetchMasterPackingItems,
+  fetchColors,
   fetchOrderDetail,
   fetchSizes,
   isImage,
-  lineTotals,
   logPrinted,
   publicUrl,
   removeAttachment,
@@ -61,6 +60,19 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Edit window check (production operators: 48h from creation). */
   canEdit: (order: Pick<PljoOrder, "created_at"> | null) => boolean;
+}
+
+// Bigger controls on the size lines.
+const LINE_CONTROL = "h-12 w-full text-base";
+
+function ColorName({ name, swatch }: { name?: string; swatch?: string | null }) {
+  if (!name) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      {swatch && <span className="h-3.5 w-3.5 rounded-full border" style={{ backgroundColor: swatch }} />}
+      {name}
+    </span>
+  );
 }
 
 /** Logo chosen before the order has an id; uploaded right after the first save. */
@@ -154,10 +166,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
   });
 
   const { data: sizes = [] } = useQuery({ queryKey: ["pljo-sizes"], queryFn: () => fetchSizes() });
-  const { data: masterItems = [] } = useQuery({
-    queryKey: ["pljo-master-packing"],
-    queryFn: fetchMasterPackingItems,
-  });
+  const { data: colors = [] } = useQuery({ queryKey: ["pljo-colors"], queryFn: () => fetchColors() });
   const { data: packingTypes = [] } = usePackingTypes();
 
   // ---------------------------------------------------------- state
@@ -191,12 +200,10 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
     () => sizes.map((s) => ({ value: s.id, label: s.name })),
     [sizes],
   );
-  const masterOptions = useMemo(
-    () => masterItems.map((i) => ({ value: i.id, label: i.name, secondary: i.code ?? undefined })),
-    [masterItems],
+  const colorOptions = useMemo(
+    () => colors.map((c) => ({ value: c.id, label: c.name })),
+    [colors],
   );
-  const dozensFor = (l: PljoLine) =>
-    Number(packingTypes.find((p) => p.id === l.packing_type_id)?.dozens) || savedLine(l.id)?.packing_dozens || 0;
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["pljo-list"] });
@@ -321,14 +328,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
   const busy = save.isPending || fileMutation.isPending || changeStatus.isPending || remove.isPending;
 
   // ---------------------------------------------------------- totals
-  const totals = form.lines.reduce(
-    (t, l) => {
-      const qty = Number(l.quantity) || 0;
-      const { packs, masters } = lineTotals(qty, dozensFor(l), Number(l.packs_per_master) || 0);
-      return { qty: t.qty + qty, packs: t.packs + packs, masters: t.masters + masters };
-    },
-    { qty: 0, packs: 0, masters: 0 },
-  );
+  const totalQty = form.lines.reduce((t, l) => t + (Number(l.quantity) || 0), 0);
 
   // ---------------------------------------------------------- logo preview
   const pendingSrc = useMemo(
@@ -613,36 +613,22 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                     </Button>
                   )}
                 </div>
-                {draftEditable && masterItems.length === 0 && (
-                  <p className="mb-2 text-xs text-amber-600">
-                    No master packing items found. Set the category of the Cartons / Master Packing columns on
-                    Products / SKUs → Column setup.
-                  </p>
-                )}
                 <div className="overflow-x-auto rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8">#</TableHead>
-                        <TableHead className="min-w-[150px]">Size</TableHead>
-                        <TableHead className="w-24">Qty (Dz)</TableHead>
-                        <TableHead className="min-w-[150px]">Packing</TableHead>
-                        <TableHead className="min-w-[200px]">Master packing</TableHead>
-                        <TableHead className="w-24">Packs / master</TableHead>
-                        <TableHead className="w-20 text-right">Packs</TableHead>
-                        <TableHead className="w-20 text-right">Masters</TableHead>
-                        <TableHead className="min-w-[140px]">Remarks</TableHead>
-                        {draftEditable && <TableHead className="w-8" />}
+                        <TableHead className="min-w-[180px]">Size</TableHead>
+                        <TableHead className="min-w-[180px]">Color</TableHead>
+                        <TableHead className="w-32">Qty (Dz)</TableHead>
+                        <TableHead className="min-w-[180px]">Packing</TableHead>
+                        <TableHead className="min-w-[180px]">Remarks</TableHead>
+                        {draftEditable && <TableHead className="w-10" />}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {form.lines.map((l, i) => {
                         const saved = savedLine(l.id);
-                        const { packs, masters } = lineTotals(
-                          Number(l.quantity) || 0,
-                          dozensFor(l),
-                          Number(l.packs_per_master) || 0,
-                        );
                         return (
                           <TableRow key={l.id ?? `new-${i}`}>
                             <TableCell>{i + 1}</TableCell>
@@ -654,9 +640,24 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                                   options={withSaved(sizeOptions, saved?.size_id, saved?.size_name)}
                                   placeholder="Size"
                                   sortAlpha={false}
+                                  triggerClassName={LINE_CONTROL}
                                 />
                               ) : (
                                 saved?.size_name
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {draftEditable ? (
+                                <SearchableSelect
+                                  value={l.color_id}
+                                  onValueChange={(v) => setLine(i, { color_id: v })}
+                                  options={withSaved(colorOptions, saved?.color_id || undefined, saved?.color_name)}
+                                  placeholder="Color"
+                                  sortAlpha={false}
+                                  triggerClassName={LINE_CONTROL}
+                                />
+                              ) : (
+                                <ColorName name={saved?.color_name} swatch={saved?.color_swatch} />
                               )}
                             </TableCell>
                             <TableCell>
@@ -666,6 +667,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                                   min={0}
                                   value={l.quantity}
                                   onChange={(e) => setLine(i, { quantity: e.target.value })}
+                                  className={LINE_CONTROL}
                                 />
                               ) : (
                                 Number(l.quantity).toLocaleString()
@@ -683,6 +685,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                                   )}
                                   placeholder="Packing"
                                   sortAlpha={false}
+                                  triggerClassName={LINE_CONTROL}
                                 />
                               ) : (
                                 saved?.packing_label
@@ -690,33 +693,11 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                             </TableCell>
                             <TableCell>
                               {draftEditable ? (
-                                <SearchableSelect
-                                  value={l.master_packing_item_id}
-                                  onValueChange={(v) => setLine(i, { master_packing_item_id: v })}
-                                  options={withSaved(masterOptions, saved?.master_packing_item_id, saved?.master_packing_name)}
-                                  placeholder="Master packing"
-                                />
-                              ) : (
-                                saved?.master_packing_name
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {draftEditable ? (
                                 <Input
-                                  type="number"
-                                  min={0}
-                                  value={l.packs_per_master}
-                                  onChange={(e) => setLine(i, { packs_per_master: e.target.value })}
+                                  value={l.remarks}
+                                  onChange={(e) => setLine(i, { remarks: e.target.value })}
+                                  className={LINE_CONTROL}
                                 />
-                              ) : (
-                                Number(l.packs_per_master).toLocaleString()
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">{packs || "—"}</TableCell>
-                            <TableCell className="text-right font-medium">{masters || "—"}</TableCell>
-                            <TableCell>
-                              {draftEditable ? (
-                                <Input value={l.remarks} onChange={(e) => setLine(i, { remarks: e.target.value })} />
                               ) : (
                                 l.remarks
                               )}
@@ -726,13 +707,14 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-7 w-7"
+                                  className="h-10 w-10"
+                                  aria-label="Remove line"
                                   disabled={form.lines.length === 1}
                                   onClick={() =>
                                     setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) }))
                                   }
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             )}
@@ -742,12 +724,9 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                       <TableRow className="bg-muted/40 font-medium">
                         <TableCell />
                         <TableCell>Total</TableCell>
-                        <TableCell>{totals.qty.toLocaleString()}</TableCell>
                         <TableCell />
+                        <TableCell>{totalQty.toLocaleString()} Dz</TableCell>
                         <TableCell />
-                        <TableCell />
-                        <TableCell className="text-right">{totals.packs.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{totals.masters.toLocaleString()}</TableCell>
                         <TableCell />
                         {draftEditable && <TableCell />}
                       </TableRow>
