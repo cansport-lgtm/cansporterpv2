@@ -46,6 +46,8 @@ export interface PljoForm {
   order_date: string;
   required_by_date: string;
   customer_id: string;
+  /** Who is invoiced; empty = same as the customer. */
+  billing_customer_id: string;
   grade_id: string;
   brand_name: string;
   customer_po_ref: string;
@@ -82,7 +84,9 @@ export interface PljoOrder {
   cancelled_at: string | null;
   cancel_reason: string | null;
   created_at: string;
+  billing_customer_id: string;
   customers: { name: string } | null;
+  billing_customer: { name: string } | null;
   grades: { name: string } | null;
   private_label_job_order_items: { quantity: number }[];
   private_label_job_order_attachments: Pick<PljoAttachment, "kind" | "file_path" | "mime_type">[];
@@ -129,6 +133,7 @@ export const blankForm = (): PljoForm => ({
   order_date: new Date().toISOString().split("T")[0],
   required_by_date: "",
   customer_id: "",
+  billing_customer_id: "",
   grade_id: "",
   brand_name: "",
   customer_po_ref: "",
@@ -181,6 +186,12 @@ export function validateForm(form: PljoForm): string | null {
 
 // ------------------------------------------------------------ reads
 
+// The orders table links to customers twice (customer, billing customer),
+// so each embed names its foreign key.
+const CUSTOMER_EMBEDS =
+  "customers:customers!private_label_job_orders_customer_id_fkey(name), " +
+  "billing_customer:customers!private_label_job_orders_billing_customer_id_fkey(name)";
+
 export async function fetchOrders(filters: {
   status: string;
   from: string;
@@ -189,7 +200,7 @@ export async function fetchOrders(filters: {
   let q = db
     .from("private_label_job_orders")
     .select(
-      "*, customers(name), grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)",
+      `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)`,
     )
     .order("order_date", { ascending: false })
     .order("pl_job_order_number", { ascending: false });
@@ -206,7 +217,7 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
     db
       .from("private_label_job_orders")
       .select(
-        "*, customers(name), grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type)",
+        `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type)`,
       )
       .eq("id", id)
       .single(),
@@ -311,6 +322,7 @@ export async function saveOrder(
     order_date: form.order_date,
     required_by_date: form.required_by_date || null,
     customer_id: form.customer_id,
+    billing_customer_id: form.billing_customer_id || form.customer_id,
     grade_id: form.grade_id,
     brand_name: form.brand_name.trim() || null,
     customer_po_ref: form.customer_po_ref.trim() || null,
@@ -457,6 +469,7 @@ export interface FloorOrder {
   remarks: string | null;
   issued_at: string | null;
   customer_name: string;
+  billing_customer_name: string | null;
   grade_name: string;
   total_dozens: number;
   line_count: number;

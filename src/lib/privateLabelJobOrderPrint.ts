@@ -70,6 +70,7 @@ export function printPrivateLabelJobOrder(detail: PljoDetail) {
         <div>
           <div class="label">Customer</div>
           <div class="bold">${esc(order.customers?.name ?? "")}</div>
+          <div>Bill to: ${esc(order.billing_customer?.name ?? order.customers?.name ?? "")}</div>
           ${order.brand_name ? `<div>Brand: ${esc(order.brand_name)}</div>` : ""}
           ${order.customer_po_ref ? `<div>Customer PO / Ref: ${esc(order.customer_po_ref)}</div>` : ""}
         </div>

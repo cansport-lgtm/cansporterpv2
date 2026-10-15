@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +73,8 @@ function toForm(d: PljoDetail): PljoForm {
     order_date: o.order_date,
     required_by_date: o.required_by_date ?? "",
     customer_id: o.customer_id,
+    // Empty = "Same as customer" (ticked).
+    billing_customer_id: o.billing_customer_id === o.customer_id ? "" : o.billing_customer_id,
     grade_id: o.grade_id,
     brand_name: o.brand_name ?? "",
     customer_po_ref: o.customer_po_ref ?? "",
@@ -173,6 +176,12 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
     order?.customer_id,
     order?.customers?.name,
   );
+  const billingOptions = withSaved(
+    customerOptions,
+    order?.billing_customer_id,
+    order?.billing_customer?.name,
+  );
+  const billingSame = !form.billing_customer_id;
   const gradeOptions = withSaved(
     grades.map((g) => ({ value: g.id, label: g.name, secondary: g.code ?? undefined })),
     order?.grade_id,
@@ -370,13 +379,35 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
               {/* Header */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="sm:col-span-2">
-                  <Label>Customer *</Label>
+                  <Label>Customer (brand owner) *</Label>
                   <SearchableSelect
                     value={form.customer_id}
                     onValueChange={(v) => setForm({ ...form, customer_id: v })}
                     options={customerOptions}
                     placeholder="Select customer"
                     disabled={!draftEditable}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label>Billing customer *</Label>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={billingSame}
+                        disabled={!draftEditable}
+                        onCheckedChange={(c) =>
+                          setForm({ ...form, billing_customer_id: c ? "" : form.customer_id })
+                        }
+                      />
+                      Same as customer
+                    </label>
+                  </div>
+                  <SearchableSelect
+                    value={billingSame ? form.customer_id : form.billing_customer_id}
+                    onValueChange={(v) => setForm({ ...form, billing_customer_id: v === form.customer_id ? "" : v })}
+                    options={billingOptions}
+                    placeholder="Select billing customer"
+                    disabled={!draftEditable || billingSame}
                   />
                 </div>
                 <div className="sm:col-span-2">
