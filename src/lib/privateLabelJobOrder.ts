@@ -461,7 +461,7 @@ export async function logPrinted(id: string) {
 // The floor page has no ERP login: every call carries the floor PIN, which
 // the database checks before returning anything.
 
-export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_found";
+export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_found" | "short";
 
 export interface FloorOrder {
   id: string;
@@ -557,13 +557,15 @@ export async function addFloorProgress(
   id: string,
   entries: { item_id: string; dozens: number }[],
   enteredBy: string,
-) {
-  await floorRpc("pljo_floor_add_progress", {
+): Promise<{ completed: boolean }> {
+  // completed: this entry brought every size to 100%, so the order is now Done.
+  const data = await floorRpc<{ completed?: boolean }>("pljo_floor_add_progress", {
     p_pin: pin,
     p_job_order_id: id,
     p_entries: entries,
     p_entered_by: enteredBy,
   });
+  return { completed: !!data.completed };
 }
 
 export async function setFloorDone(pin: string, id: string, done: boolean, by: string) {
