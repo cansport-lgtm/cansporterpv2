@@ -112,11 +112,11 @@ BEGIN
     IF NOT EXISTS (
          SELECT 1
            FROM public.products p
-           LEFT JOIN public.planning_items pi ON pi.id = p.planning_item_id
+           LEFT JOIN public.planning_items pli ON pli.id = p.planning_item_id
           WHERE p.id = NEW.product_id
             AND p.owner_type = 'own'
             AND coalesce(p.is_active, true)
-            AND coalesce(pi.stock_category, 'standard') IN ('standard', 'final_ball')) THEN
+            AND coalesce(pli.stock_category, 'standard') IN ('standard', 'final_ball')) THEN
       RAISE EXCEPTION 'Only active company products in a sellable stock category (Standard / Final Ball) can be ordered';
     END IF;
   ELSIF v_type = 'private_label' THEN
