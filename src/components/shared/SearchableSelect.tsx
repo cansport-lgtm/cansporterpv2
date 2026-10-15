@@ -12,6 +12,19 @@ export interface SearchableSelectOption {
   secondary?: string;
   /** Optional extra haystack text used for matching but not displayed (e.g. customer code, NTN) */
   search?: string;
+  /** Optional CSS color shown as a dot before the label (e.g. a ball color) */
+  swatch?: string | null;
+}
+
+function Swatch({ color }: { color?: string | null }) {
+  if (!color) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="mr-2 inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-black/20 align-[-2px]"
+      style={{ backgroundColor: color }}
+    />
+  );
 }
 
 interface SearchableSelectProps {
@@ -70,6 +83,7 @@ export function SearchableSelect({
           <span className="truncate text-left">
             {selected ? (
               <>
+                <Swatch color={selected.swatch} />
                 {selected.label}
                 {selected.secondary && <span className="text-xs text-muted-foreground ml-1">{selected.secondary}</span>}
               </>
@@ -106,6 +120,7 @@ export function SearchableSelect({
                     }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", value === opt.value ? "opacity-100" : "opacity-0")} />
+                    <Swatch color={opt.swatch} />
                     <span className="truncate">
                       {opt.label}
                       {opt.secondary && <span className="text-xs text-muted-foreground ml-1">{opt.secondary}</span>}

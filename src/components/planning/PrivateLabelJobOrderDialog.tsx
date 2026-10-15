@@ -201,7 +201,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
     [sizes],
   );
   const colorOptions = useMemo(
-    () => colors.map((c) => ({ value: c.id, label: c.name })),
+    () => colors.map((c) => ({ value: c.id, label: c.name, swatch: c.swatch })),
     [colors],
   );
 
