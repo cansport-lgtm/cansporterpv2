@@ -461,7 +461,7 @@ export async function logPrinted(id: string) {
 // The floor page has no ERP login: every call carries the floor PIN, which
 // the database checks before returning anything.
 
-export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_found";
+export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_found" | "short";
 
 export interface FloorOrder {
   id: string;

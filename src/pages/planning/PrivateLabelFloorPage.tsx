@@ -48,6 +48,7 @@ const PIN_MESSAGE: Partial<Record<FloorPinStatus, string>> = {
   locked: "Too many wrong PINs. The page is locked for a few minutes.",
   not_set: "No floor PIN has been set yet. Ask a super admin to set it on Private Label Job Orders → Floor PIN.",
   not_found: "This job order is no longer Issued.",
+  short: "Not every size is at 100% yet, so it cannot be marked done.",
 };
 
 const priorityColor = (p: string) => {
@@ -158,6 +159,8 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
   const total = Number(order.total_dozens);
   const done = Number(order.done_dozens);
   const isDone = !!order.production_done_at;
+  // Done only at 100%; the database checks every size, this is the quick guard.
+  const short = Math.max(0, total - done);
   return (
     <div className={cn("flex flex-col gap-3 rounded-xl border-2 bg-card p-4", isDone && "border-green-500 bg-green-50/40")}>
       <div className="flex items-start justify-between gap-2">
@@ -235,6 +238,8 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
           variant={isDone ? "outline" : "default"}
           className={cn(!isDone && "bg-green-600 hover:bg-green-700")}
           onClick={onDone}
+          disabled={!isDone && short > 0}
+          title={!isDone && short > 0 ? `${short.toLocaleString()} Dz still to make` : undefined}
         >
           {isDone ? <RotateCcw className="mr-1 h-4 w-4" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
           {isDone ? "Reopen" : "Done"}
@@ -502,12 +507,6 @@ export default function PrivateLabelFloorPage() {
                 <>
                   {doneOrder.pl_job_order_number} · {doneOrder.customer_name}. Produced{" "}
                   {Number(doneOrder.done_dozens).toLocaleString()} of {Number(doneOrder.total_dozens).toLocaleString()} Dz
-                  {!doneOrder.production_done_at && Number(doneOrder.done_dozens) < Number(doneOrder.total_dozens) && (
-                    <span className="mt-2 block font-medium text-destructive">
-                      {(Number(doneOrder.total_dozens) - Number(doneOrder.done_dozens)).toLocaleString()} Dz are still
-                      short of the order.
-                    </span>
-                  )}
                 </>
               )}
             </AlertDialogDescription>

@@ -86,3 +86,40 @@ UPDATE public.private_label_job_orders o
         AND i.quantity > (SELECT coalesce(sum(p.dozens), 0)
                             FROM public.private_label_job_order_progress p
                            WHERE p.item_id = i.id));
+
+-- Done only at 100%: marking Done is refused ("short") while any size is
+-- below its ordered quantity. Reopening is always allowed.
+CREATE OR REPLACE FUNCTION public.pljo_floor_set_done(
+  p_pin text, p_job_order_id uuid, p_done boolean, p_by text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $fn$
+DECLARE
+  v_status text := public.pljo_floor_check_pin(p_pin);
+BEGIN
+  IF v_status <> 'ok' THEN
+    RETURN jsonb_build_object('status', v_status);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.private_label_job_orders
+                  WHERE id = p_job_order_id AND status = 'Issued') THEN
+    RETURN jsonb_build_object('status', 'not_found');
+  END IF;
+
+  IF p_done AND EXISTS (
+       SELECT 1 FROM public.private_label_job_order_items i
+        WHERE i.job_order_id = p_job_order_id
+          AND i.quantity > (SELECT coalesce(sum(p.dozens), 0)
+                              FROM public.private_label_job_order_progress p
+                             WHERE p.item_id = i.id)) THEN
+    RETURN jsonb_build_object('status', 'short');
+  END IF;
+
+  UPDATE public.private_label_job_orders
+     SET production_done_at = CASE WHEN p_done THEN now() END,
+         production_done_by_name = CASE WHEN p_done THEN nullif(trim(p_by), '') END
+   WHERE id = p_job_order_id;
+  RETURN jsonb_build_object('status', 'ok');
+END;
+$fn$;
