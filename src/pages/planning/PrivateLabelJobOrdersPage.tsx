@@ -69,7 +69,7 @@ export default function PrivateLabelJobOrdersPage() {
     const q = search.trim().toLowerCase();
     if (!q) return orders;
     return orders.filter((o) =>
-      [o.pl_job_order_number, o.customers?.name, o.brand_name, o.customer_po_ref, o.grades?.name, o.remarks]
+      [o.pl_job_order_number, o.customers?.name, o.billing_customer?.name, o.brand_name, o.customer_po_ref, o.grades?.name, o.remarks]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
@@ -178,6 +178,9 @@ export default function PrivateLabelJobOrdersPage() {
                         <TableCell>
                           <div className="font-medium">{o.customers?.name}</div>
                           {o.brand_name && <div className="text-xs text-muted-foreground">{o.brand_name}</div>}
+                          {o.billing_customer_id !== o.customer_id && o.billing_customer?.name && (
+                            <div className="text-xs text-muted-foreground">Bill to: {o.billing_customer.name}</div>
+                          )}
                         </TableCell>
                         <TableCell>{o.grades?.name}</TableCell>
                         <TableCell>

@@ -22,6 +22,7 @@ const FIELD_LABEL: Record<string, string> = {
   order_date: "Order date",
   required_by_date: "Required by",
   customer: "Customer",
+  billing_customer: "Billing customer",
   grade: "Grade",
   brand_name: "Brand",
   customer_po_ref: "Customer PO / Ref",

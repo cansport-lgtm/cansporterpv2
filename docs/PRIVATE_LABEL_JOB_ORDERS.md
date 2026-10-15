@@ -23,7 +23,8 @@ Code:
 
 | Field | Source | Required |
 |---|---|---|
-| Customer | Customers master | yes |
+| Customer (brand owner) | Customers master | yes |
+| Billing customer (who is invoiced) | Customers master; **Same as customer** is ticked by default | yes |
 | Grade (ball) | Grades master, one per order | yes |
 | Brand name, customer PO / ref, required-by, priority, remarks | typed | no |
 | **Logo** | uploaded file (PNG, JPG, SVG, WEBP or PDF, up to 10 MB), or one of the customer's logos from Customer Logos | to issue |
@@ -89,3 +90,13 @@ One A4 page per order, printed with the iframe `printDocument()` helper. It show
 - remarks and signature boxes.
 
 Printing is available once an order is issued.
+
+## Billing customer
+
+Added in `supabase/migrations/20261027120000_private_label_billing_customer.sql`
+(rollback in `supabase/rollbacks/`).
+
+- **Default.** An order with no billing customer, including every order made before this change, is billed to its customer.
+- **Locked when Issued.** It can't change once the order is issued. Changes before that go in the log as "Billing customer: old → new".
+- **Where it shows.** The office list shows "Bill to" when it differs from the customer. The printed form, the floor page cards and floor prints always show it.
+- **Customer lookups now name the link.** The orders table links to `customers` twice, so lookups through the API must say which link they mean: `customers!private_label_job_orders_customer_id_fkey` or `customers!private_label_job_orders_billing_customer_id_fkey`.

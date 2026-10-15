@@ -164,6 +164,9 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         <div>
           <div className="font-mono text-sm font-semibold">{order.pl_job_order_number}</div>
           <div className="text-lg font-bold leading-tight">{order.customer_name}</div>
+          {order.billing_customer_name && (
+            <div className="text-sm text-muted-foreground">Bill to: {order.billing_customer_name}</div>
+          )}
           {order.brand_name && <div className="text-sm text-muted-foreground">Brand: {order.brand_name}</div>}
         </div>
         {order.last_printed_at ? (
@@ -364,7 +367,7 @@ export default function PrivateLabelFloorPage() {
     const sorted = [...orders].sort((a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at));
     if (!q) return sorted;
     return sorted.filter((o) =>
-      [o.pl_job_order_number, o.customer_name, o.brand_name, o.customer_po_ref, o.grade_name]
+      [o.pl_job_order_number, o.customer_name, o.billing_customer_name, o.brand_name, o.customer_po_ref, o.grade_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
