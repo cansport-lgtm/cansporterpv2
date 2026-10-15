@@ -431,3 +431,75 @@ export async function logPrinted(id: string) {
   const { error } = await db.rpc("pljo_log_printed", { p_job_order_id: id });
   if (error) throw error;
 }
+
+// ------------------------------------------------------------ floor page (/floor/private-label)
+// The floor page has no ERP login: every call carries the floor PIN, which
+// the database checks before returning anything.
+
+export type FloorPinStatus = "ok" | "invalid" | "locked" | "not_set" | "not_found";
+
+export interface FloorOrder {
+  id: string;
+  pl_job_order_number: string;
+  order_date: string;
+  required_by_date: string | null;
+  brand_name: string | null;
+  customer_po_ref: string | null;
+  priority: PljoPriority;
+  remarks: string | null;
+  issued_at: string | null;
+  customer_name: string;
+  grade_name: string;
+  total_dozens: number;
+  line_count: number;
+  logo_path: string | null;
+  logo_mime: string | null;
+  last_printed_at: string | null;
+}
+
+export class FloorPinError extends Error {
+  constructor(public status: FloorPinStatus) {
+    super(status);
+  }
+}
+
+async function floorRpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await db.rpc(fn, args);
+  if (error) throw error;
+  if (data?.status !== "ok") throw new FloorPinError(data?.status ?? "invalid");
+  return data as T;
+}
+
+export async function fetchFloorOrders(pin: string): Promise<FloorOrder[]> {
+  const data = await floorRpc<{ orders: FloorOrder[] }>("pljo_floor_orders", { p_pin: pin });
+  return data.orders;
+}
+
+export async function fetchFloorOrderDetail(pin: string, id: string): Promise<PljoDetail> {
+  const data = await floorRpc<PljoDetail>("pljo_floor_order_detail", { p_pin: pin, p_job_order_id: id });
+  return {
+    order: data.order,
+    lines: data.lines.map((l) => ({
+      ...l,
+      quantity: Number(l.quantity),
+      packs_per_master: Number(l.packs_per_master),
+      packing_dozens: Number(l.packing_dozens) || 0,
+    })),
+    attachments: data.attachments,
+  };
+}
+
+export async function logFloorPrinted(pin: string, id: string) {
+  await floorRpc("pljo_floor_log_printed", { p_pin: pin, p_job_order_id: id });
+}
+
+export async function fetchFloorPinStatus(): Promise<{ is_set: boolean; changed_at?: string }> {
+  const { data, error } = await db.rpc("pljo_floor_pin_status");
+  if (error) throw error;
+  return data;
+}
+
+export async function setFloorPin(pin: string) {
+  const { error } = await db.rpc("pljo_floor_set_pin", { p_pin: pin });
+  if (error) throw error;
+}
