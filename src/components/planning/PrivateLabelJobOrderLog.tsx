@@ -47,7 +47,7 @@ function isChange(v: unknown): v is { old: unknown; new: unknown } {
 function Details({ entry }: { entry: PljoLogEntry }) {
   const d = entry.details;
   if (!d) return null;
-  const { line, ...rest } = d as Record<string, unknown>;
+  const { line, source, ...rest } = d as Record<string, unknown>;
   const entries = Object.entries(rest).filter(([, v]) => isChange(v) || (v !== null && v !== ""));
   if (entries.length === 0) return null;
   return (
@@ -87,7 +87,7 @@ export function PrivateLabelJobOrderLog({ orderId }: { orderId: string }) {
           <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
             <span className="font-medium">{ACTION_LABEL[e.action] ?? e.action}</span>
             <span className="text-xs text-muted-foreground">
-              {format(new Date(e.changed_at), "dd MMM yyyy HH:mm")} · {e.app_users?.full_name ?? "Unknown user"}
+              {format(new Date(e.changed_at), "dd MMM yyyy HH:mm")} · {e.app_users?.full_name ?? (e.details?.source === "floor" ? "Floor display" : "Unknown user")}
             </span>
           </div>
           <Details entry={e} />

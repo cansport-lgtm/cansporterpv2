@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Eye, Plus, Ruler, Tag } from "lucide-react";
+import { Eye, KeyRound, Plus, Ruler, Tag } from "lucide-react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { PrivateLabelJobOrderDialog } from "@/components/planning/PrivateLabelJobOrderDialog";
 import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizesDialog";
+import { PrivateLabelFloorPinDialog } from "@/components/planning/PrivateLabelFloorPinDialog";
 import { fetchOrders, isImage, publicUrl, statusVariant, type PljoOrder } from "@/lib/privateLabelJobOrder";
 
 const PLANNING_EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -48,6 +49,7 @@ export default function PrivateLabelJobOrdersPage() {
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
   const [sizesOpen, setSizesOpen] = useState(false);
+  const [floorPinOpen, setFloorPinOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["pljo-list", status, fromDate, toDate],
@@ -73,6 +75,12 @@ export default function PrivateLabelJobOrdersPage() {
           icon={Tag}
           iconColor="bg-fuchsia-600 text-white"
         >
+          {isSuperAdmin && (
+            <Button variant="outline" onClick={() => setFloorPinOpen(true)}>
+              <KeyRound className="mr-2 h-4 w-4" />
+              Floor PIN
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setSizesOpen(true)}>
             <Ruler className="mr-2 h-4 w-4" />
             Sizes
@@ -209,6 +217,7 @@ export default function PrivateLabelJobOrdersPage() {
         />
       )}
       <PrivateLabelSizesDialog open={sizesOpen} onOpenChange={setSizesOpen} />
+      {isSuperAdmin && <PrivateLabelFloorPinDialog open={floorPinOpen} onOpenChange={setFloorPinOpen} />}
     </ERPLayout>
   );
 }
