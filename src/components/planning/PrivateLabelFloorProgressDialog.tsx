@@ -48,8 +48,9 @@ export function PrivateLabelFloorProgressDialog({ pin, order, enteredBy, onEnter
     }
     setSaving(true);
     try {
-      await addFloorProgress(pin, order.id, entries, enteredBy);
-      toast.success("Production saved");
+      const { completed } = await addFloorProgress(pin, order.id, entries, enteredBy);
+      if (completed) toast.success(`${order.pl_job_order_number} is 100% done and has moved off the list`);
+      else toast.success("Production saved");
       onClose(true);
     } catch (e) {
       if (e instanceof FloorPinError) onPinError(e);

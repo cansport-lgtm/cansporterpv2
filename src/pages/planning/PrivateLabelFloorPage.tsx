@@ -257,6 +257,8 @@ export default function PrivateLabelFloorPage() {
   const [progressOrder, setProgressOrder] = useState<FloorOrder | null>(null);
   const [doneOrder, setDoneOrder] = useState<FloorOrder | null>(null);
   const [savingDone, setSavingDone] = useState(false);
+  // Done orders leave the list; this brings them back so one can be reopened.
+  const [showDone, setShowDone] = useState(false);
   const [enteredBy, setEnteredBy] = useState(readName);
 
   const changeName = (name: string) => {
@@ -350,7 +352,7 @@ export default function PrivateLabelFloorPage() {
     setSavingDone(true);
     try {
       await setFloorDone(pin, doneOrder.id, marking, enteredBy);
-      toast.success(marking ? "Marked as done" : "Reopened");
+      toast.success(marking ? "Marked as done and moved off the list" : "Reopened");
       setDoneOrder(null);
       qc.invalidateQueries({ queryKey: ["pljo-floor"] });
     } catch (e) {
@@ -363,15 +365,17 @@ export default function PrivateLabelFloorPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // Orders still in production first; the server already sorts by priority.
-    const sorted = [...orders].sort((a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at));
+    // Done orders are hidden unless asked for, then listed after the rest.
+    const sorted = (showDone ? [...orders] : orders.filter((o) => !o.production_done_at)).sort(
+      (a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at),
+    );
     if (!q) return sorted;
     return sorted.filter((o) =>
       [o.pl_job_order_number, o.customer_name, o.billing_customer_name, o.brand_name, o.customer_po_ref, o.grade_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [orders, search]);
+  }, [orders, search, showDone]);
 
   if (!pin) return <PinScreen message={pinMessage} onUnlock={unlock} />;
 
@@ -399,6 +403,12 @@ export default function PrivateLabelFloorPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
+          {doneCount > 0 && (
+            <Button variant={showDone ? "secondary" : "outline"} onClick={() => setShowDone((v) => !v)}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {showDone ? "Hide done" : `Show done (${doneCount})`}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => lock(null)}>
             <Lock className="mr-2 h-4 w-4" />
             Lock
@@ -443,7 +453,11 @@ export default function PrivateLabelFloorPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center text-muted-foreground">
-          {orders.length === 0 ? "No issued private label job orders" : "No orders match the search"}
+          {orders.length === 0
+            ? "No issued private label job orders"
+            : search.trim()
+              ? "No orders match the search"
+              : "All orders are done"}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

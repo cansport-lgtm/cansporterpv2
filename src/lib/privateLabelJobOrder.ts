@@ -557,13 +557,15 @@ export async function addFloorProgress(
   id: string,
   entries: { item_id: string; dozens: number }[],
   enteredBy: string,
-) {
-  await floorRpc("pljo_floor_add_progress", {
+): Promise<{ completed: boolean }> {
+  // completed: this entry brought every size to 100%, so the order is now Done.
+  const data = await floorRpc<{ completed?: boolean }>("pljo_floor_add_progress", {
     p_pin: pin,
     p_job_order_id: id,
     p_entries: entries,
     p_entered_by: enteredBy,
   });
+  return { completed: !!data.completed };
 }
 
 export async function setFloorDone(pin: string, id: string, done: boolean, by: string) {
