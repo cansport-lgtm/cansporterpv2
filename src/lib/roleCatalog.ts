@@ -149,9 +149,9 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
   },
   closing_data_poster: {
     module: "production",
-    label: "Closing Data Poster (daily stock closing)",
+    label: "Closing Data Poster (stock closing + company JOs)",
     tier: "special",
-    description: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption), and views Reorder Requirement – limited to those pages only",
+    description: "Posts Daily Stock Closing (Production Planning) and Stock Closing (Material Consumption), makes Company Product Job Orders (Production Planning), and views Reorder Requirement – limited to those pages only",
     color: "bg-purple-600/10 text-purple-600 border-purple-600/20",
   },
 
