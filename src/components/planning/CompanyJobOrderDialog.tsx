@@ -56,7 +56,7 @@ interface Props {
 const LINE_CONTROL = "h-12 w-full text-base";
 
 /** Packings most used on company orders: listed first in the Packing picker. */
-const PINNED_PACKINGS = ["12 Dz CTN", "20 Dz Bag"];
+const PINNED_PACKINGS = ["12 Dz CTN", "20 Dz Bag", "60 Dz Bag"];
 
 function toForm(d: PljoDetail): CjoForm {
   const o = d.order;
