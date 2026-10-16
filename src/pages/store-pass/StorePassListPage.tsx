@@ -97,7 +97,7 @@ export default function StorePassListPage() {
       Customers: r.party_name,
       Items: r.store_pass_items.length,
       "Dozens": sum(r.store_pass_items.map((i) => i.quantity)),
-      "Cartons": sum(r.store_pass_items.map((i) => i.packages)),
+      "Packages (carton/bora)": sum(r.store_pass_items.map((i) => i.packages)),
       Status: spStatusMeta(r.status).label,
       "Issued at": r.issued_at ? format(new Date(r.issued_at), "yyyy-MM-dd HH:mm") : "",
       "Issued by": r.issuer?.full_name ?? "",
