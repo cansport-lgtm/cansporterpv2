@@ -48,10 +48,26 @@ const getOrCreateAccountingParty = async (supplier: { id: string; name: string; 
 };
 
 /**
+ * Freight the company paid the transporter and recovers from the supplier
+ * ("to pay" freight, grn_freight.payer = 'company_recover'); 0 otherwise.
+ * Missing table (migration not applied) or no access reads as 0.
+ */
+export const grnRecoveredFreight = async (grnId: string): Promise<number> => {
+  const { data, error } = await sb.from("grn_freight").select("payer, amount").eq("grn_id", grnId).maybeSingle();
+  if (error || !data || data.payer !== "company_recover") return 0;
+  return Number(data.amount || 0);
+};
+
+/**
  * Auto-post AP/Inventory journal for a freshly-created GRN.
  *
  *   Dr  Inventory or Expense (per PO category)     amount
- *   Cr    Accounts Payable                          amount        (party = supplier)
+ *   Cr    Accounts Payable                          amount − recovered   (party = supplier)
+ *   Cr    Freight Inward                            recovered            (only when freight is recovered)
+ *
+ * Recovered freight: we paid the supplier's transporter in cash (a freight
+ * voucher, booked to Freight Inward when paid), so the supplier is owed that
+ * much less and the expense nets to nil.
  *
  * Idempotency: source_module='purchase' + source_reference_id=grnId.
  * Flag-gated by VITE_ENABLE_ACC_AUTOPOST. Never throws.
@@ -90,6 +106,14 @@ export async function postGRNVoucher(grnId: string): Promise<PostGRNResult> {
     if (!apId || !drId) {
       return { ok: false, error: "Accounts Payable or category Dr account not mapped. Visit /accounting/default-accounts." };
     }
+    const recovered = await grnRecoveredFreight(grnId);
+    if (recovered > amount + 0.001) {
+      return { ok: false, error: `Freight recovered (Rs. ${recovered}) is more than the GRN amount (Rs. ${amount}).` };
+    }
+    const freightId = recovered > 0 ? await getDefaultAccount("freight_inward") : null;
+    if (recovered > 0 && !freightId) {
+      return { ok: false, error: "Freight Inward account not mapped (needed to recover freight from the supplier). Visit /accounting/default-accounts." };
+    }
 
     // 4) Resolve party
     const supplier = grn.supplier;
@@ -100,7 +124,8 @@ export async function postGRNVoucher(grnId: string): Promise<PostGRNResult> {
     // 5) Insert voucher + lines
     const narration = `Auto: GRN ${grn.grn_number} from ${supplier.name}` +
       (grn.purchase_order?.po_number ? ` (PO ${grn.purchase_order.po_number})` : "") +
-      (grn.purchase_order?.category ? ` — ${grn.purchase_order.category}` : "");
+      (grn.purchase_order?.category ? ` — ${grn.purchase_order.category}` : "") +
+      (recovered > 0 ? ` · freight Rs. ${recovered.toLocaleString()} recovered` : "");
 
     const { data: voucher, error: vErr } = await sb
       .from("accounting_vouchers")
@@ -133,10 +158,18 @@ export async function postGRNVoucher(grnId: string): Promise<PostGRNResult> {
         account_id: apId,
         party_id: partyId,
         debit_amount: 0,
-        credit_amount: amount,
+        credit_amount: amount - recovered,
         line_narration: `AP — ${supplier.name}`,
         line_order: 1,
       },
+      ...(recovered > 0 ? [{
+        voucher_id: voucher.id,
+        account_id: freightId,
+        debit_amount: 0,
+        credit_amount: recovered,
+        line_narration: `Freight paid by us, recovered from ${supplier.name}`,
+        line_order: 2,
+      }] : []),
     ]);
     if (lErr) return { ok: false, error: lErr.message };
 

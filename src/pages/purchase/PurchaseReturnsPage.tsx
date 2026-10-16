@@ -30,8 +30,8 @@ const RETURN_REASONS = ["Defective", "Quality issue", "Wrong item", "Excess rece
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "raw_material", label: "Raw Material" },
   { value: "office_supplies", label: "Office Supplies" },
-  { value: "general_supplies", label: "General Supplies" },
-  { value: "spare_maintenance", label: "Spares / Maintenance" },
+  { value: "general_supplies", label: "Production Supplies" },
+  { value: "spare_maintenance", label: "Spares & Parts" },
 ];
 
 interface LineForm {

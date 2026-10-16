@@ -5,7 +5,7 @@ import { Loader2, Factory } from 'lucide-react';
 /**
  * Redirects users to the appropriate dashboard based on their role.
  * - super_admin: Main Dashboard
- * - qa_manager: QA Dashboard
+ * - qa_manager / qa_super_manager: QA Dashboard
  * - maintenance_manager: Maintenance Dashboard
  * - operational_manager: Production Dashboard
  * - Others: First accessible module dashboard
@@ -40,8 +40,8 @@ export function RoleBasedRedirect() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // QA Manager goes to QA Dashboard
-  if (roles.some(r => r.role === 'qa_manager')) {
+  // QA Manager / QA Super Manager go to QA Dashboard
+  if (roles.some(r => r.role === 'qa_manager' || r.role === 'qa_super_manager')) {
     return <Navigate to="/qa/dashboard" replace />;
   }
 
@@ -69,6 +69,11 @@ export function RoleBasedRedirect() {
   // Gate Security lands directly on the Gate Check page — their only page
   if (roles.some(r => (r.role as string) === 'gate_security')) {
     return <Navigate to="/gate-pass/check" replace />;
+  }
+
+  // Gate Pass type managers land on the approvals they act on
+  if (roles.some(r => ['gate_pass_sample_manager', 'gate_pass_returnable_manager', 'gate_pass_jobwork_manager', 'gate_pass_scrap_manager'].includes(r.role as string))) {
+    return <Navigate to="/gate-pass/approvals" replace />;
   }
 
   // Sales Executive goes to Sales Orders page
@@ -149,6 +154,21 @@ export function RoleBasedRedirect() {
   // Purchase QC Inspector lands directly on the Quality Inspection page (their only page)
   if (roles.some(r => (r.role as string) === 'purchase_qc_inspector')) {
     return <Navigate to="/purchase/qc" replace />;
+  }
+
+  // Labour Gate Pass Approver lands on the worker gate pass approvals
+  if (roles.some(r => (r.role as string) === 'labour_gate_pass_approver')) {
+    return <Navigate to="/labour/gate-pass/approvals" replace />;
+  }
+
+  // Labour Attendance Delete Approver lands on the attendance delete requests
+  if (roles.some(r => (r.role as string) === 'labour_attendance_delete_approver')) {
+    return <Navigate to="/labour/attendance-delete-requests" replace />;
+  }
+
+  // Staff Gate Pass Approver lands on the staff gate pass approvals
+  if (roles.some(r => (r.role as string) === 'staff_gate_pass_approver')) {
+    return <Navigate to="/hr/gate-pass/approvals" replace />;
   }
 
   // Labour Productivity Approver lands on Labour Dashboard (full access)

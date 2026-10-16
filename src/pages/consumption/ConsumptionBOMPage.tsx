@@ -15,6 +15,7 @@ import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Badge } from "@/components/ui/badge";
 
 interface BOMEntry {
@@ -183,7 +184,7 @@ export default function ConsumptionBOMPage() {
       const { error } = await supabase
         .from("consumption_products")
         .insert({
-          code: data.code,
+          code: "",
           name: data.name,
           is_active: true,
         });
@@ -261,8 +262,8 @@ export default function ConsumptionBOMPage() {
 
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productFormData.code || !productFormData.name) {
-      toast.error("Code and Name are required");
+    if (!productFormData.name) {
+      toast.error("Name is required");
       return;
     }
     saveProductMutation.mutate(productFormData);
@@ -458,15 +459,7 @@ export default function ConsumptionBOMPage() {
             </DialogHeader>
             <form onSubmit={handleProductSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Code *</Label>
-                  <Input
-                    value={productFormData.code}
-                    onChange={(e) => setProductFormData({ ...productFormData, code: e.target.value.toUpperCase() })}
-                    placeholder="PROD001"
-                    required
-                  />
-                </div>
+                <AutoCodeField entity="consumption_products" label="Code" />
                 <div className="space-y-2">
                   <Label>Unit</Label>
                   <Select

@@ -542,9 +542,10 @@ export default function SalaryReportPage() {
       // (0.5 shortfall inside absentDays) doesn't forfeit the allowance.
       const fullDayAbsences = Math.max(0, workingDays - presentDays - halfDays - paidLeaveDays) + unpaidHolidays;
 
-      // Attendance allowance: auto-add if no full-day absence, at most 1 half day, and no paid leaves
+      // Attendance allowance: auto-add if no full-day absence, at most 1 half day,
+      // and at most half a day of paid leave (a 0.5-day leave is forgiven like a half day)
       const attAllowanceConfig = Number((e as any).attendance_allowance) || 0;
-      const attendanceAllowance = (fullDayAbsences === 0 && halfDays <= 1 && paidLeaveDays === 0) ? attAllowanceConfig : 0;
+      const attendanceAllowance = (fullDayAbsences === 0 && halfDays <= 1 && paidLeaveDays <= 0.5) ? attAllowanceConfig : 0;
       
       const overtimeAmount = overtimeMap[e.id] || 0;
       const advanceDeduction = advanceMap[e.id] || 0;

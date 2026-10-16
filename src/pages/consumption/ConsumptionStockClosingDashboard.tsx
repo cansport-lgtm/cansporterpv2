@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   endOfMonth,
@@ -33,6 +33,7 @@ import {
   ChevronRight,
   ChevronDown,
   Beaker,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,6 +64,7 @@ interface ClosingRow {
     name: string;
     unit: string | null;
     category: string | null;
+    subcategory: string | null;
     value_category: MaterialValueCategory | null;
     cost_value: number | null;
     threshold: number | null;
@@ -71,9 +73,21 @@ interface ClosingRow {
 
 type PeriodMode = "daily" | "weekly" | "monthly";
 
+type MaterialInfo = NonNullable<ClosingRow["consumption_raw_materials"]>;
+
+const subcategoryKey = (category: string | null | undefined, subcategory: string | null | undefined) =>
+  `${category || "Uncategorized"} / ${subcategory || ""}`;
+
+// How a material's closing figure was found for the selected period:
+// "current" — it has entries in the period; "carried" — no entry in the
+// period, so its latest earlier closing is carried forward; "never" — it has
+// never been closed.
+type EntryStatus = "current" | "carried" | "never";
+
 // A material's figures aggregated over the selected period: opening from the
 // first closing entry in the range, receipts/consumption summed across it,
-// closing from the last entry.
+// closing from the last entry. Carried-forward materials take the closing of
+// their last earlier entry, with nothing received or consumed in the period.
 interface MaterialAgg {
   raw_material_id: string;
   opening: number;
@@ -81,6 +95,8 @@ interface MaterialAgg {
   consumed: number;
   closing: number;
   material: ClosingRow["consumption_raw_materials"];
+  status: EntryStatus;
+  lastDate: string | null;
 }
 
 // Supabase caps a select at 1000 rows; a month of daily closings across all
@@ -113,6 +129,9 @@ export default function ConsumptionStockClosingDashboard() {
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [trendMode, setTrendMode] = useState<"total" | "category">("total");
   const [valueTierFilter, setValueTierFilter] = useState<MaterialValueCategory | "all">("all");
+  // Sub-category names are only unique within a category, so the filter
+  // value is the "category / sub-category" pair.
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string>("all");
 
   const toggleCat = (name: string) => {
     setExpandedCats((prev) => {
@@ -161,16 +180,68 @@ export default function ConsumptionStockClosingDashboard() {
     queryFn: async () =>
       (await fetchClosingRows(
         `id, closing_date, opening_quantity, receipt_quantity, closing_quantity, actual_consumption, raw_material_id,
-         consumption_raw_materials(id, code, name, unit, category, value_category, cost_value, threshold)`,
+         consumption_raw_materials(id, code, name, unit, category, subcategory, value_category, cost_value, threshold)`,
         rangeStartStr,
         rangeEndStr,
       )) as unknown as ClosingRow[],
   });
 
+  // Every active material is listed, whether or not it was closed in the period.
+  const { data: activeMaterials, isLoading: materialsLoading } = useQuery({
+    queryKey: ["consumption-closing-dashboard-materials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_raw_materials")
+        .select("id, code, name, unit, category, subcategory, value_category, cost_value, threshold")
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return (data || []) as unknown as MaterialInfo[];
+    },
+  });
+
+  // Active materials with no entry in the period.
+  const missingIds = useMemo(() => {
+    if (!closingRows || !activeMaterials) return undefined;
+    const closed = new Set(closingRows.map((r) => r.raw_material_id));
+    return activeMaterials.filter((m) => !closed.has(m.id)).map((m) => m.id);
+  }, [closingRows, activeMaterials]);
+
+  // Latest closing before the period for each material missing from it. Pages
+  // backwards through history and stops once every material is found.
+  const { data: lastEntries, isLoading: lastEntriesLoading } = useQuery({
+    queryKey: ["consumption-closing-dashboard-last", rangeStartStr, missingIds],
+    enabled: !!missingIds,
+    queryFn: async () => {
+      const found = new Map<string, { date: string; qty: number }>();
+      const ids = missingIds || [];
+      if (ids.length === 0) return found;
+      const pageSize = 1000;
+      for (let offset = 0; found.size < ids.length; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("consumption_stock_closing")
+          .select("raw_material_id, closing_date, closing_quantity")
+          .in("raw_material_id", ids)
+          .lt("closing_date", rangeStartStr)
+          .order("closing_date", { ascending: false })
+          .order("id")
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        (data || []).forEach((r) => {
+          if (!found.has(r.raw_material_id))
+            found.set(r.raw_material_id, { date: r.closing_date, qty: Number(r.closing_quantity) || 0 });
+        });
+        if (!data || data.length < pageSize) break;
+      }
+      return found;
+    },
+  });
+
   // Collapse the period's rows to one aggregate per material (rows arrive
-  // date-ascending, so the last write per material is the period's closing).
+  // date-ascending, so the last write per material is the period's closing),
+  // then add every other active material from its last earlier entry.
   const closingData = useMemo(() => {
-    if (!closingRows) return undefined;
+    if (!closingRows || !activeMaterials || !lastEntries) return undefined;
     const map = new Map<string, MaterialAgg>();
     closingRows.forEach((row) => {
       const existing = map.get(row.raw_material_id);
@@ -182,25 +253,57 @@ export default function ConsumptionStockClosingDashboard() {
           consumed: Number(row.actual_consumption) || 0,
           closing: Number(row.closing_quantity) || 0,
           material: row.consumption_raw_materials,
+          status: "current",
+          lastDate: row.closing_date,
         });
       } else {
         existing.receipt += Number(row.receipt_quantity) || 0;
         existing.consumed += Number(row.actual_consumption) || 0;
         existing.closing = Number(row.closing_quantity) || 0;
+        existing.lastDate = row.closing_date;
       }
     });
+    activeMaterials.forEach((m) => {
+      if (map.has(m.id)) return;
+      const last = lastEntries.get(m.id);
+      map.set(m.id, {
+        raw_material_id: m.id,
+        opening: last?.qty ?? 0,
+        receipt: 0,
+        consumed: 0,
+        closing: last?.qty ?? 0,
+        material: m,
+        status: last ? "carried" : "never",
+        lastDate: last?.date ?? null,
+      });
+    });
     return Array.from(map.values());
-  }, [closingRows]);
+  }, [closingRows, activeMaterials, lastEntries]);
 
   // Materials filtered by the selected value tier (HP/MP/CM). This is the
   // single point every downstream chart/table below reads from, so the
   // filter applies consistently everywhere except the free-form category
   // breakdown grouping logic, which stays independent of this dimension.
+  const matchesFilters = useCallback(
+    (m: Pick<MaterialInfo, "category" | "subcategory" | "value_category"> | null | undefined) =>
+      (valueTierFilter === "all" || m?.value_category === valueTierFilter) &&
+      (subcategoryFilter === "all" || subcategoryKey(m?.category, m?.subcategory) === subcategoryFilter),
+    [valueTierFilter, subcategoryFilter],
+  );
+
+  const subcategoryOptions = useMemo(() => {
+    const keys = new Set<string>();
+    (activeMaterials || []).forEach((m) => {
+      if (m.category && m.subcategory) keys.add(subcategoryKey(m.category, m.subcategory));
+    });
+    return Array.from(keys).sort();
+  }, [activeMaterials]);
+
   const filteredClosingData = useMemo(() => {
     if (!closingData) return undefined;
-    if (valueTierFilter === "all") return closingData;
-    return closingData.filter((agg) => agg.material?.value_category === valueTierFilter);
-  }, [closingData, valueTierFilter]);
+    if (valueTierFilter === "all" && subcategoryFilter === "all") return closingData;
+    return closingData.filter((agg) => matchesFilters(agg.material));
+  }, [closingData, valueTierFilter, subcategoryFilter, matchesFilters]);
 
   // Weekly materials are due on Mondays and on the last day of each month.
   // Check the current week's Monday and the most recent month-end for
@@ -218,7 +321,7 @@ export default function ConsumptionStockClosingDashboard() {
       const [materialsRes, closingsRes] = await Promise.all([
         supabase
           .from("consumption_raw_materials")
-          .select("id, code, name, value_category")
+          .select("id, code, name, category, subcategory, value_category")
           .eq("is_active", true)
           .eq("closing_frequency", "weekly"),
         supabase
@@ -245,16 +348,16 @@ export default function ConsumptionStockClosingDashboard() {
     },
   });
 
-  // Missing-closing list, narrowed to the selected value tier.
+  // Missing-closing list, narrowed to the selected value tier / sub-category.
   const filteredMissedWeekly = useMemo(() => {
-    if (valueTierFilter === "all") return missedWeekly;
+    if (valueTierFilter === "all" && subcategoryFilter === "all") return missedWeekly;
     return missedWeekly
       .map((due) => ({
         ...due,
-        missing: due.missing.filter((m: any) => m.value_category === valueTierFilter),
+        missing: due.missing.filter((m: any) => matchesFilters(m)),
       }))
       .filter((due) => due.missing.length > 0);
-  }, [missedWeekly, valueTierFilter]);
+  }, [missedWeekly, valueTierFilter, subcategoryFilter, matchesFilters]);
 
   // Trend data: 14 days in daily view, 12 weeks in weekly, 12 months in monthly
   const { data: trendData } = useQuery({
@@ -262,7 +365,7 @@ export default function ConsumptionStockClosingDashboard() {
     queryFn: async () =>
       fetchClosingRows(
         `closing_date, closing_quantity, actual_consumption, raw_material_id,
-         consumption_raw_materials(category, value_category)`,
+         consumption_raw_materials(category, subcategory, value_category)`,
         trendStartStr,
         rangeEndStr,
       ),
@@ -271,13 +374,25 @@ export default function ConsumptionStockClosingDashboard() {
   // KPIs
   const kpis = useMemo(() => {
     if (!filteredClosingData)
-      return { items: 0, units: 0, categories: 0, value: 0, zeroStock: 0, lowStock: 0, consumed: 0 };
+      return {
+        items: 0,
+        current: 0,
+        carried: 0,
+        never: 0,
+        units: 0,
+        categories: 0,
+        value: 0,
+        zeroStock: 0,
+        lowStock: 0,
+        consumed: 0,
+      };
     const catSet = new Set<string>();
     let units = 0;
     let value = 0;
     let consumed = 0;
     let zeroStock = 0;
     let lowStock = 0;
+    const status = { current: 0, carried: 0, never: 0 };
     filteredClosingData.forEach((agg) => {
       const qty = agg.closing;
       const cv = Number(agg.material?.cost_value) || 0;
@@ -285,12 +400,17 @@ export default function ConsumptionStockClosingDashboard() {
       units += qty;
       value += qty * cv;
       consumed += agg.consumed;
-      if (qty === 0) zeroStock += 1;
-      else if (threshold > 0 && qty <= threshold) lowStock += 1;
+      status[agg.status] += 1;
+      // Never-counted materials read 0 but aren't known to be out of stock.
+      if (agg.status !== "never") {
+        if (qty === 0) zeroStock += 1;
+        else if (threshold > 0 && qty <= threshold) lowStock += 1;
+      }
       catSet.add(agg.material?.category || "Uncategorized");
     });
     return {
       items: filteredClosingData.length,
+      ...status,
       units,
       categories: catSet.size,
       value,
@@ -309,9 +429,13 @@ export default function ConsumptionStockClosingDashboard() {
         value: number;
         items: number;
         consumed: number;
+        current: number;
+        carried: number;
+        never: number;
         rows: Array<{
           code: string;
           name: string;
+          subcategory: string;
           unit: string;
           opening: number;
           receipt: number;
@@ -320,6 +444,8 @@ export default function ConsumptionStockClosingDashboard() {
           value: number;
           isLow: boolean;
           isZero: boolean;
+          status: EntryStatus;
+          lastDate: string | null;
         }>;
       }>;
     const map: Record<
@@ -330,9 +456,13 @@ export default function ConsumptionStockClosingDashboard() {
         value: number;
         items: number;
         consumed: number;
+        current: number;
+        carried: number;
+        never: number;
         rows: Array<{
           code: string;
           name: string;
+          subcategory: string;
           unit: string;
           opening: number;
           receipt: number;
@@ -341,6 +471,8 @@ export default function ConsumptionStockClosingDashboard() {
           value: number;
           isLow: boolean;
           isZero: boolean;
+          status: EntryStatus;
+          lastDate: string | null;
         }>;
       }
     > = {};
@@ -350,22 +482,36 @@ export default function ConsumptionStockClosingDashboard() {
       const cv = Number(agg.material?.cost_value) || 0;
       const threshold = Number(agg.material?.threshold) || 0;
       if (!map[catName])
-        map[catName] = { name: catName, qty: 0, value: 0, items: 0, consumed: 0, rows: [] };
+        map[catName] = {
+          name: catName,
+          qty: 0,
+          value: 0,
+          items: 0,
+          consumed: 0,
+          current: 0,
+          carried: 0,
+          never: 0,
+          rows: [],
+        };
       map[catName].qty += qty;
       map[catName].value += qty * cv;
       map[catName].consumed += agg.consumed;
       map[catName].items += 1;
+      map[catName][agg.status] += 1;
       map[catName].rows.push({
         code: agg.material?.code || "—",
         name: agg.material?.name || "—",
+        subcategory: agg.material?.subcategory || "—",
         unit: agg.material?.unit || "",
         opening: agg.opening,
         receipt: agg.receipt,
         consumed: agg.consumed,
         qty,
         value: qty * cv,
-        isLow: threshold > 0 && qty > 0 && qty <= threshold,
-        isZero: qty === 0,
+        isLow: agg.status !== "never" && threshold > 0 && qty > 0 && qty <= threshold,
+        isZero: agg.status !== "never" && qty === 0,
+        status: agg.status,
+        lastDate: agg.lastDate,
       });
     });
     return Object.values(map).sort((a, b) => b.value - a.value);
@@ -385,6 +531,8 @@ export default function ConsumptionStockClosingDashboard() {
           category: agg.material?.category || "Uncategorized",
           qty,
           value: qty * cv,
+          status: agg.status,
+          lastDate: agg.lastDate,
         };
       })
       .sort((a, b) => (isSuperAdmin ? b.value - a.value : b.qty - a.qty))
@@ -395,6 +543,7 @@ export default function ConsumptionStockClosingDashboard() {
   const lowStockItems = useMemo(() => {
     if (!filteredClosingData) return [];
     return filteredClosingData
+      .filter((agg) => agg.status !== "never")
       .map((agg) => {
         const qty = agg.closing;
         const threshold = Number(agg.material?.threshold) || 0;
@@ -406,6 +555,8 @@ export default function ConsumptionStockClosingDashboard() {
           qty,
           threshold,
           isZero: qty === 0,
+          status: agg.status,
+          lastDate: agg.lastDate,
         };
       })
       .filter((r) => r.isZero || (r.threshold > 0 && r.qty <= r.threshold))
@@ -433,9 +584,9 @@ export default function ConsumptionStockClosingDashboard() {
       { consumed: number; latest: Map<string, { date: string; qty: number; cat: string }> }
     >();
     const filteredTrendData =
-      valueTierFilter === "all"
+      valueTierFilter === "all" && subcategoryFilter === "all"
         ? trendData
-        : trendData.filter((row: any) => row.consumption_raw_materials?.value_category === valueTierFilter);
+        : trendData.filter((row: any) => matchesFilters(row.consumption_raw_materials));
     filteredTrendData.forEach((row: any) => {
       const key = keyOf(row.closing_date);
       let b = buckets.get(key);
@@ -477,7 +628,7 @@ export default function ConsumptionStockClosingDashboard() {
       return entry;
     });
     return { trendChart: total, trendByCat: byCat, catNames: names };
-  }, [trendData, period, valueTierFilter]);
+  }, [trendData, period, valueTierFilter, subcategoryFilter, matchesFilters]);
 
   const palette = [
     "hsl(var(--primary))",
@@ -546,6 +697,19 @@ export default function ConsumptionStockClosingDashboard() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sub-categories</SelectItem>
+                {subcategoryOptions.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="min-w-[200px] justify-start text-left font-normal">
@@ -592,7 +756,13 @@ export default function ConsumptionStockClosingDashboard() {
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <KpiCard icon={Boxes} label="Items Closed" value={fmtNum(kpis.items)} tone="violet" />
+          <KpiCard
+            icon={Boxes}
+            label="Items"
+            value={fmtNum(kpis.items)}
+            hint={`${fmtNum(kpis.current)} closed · ${fmtNum(kpis.carried)} older · ${fmtNum(kpis.never)} none`}
+            tone="violet"
+          />
           <KpiCard icon={Package} label="Total Units" value={fmtNum(kpis.units)} tone="blue" />
           <KpiCard icon={Layers} label="Categories" value={fmtNum(kpis.categories)} tone="emerald" />
           <KpiCard
@@ -772,7 +942,7 @@ export default function ConsumptionStockClosingDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isLoading || materialsLoading || lastEntriesLoading ? (
                     <TableRow>
                       <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center text-muted-foreground py-6">
                         Loading…
@@ -781,7 +951,7 @@ export default function ConsumptionStockClosingDashboard() {
                   ) : categoryBreakdown.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isSuperAdmin ? 6 : 5} className="text-center text-muted-foreground py-6">
-                        No closing entries for this {period === "daily" ? "date" : period === "weekly" ? "week" : "month"}.
+                        No active raw materials{valueTierFilter === "all" && subcategoryFilter === "all" ? "" : " match the selected filters"}.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -810,7 +980,17 @@ export default function ConsumptionStockClosingDashboard() {
                                 )}
                               </button>
                             </TableCell>
-                            <TableCell className="font-medium">{c.name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                {c.name}
+                                {c.carried > 0 && (
+                                  <span className={cn(capsuleBase, capsuleTone.carried)}>{c.carried} older</span>
+                                )}
+                                {c.never > 0 && (
+                                  <span className={cn(capsuleBase, capsuleTone.never)}>{c.never} no entry</span>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className="text-right">{fmtNum(c.items)}</TableCell>
                             <TableCell className="text-right">{fmtNum(c.qty)}</TableCell>
                             <TableCell className="text-right text-rose-600 dark:text-rose-400">
@@ -829,6 +1009,7 @@ export default function ConsumptionStockClosingDashboard() {
                                       <TableRow>
                                         <TableHead className="text-xs uppercase">Code</TableHead>
                                         <TableHead className="text-xs uppercase">Item</TableHead>
+                                        <TableHead className="text-xs uppercase">Sub-Category</TableHead>
                                         <TableHead className="text-xs uppercase">Unit</TableHead>
                                         <TableHead className="text-xs uppercase text-right">Opening</TableHead>
                                         <TableHead className="text-xs uppercase text-right">Receipt</TableHead>
@@ -855,7 +1036,9 @@ export default function ConsumptionStockClosingDashboard() {
                                                 Low
                                               </span>
                                             )}
+                                            <EntryCapsule status={r.status} lastDate={r.lastDate} qty={r.qty} unit={r.unit} />
                                           </TableCell>
+                                          <TableCell className="text-muted-foreground text-sm">{r.subcategory}</TableCell>
                                           <TableCell className="text-muted-foreground text-sm">{r.unit}</TableCell>
                                           <TableCell className="text-right">{fmtNum(r.opening)}</TableCell>
                                           <TableCell className="text-right">{fmtNum(r.receipt)}</TableCell>
@@ -917,7 +1100,10 @@ export default function ConsumptionStockClosingDashboard() {
                       topItems.map((r, i) => (
                         <TableRow key={`top-${r.code}-${i}`}>
                           <TableCell className="font-mono text-xs">{r.code}</TableCell>
-                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="font-medium">
+                            {r.name}
+                            <EntryCapsule status={r.status} lastDate={r.lastDate} qty={r.qty} unit={r.unit} />
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{r.category}</TableCell>
                           <TableCell className="text-right">
                             {fmtNum(r.qty)} <span className="text-xs text-muted-foreground">{r.unit}</span>
@@ -967,6 +1153,7 @@ export default function ConsumptionStockClosingDashboard() {
                           <TableCell className="font-medium">
                             {r.name}
                             <div className="text-xs text-muted-foreground">{r.category}</div>
+                            <EntryCapsule status={r.status} lastDate={r.lastDate} qty={r.qty} unit={r.unit} />
                           </TableCell>
                           <TableCell className="text-right">
                             {fmtNum(r.qty)} <span className="text-xs text-muted-foreground">{r.unit}</span>
@@ -1015,11 +1202,13 @@ function KpiCard({
   icon: Icon,
   label,
   value,
+  hint,
   tone = "primary",
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  hint?: string;
   tone?: keyof typeof toneClasses;
 }) {
   return (
@@ -1031,9 +1220,46 @@ function KpiCard({
         <div className="min-w-0">
           <div className="text-xs text-muted-foreground truncate">{label}</div>
           <div className="text-lg font-semibold truncate">{value}</div>
+          {hint && <div className="text-[11px] text-muted-foreground truncate" title={hint}>{hint}</div>}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const capsuleBase =
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium";
+const capsuleTone = {
+  carried: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  never: "border-dashed border-muted-foreground/40 bg-muted text-muted-foreground",
+};
+
+// Shown on a material with no entry in the selected period: its last earlier
+// closing (carried forward into the totals), or that it was never closed.
+function EntryCapsule({
+  status,
+  lastDate,
+  qty,
+  unit,
+}: {
+  status: EntryStatus;
+  lastDate: string | null;
+  qty: number;
+  unit: string;
+}) {
+  if (status === "current") return null;
+  return (
+    <div className="mt-1">
+      {status === "carried" && lastDate ? (
+        <span className={cn(capsuleBase, capsuleTone.carried)}>
+          <Clock className="h-3 w-3" />
+          Last entry {format(new Date(lastDate + "T00:00:00"), "dd MMM")} ·{" "}
+          {new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(qty)} {unit}
+        </span>
+      ) : (
+        <span className={cn(capsuleBase, capsuleTone.never)}>No entry yet</span>
+      )}
+    </div>
   );
 }
 

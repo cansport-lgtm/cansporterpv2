@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { STAFF_PASS, halfDayMarkTitle, usePersonPassHalfDays } from "@/lib/personGatePass";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -109,6 +110,9 @@ const AttendanceSheetPage = () => {
       return all;
     },
   });
+
+  // Dates marked Half day by a staff gate pass this month, keyed "employeeId|date".
+  const gatePassHalfDays = usePersonPassHalfDays(STAFF_PASS, format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"));
 
   const attendanceMap = useMemo(() => {
     const map: Record<string, Record<string, string>> = {};
@@ -282,13 +286,15 @@ const AttendanceSheetPage = () => {
       );
     }
 
-    const status = getStatusForCell(employeeId, format(date, "yyyy-MM-dd"));
+    const dateKey = format(date, "yyyy-MM-dd");
+    const status = getStatusForCell(employeeId, dateKey);
     const cfg = getStatusConfig(status || "absent");
+    const mark = gatePassHalfDays.get(`${employeeId}|${dateKey}`);
 
     return (
       <div
         className={cn("w-8 h-8 flex items-center justify-center rounded text-xs font-medium", cfg.bg, cfg.text, isToday && "ring-2 ring-primary")}
-        title={cfg.label}
+        title={mark ? halfDayMarkTitle(mark) : cfg.label}
       >
         {cfg.short}
       </div>

@@ -54,6 +54,7 @@ import CAPADashboardPage from "./pages/qa/CAPADashboardPage";
 import ProcessInspectionsDashboard from "./pages/qa/ProcessInspectionsDashboard";
 import QAReleasePage from "./pages/qa/QAReleasePage";
 import DailyQualityPlanPage from "./pages/qa/DailyQualityPlanPage";
+import QualityReportPage from "./pages/qa/QualityReportPage";
 import QAInspectionTargetDashboard from "./pages/qa/QAInspectionTargetDashboard";
 import ProcessInstructionsPage from "./pages/qa/ProcessInstructionsPage";
 import InstructionAcknowledgementPage from "./pages/qa/InstructionAcknowledgementPage";
@@ -100,6 +101,13 @@ import SalaryReportPage from "./pages/hr/SalaryReportPage";
 import AttendanceSheetPage from "./pages/hr/AttendanceSheetPage";
 import PublicHolidaysPage from "./pages/hr/PublicHolidaysPage";
 import HRPunctualityAnalyticsPage from "./pages/hr/HRPunctualityAnalyticsPage";
+import StaffGatePassListPage from "./pages/hr/StaffGatePassListPage";
+import StaffGatePassFormPage from "./pages/hr/StaffGatePassFormPage";
+import StaffGatePassDetailPage from "./pages/hr/StaffGatePassDetailPage";
+import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
+import MyGatePassListPage from "./pages/hr/MyGatePassListPage";
+import MyGatePassFormPage from "./pages/hr/MyGatePassFormPage";
+import MyGatePassDetailPage from "./pages/hr/MyGatePassDetailPage";
 
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
@@ -175,6 +183,7 @@ import DailyStockClosingPage from "./pages/planning/DailyStockClosingPage";
 import DailyClosingDashboard from "./pages/planning/DailyClosingDashboard";
 import MonthlyProductionPage from "./pages/planning/MonthlyProductionPage";
 import SkilledLabourPlanningPage from "./pages/planning/SkilledLabourPlanningPage";
+import ProductionRequirementPage from "./pages/planning/ProductionRequirementPage";
 
 // Labour Productivity pages
 import LabourProductivityDashboard from "./pages/labour/LabourProductivityDashboard";
@@ -193,6 +202,11 @@ import LabourMPHAnalysisPage from "./pages/labour/LabourMPHAnalysisPage";
 import LabourTodaysTargetPage from "./pages/labour/LabourTodaysTargetPage";
 import LabourDeploymentAnalysisPage from "./pages/labour/LabourDeploymentAnalysisPage";
 import LabourProductivityEditRequestsPage from "./pages/labour/LabourProductivityEditRequestsPage";
+import LabourGatePassListPage from "./pages/labour/LabourGatePassListPage";
+import LabourGatePassFormPage from "./pages/labour/LabourGatePassFormPage";
+import LabourGatePassDetailPage from "./pages/labour/LabourGatePassDetailPage";
+import LabourGatePassApprovalsPage from "./pages/labour/LabourGatePassApprovalsPage";
+import LabourAttendanceDeleteRequestsPage from "./pages/labour/LabourAttendanceDeleteRequestsPage";
 
 // Fixed Assets pages
 import FixedAssetsDashboard from "./pages/fixed-assets/FixedAssetsDashboard";
@@ -205,6 +219,11 @@ import AssetReconciliationPage from "./pages/fixed-assets/AssetReconciliationPag
 // Expense Management pages
 import ExpenseDashboard from "./pages/expenses/ExpenseDashboard";
 import PettyCashPage from "./pages/expenses/PettyCashPage";
+import TripFuelVouchersPage from "./pages/expenses/TripFuelVouchersPage";
+import HrTripFuelAnalysisPage from "./pages/hr/TripFuelAnalysisPage";
+import AccountingTripFuelAnalysisPage from "./pages/accounting/TripFuelAnalysisPage";
+import ExpenseAccountLinksPage from "./pages/accounting/ExpenseAccountLinksPage";
+import ExpenseReconciliationPage from "./pages/accounting/ExpenseReconciliationPage";
 import GeneralExpensesPage from "./pages/expenses/GeneralExpensesPage";
 import UtilityBillsPage from "./pages/expenses/UtilityBillsPage";
 import ExpenseBudgetsPage from "./pages/expenses/ExpenseBudgetsPage";
@@ -225,8 +244,12 @@ import ProductionEntryPage from "./pages/consumption/ProductionEntryPage";
 import ConsumptionAnalysisPage from "./pages/consumption/ConsumptionAnalysisPage";
 import MonthlyReceiptViewPage from "./pages/consumption/MonthlyReceiptViewPage";
 import ConsumptionCategoriesPage from "./pages/consumption/ConsumptionCategoriesPage";
+import ConsumptionSubcategoriesPage from "./pages/consumption/ConsumptionSubcategoriesPage";
 import ConsumptionUsageReportPage from "./pages/consumption/ConsumptionUsageReportPage";
 import ValueTierUsageReportPage from "./pages/consumption/ValueTierUsageReportPage";
+import ReorderRequirementPage from "./pages/consumption/ReorderRequirementPage";
+import MaterialShortagesPage from "./pages/purchase/MaterialShortagesPage";
+import MaterialSetupCheckPage from "./pages/master/MaterialSetupCheckPage";
 
 // 5S Module pages
 import FiveSDashboard from "./pages/five-s/FiveSDashboard";
@@ -365,6 +388,32 @@ import GatePassFormPage from "./pages/gate-pass/GatePassFormPage";
 import GatePassDetailPage from "./pages/gate-pass/GatePassDetailPage";
 import GatePassApprovalsPage from "./pages/gate-pass/GatePassApprovalsPage";
 import GateCheckPage from "./pages/gate-pass/GateCheckPage";
+import GatePassDashboardPage from "./pages/gate-pass/GatePassDashboardPage";
+import GatePassReturnsPage from "./pages/gate-pass/GatePassReturnsPage";
+import ScrapYardPage from "./pages/gate-pass/ScrapYardPage";
+import PaperBooksPage from "./pages/gate-pass/PaperBooksPage";
+import FreightVouchersPage from "./pages/gate-pass/FreightVouchersPage";
+import TransportersPage from "./pages/gate-pass/TransportersPage";
+import GateInwardFormPage from "./pages/gate-pass/GateInwardFormPage";
+import GateInwardDetailPage from "./pages/gate-pass/GateInwardDetailPage";
+import GateInwardRegisterPage from "./pages/purchase/GateInwardRegisterPage";
+import PurchaseRequestsPage from "./pages/purchase/PurchaseRequestsPage";
+import MyPurchaseRequestsPage from "./pages/purchase-requests/MyPurchaseRequestsPage";
+import PurchaseRequestFormPage from "./pages/purchase-requests/PurchaseRequestFormPage";
+import PurchaseRequestDetailPage from "./pages/purchase-requests/PurchaseRequestDetailPage";
+import StorePassListPage from "./pages/store-pass/StorePassListPage";
+import StorePassFormPage from "./pages/store-pass/StorePassFormPage";
+import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
+import DispatchTrackingPage from "./pages/store-pass/DispatchTrackingPage";
+import StorePassDashboardPage from "./pages/store-pass/StorePassDashboardPage";
+import StoreGateReconciliationPage from "./pages/store-pass/StoreGateReconciliationPage";
+import DispatchPlannerDashboardPage from "./pages/dispatch-planner/DispatchPlannerDashboardPage";
+import DispatchPlannerBoardPage from "./pages/dispatch-planner/DispatchPlannerBoardPage";
+import DispatchPlannerPendingPage from "./pages/dispatch-planner/DispatchPlannerPendingPage";
+import DispatchPlannerVersionsPage from "./pages/dispatch-planner/DispatchPlannerVersionsPage";
+import DispatchPlannerVersionDetailPage from "./pages/dispatch-planner/DispatchPlannerVersionDetailPage";
+import DispatchPlannerVehiclesPage from "./pages/dispatch-planner/DispatchPlannerVehiclesPage";
+import DispatchPlannerSettingsPage from "./pages/dispatch-planner/DispatchPlannerSettingsPage";
 // Labour v1 additions
 import MissingProductivityEntriesPage from "./pages/labour/MissingProductivityEntriesPage";
 // Master v1 additions
@@ -386,6 +435,9 @@ import OnlineInventoryPage from "./pages/online-sales/OnlineInventoryPage";
 // Planning v1 additions
 import JobOrdersPage from "./pages/planning/JobOrdersPage";
 import JobOrderDepartmentsPage from "./pages/planning/JobOrderDepartmentsPage";
+import PrivateLabelJobOrdersPage from "./pages/planning/PrivateLabelJobOrdersPage";
+import CompanyJobOrdersPage from "./pages/planning/CompanyJobOrdersPage";
+import PrivateLabelFloorPage from "./pages/planning/PrivateLabelFloorPage";
 import StoreManagementPage from "./pages/planning/StoreManagementPage";
 import HeldStockInventoryPage from "./pages/planning/HeldStockInventoryPage";
 // Sales fuel/geo + timesheets (v1 top-ups)
@@ -414,6 +466,8 @@ import RWDefectGradesPage from "./pages/rejections/RWDefectGradesPage";
 import RWDefectRatesPage from "./pages/rejections/RWDefectRatesPage";
 import RWLocationsPage from "./pages/rejections/RWLocationsPage";
 import RWCheckpointsPage from "./pages/rejections/RWCheckpointsPage";
+import RWDowngradesPage from "./pages/rejections/RWDowngradesPage";
+import RWDowngradeApprovalsPage from "./pages/rejections/RWDowngradeApprovalsPage";
 import QualityScoreDashboard from "./pages/quality-score/QualityScoreDashboard";
 import BallQualityEntryPage from "./pages/quality-score/BallQualityEntryPage";
 import ProcessQualityEntryPage from "./pages/quality-score/ProcessQualityEntryPage";
@@ -438,7 +492,17 @@ import DistributorOrderAnalysisPage from "./pages/distributor/DistributorOrderAn
 import DistributorApprovalsPage from "./pages/distributor/DistributorApprovalsPage";
 import DistributorDispatchPage from "./pages/distributor/DistributorDispatchPage";
 
-const queryClient = new QueryClient();
+// Data is considered fresh for a short while so navigating between pages or
+// switching browser tabs does not refire every query (and re-render every
+// list). Mutations still invalidate their own keys, so writes show up at once.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Wraps the routed content so a render error shows a recoverable message
 // instead of a blank white screen, and clears itself when the route changes.
@@ -560,6 +624,7 @@ const App = () => (
             <Route path="/qa/operator-inspection" element={<ProtectedRoute><OperatorInspectionPage /></ProtectedRoute>} />
             <Route path="/qa/process-inspections" element={<ProtectedRoute><ProcessInspectionsDashboard /></ProtectedRoute>} />
             <Route path="/qa/daily-plan" element={<ProtectedRoute><DailyQualityPlanPage /></ProtectedRoute>} />
+            <Route path="/qa/quality-report" element={<ProtectedRoute><QualityReportPage /></ProtectedRoute>} />
             <Route path="/qa/inspection-targets" element={<ProtectedRoute><QAInspectionTargetDashboard /></ProtectedRoute>} />
             <Route path="/qa/ncr-capa" element={<ProtectedRoute><NCRCAPAPage /></ProtectedRoute>} />
             <Route path="/qa/capa-dashboard" element={<ProtectedRoute><CAPADashboardPage /></ProtectedRoute>} />
@@ -583,6 +648,19 @@ const App = () => (
             <Route path="/hr/public-holidays" element={<ProtectedRoute requiredRole="super_admin"><PublicHolidaysPage /></ProtectedRoute>} />
             <Route path="/hr/punctuality-analytics" element={<ProtectedRoute><HRPunctualityAnalyticsPage /></ProtectedRoute>} />
             <Route path="/hr/time-sheet" element={<ProtectedRoute><TimeSheetPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass" element={<ProtectedRoute><StaffGatePassListPage /></ProtectedRoute>} />
+            <Route path="/hr/trip-fuel-analysis" element={<ProtectedRoute requiredRoles={["super_admin", "hr_manager", "hr_officer"]}><HrTripFuelAnalysisPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
+            {/* Self-service: any logged-in staff member raises and follows their own company work passes */}
+            <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/new" element={<ProtectedRoute><MyGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/my-gate-pass/:id" element={<ProtectedRoute><MyGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests" element={<ProtectedRoute><MyPurchaseRequestsPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/new" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
+            <Route path="/my-purchase-requests/:id/edit" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
             <Route path="/hr/*" element={<ProtectedRoute><ComingSoon title="HR Module" /></ProtectedRoute>} />
 
             {/* Performance Routes */}
@@ -662,10 +740,15 @@ const App = () => (
             {/* Purchase Routes */}
             <Route path="/purchase/dashboard" element={<ProtectedRoute><PurchaseDashboard /></ProtectedRoute>} />
             <Route path="/purchase/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
+            <Route path="/purchase/requests" element={<ProtectedRoute><PurchaseRequestsPage /></ProtectedRoute>} />
+            <Route path="/purchase/requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
             <Route path="/purchase/orders" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
             <Route path="/purchase/qc" element={<ProtectedRoute><PurchaseInspectionsPage /></ProtectedRoute>} />
             <Route path="/purchase/qc-parameters" element={<ProtectedRoute><QCParametersPage /></ProtectedRoute>} />
             <Route path="/purchase/grn" element={<ProtectedRoute><GoodsReceiptPage /></ProtectedRoute>} />
+            <Route path="/purchase/material-shortages" element={<ProtectedRoute><MaterialShortagesPage /></ProtectedRoute>} />
+            <Route path="/purchase/gate-inward" element={<ProtectedRoute><GateInwardRegisterPage /></ProtectedRoute>} />
+            <Route path="/purchase/gate-inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
             <Route path="/purchase/invoices" element={<ProtectedRoute><PurchaseInvoicesPage /></ProtectedRoute>} />
             <Route path="/purchase/returns" element={<ProtectedRoute><PurchaseReturnsPage /></ProtectedRoute>} />
             <Route path="/purchase/*" element={<ProtectedRoute><ComingSoon title="Purchase Module" /></ProtectedRoute>} />
@@ -693,6 +776,7 @@ const App = () => (
             <Route path="/master/departments" element={<ProtectedRoute><DepartmentsPage /></ProtectedRoute>} />
             <Route path="/master/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
             <Route path="/master/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+            <Route path="/master/setup-check" element={<ProtectedRoute><MaterialSetupCheckPage /></ProtectedRoute>} />
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
@@ -718,6 +802,11 @@ const App = () => (
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRoles={["super_admin", "labour_productivity_approver"]}><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/missing-entries" element={<ProtectedRoute><MissingProductivityEntriesPage /></ProtectedRoute>} />
             <Route path="/labour/time-sheet" element={<ProtectedRoute><LabourTimeSheetPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass" element={<ProtectedRoute><LabourGatePassListPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/new" element={<ProtectedRoute><LabourGatePassFormPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/approvals" element={<ProtectedRoute><LabourGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/:id" element={<ProtectedRoute><LabourGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/labour/attendance-delete-requests" element={<ProtectedRoute requiredRoles={["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"]}><LabourAttendanceDeleteRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />
 
             {/* Fixed Assets Routes */}
@@ -732,6 +821,7 @@ const App = () => (
             {/* Expense Management Routes */}
             <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpenseDashboard /></ProtectedRoute>} />
             <Route path="/expenses/petty-cash" element={<ProtectedRoute><PettyCashPage /></ProtectedRoute>} />
+            <Route path="/expenses/trip-fuel" element={<ProtectedRoute><TripFuelVouchersPage /></ProtectedRoute>} />
             <Route path="/expenses/general" element={<ProtectedRoute><GeneralExpensesPage /></ProtectedRoute>} />
             <Route path="/expenses/utilities" element={<ProtectedRoute><UtilityBillsPage /></ProtectedRoute>} />
             <Route path="/expenses/budgets" element={<ProtectedRoute><ExpenseBudgetsPage /></ProtectedRoute>} />
@@ -742,6 +832,7 @@ const App = () => (
             {/* Production Planning Routes */}
             <Route path="/planning/dashboard" element={<ProtectedRoute><ProductionPlanningDashboard /></ProtectedRoute>} />
             <Route path="/planning/weekly" element={<ProtectedRoute><WeeklyPlanningPage /></ProtectedRoute>} />
+            <Route path="/planning/requirements" element={<ProtectedRoute><ProductionRequirementPage /></ProtectedRoute>} />
             <Route path="/planning/capacity" element={<ProtectedRoute><CapacityMasterPage /></ProtectedRoute>} />
             <Route path="/planning/items" element={<ProtectedRoute><PlanningItemMasterPage /></ProtectedRoute>} />
             <Route path="/planning/stock-closing" element={<ProtectedRoute><DailyStockClosingPage /></ProtectedRoute>} />
@@ -750,6 +841,8 @@ const App = () => (
             <Route path="/planning/skilled-labour" element={<ProtectedRoute><SkilledLabourPlanningPage /></ProtectedRoute>} />
             <Route path="/planning/job-orders" element={<ProtectedRoute><JobOrdersPage /></ProtectedRoute>} />
             <Route path="/planning/job-order-departments" element={<ProtectedRoute><JobOrderDepartmentsPage /></ProtectedRoute>} />
+            <Route path="/planning/private-label-job-orders" element={<ProtectedRoute><PrivateLabelJobOrdersPage /></ProtectedRoute>} />
+            <Route path="/planning/company-job-orders" element={<ProtectedRoute><CompanyJobOrdersPage /></ProtectedRoute>} />
             <Route path="/planning/store-management" element={<ProtectedRoute><StoreManagementPage /></ProtectedRoute>} />
             <Route path="/planning/held-stock" element={<ProtectedRoute><HeldStockInventoryPage /></ProtectedRoute>} />
             <Route path="/planning/*" element={<ProtectedRoute><ComingSoon title="Production Planning" /></ProtectedRoute>} />
@@ -768,8 +861,10 @@ const App = () => (
             <Route path="/consumption/production-entry" element={<ProtectedRoute><ProductionEntryPage /></ProtectedRoute>} />
             <Route path="/consumption/analysis" element={<ProtectedRoute><ConsumptionAnalysisPage /></ProtectedRoute>} />
             <Route path="/consumption/categories" element={<ProtectedRoute><ConsumptionCategoriesPage /></ProtectedRoute>} />
+            <Route path="/consumption/subcategories" element={<ProtectedRoute><ConsumptionSubcategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/usage-report" element={<ProtectedRoute><ConsumptionUsageReportPage /></ProtectedRoute>} />
             <Route path="/consumption/value-tier-report" element={<ProtectedRoute><ValueTierUsageReportPage /></ProtectedRoute>} />
+            <Route path="/consumption/reorder-requirement" element={<ProtectedRoute><ReorderRequirementPage /></ProtectedRoute>} />
             <Route path="/consumption/*" element={<ProtectedRoute><ComingSoon title="Material Consumption" /></ProtectedRoute>} />
 
 
@@ -829,6 +924,8 @@ const App = () => (
             <Route path="/rd/experiments" element={<ProtectedRoute><RDExperimentsPage /></ProtectedRoute>} />
             <Route path="/rd/*" element={<ProtectedRoute><ComingSoon title="Product Dev & R&D" /></ProtectedRoute>} />
 
+            {/* Private Label floor page - no ERP login, unlocked with the floor PIN */}
+            <Route path="/floor/private-label" element={<PrivateLabelFloorPage />} />
             {/* Hourly Production Floor Display - Public route */}
             <Route path="/hourly-production/floor-display" element={<HourlyProductionFloorDisplay />} />
             {/* Hourly Production Routes */}
@@ -855,13 +952,45 @@ const App = () => (
             <Route path="/machine-monitor/performance-logs" element={<ProtectedRoute><MachineMonitorPerformanceLogsPage /></ProtectedRoute>} />
             <Route path="/machine-monitor/*" element={<ProtectedRoute><ComingSoon title="Machine Monitor" /></ProtectedRoute>} />
             {/* Gate Pass (outward) */}
-            <Route path="/gate-pass" element={<Navigate to="/gate-pass/passes" replace />} />
+            <Route path="/gate-pass" element={<Navigate to="/gate-pass/dashboard" replace />} />
+            <Route path="/gate-pass/dashboard" element={<ProtectedRoute><GatePassDashboardPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/returns" element={<ProtectedRoute><GatePassReturnsPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/scrap-yard" element={<ProtectedRoute><ScrapYardPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/books" element={<ProtectedRoute><PaperBooksPage /></ProtectedRoute>} />
+            {/* Freight vouchers made at gate out. The same page is mounted for the cashier roles under
+                Accounting and Expenses, which are the modules they can open. */}
+            <Route path="/gate-pass/freight" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/transporters" element={<ProtectedRoute><TransportersPage /></ProtectedRoute>} />
+            <Route path="/accounting/freight-vouchers" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
+            <Route path="/expenses/freight-vouchers" element={<ProtectedRoute><FreightVouchersPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes" element={<ProtectedRoute><GatePassListPage /></ProtectedRoute>} />
             <Route path="/gate-pass/passes/:id" element={<ProtectedRoute><GatePassDetailPage /></ProtectedRoute>} />
             <Route path="/gate-pass/new" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/edit/:id" element={<ProtectedRoute><GatePassFormPage /></ProtectedRoute>} />
             <Route path="/gate-pass/approvals" element={<ProtectedRoute><GatePassApprovalsPage /></ProtectedRoute>} />
             <Route path="/gate-pass/check" element={<ProtectedRoute><GateCheckPage /></ProtectedRoute>} />
+            {/* Gate Inward (vehicles bringing goods in) — guard side */}
+            <Route path="/gate-pass/inward/new" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/inward/edit/:id" element={<ProtectedRoute><GateInwardFormPage /></ProtectedRoute>} />
+            <Route path="/gate-pass/inward/:id" element={<ProtectedRoute><GateInwardDetailPage /></ProtectedRoute>} />
+            <Route path="/store-pass" element={<Navigate to="/store-pass/dashboard" replace />} />
+            <Route path="/store-pass/dashboard" element={<ProtectedRoute><StorePassDashboardPage /></ProtectedRoute>} />
+            <Route path="/store-pass/reconciliation" element={<ProtectedRoute><StoreGateReconciliationPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes" element={<ProtectedRoute><StorePassListPage /></ProtectedRoute>} />
+            <Route path="/store-pass/passes/:id" element={<ProtectedRoute><StorePassDetailPage /></ProtectedRoute>} />
+            <Route path="/store-pass/new" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/edit/:id" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
+            <Route path="/store-pass/tracking" element={<ProtectedRoute><DispatchTrackingPage /></ProtectedRoute>} />
+
+            {/* Dispatch Planner — read-only suggestions; see docs/DISPATCH_PLANNER.md */}
+            <Route path="/dispatch-planner" element={<Navigate to="/dispatch-planner/dashboard" replace />} />
+            <Route path="/dispatch-planner/dashboard" element={<ProtectedRoute><DispatchPlannerDashboardPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/board" element={<ProtectedRoute><DispatchPlannerBoardPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/pending" element={<ProtectedRoute><DispatchPlannerPendingPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/versions" element={<ProtectedRoute><DispatchPlannerVersionsPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/versions/:id" element={<ProtectedRoute><DispatchPlannerVersionDetailPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/vehicles" element={<ProtectedRoute><DispatchPlannerVehiclesPage /></ProtectedRoute>} />
+            <Route path="/dispatch-planner/settings" element={<ProtectedRoute requiredRole="super_admin"><DispatchPlannerSettingsPage /></ProtectedRoute>} />
 
             {/* Accounting (Standalone) Routes */}
             <Route path="/accounting/dashboard" element={<ProtectedRoute><AccountingDashboard /></ProtectedRoute>} />
@@ -881,6 +1010,9 @@ const App = () => (
             <Route path="/accounting/sales-analysis" element={<ProtectedRoute><AccountingSalesAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/purchase-analysis" element={<ProtectedRoute><AccountingPurchaseAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/expenses-analysis" element={<ProtectedRoute><AccountingExpensesAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/trip-fuel-analysis" element={<ProtectedRoute><AccountingTripFuelAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/expense-links" element={<ProtectedRoute><ExpenseAccountLinksPage /></ProtectedRoute>} />
+            <Route path="/accounting/expense-reconciliation" element={<ProtectedRoute><ExpenseReconciliationPage /></ProtectedRoute>} />
             <Route path="/accounting/trial-balance" element={<ProtectedRoute><AccountingTrialBalancePage /></ProtectedRoute>} />
             <Route path="/accounting/profit-loss" element={<ProtectedRoute><AccountingProfitLossPage /></ProtectedRoute>} />
             <Route path="/accounting/balance-sheet" element={<ProtectedRoute><AccountingBalanceSheetPage /></ProtectedRoute>} />
@@ -937,6 +1069,8 @@ const App = () => (
             <Route path="/rejections/dashboard" element={<ProtectedRoute><RejectionsWastagesDashboard /></ProtectedRoute>} />
             <Route path="/rejections/entry" element={<ProtectedRoute><RejectionsWastageEntryPage /></ProtectedRoute>} />
             <Route path="/rejections/rework" element={<ProtectedRoute><ReworkTrackingPage /></ProtectedRoute>} />
+            <Route path="/rejections/downgrades" element={<ProtectedRoute><RWDowngradesPage /></ProtectedRoute>} />
+            <Route path="/rejections/downgrade-approvals" element={<ProtectedRoute requiredRole="super_admin"><RWDowngradeApprovalsPage /></ProtectedRoute>} />
             <Route path="/rejections/reasons" element={<ProtectedRoute><RejectionWastageReasonsPage /></ProtectedRoute>} />
             <Route path="/rejections/units" element={<ProtectedRoute><RWUnitsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />

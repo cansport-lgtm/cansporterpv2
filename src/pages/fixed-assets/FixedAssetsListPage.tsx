@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Plus as PlusIcon } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -192,7 +193,8 @@ export default function FixedAssetsListPage() {
       };
       const resolvedCategory = (data.custom_category && enumMap[data.custom_category]) || "office_assets";
       const insertData = {
-        asset_code: data.asset_code,
+        // Blank code: the database assigns the next one (trg_00_auto_code).
+        asset_code: "",
         name: data.name,
         description: data.description || null,
         category: resolvedCategory as AssetCategory,
@@ -236,7 +238,6 @@ export default function FixedAssetsListPage() {
       };
       const resolvedCategory = (rest.custom_category && enumMap[rest.custom_category]) || "office_assets";
       const updateData = {
-        asset_code: rest.asset_code,
         name: rest.name,
         description: rest.description || null,
         category: resolvedCategory as AssetCategory,
@@ -334,8 +335,8 @@ export default function FixedAssetsListPage() {
   };
 
   const handleSubmit = () => {
-    if (!formData.asset_code.trim() || !formData.name.trim()) {
-      toast.error("Asset code and name are required");
+    if (!formData.name.trim()) {
+      toast.error("Asset name is required");
       return;
     }
     
@@ -540,14 +541,13 @@ export default function FixedAssetsListPage() {
               <DialogTitle>{selectedAsset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
             </DialogHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <Label>Asset Code *</Label>
-                <Input
-                  value={formData.asset_code}
-                  onChange={(e) => setFormData({ ...formData, asset_code: e.target.value })}
-                  placeholder="e.g., FA-001"
-                />
-              </div>
+              <AutoCodeField
+                entity="fixed_assets"
+                group={formData.category}
+                value={selectedAsset?.asset_code}
+                isEdit={!!selectedAsset}
+                label="Asset Code"
+              />
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input

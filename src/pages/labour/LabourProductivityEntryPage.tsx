@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Plus, Search, Pencil, Trash2, UserPlus, CheckCircle, ChevronsUpDown, Check, Printer, Upload, X, Loader2, Download, Clock, FileEdit } from "lucide-react";
+import { lgpDb } from "@/lib/labourGatePass";
+import { Plus, Search, Pencil, Trash2, UserPlus, CheckCircle, ChevronsUpDown, Check, Printer, Upload, X, Loader2, Download, Clock, FileEdit, FileX2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +25,15 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
+import {
+  PENDING_MAP_KEY as DELETE_PENDING_MAP_KEY,
+  REQUESTS_KEY as DELETE_REQUESTS_KEY,
+  LOG_KEY as DELETE_LOG_KEY,
+  submitAttendanceDeleteRequest,
+  useAttendanceDeleteAccess,
+  usePendingAttendanceDeleteMap,
+  workTypeLabel,
+} from "@/lib/labourAttendanceDelete";
 
 interface Column<T> {
   key: string;
@@ -85,6 +96,10 @@ const LabourProductivityEntryPage = () => {
     mph: number;
   }>({ target_quantity: 0, process_id: "", department_id: "", mph: 12 });
   const [requestEditReason, setRequestEditReason] = useState<string>("");
+  // Attendance delete request (a supervisor cannot delete an entry; they ask with a reason)
+  const [requestDeleteEntry, setRequestDeleteEntry] = useState<ProductivityEntry | null>(null);
+  const [requestDeleteReason, setRequestDeleteReason] = useState<string>("");
+  const { canRequest: canRequestDelete } = useAttendanceDeleteAccess();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [filterCreatedBy, setFilterCreatedBy] = useState("all");
@@ -164,8 +179,8 @@ const LabourProductivityEntryPage = () => {
     try {
       setUploadingEmployeePhoto(true);
       const ext = file.name.split(".").pop() || "jpg";
-      const codePart = (employeeFormData.employee_code || "emp").replace(/[^a-zA-Z0-9_-]/g, "");
-      const path = `${codePart}-${Date.now()}.${ext}`;
+      // Code is assigned by the DB on insert, so the path can't depend on it.
+      const path = `emp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("labour-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
@@ -385,6 +400,38 @@ const LabourProductivityEntryPage = () => {
     },
   });
 
+  // Map of entry_id -> pending attendance DELETE request number (for the "Delete request pending" badge)
+  const { data: pendingDeleteByEntry = {} } = usePendingAttendanceDeleteMap(entryIdsForRequests);
+
+  const submitDeleteRequestMutation = useMutation({
+    mutationFn: async (payload: { entry: ProductivityEntry; reason: string }) =>
+      submitAttendanceDeleteRequest(payload.entry.id, payload.reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [DELETE_PENDING_MAP_KEY] });
+      queryClient.invalidateQueries({ queryKey: [DELETE_REQUESTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: [DELETE_LOG_KEY] });
+      toast.success("Delete request submitted for approval");
+      setRequestDeleteEntry(null);
+      setRequestDeleteReason("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const openRequestDeleteDialog = (entry: ProductivityEntry) => {
+    setRequestDeleteEntry(entry);
+    setRequestDeleteReason("");
+  };
+
+  const handleSubmitDeleteRequest = () => {
+    if (!requestDeleteEntry) return;
+    const reason = requestDeleteReason.trim();
+    if (reason.length < 5) {
+      toast.error("Please give the reason for deleting this attendance (at least 5 characters)");
+      return;
+    }
+    submitDeleteRequestMutation.mutate({ entry: requestDeleteEntry, reason });
+  };
+
   const submitEditRequestMutation = useMutation({
     mutationFn: async (payload: {
       entry: ProductivityEntry;
@@ -479,6 +526,30 @@ const LabourProductivityEntryPage = () => {
     });
   };
 
+  // The worker left on a half-day gate pass (or never came back from a short leave)
+  // on the entry date: the day is a half day, and the database keeps it so.
+  const { data: halfDayPass } = useQuery<{ pass_number: string; gate_out_at: string | null; effect: "half_day" | "absent" | null } | null>({
+    queryKey: ["labour-gate-pass-half-day", formData.employee_id, formData.target_date],
+    enabled: Boolean(formData.employee_id && formData.target_date),
+    queryFn: async () => {
+      const { data, error } = await lgpDb
+        .from("v_labour_gate_pass_half_days")
+        .select("pass_number, gate_out_at, effect")
+        .eq("employee_id", formData.employee_id)
+        .eq("pass_date", formData.target_date)
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data ?? null;
+    },
+  });
+  useEffect(() => {
+    if (halfDayPass && halfDayPass.effect !== "absent" && formData.work_type !== "half_day") {
+      setFormData((f) => ({ ...f, work_type: "half_day", target_quantity: getProcessTarget(f.process_id, f.department_id, "half_day") || f.target_quantity }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [halfDayPass]);
+
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       // Calculate MPH for the new entry
@@ -555,21 +626,10 @@ const LabourProductivityEntryPage = () => {
 
   const saveEmployeeMutation = useMutation({
     mutationFn: async (data: typeof employeeFormData) => {
-      // Check for duplicate employee code
-      const { data: existing } = await supabase
-        .from("labour_employees")
-        .select("id")
-        .eq("employee_code", data.employee_code.trim())
-        .maybeSingle();
-      
-      if (existing) {
-        throw new Error("Employee code already exists. Please use a unique code.");
-      }
-
       const { error } = await supabase
         .from("labour_employees")
         .insert({
-          employee_code: data.employee_code.trim(),
+          employee_code: "", // assigned by the DB (trg_00_auto_code)
           full_name: data.full_name.trim(),
           department_id: data.department_id || null,
           contact_number: data.contact_number?.trim() || null,
@@ -1180,7 +1240,7 @@ const LabourProductivityEntryPage = () => {
 
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!employeeFormData.employee_code || !employeeFormData.full_name) {
+    if (!employeeFormData.full_name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -1350,6 +1410,9 @@ const LabourProductivityEntryPage = () => {
         const canDelete = isSuperAdminLocal;
         const canApprove = isDraft && (isSuperAdminLocal || isApprover || (!isFloorIncharge && hasModulePermission("labour", "approve")));
         const hasPendingRequest = !!(pendingRequestsByEntry as Record<string, string>)[item.id];
+        const pendingDeleteNumber = (pendingDeleteByEntry as Record<string, string>)[item.id];
+        // Supervisors ask for a delete instead of deleting; approved (locked) entries can be asked about too.
+        const canAskDelete = !isSuperAdminLocal && canRequestDelete;
         
         return (
           <div className="flex gap-1">
@@ -1387,7 +1450,17 @@ const LabourProductivityEntryPage = () => {
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
-            {!canEdit && !canDelete && (
+            {canAskDelete && !pendingDeleteNumber && (
+              <Button variant="ghost" size="icon" onClick={() => openRequestDeleteDialog(item)} title="Request Delete (attendance marked by mistake)">
+                <FileX2 className="h-4 w-4 text-destructive" />
+              </Button>
+            )}
+            {canAskDelete && pendingDeleteNumber && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive" title={pendingDeleteNumber}>
+                Delete request pending
+              </Badge>
+            )}
+            {!canEdit && !canDelete && !canAskDelete && (
               <span className="text-xs text-muted-foreground px-2">Approved – locked</span>
             )}
           </div>
@@ -1405,6 +1478,8 @@ const LabourProductivityEntryPage = () => {
     const canDelete = isSuperAdminLocal;
     const canApprove = isDraft && (isSuperAdminLocal || !isFloorIncharge);
     const hasPendingRequest = !!(pendingRequestsByEntry as Record<string, string>)[item.id];
+    const pendingDeleteNumber = (pendingDeleteByEntry as Record<string, string>)[item.id];
+    const canAskDelete = !isSuperAdminLocal && canRequestDelete;
 
     return (
       <Card key={item.id} className="mb-3">
@@ -1534,7 +1609,18 @@ const LabourProductivityEntryPage = () => {
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
-            {!canEdit && !canDelete && (
+            {canAskDelete && !pendingDeleteNumber && (
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => openRequestDeleteDialog(item)}>
+                <FileX2 className="h-4 w-4 mr-1 text-destructive" />
+                Request Delete
+              </Button>
+            )}
+            {canAskDelete && pendingDeleteNumber && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive flex-1 justify-center py-1.5">
+                Delete request pending
+              </Badge>
+            )}
+            {!canEdit && !canDelete && !canAskDelete && (
               <span className="text-xs text-muted-foreground">Approved – locked</span>
             )}
           </div>
@@ -1834,7 +1920,7 @@ const LabourProductivityEntryPage = () => {
                       const newTarget = getProcessTarget(formData.process_id, formData.department_id, v);
                       setFormData({ ...formData, work_type: v, target_quantity: newTarget || formData.target_quantity });
                     }}
-                    disabled={!!editingEntry && !isSuperAdmin}
+                    disabled={(!!editingEntry && !isSuperAdmin) || !!halfDayPass}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select work type" />
@@ -1844,6 +1930,16 @@ const LabourProductivityEntryPage = () => {
                       <SelectItem value="half_day">Half Day (6 MPH)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {halfDayPass && halfDayPass.effect !== "absent" && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Half day: left on gate pass {halfDayPass.pass_number}{halfDayPass.gate_out_at ? ` at ${format(new Date(halfDayPass.gate_out_at), "HH:mm")}` : ""}.
+                    </p>
+                  )}
+                  {halfDayPass?.effect === "absent" && (
+                    <p className="text-xs font-semibold text-red-700 mt-1">
+                      Absent on this date: outside over the limit on short leave (gate pass {halfDayPass.pass_number}). No entry can be posted.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -1907,7 +2003,7 @@ const LabourProductivityEntryPage = () => {
               <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button type="submit" disabled={saveMutation.isPending} className="w-full sm:w-auto">
+              <Button type="submit" disabled={saveMutation.isPending || halfDayPass?.effect === "absent"} className="w-full sm:w-auto">
                 {saveMutation.isPending ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
@@ -1981,15 +2077,7 @@ const LabourProductivityEntryPage = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Employee Code *</Label>
-                <Input
-                  value={employeeFormData.employee_code}
-                  onChange={(e) => setEmployeeFormData({ ...employeeFormData, employee_code: e.target.value })}
-                  placeholder="e.g., LAB-001"
-                  required
-                />
-              </div>
+              <AutoCodeField entity="labour_employees" label="Employee Code" />
               <div>
                 <Label>Full Name *</Label>
                 <Input
@@ -2319,6 +2407,63 @@ const LabourProductivityEntryPage = () => {
               </Button>
               <Button onClick={handleSubmitEditRequest} disabled={submitEditRequestMutation.isPending}>
                 {submitEditRequestMutation.isPending ? "Submitting…" : "Submit Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Delete (attendance marked by mistake) */}
+      <Dialog open={!!requestDeleteEntry} onOpenChange={(open) => { if (!open) { setRequestDeleteEntry(null); setRequestDeleteReason(""); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Request Attendance Delete</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground">
+              Use this when a worker was marked <strong>present by mistake</strong> (the worker was absent).
+              Nothing is deleted now: the request goes to the <strong>Attendance Delete Approver</strong>, and the
+              entry is removed only when they approve it. Every request and decision is kept on the log sheet.
+            </div>
+
+            <div className="rounded border bg-muted/40 p-3 text-xs space-y-1">
+              <p className="font-semibold">Attendance entry to delete</p>
+              <p>Worker: <span className="font-medium">{requestDeleteEntry?.labour_employees?.full_name || "-"}</span>
+                {requestDeleteEntry?.labour_employees?.employee_code && (
+                  <span className="text-muted-foreground"> ({requestDeleteEntry.labour_employees.employee_code})</span>
+                )}
+              </p>
+              <p>Date: <span className="font-medium">{requestDeleteEntry?.target_date ? format(new Date(requestDeleteEntry.target_date), "dd MMM yyyy") : "-"}</span></p>
+              <p>Department: <span className="font-medium">{requestDeleteEntry?.production_departments?.name || "-"}</span></p>
+              <p>Process: <span className="font-medium">{requestDeleteEntry?.qa_processes?.name || "-"}</span></p>
+              <p>Attendance: <span className="font-medium">{workTypeLabel(requestDeleteEntry?.work_type)} · MPH {requestDeleteEntry?.mph ?? 0}</span>
+                {(requestDeleteEntry?.check_in || requestDeleteEntry?.check_out) && (
+                  <span className="text-muted-foreground"> · {formatTime(requestDeleteEntry?.check_in) || "--:--"} → {formatTime(requestDeleteEntry?.check_out) || "--:--"}</span>
+                )}
+              </p>
+              <p>Status: <span className="font-medium">{requestDeleteEntry?.status === "approved" ? "Approved" : "Draft"}</span>
+                {requestDeleteEntry?.created_by_user?.full_name && (
+                  <span className="text-muted-foreground"> · marked by {requestDeleteEntry.created_by_user.full_name}</span>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Reason for deleting this attendance <span className="text-destructive">*</span></Label>
+              <Textarea
+                value={requestDeleteReason}
+                onChange={(e) => setRequestDeleteReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Worker was absent on this date; attendance was marked by mistake (required)"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setRequestDeleteEntry(null); setRequestDeleteReason(""); }}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleSubmitDeleteRequest} disabled={submitDeleteRequestMutation.isPending}>
+                {submitDeleteRequestMutation.isPending ? "Submitting…" : "Submit Delete Request"}
               </Button>
             </div>
           </div>

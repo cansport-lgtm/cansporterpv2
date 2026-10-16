@@ -90,8 +90,27 @@ export function useQsEntryContext(): QsEntryContext {
   };
 }
 
-export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
+// Active grades, narrowed to the Selection Master picks
+export function useQsGradeOptions() {
   const { data: selections = [] } = useQsSelectionOptions();
+  const { data: grades = [] } = useQuery({
+    queryKey: ["qs-lookup-grades"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("grades").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data as Lookup[];
+    },
+  });
+  return applySelection(grades, selections, "grade");
+}
+
+// hideGrade: the page picks a grade per ball instead (Ball Quality multi-ball entry)
+export function EntryContextSection({
+  ctx, hideGrade = false,
+}: { ctx: QsEntryContext; hideGrade?: boolean }) {
+  const { data: selections = [] } = useQsSelectionOptions();
+  const gradeOptions = useQsGradeOptions();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["qs-lookup-departments"],
@@ -113,24 +132,13 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
     },
   });
 
-  const { data: grades = [] } = useQuery({
-    queryKey: ["qs-lookup-grades"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("grades").select("id, name").eq("is_active", true).order("name");
-      if (error) throw error;
-      return data as Lookup[];
-    },
-  });
-
   const departmentOptions = applySelection(departments, selections, "department");
   const productOptions = applySelection(products, selections, "product");
-  const gradeOptions = applySelection(grades, selections, "grade");
 
   return (
     <Card>
       <CardContent className="p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`grid gap-4 sm:grid-cols-2 ${hideGrade ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
           <div>
             <Label className="text-xs">Date</Label>
             <Input type="date" value={ctx.date} onChange={(e) => ctx.setDate(e.target.value)} />
@@ -158,18 +166,20 @@ export function EntryContextSection({ ctx }: { ctx: QsEntryContext }) {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label className="text-xs">Grade (optional)</Label>
-            <Select value={ctx.gradeId} onValueChange={ctx.setGradeId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">All / not specified</SelectItem>
-                {gradeOptions.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!hideGrade && (
+            <div>
+              <Label className="text-xs">Grade (optional)</Label>
+              <Select value={ctx.gradeId} onValueChange={ctx.setGradeId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All / not specified</SelectItem>
+                  {gradeOptions.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

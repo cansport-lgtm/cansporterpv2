@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -54,6 +56,12 @@ interface DowntimeReason {
 
 export default function ReasonsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [activeTab, setActiveTab] = useState("defect");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -108,7 +116,6 @@ export default function ReasonsPage() {
         const { error } = await supabase
           .from("defect_reasons")
           .update({
-            code: data.code,
             name: data.name,
             severity: data.severity,
             is_active: data.is_active,
@@ -117,7 +124,7 @@ export default function ReasonsPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("defect_reasons").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           severity: data.severity,
           is_active: data.is_active,
@@ -154,7 +161,6 @@ export default function ReasonsPage() {
         const { error } = await supabase
           .from("downtime_reasons")
           .update({
-            code: data.code,
             name: data.name,
             category: data.category || null,
             is_planned: data.is_planned,
@@ -164,7 +170,7 @@ export default function ReasonsPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("downtime_reasons").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           category: data.category || null,
           is_planned: data.is_planned,
@@ -248,19 +254,23 @@ export default function ReasonsPage() {
       header: "Actions",
       render: (item: DefectReason) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEditDefect(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setSelectedDefect(item);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEditDefect(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedDefect(item);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -293,19 +303,23 @@ export default function ReasonsPage() {
       header: "Actions",
       render: (item: DowntimeReason) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEditDowntime(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setSelectedDowntime(item);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEditDowntime(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSelectedDowntime(item);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -319,7 +333,7 @@ export default function ReasonsPage() {
           description="Manage defect and downtime reasons"
           icon={Database}
           iconColor="bg-amber-500/10 text-amber-500"
-          action={{
+          action={canCreate ? {
             label: activeTab === "defect" ? "Add Defect Reason" : "Add Downtime Reason",
             onClick: () => {
               if (activeTab === "defect") resetDefectForm();
@@ -327,7 +341,7 @@ export default function ReasonsPage() {
               setDialogOpen(true);
             },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -375,15 +389,13 @@ export default function ReasonsPage() {
               className="space-y-4"
             >
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={defectForm.code}
-                    onChange={(e) => setDefectForm({ ...defectForm, code: e.target.value })}
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="defect_reasons"
+                  id="code"
+                  value={selectedDefect?.code}
+                  isEdit={!!selectedDefect}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input
@@ -452,15 +464,13 @@ export default function ReasonsPage() {
               className="space-y-4"
             >
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dt-code">Code</Label>
-                  <Input
-                    id="dt-code"
-                    value={downtimeForm.code}
-                    onChange={(e) => setDowntimeForm({ ...downtimeForm, code: e.target.value })}
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="downtime_reasons"
+                  id="dt-code"
+                  value={selectedDowntime?.code}
+                  isEdit={!!selectedDowntime}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="dt-name">Name</Label>
                   <Input

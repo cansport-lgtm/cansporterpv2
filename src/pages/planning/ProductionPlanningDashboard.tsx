@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OrdersWaitingOnMaterial } from "@/components/materials/OrdersWaitingOnMaterial";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
-import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
+import { matchesStockCategory, stockCategoryMeta, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 export default function ProductionPlanningDashboard() {
   const { hasRole } = useAuth();
@@ -235,6 +236,8 @@ export default function ProductionPlanningDashboard() {
           </TabsList>
 
           <TabsContent value="planning" className="space-y-6">
+            <OrdersWaitingOnMaterial />
+
             {/* Week Navigation */}
             <Card>
               <CardContent className="py-4">
@@ -490,6 +493,8 @@ export default function ProductionPlanningDashboard() {
                           <tr className="border-b">
                             <th className="text-left py-2 px-2 font-medium">Item Code</th>
                             <th className="text-left py-2 px-2 font-medium">Item Name</th>
+                            <th className="text-left py-2 px-2 font-medium">Department</th>
+                            <th className="text-left py-2 px-2 font-medium">Stock Category</th>
                             <th className="text-left py-2 px-2 font-medium">Unit</th>
                             <th className="text-right py-2 px-2 font-medium">Closing Qty</th>
                             {isSuperAdmin && <th className="text-right py-2 px-2 font-medium">Stock Value</th>}
@@ -506,6 +511,12 @@ export default function ProductionPlanningDashboard() {
                               <tr key={entry.id} className="border-b last:border-0">
                                 <td className="py-2 px-2 font-medium">{entry.planning_items?.code}</td>
                                 <td className="py-2 px-2">{entry.planning_items?.name}</td>
+                                <td className="py-2 px-2 text-muted-foreground">{entry.planning_items?.production_departments?.name || "-"}</td>
+                                <td className="py-2 px-2">
+                                  <Badge variant="outline" className={cn("text-xs", stockCategoryMeta(entry.planning_items?.stock_category).badgeClass)}>
+                                    {stockCategoryMeta(entry.planning_items?.stock_category).shortLabel}
+                                  </Badge>
+                                </td>
                                 <td className="py-2 px-2 text-muted-foreground">{entry.planning_items?.unit || "pcs"}</td>
                                 <td className={cn("py-2 px-2 text-right font-semibold", isBelowThreshold && "text-destructive")}>{entry.closing_quantity}</td>
                                 {isSuperAdmin && (
@@ -521,7 +532,7 @@ export default function ProductionPlanningDashboard() {
                         </tbody>
                         <tfoot>
                           <tr className="border-t-2 font-semibold bg-muted/50">
-                            <td className="py-2 px-2" colSpan={3}>Total</td>
+                            <td className="py-2 px-2" colSpan={5}>Total</td>
                             <td className="py-2 px-2 text-right">
                               {items.reduce((sum: number, e: any) => sum + (Number(e.closing_quantity) || 0), 0)}
                             </td>
@@ -553,6 +564,16 @@ export default function ProductionPlanningDashboard() {
                                 <div className="text-sm text-muted-foreground">{entry.planning_items?.name}</div>
                               </div>
                               <span className="text-xs bg-muted px-2 py-1 rounded">{entry.planning_items?.unit || "pcs"}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Department:</span>
+                              <span className="text-sm">{entry.planning_items?.production_departments?.name || "-"}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Stock Category:</span>
+                              <Badge variant="outline" className={cn("text-xs", stockCategoryMeta(entry.planning_items?.stock_category).badgeClass)}>
+                                {stockCategoryMeta(entry.planning_items?.stock_category).shortLabel}
+                              </Badge>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-muted-foreground">Closing Qty:</span>

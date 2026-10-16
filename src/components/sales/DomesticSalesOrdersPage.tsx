@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -15,14 +15,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
+import { productsForCustomerParty, partyIdOfCustomer } from '@/lib/customerSkus';
+import { useSalesOrdersList, SALES_ORDER_PERIOD_OPTIONS, type SalesOrderPeriod, type SalesOrderLine } from "@/hooks/useSalesOrdersList";
+import { SalesOrdersListFooter } from "@/components/sales/SalesOrdersListFooter";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { usePackingTypes, dozensForLabel } from "@/hooks/usePackingTypes";
 import { getInvoicesLockingOrderItems } from "@/lib/sales/getInvoicesLockingOrderItems";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, ChevronDown, ChevronRight, Pencil, Printer, CalendarClock, Check, ChevronsUpDown } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -47,6 +52,8 @@ export default function DomesticSalesOrdersPage() {
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [editCustomerPopoverOpen, setEditCustomerPopoverOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [period, setPeriod] = useState<SalesOrderPeriod>('90');
+  const isMobile = useIsMobile();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<any>(null);
   const [editOrder, setEditOrder] = useState<any>(null);
@@ -102,24 +109,17 @@ export default function DomesticSalesOrdersPage() {
     }
   }, [location.state, canCreate]);
 
-  // Fetch orders for domestic segment
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['sales-orders', 'domestic'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select(`
-          *,
-          customers(name, code, logo_url, billing_customer),
-          created_by_user:app_users!sales_orders_created_by_fkey(full_name)
-        `)
-        .eq('sales_segment', 'domestic')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Orders for the current window (search / status / period), with their
+  // lines embedded. Filtering and paging happen server-side.
+  const {
+    orders,
+    total: totalOrders,
+    isLoading,
+    isFetching,
+    hasMore,
+    loadMore,
+    isSearching,
+  } = useSalesOrdersList({ segment: 'domestic', search: searchTerm, status: statusFilter, period });
 
   // Fetch order items for viewing
   const { data: orderItems } = useQuery({
@@ -165,25 +165,6 @@ export default function DomesticSalesOrdersPage() {
     return Number(candidates[0].price_per_dozen) || 0;
   };
 
-  // Fetch ALL order items for inline list view
-  const allOrderIds = orders?.map(o => o.id) || [];
-  const { data: allOrderItems } = useQuery({
-    queryKey: ['all-sales-order-items', 'domestic', allOrderIds.join(',')],
-    queryFn: async () => {
-      if (allOrderIds.length === 0) return [];
-      // Page past the ~1000-row API cap — otherwise the newest orders'
-      // items get dropped and their rows show "No items".
-      return fetchAllRows((from, to) =>
-        supabase
-          .from('sales_order_items')
-          .select(`*, products(code, name)`)
-          .in('order_id', allOrderIds)
-          .order('id', { ascending: true })
-          .range(from, to));
-    },
-    enabled: allOrderIds.length > 0,
-  });
-
   const toggleExpand = (orderId: string) => {
     setExpandedOrders(prev => {
       const next = new Set(prev);
@@ -193,9 +174,14 @@ export default function DomesticSalesOrdersPage() {
     });
   };
 
-  const getOrderItems = (orderId: string) => {
-    return allOrderItems?.filter((item: any) => item.order_id === orderId) || [];
-  };
+  // Lines come embedded on each order row; index them once per result set.
+  const itemsByOrder = useMemo(() => {
+    const map = new Map<string, SalesOrderLine[]>();
+    for (const order of orders) map.set(order.id, order.sales_order_items || []);
+    return map;
+  }, [orders]);
+
+  const getOrderItems = (orderId: string): SalesOrderLine[] => itemsByOrder.get(orderId) || [];
 
   // Fetch customers for domestic segment
   const { data: customers } = useQuery({
@@ -203,7 +189,7 @@ export default function DomesticSalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, name, address, payment_terms, billing_customer')
+        .select('id, code, name, address, payment_terms, billing_customer, accounting_party_id')
         .eq('is_active', true)
         .eq('sales_segment', 'domestic')
         .order('name');
@@ -214,11 +200,11 @@ export default function DomesticSalesOrdersPage() {
 
   // Fetch products
   const { data: products } = useQuery({
-    queryKey: ['products-active'],
+    queryKey: ['products-active-sales'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id, code, name, standard_selling_price')
+        .select('id, code, name, standard_selling_price, customer_party_id')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
@@ -286,10 +272,13 @@ export default function DomesticSalesOrdersPage() {
           if (itemsError) throw itemsError;
         }
       }
+      return newOrder;
     },
-    onSuccess: () => {
+    onSuccess: (newOrder) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders', 'domestic'] });
       toast.success('Order created');
+      // Domestic orders are confirmed on save: the stock check already ran.
+      if (newOrder?.id) void toastMaterialCheckResult('sales_order', newOrder.id, newOrder.order_number);
       handleCloseDialog();
     },
     onError: (error: Error) => {
@@ -306,9 +295,10 @@ export default function DomesticSalesOrdersPage() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders', 'domestic'] });
       toast.success('Status updated');
+      if (vars.status === 'confirmed') void toastMaterialCheckResult('sales_order', vars.id);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -496,7 +486,7 @@ export default function DomesticSalesOrdersPage() {
   });
 
   const handleOpenEdit = async (order: any) => {
-    // Load existing order items from allOrderItems
+    // Load the existing lines embedded on the order row
     const existingItems = getOrderItems(order.id);
     const editItems = existingItems.map((item: any) => {
       const packingDozens = dozensForLabel(item.packing_type, packingTypes);
@@ -785,13 +775,8 @@ export default function DomesticSalesOrdersPage() {
     return formData.items.reduce((sum, item) => sum + (parseFloat(item.quantity_dozens) || 0), 0);
   };
 
-  const filteredOrders = orders?.filter(o => {
-    const matchesSearch = 
-      o.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customers?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Search, status and period are applied by the query itself.
+  const filteredOrders = orders;
 
   return (
     <ERPLayout>
@@ -821,12 +806,22 @@ export default function DomesticSalesOrdersPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="in_production">In Production</SelectItem>
                   <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={period} onValueChange={(v) => setPeriod(v as SalesOrderPeriod)} disabled={isSearching}>
+                <SelectTrigger className="w-full sm:w-40" title={isSearching ? 'Search looks across all time' : undefined}>
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALES_ORDER_PERIOD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {canCreate && (
@@ -945,7 +940,7 @@ export default function DomesticSalesOrdersPage() {
                                         onValueChange={(v) => updateItem(index, 'product_id', v)}
                                         placeholder="Select Product"
                                         triggerClassName="w-48"
-                                        options={(products || []).map((p: any) => ({
+                                        options={productsForCustomerParty(products, partyIdOfCustomer(customers, formData.customer_id)).map((p: any) => ({
                                           value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                         }))}
                                       />
@@ -1055,8 +1050,9 @@ export default function DomesticSalesOrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Desktop Table View */}
-            <div className="hidden md:block border rounded-lg overflow-hidden">
+            {/* Desktop Table View — only one of the two views is rendered */}
+            {!isMobile && (
+            <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1131,7 +1127,6 @@ export default function DomesticSalesOrdersPage() {
                                     <SelectItem value="confirmed">Confirmed</SelectItem>
                                     <SelectItem value="in_production">In Production</SelectItem>
                                     <SelectItem value="ready">Ready</SelectItem>
-                                    <SelectItem value="dispatched">Dispatched</SelectItem>
                                     <SelectItem value="delivered">Delivered</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -1139,12 +1134,20 @@ export default function DomesticSalesOrdersPage() {
                               ) : (
                                 <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                               )}
+                              <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {(order as any).created_by_user?.full_name || '-'}
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
+                                <OrderMaterialCheckButton
+                                  sourceType="sales_order"
+                                  sourceId={order.id}
+                                  orderNumber={order.order_number}
+                                  preview={order.status === 'draft'}
+                                  size="icon"
+                                />
                                 <Button variant="ghost" size="icon" onClick={() => setViewOrder(order)}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -1226,9 +1229,11 @@ export default function DomesticSalesOrdersPage() {
                 </TableBody>
               </Table>
             </div>
+            )}
 
             {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
+            {isMobile && (
+            <div className="space-y-3">
               {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : filteredOrders?.length === 0 ? (
@@ -1252,7 +1257,10 @@ export default function DomesticSalesOrdersPage() {
                             {format(new Date(order.order_date), 'dd MMM yyyy')}
                           </div>
                         </div>
-                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                        <div className="text-right">
+                          <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                          <DispatchProgress lines={items} status={order.status} className="mt-1" />
+                        </div>
                       </div>
 
                       {/* Customer */}
@@ -1298,20 +1306,26 @@ export default function DomesticSalesOrdersPage() {
                       <div className="flex items-center justify-between gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
                         {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' ? (
                           <Select value={order.status} onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}>
-                            <SelectTrigger className="w-32 h-8 text-xs">
-                              <SelectValue placeholder="Status" />
+                            <SelectTrigger className="w-36 h-8 text-xs">
+                              <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="in_production">In Production</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="dispatched">Dispatched</SelectItem>
                               <SelectItem value="delivered">Delivered</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                           </Select>
                         ) : <span />}
                         <div className="flex gap-1">
+                          <OrderMaterialCheckButton
+                            sourceType="sales_order"
+                            sourceId={order.id}
+                            orderNumber={order.order_number}
+                            preview={order.status === 'draft'}
+                            size="icon"
+                          />
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewOrder(order)}>
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -1346,6 +1360,16 @@ export default function DomesticSalesOrdersPage() {
                 })
               )}
             </div>
+            )}
+
+            <SalesOrdersListFooter
+              shown={orders.length}
+              total={totalOrders}
+              hasMore={hasMore}
+              isFetching={isFetching}
+              isSearching={isSearching}
+              onLoadMore={loadMore}
+            />
           </CardContent>
         </Card>
 
@@ -1528,7 +1552,7 @@ export default function DomesticSalesOrdersPage() {
                                   onValueChange={(v) => updateEditItem(index, 'product_id', v)}
                                   placeholder="Select Product"
                                   triggerClassName="w-48"
-                                  options={(products || []).map((p: any) => ({
+                                  options={productsForCustomerParty(products, partyIdOfCustomer(customers, editFormData.customer_id)).map((p: any) => ({
                                     value: p.id, label: p.name, secondary: `(${p.code})`, search: p.code,
                                   }))}
                                 />

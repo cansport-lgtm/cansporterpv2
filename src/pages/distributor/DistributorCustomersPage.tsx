@@ -38,6 +38,7 @@ import {
 import { Users, Pencil, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Database } from "@/integrations/supabase/types";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 type DistributorCustomer = Database["public"]["Tables"]["distributor_customers"]["Row"];
 
@@ -102,9 +103,9 @@ export default function DistributorCustomersPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!activeDistributorId) throw new Error("No distributor selected");
+      // Code is assigned by the database on insert and locked thereafter.
       const payload = {
         distributor_id: activeDistributorId,
-        code: form.code.trim() || null,
         name: form.name.trim(),
         contact_person: form.contact_person.trim() || null,
         phone: form.phone.trim() || null,
@@ -124,7 +125,7 @@ export default function DistributorCustomersPage() {
       } else {
         const { error } = await supabase
           .from("distributor_customers")
-          .insert({ ...payload, created_by: user?.id ?? null });
+          .insert({ ...payload, code: null, created_by: user?.id ?? null });
         if (error) throw error;
       }
     },
@@ -285,10 +286,7 @@ export default function DistributorCustomersPage() {
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
-                <Input id="code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Optional" />
-              </div>
+              <AutoCodeField entity="distributor_customers" value={editing?.code} isEdit={!!editing} label="Code" id="code" />
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

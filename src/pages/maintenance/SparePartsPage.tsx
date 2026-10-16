@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +77,7 @@ export default function SparePartsPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.code || !formData.name) {
+    if (!formData.name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -86,7 +87,6 @@ export default function SparePartsPage() {
         const { error } = await supabase
           .from("spare_parts")
           .update({
-            code: formData.code,
             name: formData.name,
             description: formData.description || null,
             category: formData.category || null,
@@ -103,7 +103,8 @@ export default function SparePartsPage() {
         toast.success("Spare part updated");
       } else {
         const { error } = await supabase.from("spare_parts").insert({
-          code: formData.code,
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          code: "",
           name: formData.name,
           description: formData.description || null,
           category: formData.category || null,
@@ -305,14 +306,13 @@ export default function SparePartsPage() {
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Code *</Label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="e.g., SP-001"
-                />
-              </div>
+              <AutoCodeField
+                entity="spare_parts"
+                group={formData.category || null}
+                value={editingPart?.code}
+                isEdit={!!editingPart}
+                label="Code"
+              />
               <div>
                 <Label>Category</Label>
                 <Input

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Edit, Wallet, Landmark } from "lucide-react";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const sb = supabase as any;
 
@@ -69,11 +70,13 @@ export default function AccountingCoAPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (formData: AccountForm) => {
+      // Code is assigned by the database on insert and locked thereafter.
+      const { code: _code, ...payload } = formData;
       if (editId) {
-        const { error } = await sb.from("accounting_chart_of_accounts").update(formData).eq("id", editId);
+        const { error } = await sb.from("accounting_chart_of_accounts").update(payload).eq("id", editId);
         if (error) throw error;
       } else {
-        const { error } = await sb.from("accounting_chart_of_accounts").insert(formData);
+        const { error } = await sb.from("accounting_chart_of_accounts").insert({ ...payload, code: "" });
         if (error) throw error;
       }
     },
@@ -127,7 +130,14 @@ export default function AccountingCoAPage() {
               <DialogHeader><DialogTitle>{editId ? "Edit" : "New"} Account</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Code</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="1001" /></div>
+                  <AutoCodeField
+                    entity="accounting_chart_of_accounts"
+                    group={form.account_type}
+                    value={form.code}
+                    isEdit={!!editId}
+                    label="Code"
+                    className=""
+                  />
                   <div>
                     <Label>Type</Label>
                     <Select value={form.account_type} onValueChange={(v: AccountType) => setForm({ ...form, account_type: v })}>
@@ -149,7 +159,7 @@ export default function AccountingCoAPage() {
                   </div>
                 </div>
                 <div><Label>Sort Order</Label><Input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} /></div>
-                <Button className="w-full" onClick={() => saveMutation.mutate(form)} disabled={!form.code || !form.name || saveMutation.isPending}>
+                <Button className="w-full" onClick={() => saveMutation.mutate(form)} disabled={!form.name || saveMutation.isPending}>
                   {editId ? "Update" : "Create"} Account
                 </Button>
               </div>

@@ -80,8 +80,15 @@ interface TemplateItem {
 }
 
 export default function DailyQualityPlanPage() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const queryClient = useQueryClient();
+
+  // Setting daily targets (plans and their templates) is reserved for the QA Super
+  // Manager and admins; everyone else with QA access can only track progress.
+  // Deleting a plan or template stays admin-only. Mirrored by RLS in
+  // 20261015120100_qa_super_manager_rls.sql.
+  const isAdmin = hasRole("super_admin") || hasRole("admin");
+  const canSetTargets = isAdmin || hasRole("qa_super_manager");
   
   // Tab state
   const [activeTab, setActiveTab] = useState("plans");
@@ -590,26 +597,30 @@ export default function DailyQualityPlanPage() {
       header: "Actions",
       render: (p: any) => (
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEditPlan(p);
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletePlanId(p.id);
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {canSetTargets && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditPlan(p);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeletePlanId(p.id);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -624,24 +635,28 @@ export default function DailyQualityPlanPage() {
       header: "Actions",
       render: (t: any) => (
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              // Copy template to create a plan
-              handleTemplateSelect(t.id);
-              setPlanDialogOpen(true);
-            }}
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDeleteTemplateId(t.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {canSetTargets && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                // Copy template to create a plan
+                handleTemplateSelect(t.id);
+                setPlanDialogOpen(true);
+              }}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setDeleteTemplateId(t.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -686,10 +701,12 @@ export default function DailyQualityPlanPage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <Button onClick={() => setPlanDialogOpen(true)} className="w-full">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Plan
-                  </Button>
+                  {canSetTargets && (
+                    <Button onClick={() => setPlanDialogOpen(true)} className="w-full">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Plan
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
@@ -896,12 +913,14 @@ export default function DailyQualityPlanPage() {
           </TabsContent>
 
           <TabsContent value="templates" className="space-y-4">
-            <div className="flex justify-end">
-              <Button onClick={() => setTemplateDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Template
-              </Button>
-            </div>
+            {canSetTargets && (
+              <div className="flex justify-end">
+                <Button onClick={() => setTemplateDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Template
+                </Button>
+              </div>
+            )}
 
             <Card>
               <CardHeader>

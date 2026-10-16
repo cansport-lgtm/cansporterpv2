@@ -16,8 +16,8 @@ type PurchaseCategory = Database["public"]["Enums"]["purchase_category"];
 const CATEGORIES: { value: PurchaseCategory; label: string; color: string }[] = [
   { value: "raw_material", label: "Raw Material", color: "#3b82f6" },
   { value: "office_supplies", label: "Office Supplies", color: "#22c55e" },
-  { value: "general_supplies", label: "General Supplies", color: "#f59e0b" },
-  { value: "spare_maintenance", label: "Spare & Maintenance", color: "#8b5cf6" },
+  { value: "general_supplies", label: "Production Supplies", color: "#f59e0b" },
+  { value: "spare_maintenance", label: "Spares & Parts", color: "#8b5cf6" },
 ];
 
 export default function PurchaseDashboard() {

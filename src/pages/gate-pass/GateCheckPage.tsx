@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Html5Qrcode } from "html5-qrcode";
-import { AlertTriangle, Camera, CheckCircle2, Loader2, LogOut, QrCode, ScanLine } from "lucide-react";
+import { AlertTriangle, BellOff, Camera, CheckCircle2, Loader2, QrCode, ScanLine, Siren } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,8 +13,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { ScrapWeighPanel } from "@/components/gate-pass/ScrapWeighPanel";
+import { GuardShell } from "@/components/gate-pass/GuardShell";
+import { useGuardOnly } from "@/hooks/useGuardOnly";
+import GuardGateCheckPage from "@/pages/gate-pass/GuardGateCheckPage";
+import { InwardGatePanel } from "@/components/gate-pass/InwardGatePanel";
+import { isInwardNumber, normalizeInwardNumber } from "@/lib/gateInward";
+import { StorePassGateNotice } from "@/components/store-pass/StorePassGateNotice";
+import { PersonGatePanel, type PersonLookup } from "@/components/person-gate-pass/PersonGatePanel";
 import {
-  PASS_SELECT, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
+  PERSON_PASS_VARIANTS, STAFF_PASS, WORKER_PASS, detectPersonPassVariant, isFullPassNumber, normalizePersonPassNumber,
+  type PersonPassVariant,
+} from "@/lib/personGatePass";
+import { primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
+import {
+  PASS_SELECT, REUSE_ALARM_STATUSES, countUnit, errorMessage, expectedCount, fmtQty, gpDb, normalizePassNumber, passTypeMeta,
   sortedItems, statusMeta, type GatePass,
 } from "@/lib/gatePass";
 
@@ -24,33 +36,19 @@ const normVehicle = (v: string | null | undefined) => (v ?? "").replace(/[^A-Za-
 
 type CheckResult = {
   status: "out" | "held";
-  vehicle_ok: boolean;
-  mismatches: { line_no: number; description: string; expected: number; counted: number }[];
+  vehicle_ok?: boolean;
+  mismatches?: { line_no: number; description: string; expected: number; counted: number }[];
+  problems?: string[]; // scrap weighment
+  missing_store_pass?: string[]; // sales pass that went out with no store pass (warn mode)
 };
 
-// Guards get a bare full-screen page with just a logout; everyone else the normal layout.
-function GuardShell({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-30 bg-slate-900 text-white">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div>
-            <div className="font-display font-bold text-lg leading-tight">Gate Check</div>
-            <div className="text-xs text-slate-300">{user?.full_name ?? "Security"}</div>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => { logout(); navigate("/login"); }}>
-            <LogOut className="h-4 w-4 mr-1" /> Logout
-          </Button>
-        </div>
-      </header>
-      <main className="p-3 sm:p-4 max-w-xl mx-auto">{children}</main>
-    </div>
-  );
+/** Gate keepers get the picture-and-colour page; the office keeps the detailed one below. */
+export default function GateCheckPage() {
+  const guardOnly = useGuardOnly();
+  return guardOnly ? <GuardGateCheckPage /> : <OfficeGateCheckPage />;
 }
 
-export default function GateCheckPage() {
+function OfficeGateCheckPage() {
   const { roles, hasModulePermission } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -59,14 +57,29 @@ export default function GateCheckPage() {
 
   const [code, setCode] = useState("");
   const [passNumber, setPassNumber] = useState<string | null>(null);
+  // Goods passes (GP-…), worker passes (LGP-…), staff passes (SGP-…) and inward
+  // entries (GIN-…) share this screen. A scanned QR picks the flow by its prefix;
+  // typed input follows the selected mode.
+  const [mode, setMode] = useState<"goods" | "worker" | "staff" | "inward">("goods");
+  const [personLookup, setPersonLookup] = useState<{ variant: PersonPassVariant; lookup: PersonLookup } | null>(null);
+  const [inwardNumber, setInwardNumber] = useState<string | null>(null);
+  const modeVariant = mode === "worker" ? WORKER_PASS : mode === "staff" ? STAFF_PASS : null;
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [vehicle, setVehicle] = useState("");
   const [note, setNote] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
+  // Sales pass with a dispatch that has no store pass while the setting is "block".
+  const [spBlocked, setSpBlocked] = useState(false);
+  // Each Open / scan is one lookup; the alarm decision is made once per lookup, on the
+  // pass as it stood when it was opened (so marking a pass Out never sets it off).
+  const [lookupId, setLookupId] = useState(0);
+  const decidedRef = useRef(-1);
+  const lookupAtRef = useRef(0);
+  const [alarm, setAlarm] = useState<{ lookup: number; attempts?: number; sounding: boolean } | null>(null);
 
-  const { data: pass, isFetching, isFetched } = useQuery<GatePass | null>({
+  const { data: pass, isFetching, isFetched, dataUpdatedAt } = useQuery<GatePass | null>({
     queryKey: ["gate-check-pass", passNumber],
     enabled: Boolean(passNumber),
     queryFn: async () => {
@@ -82,11 +95,45 @@ export default function GateCheckPage() {
     setVehicle("");
     setNote("");
     setResult(null);
+    setSpBlocked(false);
   }, [passNumber]);
 
   const lookUp = (raw: string) => {
-    const n = normalizePassNumber(raw);
+    const text = raw.trim();
+    if (!text) return;
+    primeGateAlarm();
+    stopGateAlarm();
+    setAlarm(null);
+    lookupAtRef.current = Date.now();
+    setLookupId((x) => x + 1);
+    if (isInwardNumber(text) || (mode === "inward" && !/^(GP|LGP|SGP)-?\d+$/i.test(text))) {
+      const n = normalizeInwardNumber(text);
+      setMode("inward");
+      setCode(n);
+      setPassNumber(null);
+      setPersonLookup(null);
+      setInwardNumber(n);
+      queryClient.invalidateQueries({ queryKey: ["gate-check-inward", n] });
+      return;
+    }
+    const personVariant = detectPersonPassVariant(text) ?? (modeVariant && !/^GP-?\d+$/i.test(text) ? modeVariant : null);
+    if (personVariant) {
+      // Worker / staff pass by number, or today's pass by employee code.
+      const n = normalizePersonPassNumber(personVariant, text);
+      const lookup: PersonLookup = isFullPassNumber(personVariant, n) ? { number: n } : { code: n };
+      setMode(personVariant.key);
+      setCode(lookup.number ?? lookup.code ?? "");
+      setPassNumber(null);
+      setInwardNumber(null);
+      setPersonLookup({ variant: personVariant, lookup });
+      PERSON_PASS_VARIANTS.forEach((v) => queryClient.invalidateQueries({ queryKey: [`gate-check-${v.key}-pass`] }));
+      return;
+    }
+    const n = normalizePassNumber(text);
     if (!n) return;
+    setMode("goods");
+    setPersonLookup(null);
+    setInwardNumber(null);
     setCode(n);
     setPassNumber(n);
     queryClient.invalidateQueries({ queryKey: ["gate-check-pass", n] });
@@ -99,6 +146,7 @@ export default function GateCheckPage() {
   };
 
   const startScanner = async () => {
+    primeGateAlarm();
     setScanning(true);
     // Wait a tick so the scanner's container is on the page.
     await new Promise((r) => setTimeout(r, 50));
@@ -120,7 +168,25 @@ export default function GateCheckPage() {
     }
   };
 
-  useEffect(() => () => { scannerRef.current?.stop().catch(() => {}); }, []);
+  useEffect(() => () => { scannerRef.current?.stop().catch(() => {}); stopGateAlarm(); }, []);
+
+  // Old pass opened again: siren + red screen, and log the attempt (managers are notified).
+  useEffect(() => {
+    // Decide only on data fetched after this lookup, never on a cached copy.
+    if (!pass || isFetching || dataUpdatedAt < lookupAtRef.current || decidedRef.current === lookupId) return;
+    decidedRef.current = lookupId;
+    if (!REUSE_ALARM_STATUSES.includes(pass.status)) return;
+    setAlarm({ lookup: lookupId, sounding: true });
+    startGateAlarm();
+    gpDb.rpc("gate_pass_log_rescan", { p_id: pass.id }).then(({ data }: { data: { attempts?: number } | null }) => {
+      setAlarm((a) => (a && a.lookup === lookupId ? { ...a, attempts: data?.attempts } : a));
+    });
+  }, [pass, isFetching, dataUpdatedAt, lookupId]);
+
+  const silence = () => {
+    stopGateAlarm();
+    setAlarm((a) => (a ? { ...a, sounding: false } : a));
+  };
 
   const items = pass ? sortedItems(pass).filter((i) => Number(i.quantity) > 0) : [];
   const lineState = (id: string, expected: number) => {
@@ -156,7 +222,11 @@ export default function GateCheckPage() {
   });
 
   const reset = () => {
+    stopGateAlarm();
+    setAlarm(null);
     setPassNumber(null);
+    setPersonLookup(null);
+    setInwardNumber(null);
     setCode("");
     setResult(null);
   };
@@ -174,9 +244,19 @@ export default function GateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+              {([["goods", "Goods out"], ["worker", "Worker"], ["staff", "Staff"], ["inward", "Inward"]] as const).map(([m, label]) => (
+                <button key={m} type="button" role="tab" aria-selected={mode === m}
+                  className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}
+                  onClick={() => { setMode(m); setCode(""); setPassNumber(null); setPersonLookup(null); setInwardNumber(null); }}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); lookUp(code); }}>
-              <Label htmlFor="gp-code" className="sr-only">GP number</Label>
-              <Input id="gp-code" value={code} inputMode="text" placeholder="GP number, e.g. 131"
+              <Label htmlFor="gp-code" className="sr-only">{modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number" : "GP number"}</Label>
+              <Input id="gp-code" value={code} inputMode="text"
+                placeholder={modeVariant ? `${modeVariant.prefix} number or ${modeVariant.noun} code` : mode === "inward" ? "GIN number, e.g. 12" : "GP number, e.g. 131"}
                 className="h-12 text-lg" onChange={(e) => setCode(e.target.value)} />
               <Button type="submit" className="h-12 px-5">Open</Button>
             </form>
@@ -192,6 +272,13 @@ export default function GateCheckPage() {
             )}
           </CardContent>
         </Card>
+
+        {personLookup && (
+          <PersonGatePanel key={personLookup.variant.key} variant={personLookup.variant} lookup={personLookup.lookup} lookupId={lookupId} lookupAt={lookupAtRef.current} onReset={reset} />
+        )}
+        {mode === "inward" && (
+          <InwardGatePanel number={inwardNumber} lookupId={lookupId} onReset={reset} />
+        )}
 
         {passNumber && isFetching && !pass && (
           <div className="flex justify-center py-8 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
@@ -213,8 +300,8 @@ export default function GateCheckPage() {
                 </div>
                 <div className="text-sm text-muted-foreground">{pass.party_name}</div>
                 <div className="text-sm">
-                  Vehicle on pass: <b>{pass.vehicle_number || "none (hand carry / courier)"}</b>
-                  {pass.driver_name ? <> · Driver: <b>{pass.driver_name}</b></> : null}
+                  Vehicle on pass: <b>{pass.vehicle_number || (pass.handled_by === "company" ? "none (company official)" : "none (hand carry / courier)")}</b>
+                  {pass.driver_name ? <> · {pass.handled_by === "company" ? "Official" : "Driver"}: <b>{pass.driver_name}</b></> : null}
                 </div>
               </CardContent>
             </Card>
@@ -226,17 +313,44 @@ export default function GateCheckPage() {
                     <>
                       <CheckCircle2 className="h-12 w-12 text-emerald-700 mx-auto" />
                       <div className="text-xl font-bold text-emerald-800">Marked Out — the vehicle may go</div>
+                      {result.missing_store_pass?.length ? (
+                        <div className="text-sm text-amber-800">No store pass for {result.missing_store_pass.join(", ")} — logged, the store managers have been told.</div>
+                      ) : null}
                     </>
                   ) : (
                     <>
                       <AlertTriangle className="h-12 w-12 text-red-700 mx-auto" />
                       <div className="text-xl font-bold text-red-800">Held — do not let the vehicle go</div>
                       <div className="text-sm text-red-900">The office and the manager have been told.</div>
+                      {result.problems?.map((p) => <div key={p} className="text-sm text-red-900 font-medium">{p}</div>)}
                     </>
                   )}
                   <Button className="w-full h-12 mt-2" onClick={reset}><ScanLine className="h-5 w-5 mr-2" /> Check the next pass</Button>
                 </CardContent>
               </Card>
+            ) : alarm && alarm.lookup === lookupId ? (
+              <div role="alert" className="rounded-xl border-4 border-red-600 bg-red-600 text-white p-5 text-center space-y-3 animate-pulse motion-reduce:animate-none">
+                <Siren className="h-16 w-16 mx-auto" />
+                <div className="text-2xl font-extrabold uppercase tracking-wide">Old gate pass — do not let the vehicle go</div>
+                <div className="text-base font-semibold">
+                  {pass.status === "cancelled" || pass.status === "rejected"
+                    ? `This pass was ${pass.status}. It is not valid.`
+                    : `This pass was already used${pass.gate_out_at ? ` — went out ${format(new Date(pass.gate_out_at), "dd MMM yyyy, HH:mm")}` : ""}.`}
+                </div>
+                <div className="text-sm">
+                  This attempt is logged{alarm.attempts && alarm.attempts > 1 ? ` (${alarm.attempts} attempts on this pass)` : ""} and the manager has been told. Stop the vehicle and call the office.
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  {alarm.sounding && (
+                    <Button variant="secondary" className="flex-1 h-12 text-base" onClick={silence}>
+                      <BellOff className="h-5 w-5 mr-2" /> Silence alarm
+                    </Button>
+                  )}
+                  <Button variant="outline" className="flex-1 h-12 text-base bg-white text-red-700 hover:bg-red-50" onClick={reset}>
+                    <ScanLine className="h-5 w-5 mr-2" /> Check another pass
+                  </Button>
+                </div>
+              </div>
             ) : !canAct ? (
               <Card className={cn(pass.status === "out" ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50")}>
                 <CardContent className="p-5 text-center space-y-1">
@@ -254,7 +368,9 @@ export default function GateCheckPage() {
               <>
                 {pass.status === "held" && (
                   <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-                    This pass is held{pass.hold_note ? `: ${pass.hold_note}` : ""}. Count again if goods were added or unloaded — or wait for the manager.
+                    This pass is held{pass.hold_note ? `: ${pass.hold_note}` : ""}. {pass.pass_type === "scrap"
+                      ? "Weigh again after unloading the extra — or wait for the manager."
+                      : "Count again if goods were added or unloaded — or wait for the manager."}
                   </div>
                 )}
 
@@ -273,6 +389,16 @@ export default function GateCheckPage() {
                   </CardContent>
                 </Card>
 
+                {pass.pass_type === "scrap" ? (
+                  <ScrapWeighPanel pass={pass} vehicle={vehicle} vehicleOk={vehicleOk} onDone={(r) => {
+                    setResult(r);
+                    queryClient.invalidateQueries({ queryKey: ["gate-check-pass", passNumber] });
+                    queryClient.invalidateQueries({ queryKey: ["gate-passes"] });
+                    queryClient.invalidateQueries({ queryKey: ["gate-pass-approvals"] });
+                  }} />
+                ) : (
+                <>
+                {pass.pass_type === "sales" && <StorePassGateNotice pass={pass} onStatus={setSpBlocked} />}
                 <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground px-1">Count each line</div>
                 {items.map((i) => {
                   const exp = expectedCount(i);
@@ -323,11 +449,11 @@ export default function GateCheckPage() {
                   <Button
                     className={cn("w-full h-14 text-lg font-bold", goesOut ? "bg-emerald-700 hover:bg-emerald-800" : "")}
                     variant={allCounted && !goesOut ? "destructive" : "default"}
-                    disabled={!allCounted || check.isPending}
+                    disabled={!allCounted || check.isPending || (spBlocked && goesOut)}
                     onClick={() => check.mutate()}
                   >
                     {check.isPending && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-                    {!allCounted ? "Count every line first" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
+                    {!allCounted ? "Count every line first" : spBlocked && goesOut ? "No store pass · vehicle cannot leave" : goesOut ? "All match · Mark Out" : "Hold vehicle and notify"}
                   </Button>
                   {!allCounted && (
                     <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
@@ -335,6 +461,8 @@ export default function GateCheckPage() {
                     </p>
                   )}
                 </div>
+                </>
+                )}
               </>
             )}
           </>

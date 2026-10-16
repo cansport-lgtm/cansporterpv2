@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Upload, X, Loader2 } from "lucide-react";
+import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +39,49 @@ interface Employee {
   is_active: boolean;
   basic_salary: number | null;
   allowances: number | null;
+  photo_url?: string | null;
+  field_duty_allowed?: boolean | null;
+  app_user_id?: string | null;
+  ref1_name?: string | null;
+  ref1_relationship?: string | null;
+  ref1_cnic?: string | null;
+  ref1_contact?: string | null;
+  ref1_police_verification?: string | null;
+  ref1_verified_by?: string | null;
+  ref2_name?: string | null;
+  ref2_relationship?: string | null;
+  ref2_cnic?: string | null;
+  ref2_contact?: string | null;
+  ref2_police_verification?: string | null;
+  ref2_verified_by?: string | null;
   production_departments?: { id: string; name: string } | null;
   designations?: { id: string; name: string } | null;
 }
+
+// Two references (blood relations) per employee: ref1_* and ref2_* columns.
+const REFERENCE_NUMBERS = [1, 2] as const;
+const REFERENCE_FIELDS = ["name", "relationship", "cnic", "contact", "police_verification", "verified_by"] as const;
+type ReferenceField = (typeof REFERENCE_FIELDS)[number];
+type ReferenceKey = `ref${(typeof REFERENCE_NUMBERS)[number]}_${ReferenceField}`;
+const REFERENCE_KEYS = REFERENCE_NUMBERS.flatMap((n) => REFERENCE_FIELDS.map((f) => `ref${n}_${f}` as ReferenceKey));
+
+const RELATIONSHIPS = ["Father", "Mother", "Brother", "Sister", "Son", "Daughter", "Husband", "Wife", "Uncle", "Cousin"];
+const POLICE_VERIFICATION_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "verified", label: "Verified" },
+  { value: "not_verified", label: "Not Verified" },
+];
+
+const referencesFrom = (employee?: Employee | null) =>
+  Object.fromEntries(REFERENCE_KEYS.map((k) => [k, employee?.[k] || ""])) as Record<ReferenceKey, string>;
+
+// CNIC as 12345-1234567-1 while typing.
+const formatCnic = (value: string) => {
+  const d = value.replace(/\D/g, "").slice(0, 13);
+  if (d.length <= 5) return d;
+  if (d.length <= 12) return `${d.slice(0, 5)}-${d.slice(5)}`;
+  return `${d.slice(0, 5)}-${d.slice(5, 12)}-${d.slice(12)}`;
+};
 
 const EmployeesPage = () => {
   const queryClient = useQueryClient();
@@ -67,6 +109,58 @@ const EmployeesPage = () => {
     duty_start_time: "09:00",
     duty_end_time: "18:00",
     duty_hours: "8",
+    photo_url: "",
+    field_duty_allowed: false,
+    app_user_id: "",
+    ...referencesFrom(),
+  });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Staff photo: shown to the guard on Gate Check so they can match the person with the pass.
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2 MB");
+      return;
+    }
+    try {
+      setUploadingPhoto(true);
+      const ext = file.name.split(".").pop() || "jpg";
+      const codePart = (formData.employee_code || "emp").replace(/[^a-zA-Z0-9_-]/g, "");
+      const path = `${codePart}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("staff-photos")
+        .upload(path, file, { cacheControl: "3600", upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from("staff-photos").getPublicUrl(path);
+      setFormData((p) => ({ ...p, photo_url: data.publicUrl }));
+      toast.success("Photo uploaded");
+    } catch (err) {
+      const message = (err as { message?: string })?.message || "unknown error";
+      toast.error(`Photo upload failed: ${message}. The photo will NOT be saved with this employee.`, { duration: 8000 });
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  // Logins that can be linked to a staff record (self-service gate passes).
+  const { data: appUsers = [] } = useQuery({
+    queryKey: ["app-users-for-employee-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_users")
+        .select("id, full_name, user_id, is_active")
+        .order("full_name");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const { data: departments = [] } = useQuery({
@@ -122,7 +216,6 @@ const EmployeesPage = () => {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const payload = {
-        employee_code: data.employee_code.trim(),
         full_name: data.full_name.trim(),
         department_id: data.department_id || null,
         designation_id: data.designation_id || null,
@@ -138,6 +231,10 @@ const EmployeesPage = () => {
         duty_start_time: data.duty_start_time || "09:00",
         duty_end_time: data.duty_end_time || "18:00",
         duty_hours: data.duty_hours ? parseFloat(data.duty_hours) : 8,
+        photo_url: data.photo_url || null,
+        field_duty_allowed: data.field_duty_allowed,
+        app_user_id: data.app_user_id || null,
+        ...Object.fromEntries(REFERENCE_KEYS.map((k) => [k, data[k]?.trim() || null])),
       };
 
       if (editingEmployee) {
@@ -147,20 +244,9 @@ const EmployeesPage = () => {
           .eq("id", editingEmployee.id);
         if (error) throw error;
       } else {
-        // Check for duplicate employee code
-        const { data: existing } = await supabase
-          .from("employees")
-          .select("id")
-          .eq("employee_code", data.employee_code.trim())
-          .maybeSingle();
-        
-        if (existing) {
-          throw new Error("Employee code already exists. Please use a unique code.");
-        }
-
         const { error } = await supabase
           .from("employees")
-          .insert(payload);
+          .insert({ ...payload, employee_code: "" }); // code assigned by the DB (trg_00_auto_code)
         if (error) throw error;
       }
     },
@@ -236,6 +322,10 @@ const EmployeesPage = () => {
       duty_start_time: "09:00",
       duty_end_time: "18:00",
       duty_hours: "8",
+      photo_url: "",
+      field_duty_allowed: false,
+      app_user_id: "",
+      ...referencesFrom(),
     });
   };
 
@@ -258,6 +348,10 @@ const EmployeesPage = () => {
       duty_start_time: (employee as any).duty_start_time || "09:00",
       duty_end_time: (employee as any).duty_end_time || "18:00",
       duty_hours: (employee as any).duty_hours?.toString() || "8",
+      photo_url: employee.photo_url || "",
+      field_duty_allowed: Boolean(employee.field_duty_allowed),
+      app_user_id: employee.app_user_id || "",
+      ...referencesFrom(employee),
     });
     setIsDialogOpen(true);
   };
@@ -269,7 +363,7 @@ const EmployeesPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.employee_code || !formData.full_name) {
+    if (!formData.full_name) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -282,6 +376,12 @@ const EmployeesPage = () => {
   );
 
   const columns: Column<Employee>[] = [
+    {
+      key: "photo",
+      header: "",
+      className: "w-12",
+      render: (item) => <EmployeeAvatar name={item.full_name} photoUrl={item.photo_url} />,
+    },
     {
       key: "employee_code",
       header: "Code",
@@ -382,16 +482,12 @@ const EmployeesPage = () => {
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Employee Code *</Label>
-                  <Input
-                    value={formData.employee_code}
-                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
-                    placeholder="e.g., EMP-001"
-                    disabled={!!editingEmployee}
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="employees"
+                  value={editingEmployee?.employee_code}
+                  isEdit={!!editingEmployee}
+                  label="Employee Code"
+                />
                 <div>
                   <Label>Full Name *</Label>
                   <Input
@@ -566,6 +662,127 @@ const EmployeesPage = () => {
                       max="24"
                       step="0.5"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-dashed bg-muted/30 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <EmployeeAvatar name={formData.full_name} photoUrl={formData.photo_url} className="h-20 w-20 text-base" />
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-sm font-medium">Photo</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                      <Button type="button" variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
+                        {uploadingPhoto ? (
+                          <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Uploading...</>
+                        ) : (
+                          <><Upload className="mr-1.5 h-3.5 w-3.5" /> {formData.photo_url ? "Change" : "Upload"} Photo</>
+                        )}
+                      </Button>
+                      {formData.photo_url && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({ ...formData, photo_url: "" })}>
+                          <X className="mr-1.5 h-3.5 w-3.5" /> Remove
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">JPG/PNG, max 2 MB. The guard compares the person with this photo at the gate.</p>
+                  </div>
+                </div>
+              </div>
+
+              {REFERENCE_NUMBERS.map((n) => {
+                const key = (f: ReferenceField) => `ref${n}_${f}` as ReferenceKey;
+                const set = (f: ReferenceField, value: string) => setFormData((p) => ({ ...p, [key(f)]: value }));
+                return (
+                  <div key={n} className="rounded-lg border p-4 space-y-3">
+                    <Label className="text-sm font-semibold text-muted-foreground">Reference {n} (blood relation)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Name</Label>
+                        <Input value={formData[key("name")]} onChange={(e) => set("name", e.target.value)} placeholder="Full name" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Relationship</Label>
+                        <Input
+                          value={formData[key("relationship")]}
+                          onChange={(e) => set("relationship", e.target.value)}
+                          placeholder="e.g., Father"
+                          list="employee-reference-relationships"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">CNIC</Label>
+                        <Input
+                          value={formData[key("cnic")]}
+                          onChange={(e) => set("cnic", formatCnic(e.target.value))}
+                          placeholder="12345-1234567-1"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Contact No.</Label>
+                        <Input value={formData[key("contact")]} onChange={(e) => set("contact", e.target.value)} placeholder="Phone number" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Police Verification</Label>
+                        <Select
+                          value={formData[key("police_verification")] || "none"}
+                          onValueChange={(val) => set("police_verification", val === "none" ? "" : val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Not set" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Not set</SelectItem>
+                            {POLICE_VERIFICATION_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Verified By</Label>
+                        <Input value={formData[key("verified_by")]} onChange={(e) => set("verified_by", e.target.value)} placeholder="Name of verifier" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <datalist id="employee-reference-relationships">
+                {RELATIONSHIPS.map((r) => <option key={r} value={r} />)}
+              </datalist>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <Label className="text-sm font-semibold text-muted-foreground">Gate pass</Label>
+                <div>
+                  <Label className="text-xs">Login user (for self-service company work passes)</Label>
+                  <Select
+                    value={formData.app_user_id || "none"}
+                    onValueChange={(val) => setFormData({ ...formData, app_user_id: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not linked" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {appUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name} ({u.user_id}){u.is_active === false ? " · inactive" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">With a login linked, this staff member can raise their own Official duty gate pass under My Gate Passes.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={formData.field_duty_allowed}
+                    onCheckedChange={(checked) => setFormData({ ...formData, field_duty_allowed: checked })}
+                  />
+                  <div>
+                    <Label>Field duty allowed</Label>
+                    <p className="text-[11px] text-muted-foreground">Official duty passes are approved the moment they are raised (purchase officers, drivers, …).</p>
                   </div>
                 </div>
               </div>

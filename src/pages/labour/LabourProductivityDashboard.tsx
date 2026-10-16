@@ -5,6 +5,8 @@ import { Users, TrendingUp, Award, Building2, Clock, CalendarIcon, Sparkles, Loa
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PersonGatePassCards } from "@/components/person-gate-pass/PersonGatePassCards";
+import { WORKER_PASS } from "@/lib/personGatePass";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -281,6 +283,10 @@ const LabourProductivityDashboard = () => {
         title="Labour Productivity Dashboard"
         description="Track worker performance and department efficiency"
       />
+
+      <div className="mb-6">
+        <PersonGatePassCards variant={WORKER_PASS} compact />
+      </div>
 
       <div className="flex flex-wrap gap-4 mb-6">
         <Select value={dateRange} onValueChange={setDateRange}>

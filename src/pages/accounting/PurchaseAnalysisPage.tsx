@@ -38,15 +38,15 @@ const CATEGORIES = [
   { key: "all", label: "All Categories" },
   { key: "raw_material", label: "Raw Material" },
   { key: "office_supplies", label: "Office Supplies" },
-  { key: "general_supplies", label: "General Supplies" },
-  { key: "spare_maintenance", label: "Spare & Maintenance" },
+  { key: "general_supplies", label: "Production Supplies" },
+  { key: "spare_maintenance", label: "Spares & Parts" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
   raw_material: "Raw Material",
   office_supplies: "Office Supplies",
-  general_supplies: "General Supplies",
-  spare_maintenance: "Spare & Maintenance",
+  general_supplies: "Production Supplies",
+  spare_maintenance: "Spares & Parts",
 };
 
 const STATUS_COLORS: Record<string, string> = {

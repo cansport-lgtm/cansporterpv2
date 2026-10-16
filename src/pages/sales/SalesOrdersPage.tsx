@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -13,13 +13,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
+import { useSalesOrdersList, SALES_ORDER_PERIOD_OPTIONS, type SalesOrderPeriod, type SalesOrderLine } from "@/hooks/useSalesOrdersList";
+import { SalesOrdersListFooter } from "@/components/sales/SalesOrdersListFooter";
 import { toast } from "sonner";
 import { Plus, Trash2, Search, Eye, Pencil, ChevronDown, ChevronRight } from "lucide-react";
+import { OrderMaterialCheckButton, toastMaterialCheckResult } from "@/components/materials/OrderMaterialCheck";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DispatchProgress } from "@/components/sales/DispatchProgress";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSalesOrderForm } from "@/components/sales/MobileSalesOrderForm";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-500',
@@ -39,6 +43,7 @@ export default function SalesOrdersPage() {
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [period, setPeriod] = useState<SalesOrderPeriod>('90');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewOrder, setViewOrder] = useState<any>(null);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -74,24 +79,17 @@ export default function SalesOrdersPage() {
     }
   }, [location.state, canCreate]);
 
-  // Fetch orders
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['sales-orders-private-label'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select(`
-          *,
-          customers(name, code, logo_url),
-          created_by_user:app_users!sales_orders_created_by_fkey(full_name)
-        `)
-        .eq('sales_segment', 'private_label')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Orders for the current window (search / status / period), with their
+  // lines embedded. Filtering and paging happen server-side.
+  const {
+    orders,
+    total: totalOrders,
+    isLoading,
+    isFetching,
+    hasMore,
+    loadMore,
+    isSearching,
+  } = useSalesOrdersList({ segment: 'private_label', search: searchTerm, status: statusFilter, period });
 
   // Fetch order items for viewing
   const { data: orderItems } = useQuery({
@@ -113,25 +111,6 @@ export default function SalesOrdersPage() {
     enabled: !!viewOrder?.id,
   });
 
-  // Fetch ALL order items for inline list view
-  const allOrderIds = orders?.map(o => o.id) || [];
-  const { data: allOrderItems } = useQuery({
-    queryKey: ['all-sales-order-items', 'private_label', allOrderIds.join(',')],
-    queryFn: async () => {
-      if (allOrderIds.length === 0) return [];
-      // Page past the ~1000-row API cap — otherwise the newest orders'
-      // items get dropped and their rows show "No items".
-      return fetchAllRows((from, to) =>
-        supabase
-          .from('sales_order_items')
-          .select(`*, products(code, name)`)
-          .in('order_id', allOrderIds)
-          .order('id', { ascending: true })
-          .range(from, to));
-    },
-    enabled: allOrderIds.length > 0,
-  });
-
   const toggleExpand = (orderId: string) => {
     setExpandedOrders(prev => {
       const next = new Set(prev);
@@ -141,9 +120,14 @@ export default function SalesOrdersPage() {
     });
   };
 
-  const getOrderItems = (orderId: string) => {
-    return allOrderItems?.filter((item: any) => item.order_id === orderId) || [];
-  };
+  // Lines come embedded on each order row; index them once per result set.
+  const itemsByOrder = useMemo(() => {
+    const map = new Map<string, SalesOrderLine[]>();
+    for (const order of orders) map.set(order.id, order.sales_order_items || []);
+    return map;
+  }, [orders]);
+
+  const getOrderItems = (orderId: string): SalesOrderLine[] => itemsByOrder.get(orderId) || [];
 
   // Fetch customers (private label only)
   const { data: customers } = useQuery({
@@ -151,7 +135,7 @@ export default function SalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, name, address, payment_terms')
+        .select('id, code, name, address, payment_terms, billing_customer')
         .eq('is_active', true)
         .eq('sales_segment', 'private_label')
         .order('name');
@@ -275,9 +259,11 @@ export default function SalesOrdersPage() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
       toast.success('Status updated');
+      // The stock check ran in the database on confirm; warn the confirmer.
+      if (vars.status === 'confirmed') void toastMaterialCheckResult('sales_order', vars.id);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -305,36 +291,11 @@ export default function SalesOrdersPage() {
   // Add product mutation
   const addProductMutation = useMutation({
     mutationFn: async (productData: typeof newProduct) => {
-      // Check if product code already exists (including inactive products)
-      const { data: existingProduct } = await supabase
-        .from('products')
-        .select('id, is_active')
-        .eq('code', productData.code)
-        .maybeSingle();
-
-      if (existingProduct) {
-        if (!existingProduct.is_active) {
-          // Reactivate the inactive product
-          const { data, error } = await supabase
-            .from('products')
-            .update({
-              name: productData.name,
-              description: productData.description || null,
-              is_active: true,
-            })
-            .eq('id', existingProduct.id)
-            .select()
-            .single();
-          if (error) throw error;
-          return data;
-        }
-        throw new Error('Product code already exists. Please use a different code.');
-      }
-
+      // Code is assigned by the database (trg_00_auto_code) on insert.
       const { data, error } = await supabase
         .from('products')
         .insert({
-          code: productData.code,
+          code: '',
           name: productData.name,
           description: productData.description || null,
           is_active: true,
@@ -361,7 +322,6 @@ export default function SalesOrdersPage() {
       const { error } = await supabase
         .from('products')
         .update({
-          code: productData.code,
           name: productData.name,
           description: productData.description || null,
         })
@@ -465,6 +425,14 @@ export default function SalesOrdersPage() {
       toast.error('Please select a customer');
       return;
     }
+    // Billing customer is optional for private label for now — warn, don't block.
+    const selectedCustomer = customers?.find(c => c.id === formData.customer_id);
+    if (!(selectedCustomer?.billing_customer || '').trim()) {
+      toast.warning(
+        `"${selectedCustomer?.name || 'This customer'}" has no Billing Customer set. ` +
+        `Set it on the Customers page so billing knows who to invoice.`
+      );
+    }
     if (formData.items.length === 0) {
       toast.error('Please add at least one item');
       return;
@@ -490,13 +458,8 @@ export default function SalesOrdersPage() {
     return total * (1 - discount / 100);
   };
 
-  const filteredOrders = orders?.filter(o => {
-    const matchesSearch = 
-      o.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.customers?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Search, status and period are applied by the query itself.
+  const filteredOrders = orders;
 
   return (
     <ERPLayout>
@@ -533,6 +496,16 @@ export default function SalesOrdersPage() {
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={period} onValueChange={(v) => setPeriod(v as SalesOrderPeriod)} disabled={isSearching}>
+                <SelectTrigger className="w-40" title={isSearching ? 'Search looks across all time' : undefined}>
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALES_ORDER_PERIOD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {canCreate && (
@@ -593,6 +566,14 @@ export default function SalesOrdersPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {formData.customer_id && (() => {
+                                const billing = customers?.find(c => c.id === formData.customer_id)?.billing_customer;
+                                return billing ? (
+                                  <p className="text-xs text-blue-600 font-medium">Billing: {billing}</p>
+                                ) : (
+                                  <p className="text-xs text-amber-600">No billing customer set</p>
+                                );
+                              })()}
                             </div>
                             <div className="space-y-2">
                               <Label>Order Date</Label>
@@ -767,8 +748,9 @@ export default function SalesOrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Desktop Table View */}
-            <div className="hidden md:block border rounded-lg overflow-hidden">
+            {/* Desktop Table View — only one of the two views is rendered */}
+            {!isMobile && (
+            <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -819,6 +801,11 @@ export default function SalesOrdersPage() {
                                 <div>
                                   <div className="font-medium">{order.customers?.name}</div>
                                   <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                                  {order.customers?.billing_customer && (
+                                    <div className="text-xs text-blue-600 font-medium mt-0.5">
+                                      Billing: {order.customers.billing_customer}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </TableCell>
@@ -844,8 +831,6 @@ export default function SalesOrdersPage() {
                                     <SelectItem value="confirmed">Confirmed</SelectItem>
                                     <SelectItem value="in_production">In Production</SelectItem>
                                     <SelectItem value="ready">Ready</SelectItem>
-                                    <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
-                                    <SelectItem value="dispatched">Dispatched</SelectItem>
                                     <SelectItem value="delivered">Delivered</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -855,12 +840,23 @@ export default function SalesOrdersPage() {
                                   {order.status.replace(/_/g, ' ')}
                                 </Badge>
                               )}
+                              {order.auto_cancelled_at && (
+                                <div className="mt-1 text-xs text-muted-foreground">Auto-cancelled (30 days)</div>
+                              )}
+                              <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
                             </TableCell>
                             <TableCell className="text-sm">
                               {order.created_by_user?.full_name || '-'}
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
+                                <OrderMaterialCheckButton
+                                  sourceType="sales_order"
+                                  sourceId={order.id}
+                                  orderNumber={order.order_number}
+                                  preview={order.status === 'draft'}
+                                  size="icon"
+                                />
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
@@ -933,9 +929,11 @@ export default function SalesOrdersPage() {
                 </TableBody>
               </Table>
             </div>
+            )}
 
             {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
+            {isMobile && (
+            <div className="space-y-3">
               {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : filteredOrders?.length === 0 ? (
@@ -955,9 +953,10 @@ export default function SalesOrdersPage() {
                           {format(new Date(order.order_date), 'dd MMM yyyy')}
                         </div>
                       </div>
-                      <Badge className={STATUS_COLORS[order.status]}>
-                        {order.status.replace(/_/g, ' ')}
-                      </Badge>
+                      <div className="text-right">
+                        <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
+                        <DispatchProgress lines={getOrderItems(order.id)} status={order.status} className="mt-1" />
+                      </div>
                     </div>
 
                     {/* Customer */}
@@ -972,6 +971,11 @@ export default function SalesOrdersPage() {
                       <div>
                         <div className="font-medium">{order.customers?.name}</div>
                         <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                        {order.customers?.billing_customer && (
+                          <div className="text-xs text-blue-600 font-medium mt-0.5">
+                            Billing: {order.customers.billing_customer}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -993,21 +997,26 @@ export default function SalesOrdersPage() {
                         Rs. {Number(order.net_amount || 0).toLocaleString()}
                       </div>
                       <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <OrderMaterialCheckButton
+                          sourceType="sales_order"
+                          sourceId={order.id}
+                          orderNumber={order.order_number}
+                          preview={order.status === 'draft'}
+                          size="icon"
+                        />
                         {canEdit && order.status !== 'delivered' && order.status !== 'cancelled' && (
                           <Select 
                             value={order.status} 
                             onValueChange={(status) => statusMutation.mutate({ id: order.id, status })}
                           >
-                            <SelectTrigger className="w-28 h-8 text-xs">
-                              <SelectValue placeholder="Status" />
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <Badge className={STATUS_COLORS[order.status]}>{order.status.replace(/_/g, ' ')}</Badge>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="draft">Draft</SelectItem>
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="in_production">In Production</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
-                              <SelectItem value="dispatched">Dispatched</SelectItem>
                               <SelectItem value="delivered">Delivered</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
@@ -1033,6 +1042,16 @@ export default function SalesOrdersPage() {
                 ))
               )}
             </div>
+            )}
+
+            <SalesOrdersListFooter
+              shown={orders.length}
+              total={totalOrders}
+              hasMore={hasMore}
+              isFetching={isFetching}
+              isSearching={isSearching}
+              onLoadMore={loadMore}
+            />
           </CardContent>
         </Card>
 
@@ -1048,6 +1067,11 @@ export default function SalesOrdersPage() {
                   <div>
                     <div className="text-sm text-muted-foreground">Customer</div>
                     <div className="font-medium">{viewOrder.customers?.name}</div>
+                    {viewOrder.customers?.billing_customer && (
+                      <div className="text-xs text-blue-600 font-medium">
+                        Billing: {viewOrder.customers.billing_customer}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Order Date</div>
@@ -1125,17 +1149,12 @@ export default function SalesOrdersPage() {
               <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
                 <h4 className="font-medium">{editingProduct ? 'Edit Product' : 'Add New Product'}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Product Code *</Label>
-                    <Input
-                      value={editingProduct ? editingProduct.code : newProduct.code}
-                      onChange={(e) => editingProduct 
-                        ? setEditingProduct({ ...editingProduct, code: e.target.value })
-                        : setNewProduct({ ...newProduct, code: e.target.value })
-                      }
-                      placeholder="e.g., SKU001"
-                    />
-                  </div>
+                  <AutoCodeField
+                    entity="products"
+                    value={editingProduct?.code}
+                    isEdit={!!editingProduct}
+                    label="Product Code"
+                  />
                   <div className="space-y-2">
                     <Label>Product Name *</Label>
                     <Input
@@ -1172,14 +1191,14 @@ export default function SalesOrdersPage() {
                     type="button"
                     onClick={() => {
                       if (editingProduct) {
-                        if (!editingProduct.code || !editingProduct.name) {
-                          toast.error('Code and Name are required');
+                        if (!editingProduct.name) {
+                          toast.error('Name is required');
                           return;
                         }
                         editProductMutation.mutate(editingProduct);
                       } else {
-                        if (!newProduct.code || !newProduct.name) {
-                          toast.error('Code and Name are required');
+                        if (!newProduct.name) {
+                          toast.error('Name is required');
                           return;
                         }
                         addProductMutation.mutate(newProduct);

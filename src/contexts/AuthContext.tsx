@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'qa_super_manager' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'labour_attendance_delete_approver' | 'production_manager' | 'production_officer' | 'production_viewer' | 'store_pass_manager' | 'store_pass_officer' | 'store_pass_viewer' | 'dispatch_planner_manager' | 'dispatch_planner_officer' | 'dispatch_planner_viewer' | 'pr_office_officer' | 'pr_office_approver' | 'pr_raw_material_officer' | 'pr_raw_material_approver' | 'pr_production_officer' | 'pr_production_approver' | 'pr_spares_officer' | 'pr_spares_approver';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -58,7 +58,10 @@ const MODULE_TIER_DEFINITIONS: {
   { rolePrefix: 'expenses', module: 'expenses', routePrefix: '/expenses' },
   { rolePrefix: 'material_consumption', module: 'material_consumption', routePrefix: '/consumption' },
   { rolePrefix: 'machine_monitor', module: 'machine_monitor', routePrefix: '/machine-monitor' },
+  { rolePrefix: 'production', module: 'production', routePrefix: '/production' },
   { rolePrefix: 'gate_pass', module: 'gate_pass', routePrefix: '/gate-pass' },
+  { rolePrefix: 'store_pass', module: 'store_pass', routePrefix: '/store-pass' },
+  { rolePrefix: 'dispatch_planner', module: 'dispatch_planner', routePrefix: '/dispatch-planner' },
 ];
 
 const MODULE_TIERS: ModuleTier[] = ['manager', 'officer', 'viewer'];
@@ -81,10 +84,21 @@ for (const def of MODULE_TIER_DEFINITIONS) {
   }
 }
 
+// Gate Pass approvers, one per pass type (sample / returnable / job work / scrap).
+const GATE_PASS_TYPE_MANAGER_ROLES: string[] = [
+  'gate_pass_sample_manager',
+  'gate_pass_returnable_manager',
+  'gate_pass_jobwork_manager',
+  'gate_pass_scrap_manager',
+];
+
 // Define which modules each special role can access
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   operational_manager: ['production', 'qa', 'dashboard'],
   qa_manager: ['qa', 'dashboard'],
+  // QA Super Manager: everything the QA Manager can do, plus setting the daily inspection
+  // targets (Daily Quality Plan). Never deletes (see hasModulePermission).
+  qa_super_manager: ['qa', 'dashboard'],
   maintenance_manager: ['maintenance', 'dashboard'],
   operator: ['qa', 'dashboard'], // Operators need QA access for inspections
   sales_executive: ['sales'], // Sales executives access sales module only
@@ -99,7 +113,8 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   private_label_officer: ['sales', 'dashboard'],
   private_label_viewer: ['sales', 'dashboard'],
   pettycash_handler: ['expenses'], // Petty cash handler: petty cash page only
-  store_operator: ['material_consumption'], // Store operator: stock closing page only
+  // Store operator: stock closing page, plus the Gate Inward Register (read-only: what is at the gate).
+  store_operator: ['material_consumption', 'purchase'],
   project_manager: ['projects', 'dashboard'], // Project manager: project management module only
   // Projects Super Manager: sees every user's projects and their progress, can create
   // projects/tasks/documents, but can never delete anything (see hasModulePermission).
@@ -126,8 +141,8 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // 48h window (enforced in the entry/planning pages). No delete; planning has no approve.
   production_operator: ['production', 'planning', 'dashboard'],
   // Closing Data Poster: posts Daily Stock Closing (Production Planning) and Stock Closing
-  // (Material Consumption). Module access opens both sidebar groups; route restrictions below
-  // confine it to just the two stock-closing pages.
+  // (Material Consumption), and makes Company Product Job Orders (Production Planning).
+  // Module access opens both sidebar groups; route restrictions below confine it to those pages.
   closing_data_poster: ['planning', 'material_consumption', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
@@ -154,6 +169,12 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Gate Security: the gate guard. 'gate_pass' satisfies the /gate-pass/* module check;
   // route lockdown below confines it to the Gate Check page, and it never sees prices.
   gate_security: ['gate_pass'],
+  // Gate Pass type managers: approve / reject one pass type (checked in the database).
+  // They can open the whole Gate Pass module read-only, nothing else.
+  gate_pass_sample_manager: ['gate_pass', 'dashboard'],
+  gate_pass_returnable_manager: ['gate_pass', 'dashboard'],
+  gate_pass_jobwork_manager: ['gate_pass', 'dashboard'],
+  gate_pass_scrap_manager: ['gate_pass', 'dashboard'],
   // Distributor Order Management — a self-contained external module. All three
   // distributor roles are confined to the 'distributor' module (+ dashboard shell).
   // Per-distributor data isolation is enforced in-page by filtering on distributor_id.
@@ -163,6 +184,15 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   labour_productivity_approver: ['labour', 'dashboard'],
   labour_productivity_poster: ['labour', 'dashboard'],
   labour_productivity_viewer: ['labour', 'dashboard'],
+  // Labour Gate Pass Approver: approves worker gate passes (half day / short leave).
+  // Confined to the worker gate pass pages of the Labour module.
+  labour_gate_pass_approver: ['labour', 'dashboard'],
+  // Labour Attendance Delete Approver: approves supervisors' requests to delete a
+  // worker's attendance entry marked by mistake. Confined to that page.
+  labour_attendance_delete_approver: ['labour', 'dashboard'],
+  // Staff Gate Pass Approver: approves staff gate passes (half day / short leave).
+  // Confined to the staff gate pass pages of the HR module.
+  staff_gate_pass_approver: ['hr', 'dashboard'],
   // Help Desk Manager: a single-purpose role confined to the ticket admin board.
   // 'dashboard' is already always allowed; there's no separate 'helpdesk' module
   // check anywhere (ProtectedRoute doesn't map /helpdesk to a module), so route
@@ -173,15 +203,15 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
 // Define specific route restrictions for roles (only these exact routes are allowed)
 const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   order_management: ['/production/orders'], // Can ONLY access production orders page
-  floor_incharge: ['/labour/entry', '/labour/todays-target'], // Can access labour productivity entry and today's target pages
+  floor_incharge: ['/labour/entry', '/labour/todays-target', '/labour/gate-pass', '/labour/attendance-delete-requests'], // Labour productivity entry, today's target, worker gate passes (apply), attendance delete requests (raise / follow own)
   private_label_distributor: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/visit-dashboard'], // Private Label Sales view-only (all pages)
   // Private Label Sales tiers: the module's operational pages (no master-config pages like
   // City/Area Master, Customer Categories or Fuel Vehicles/Prices, which stay super-admin-only).
   private_label_manager: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
   private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/fuel/trips', '/sales/fuel/payouts'],
-  pettycash_handler: ['/expenses/petty-cash'], // Petty cash handler: petty cash page only
-  store_operator: ['/consumption/stock-closing'], // Store operator: stock closing page only
+  pettycash_handler: ['/expenses/petty-cash', '/expenses/trip-fuel', '/expenses/freight-vouchers'], // Petty cash handler: petty cash, trip fuel vouchers and freight vouchers they pay
+  store_operator: ['/consumption/stock-closing', '/consumption/reorder-requirement', '/purchase/gate-inward', '/purchase/material-shortages'], // Store operator: stock closing + reorder requirement + gate inward register + raw-material shortage alerts
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
   projects_super_manager: ['/projects', '/dashboard'], // Projects Super Manager: whole Project Management module
   online_sales_packing: ['/online-sales/orders'], // Online sales packing: orders page only (scan & weigh)
@@ -216,8 +246,14 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   // Production operator: full Production + Planning modules (prefix match covers all their pages).
   production_operator: ['/production', '/planning', '/dashboard'],
   // Closing Data Poster: ONLY the two stock-closing pages — Daily Stock Closing (Planning)
-  // and Stock Closing (Material Consumption). Nothing else in those modules is reachable.
-  closing_data_poster: ['/planning/stock-closing', '/consumption/stock-closing'],
+  // and Stock Closing (Material Consumption) — plus Reorder Requirement and Company Product
+  // Job Orders (Planning). Nothing else in those modules is reachable.
+  closing_data_poster: [
+    '/planning/stock-closing',
+    '/planning/company-job-orders',
+    '/consumption/stock-closing',
+    '/consumption/reorder-requirement',
+  ],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -233,6 +269,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/accounting/general-ledger',
     '/accounting/party-ledger',
     '/accounting/parties',
+    '/accounting/freight-vouchers',
   ],
   // Purchase Officer: create purchase orders & requests, receive goods, view suppliers.
   // No approvals (separation of duties) and no purchase invoices/returns.
@@ -242,6 +279,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/requests',
     '/purchase/orders',
     '/purchase/grn',
+    '/purchase/gate-inward',
+    '/purchase/material-shortages',
   ],
   // Purchase Manager: full purchase operations incl. approvals, invoices and returns.
   purchase_manager: [
@@ -250,9 +289,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/requests',
     '/purchase/orders',
     '/purchase/grn',
+    '/purchase/gate-inward',
     '/purchase/qc-parameters',
     '/purchase/invoices',
     '/purchase/returns',
+    '/purchase/material-shortages',
   ],
   // Purchase QC Inspector: ONLY the Quality Inspection page. No orders, goods
   // receipt, invoices, returns, suppliers or dashboard (all of which expose
@@ -265,10 +306,16 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   qa_inspector: [
     '/qa/operator-inspection',
   ],
-  // Gate Security: ONLY the Gate Check page (scan, count each line, mark Out or hold).
+  // Gate Security: the Gate Check page (scan, count each line, mark Out or hold) and
+  // the inward entries it records (/gate-pass/inward/new, /gate-pass/inward/:id).
   gate_security: [
     '/gate-pass/check',
+    '/gate-pass/inward',
   ],
+  gate_pass_sample_manager: ['/gate-pass', '/dashboard'],
+  gate_pass_returnable_manager: ['/gate-pass', '/dashboard'],
+  gate_pass_jobwork_manager: ['/gate-pass', '/dashboard'],
+  gate_pass_scrap_manager: ['/gate-pass', '/dashboard'],
   // Distributor Sales: ONLY make/submit sales orders. The orders page is fully
   // self-contained — customers and products load inside the order dialog — so no
   // customers, products, analysis, approvals, dispatch, dashboard or user pages.
@@ -298,11 +345,17 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/admin',
   ],
   // Labour Productivity Approver: full labour module access except admin pages
-  labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries', '/labour/mph-analysis'],
+  labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/attendance-delete-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries', '/labour/mph-analysis'],
   // Labour Productivity Poster: create and post entries only (no dashboard access)
-  labour_productivity_poster: ['/labour/entry', '/labour/todays-target'],
+  labour_productivity_poster: ['/labour/entry', '/labour/todays-target', '/labour/gate-pass', '/labour/attendance-delete-requests'],
   // Labour Productivity Viewer: read-only access
-  labour_productivity_viewer: ['/labour/dashboard'],
+  labour_productivity_viewer: ['/labour/dashboard', '/labour/gate-pass'],
+  // Labour Gate Pass Approver: the worker gate pass register, approvals and pass pages only.
+  labour_gate_pass_approver: ['/labour/gate-pass', '/dashboard'],
+  // Labour Attendance Delete Approver: the attendance delete requests page (approvals + log sheet) only.
+  labour_attendance_delete_approver: ['/labour/attendance-delete-requests', '/dashboard'],
+  // Staff Gate Pass Approver: the staff gate pass register, approvals and pass pages only.
+  staff_gate_pass_approver: ['/hr/gate-pass', '/dashboard'],
   // Help Desk Manager: manages all tickets (view/assign/comment/resolve) on the
   // admin ticket board. The submit page ('/helpdesk') is already open to every
   // role via the explicit bypass in canAccessRoute below.
@@ -327,6 +380,12 @@ const ROLE_ROUTE_DENY: Record<string, string[]> = {
     '/labour/public-holidays',
     '/labour/mph-management',
   ],
+  // Production tiers: the super-admin-only production master/config tools carry no
+  // in-page permission gating (same denial as accounting_officer above). Grade Ledger
+  // Setup is already guarded by requiredRole="super_admin" on its route.
+  production_manager: ['/production/mph-master', '/production/wip-sequence'],
+  production_officer: ['/production/mph-master', '/production/wip-sequence'],
+  production_viewer: ['/production/mph-master', '/production/wip-sequence'],
 };
 
 // The route prefix that hosts each module's pages. Used to derive an implicit route
@@ -365,6 +424,7 @@ const implicitRouteWhitelist = (role: string): string[] =>
 
 const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'qa_manager',
+  'qa_super_manager',
   'maintenance_manager',
   'operator',
   'sales_executive',
@@ -390,6 +450,10 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'purchase_qc_inspector',
   'qa_inspector',
   'gate_security',
+  'gate_pass_sample_manager',
+  'gate_pass_returnable_manager',
+  'gate_pass_jobwork_manager',
+  'gate_pass_scrap_manager',
   'dispatch_operator',
   'sales_order_manager',
   'production_operator',
@@ -400,6 +464,9 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'labour_productivity_approver',
   'labour_productivity_poster',
   'labour_productivity_viewer',
+  'labour_gate_pass_approver',
+  'labour_attendance_delete_approver',
+  'staff_gate_pass_approver',
   'helpdesk_manager',
 ]);
 
@@ -420,6 +487,10 @@ const STRICT_LOCKED_ROLES = new Set([
   'qa_inspector',
   // Gate Security must never reach any page beyond Gate Check, nor see prices.
   'gate_security',
+  'gate_pass_sample_manager',
+  'gate_pass_returnable_manager',
+  'gate_pass_jobwork_manager',
+  'gate_pass_scrap_manager',
   'distributor_sales',
   'distributor_manager',
   'distributor_admin',
@@ -432,6 +503,12 @@ const STRICT_LOCKED_ROLES = new Set([
   'labour_productivity_approver',
   'labour_productivity_poster',
   'labour_productivity_viewer',
+  // Labour Gate Pass Approver only ever sees the worker gate pass pages.
+  'labour_gate_pass_approver',
+  // Labour Attendance Delete Approver only ever sees the attendance delete requests page.
+  'labour_attendance_delete_approver',
+  // Staff Gate Pass Approver only ever sees the staff gate pass pages.
+  'staff_gate_pass_approver',
   // Private Label Sales tiers share the 'sales' module with unrelated roles (sales_executive,
   // dispatch_operator, sales_order_manager, accounting_officer, ...) — enforce their explicit
   // route whitelist always so a stray flexible role never widens them past private-label pages.
@@ -461,6 +538,43 @@ for (const def of MODULE_TIER_DEFINITIONS) {
     HARD_RESTRICTED_MODULE_ROLES.add(role);
     STRICT_LOCKED_ROLES.add(role);
   }
+}
+// Gate pass managers also read the Store Pass module (dispatch tracking and the
+// store ↔ gate reconciliation): the gate is the other half of that comparison.
+ROLE_MODULE_ACCESS['gate_pass_manager'].push('store_pass');
+ROLE_ROUTE_RESTRICTIONS['gate_pass_manager'].push('/store-pass');
+// The Dispatch Planner only READS sales orders, dispatches and stock and suggests a plan;
+// the people who make the orders and the dispatches read its pages (view only — the
+// planner's own writes stay with the dispatch_planner_* tiers).
+for (const r of ['sales_order_manager', 'dispatch_operator'] as const) {
+  ROLE_MODULE_ACCESS[r].push('dispatch_planner');
+  ROLE_ROUTE_RESTRICTIONS[r].push('/dispatch-planner');
+}
+// Purchase Request roles (an Officer and an Approver per purchase category). Confined to
+// Purchase → Purchase Requests (+ dashboard shell); My Purchase Requests is open to every
+// role anyway. Which categories they see and approve: hasPurchaseCategoryPermission and
+// lib/purchase/categories.ts. The approval itself is checked in the database.
+const PURCHASE_REQUEST_ROLE_NAMES = [
+  'pr_office_officer', 'pr_office_approver',
+  'pr_raw_material_officer', 'pr_raw_material_approver',
+  'pr_production_officer', 'pr_production_approver',
+  'pr_spares_officer', 'pr_spares_approver',
+];
+const PURCHASE_REQUEST_ROLE_CATEGORY: Record<string, { category: PurchaseCategoryPermission['category']; approver: boolean }> = {
+  pr_office_officer: { category: 'office_supplies', approver: false },
+  pr_office_approver: { category: 'office_supplies', approver: true },
+  pr_raw_material_officer: { category: 'raw_material', approver: false },
+  pr_raw_material_approver: { category: 'raw_material', approver: true },
+  pr_production_officer: { category: 'general_supplies', approver: false },
+  pr_production_approver: { category: 'general_supplies', approver: true },
+  pr_spares_officer: { category: 'spare_maintenance', approver: false },
+  pr_spares_approver: { category: 'spare_maintenance', approver: true },
+};
+for (const r of PURCHASE_REQUEST_ROLE_NAMES) {
+  ROLE_MODULE_ACCESS[r] = ['purchase', 'dashboard'];
+  ROLE_ROUTE_RESTRICTIONS[r] = ['/purchase/requests', '/dashboard'];
+  HARD_RESTRICTED_MODULE_ROLES.add(r);
+  STRICT_LOCKED_ROLES.add(r);
 }
 
 interface ModulePermission {
@@ -849,6 +963,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (roles.some(r => r.role === 'labour_productivity_viewer')) {
         return permission === 'view';
       }
+      // Labour Gate Pass Approver: view only here; approving worker passes is
+      // checked by role on the gate pass pages and in the database.
+      if (roles.some(r => r.role === 'labour_gate_pass_approver')) {
+        return permission === 'view';
+      }
+      // Labour Attendance Delete Approver: view only here; approving delete
+      // requests is checked by role on the requests page and in the database.
+      if (roles.some(r => r.role === 'labour_attendance_delete_approver')) {
+        return permission === 'view';
+      }
     }
 
     // Purchase officer cannot approve purchase orders — approval is reserved for
@@ -921,7 +1045,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     //   • dispatch_operator     → sales / domestic (dispatch; no pricing pages)
     //   • sales_order_manager   → sales / domestic (orders + dispatch)
     //   • production_operator   → production / planning (production also gets approve, above)
-    //   • closing_data_poster   → planning / material_consumption (stock closing)
+    //   • closing_data_poster   → planning / material_consumption (stock closing, company job orders)
     // Out-of-scope, delete and approve all fall through to the per-user module_permissions
     // check below, which denies them (strict roles carry no module_permissions rows).
     const grantsWithinScope = (modules: string[]): boolean =>
@@ -938,12 +1062,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
+    // Gate Pass Manager: read-only within Store Pass (tracking / reconciliation). Making
+    // or cancelling store passes stays with the store pass roles, checked in the database.
+    if (roles.some(r => r.role === 'gate_pass_manager') && module === 'store_pass' && permission === 'view') {
+      return true;
+    }
     // Gate Security: view within Gate Pass so the Gate Check page renders. Its one
     // action (count / mark Out / hold) is checked by role in the database, not here.
     if (roles.some(r => r.role === 'gate_security') && module === 'gate_pass' && permission === 'view') {
       return true;
     }
+    // Gate Pass type managers: view within Gate Pass. Their approve right is per pass
+    // type (canApproveGatePassType in lib/gatePass), never the module-wide 'approve'.
+    if (roles.some(r => GATE_PASS_TYPE_MANAGER_ROLES.includes(r.role)) && module === 'gate_pass' && permission === 'view') {
+      return true;
+    }
 
+    // Purchase Request roles: view within Purchase so the Purchase Requests page renders.
+    // Their approval is per category (hasPurchaseCategoryPermission) and checked in the database.
+    if (roles.some(r => PURCHASE_REQUEST_ROLE_CATEGORY[r.role]) && module === 'purchase' && permission === 'view') return true;
     if (roles.some(r => r.role === 'dispatch_operator') && grantsWithinScope(['sales', 'domestic'])) return true;
     if (roles.some(r => r.role === 'sales_order_manager') && grantsWithinScope(['sales', 'domestic'])) return true;
     if (roles.some(r => r.role === 'production_operator') && grantsWithinScope(['production', 'planning'])) return true;
@@ -983,12 +1120,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
+    // QA Super Manager: view / create / edit / approve across QA, never delete.
+    if (module === 'qa' && permission !== 'delete' && roles.some(r => r.role === 'qa_super_manager')) {
+      return true;
+    }
+
     for (const r of roles) {
       const tier = MODULE_TIER_ROLES[r.role];
       if (!tier || tier.module !== module) continue;
       if (tier.tier === 'manager' && permission !== 'delete') return true;
       if (tier.tier === 'officer' && (permission === 'view' || permission === 'create' || permission === 'edit')) return true;
       if (tier.tier === 'viewer' && permission === 'view') return true;
+    }
+
+    // Staff Gate Pass Approver: view only in HR; approving staff passes is checked by
+    // role on the gate pass pages and in the database. Grant-only, so an HR tier the
+    // same user also holds keeps its own rights.
+    if (module === 'hr' && permission === 'view' && roles.some(r => r.role === 'staff_gate_pass_approver')) {
+      return true;
     }
 
     const perm = modulePermissions.find(p => p.module_name === module);
@@ -1015,6 +1164,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // more-restrictive role the same user also holds (e.g. accounting_officer, which
     // grants only view/create below) cannot veto the manager's approval rights.
     if (roles.some(r => r.role === 'purchase_manager')) return true;
+
+    // Purchase Request roles: an Officer views its category; an Approver also approves it.
+    // GRANT-ONLY so another role the user holds can still grant more.
+    if (roles.some(r => {
+      const pr = PURCHASE_REQUEST_ROLE_CATEGORY[r.role];
+      return pr && pr.category === category && (permission === 'view' || (permission === 'approve' && pr.approver));
+    })) return true;
 
     // Purchase QC Inspector records the inspection (create) and signs it off (approve)
     // for incoming material — both actions on the Quality Inspection page.
@@ -1059,6 +1215,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every role may open it. Ticket management is gated separately via the
     // /helpdesk/manage route's requiredRoles guard (super_admin + helpdesk_manager).
     if (route === '/helpdesk') return true;
+
+    // My Gate Passes: a staff member raising and following their own company work
+    // passes. The pages only ever show the passes of the staff record linked to the
+    // login, so every role may open them (the database checks the link on every write).
+    if (route === '/my-gate-pass' || route.startsWith('/my-gate-pass/')) return true;
+
+    // My Purchase Requests: anyone raises their own purchase requests and follows
+    // them; department heads approve their department's here. The pages only act
+    // through the purchase_request_* database functions, which check who may do what.
+    if (route === '/my-purchase-requests' || route.startsWith('/my-purchase-requests/')) return true;
 
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (

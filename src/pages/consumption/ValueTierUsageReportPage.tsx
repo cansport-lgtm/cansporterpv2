@@ -48,6 +48,7 @@ interface MaterialRow {
   unit: string | null;
   cost_value: number | null;
   category: string | null;
+  subcategory: string | null;
   value_category: MaterialValueCategory | null;
 }
 
@@ -102,6 +103,7 @@ export default function ValueTierUsageReportPage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState<TierKey | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [expandedTiers, setExpandedTiers] = useState<Set<TierKey>>(new Set(["high_value"]));
   const [sharing, setSharing] = useState(false);
@@ -127,7 +129,7 @@ export default function ValueTierUsageReportPage() {
       fetchAllRows<MaterialRow>((from, to) =>
         supabase
           .from("consumption_raw_materials")
-          .select("id, code, name, unit, cost_value, category, value_category")
+          .select("id, code, name, unit, cost_value, category, subcategory, value_category")
           .order("id")
           .range(from, to)
       ),
@@ -181,6 +183,22 @@ export default function ValueTierUsageReportPage() {
     [materials]
   );
 
+  // Sub-categories present under the selected category.
+  const subcategories = useMemo(
+    () =>
+      categoryFilter === "all"
+        ? []
+        : Array.from(
+            new Set(
+              (materials || [])
+                .filter((m) => m.category === categoryFilter)
+                .map((m) => m.subcategory)
+                .filter((c): c is string => !!c)
+            )
+          ).sort(),
+    [materials, categoryFilter]
+  );
+
   // Materials in scope after the tier / category / search filters. Every
   // aggregate below reads from this set so the filters apply consistently.
   const scopedMaterials = useMemo(() => {
@@ -190,11 +208,12 @@ export default function ValueTierUsageReportPage() {
       const tier: TierKey = m.value_category ?? "unclassified";
       if (tierFilter !== "all" && tier !== tierFilter) return;
       if (categoryFilter !== "all" && m.category !== categoryFilter) return;
+      if (subcategoryFilter !== "all" && m.subcategory !== subcategoryFilter) return;
       if (q && !m.code.toLowerCase().includes(q) && !m.name.toLowerCase().includes(q)) return;
       map.set(m.id, m);
     });
     return map;
-  }, [materials, tierFilter, categoryFilter, search]);
+  }, [materials, tierFilter, categoryFilter, subcategoryFilter, search]);
 
   // BOM rate per (product, material). First active row wins, matching the
   // per-material Usage Report's bomData.find().
@@ -351,6 +370,7 @@ export default function ValueTierUsageReportPage() {
   const filterLabel = [
     tierFilter === "all" ? "All value tiers" : TIERS.find((t) => t.key === tierFilter)?.label,
     categoryFilter === "all" ? "All categories" : `Category: ${categoryFilter}`,
+    subcategoryFilter === "all" ? null : `Sub-category: ${subcategoryFilter}`,
     search.trim() ? `Search: "${search.trim()}"` : null,
   ]
     .filter(Boolean)
@@ -392,6 +412,7 @@ export default function ValueTierUsageReportPage() {
         Code: r.material.code,
         Material: r.material.name,
         Category: r.material.category || "",
+        "Sub-Category": r.material.subcategory || "",
         Unit: r.material.unit || "",
         "Rate (₹)": r.rate,
         "Usage Qty": Number(r.usage.toFixed(2)),
@@ -648,13 +669,33 @@ export default function ValueTierUsageReportPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Category</label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(v) => {
+                    setCategoryFilter(v);
+                    setSubcategoryFilter("all");
+                  }}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All categories</SelectItem>
                     {categories.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Sub-Category</label>
+                <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter} disabled={categoryFilter === "all"}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sub-categories</SelectItem>
+                    {subcategories.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>

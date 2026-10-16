@@ -1418,6 +1418,44 @@ export type Database = {
         }
         Relationships: []
       }
+      consumption_subcategories: {
+        Row: {
+          category_id: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consumption_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consumption_production_entry: {
         Row: {
           created_at: string | null
@@ -1549,6 +1587,7 @@ export type Database = {
           name: string
           priority: string | null
           source_product_id: string | null
+          subcategory: string | null
           threshold: number | null
           unit: string | null
           updated_at: string | null
@@ -1568,6 +1607,7 @@ export type Database = {
           name: string
           priority?: string | null
           source_product_id?: string | null
+          subcategory?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -1587,6 +1627,7 @@ export type Database = {
           name?: string
           priority?: string | null
           source_product_id?: string | null
+          subcategory?: string | null
           threshold?: number | null
           unit?: string | null
           updated_at?: string | null
@@ -6572,6 +6613,7 @@ export type Database = {
           min_stock: number | null
           name: string
           raw_material_category_id: string | null
+          raw_material_subcategory_id: string | null
           raw_material_value_category:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6593,6 +6635,7 @@ export type Database = {
           min_stock?: number | null
           name: string
           raw_material_category_id?: string | null
+          raw_material_subcategory_id?: string | null
           raw_material_value_category?:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6614,6 +6657,7 @@ export type Database = {
           min_stock?: number | null
           name?: string
           raw_material_category_id?: string | null
+          raw_material_subcategory_id?: string | null
           raw_material_value_category?:
             | Database["public"]["Enums"]["raw_material_value_category"]
             | null
@@ -6642,6 +6686,13 @@ export type Database = {
             columns: ["raw_material_category_id"]
             isOneToOne: false
             referencedRelation: "consumption_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_raw_material_subcategory_id_fkey"
+            columns: ["raw_material_subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "consumption_subcategories"
             referencedColumns: ["id"]
           },
           {
@@ -6954,7 +7005,10 @@ export type Database = {
           created_by: string | null
           employee_id: string
           id: string
+          adjustment_reason: string | null
           remarks: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           advance_date?: string
@@ -6963,7 +7017,10 @@ export type Database = {
           created_by?: string | null
           employee_id: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           advance_date?: string
@@ -6972,7 +7029,10 @@ export type Database = {
           created_by?: string | null
           employee_id?: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -7560,7 +7620,10 @@ export type Database = {
           created_by: string | null
           employee_id: string
           id: string
+          adjustment_reason: string | null
           remarks: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           advance_date?: string
@@ -7569,7 +7632,10 @@ export type Database = {
           created_by?: string | null
           employee_id: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           advance_date?: string
@@ -7578,7 +7644,10 @@ export type Database = {
           created_by?: string | null
           employee_id?: string
           id?: string
+          adjustment_reason?: string | null
           remarks?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -11325,13 +11394,16 @@ export type Database = {
       }
       products: {
         Row: {
+          base_product_id: string | null
           code: string
           created_at: string | null
+          customer_party_id: string | null
           description: string | null
           grade_id: string | null
           id: string
           is_active: boolean | null
           name: string
+          owner_type: string
           planning_item_id: string | null
           standard_cost: number | null
           standard_output_rate: number | null
@@ -11340,13 +11412,16 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          base_product_id?: string | null
           code: string
           created_at?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          owner_type?: string
           planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
@@ -11355,13 +11430,16 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          base_product_id?: string | null
           code?: string
           created_at?: string | null
+          customer_party_id?: string | null
           description?: string | null
           grade_id?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          owner_type?: string
           planning_item_id?: string | null
           standard_cost?: number | null
           standard_output_rate?: number | null
@@ -11370,6 +11448,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_base_product_id_fkey"
+            columns: ["base_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_customer_party_id_fkey"
+            columns: ["customer_party_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_parties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_grade_id_fkey"
             columns: ["grade_id"]
@@ -11740,6 +11832,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          auto_cancelled_at: string | null
           category: Database["public"]["Enums"]["purchase_category"]
           closed_short_at: string | null
           closed_short_by: string | null
@@ -11762,6 +11855,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           category: Database["public"]["Enums"]["purchase_category"]
           closed_short_at?: string | null
           closed_short_by?: string | null
@@ -11784,6 +11878,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           category?: Database["public"]["Enums"]["purchase_category"]
           closed_short_at?: string | null
           closed_short_by?: string | null
@@ -15415,6 +15510,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          auto_cancelled_at: string | null
           created_at: string | null
           created_by: string | null
           customer_id: string
@@ -15437,6 +15533,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id: string
@@ -15459,6 +15556,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          auto_cancelled_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id?: string
@@ -17101,6 +17199,18 @@ export type Database = {
       }
     }
     Functions: {
+      auto_code_next: {
+        Args: { p_entity: string; p_group?: string | null; p_reuse?: string | null }
+        Returns: string
+      }
+      auto_code_preview: {
+        Args: { p_entity: string; p_group?: string | null; p_reuse?: string | null }
+        Returns: string
+      }
+      next_customer_sku_code: {
+        Args: { p_party_id: string }
+        Returns: string
+      }
       accounting_inventory_snapshot: {
         Args: { p_as_of: string }
         Returns: Json
@@ -17442,10 +17552,35 @@ export type Database = {
         | "private_label_viewer"
         | "helpdesk_manager"
         | "projects_super_manager"
+        | "qa_super_manager"
         | "gate_pass_manager"
         | "gate_pass_officer"
         | "gate_pass_viewer"
         | "gate_security"
+        | "gate_pass_sample_manager"
+        | "gate_pass_returnable_manager"
+        | "gate_pass_jobwork_manager"
+        | "gate_pass_scrap_manager"
+        | "labour_gate_pass_approver"
+        | "staff_gate_pass_approver"
+        | "labour_attendance_delete_approver"
+        | "production_manager"
+        | "production_officer"
+        | "production_viewer"
+        | "store_pass_manager"
+        | "store_pass_officer"
+        | "store_pass_viewer"
+        | "dispatch_planner_manager"
+        | "dispatch_planner_officer"
+        | "dispatch_planner_viewer"
+        | "pr_office_officer"
+        | "pr_office_approver"
+        | "pr_raw_material_officer"
+        | "pr_raw_material_approver"
+        | "pr_production_officer"
+        | "pr_production_approver"
+        | "pr_spares_officer"
+        | "pr_spares_approver"
       asset_category:
         | "office_assets"
         | "production_machinery"
@@ -17727,10 +17862,34 @@ export const Constants = {
         "private_label_viewer",
         "helpdesk_manager",
         "projects_super_manager",
+        "qa_super_manager",
         "gate_pass_manager",
         "gate_pass_officer",
         "gate_pass_viewer",
         "gate_security",
+        "gate_pass_sample_manager",
+        "gate_pass_returnable_manager",
+        "gate_pass_jobwork_manager",
+        "gate_pass_scrap_manager",
+        "labour_gate_pass_approver",
+        "labour_attendance_delete_approver",
+        "production_manager",
+        "production_officer",
+        "production_viewer",
+        "store_pass_manager",
+        "store_pass_officer",
+        "store_pass_viewer",
+        "dispatch_planner_manager",
+        "dispatch_planner_officer",
+        "dispatch_planner_viewer",
+        "pr_office_officer",
+        "pr_office_approver",
+        "pr_raw_material_officer",
+        "pr_raw_material_approver",
+        "pr_production_officer",
+        "pr_production_approver",
+        "pr_spares_officer",
+        "pr_spares_approver",
       ],
       asset_category: [
         "office_assets",

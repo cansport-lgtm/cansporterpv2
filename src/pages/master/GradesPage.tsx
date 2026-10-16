@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +40,12 @@ interface Grade {
 
 export default function GradesPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Grade | null>(null);
@@ -66,7 +74,6 @@ export default function GradesPage() {
         const { error } = await supabase
           .from("grades")
           .update({
-            code: data.code,
             name: data.name,
             description: data.description || null,
             is_active: data.is_active,
@@ -75,7 +82,7 @@ export default function GradesPage() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("grades").insert({
-          code: data.code,
+          code: "",
           name: data.name,
           description: data.description || null,
           is_active: data.is_active,
@@ -154,12 +161,16 @@ export default function GradesPage() {
       header: "Actions",
       render: (item: Grade) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -173,14 +184,14 @@ export default function GradesPage() {
           description="Manage product grades"
           icon={Database}
           iconColor="bg-green-500/10 text-green-500"
-          action={{
+          action={canCreate ? {
             label: "Add Grade",
             onClick: () => {
               resetForm();
               setDialogOpen(true);
             },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <DataTable
@@ -198,17 +209,13 @@ export default function GradesPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="grades"
+                  id="code"
+                  value={selectedItem?.code}
+                  isEdit={!!selectedItem}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input

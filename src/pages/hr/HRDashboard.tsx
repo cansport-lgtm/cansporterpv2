@@ -8,6 +8,8 @@ import { Users, Calendar, FileCheck, Briefcase, Clock, UserCheck, DollarSign } f
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { DataTable } from "@/components/shared/DataTable";
+import { PersonGatePassCards, PersonRescanAlerts } from "@/components/person-gate-pass/PersonGatePassCards";
+import { STAFF_PASS } from "@/lib/personGatePass";
 
 const COLORS = ["#22c55e", "#ef4444", "#f59e0b", "#3b82f6", "#8b5cf6"];
 const ATTENDANCE_COLORS = {
@@ -198,6 +200,10 @@ export default function HRDashboard() {
           title="HR Dashboard"
           description="Overview of workforce and recruitment"
         />
+
+        {/* Staff gate passes: approvals waiting, outside now, half days, old passes scanned again */}
+        <PersonGatePassCards variant={STAFF_PASS} compact />
+        <PersonRescanAlerts variant={STAFF_PASS} />
 
         {/* Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

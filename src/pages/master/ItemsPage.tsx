@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 import { DataTable } from "@/components/shared/DataTable";
 import { Database, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import { MATERIAL_VALUE_CATEGORIES } from "@/lib/materialValueCategory";
+import { MATERIAL_QUERY_KEYS } from "@/components/materials/useMaterialData";
 
 type PurchaseCategory = SupabaseDatabase["public"]["Enums"]["purchase_category"];
 type MaterialValueCategory = SupabaseDatabase["public"]["Enums"]["raw_material_value_category"];
@@ -47,6 +50,7 @@ interface Item {
   description: string | null;
   category: PurchaseCategory | null;
   raw_material_category_id: string | null;
+  raw_material_subcategory_id: string | null;
   raw_material_value_category: MaterialValueCategory | null;
   uom_id: string | null;
   unit_price: number | null;
@@ -62,12 +66,18 @@ interface Item {
 const CATEGORIES: { value: PurchaseCategory; label: string }[] = [
   { value: "raw_material", label: "Raw Material" },
   { value: "office_supplies", label: "Office Supplies" },
-  { value: "general_supplies", label: "General Supplies" },
-  { value: "spare_maintenance", label: "Spare & Maintenance" },
+  { value: "general_supplies", label: "Production Supplies" },
+  { value: "spare_maintenance", label: "Spares & Parts" },
 ];
 
 export default function ItemsPage() {
   const queryClient = useQueryClient();
+  const { hasModulePermission } = useAuth();
+  // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
+  // with super admin (or an explicit per-user delete grant on the module).
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
+  const canDelete = hasModulePermission("master_data", "delete");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -77,6 +87,7 @@ export default function ItemsPage() {
     description: "",
     category: "" as PurchaseCategory | "",
     raw_material_category_id: "",
+    raw_material_subcategory_id: "",
     raw_material_value_category: "" as MaterialValueCategory | "",
     uom_id: "",
     unit_price: 0,
@@ -119,7 +130,21 @@ export default function ItemsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consumption_categories")
-        .select("id, name")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as { id: string; name: string; requires_subcategory?: boolean }[];
+    },
+  });
+
+  // Raw-material sub-categories (consumption module's Sub-Category Master).
+  const { data: rmSubcategories = [] } = useQuery({
+    queryKey: ["consumption-subcategories-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consumption_subcategories")
+        .select("id, name, category_id")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
@@ -145,14 +170,25 @@ export default function ItemsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData & { id?: string }) => {
+      // Packing Material / Master Packing items need a sub-category: the
+      // Products page material columns filter on it.
+      const rmCat = rmCategories.find((c) => c.id === data.raw_material_category_id);
+      if (data.category === "raw_material" && rmCat?.requires_subcategory && !data.raw_material_subcategory_id) {
+        throw new Error(`Pick a Sub-Category: it is required for ${rmCat.name}`);
+      }
       const payload = {
-        code: data.code,
         name: data.name,
         description: data.description || null,
         category: data.category || null,
         raw_material_category_id:
           data.category === "raw_material" && data.raw_material_category_id
             ? data.raw_material_category_id
+            : null,
+        raw_material_subcategory_id:
+          data.category === "raw_material" &&
+          data.raw_material_category_id &&
+          data.raw_material_subcategory_id
+            ? data.raw_material_subcategory_id
             : null,
         raw_material_value_category:
           data.category === "raw_material" && data.raw_material_value_category
@@ -180,7 +216,8 @@ export default function ItemsPage() {
       } else {
         const { data: inserted, error } = await supabase
           .from("items")
-          .insert(payload)
+          // Blank code: the database assigns the next one (trg_00_auto_code).
+          .insert({ ...payload, code: "" })
           .select("consumption_raw_material_id")
           .single();
         if (error) throw error;
@@ -201,6 +238,8 @@ export default function ItemsPage() {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-rm-frequencies"] });
       queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials-active"] });
+      queryClient.invalidateQueries({ queryKey: ["consumption-raw-materials"] });
+      queryClient.invalidateQueries({ queryKey: MATERIAL_QUERY_KEYS.items });
       toast.success(selectedItem ? "Item updated" : "Item created");
       resetForm();
     },
@@ -216,6 +255,7 @@ export default function ItemsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: MATERIAL_QUERY_KEYS.items });
       toast.success("Item deleted");
       setDeleteDialogOpen(false);
       setSelectedItem(null);
@@ -232,6 +272,7 @@ export default function ItemsPage() {
       description: "",
       category: "",
       raw_material_category_id: "",
+      raw_material_subcategory_id: "",
       raw_material_value_category: "",
       uom_id: "",
       unit_price: 0,
@@ -254,6 +295,7 @@ export default function ItemsPage() {
       description: item.description || "",
       category: item.category || "",
       raw_material_category_id: item.raw_material_category_id || "",
+      raw_material_subcategory_id: item.raw_material_subcategory_id || "",
       raw_material_value_category: item.raw_material_value_category || "",
       uom_id: item.uom_id || "",
       unit_price: item.unit_price || 0,
@@ -289,7 +331,8 @@ export default function ItemsPage() {
       render: (item: Item) => {
         const label = CATEGORIES.find((c) => c.value === item.category)?.label || "-";
         const rmCategory = rmCategories.find((c) => c.id === item.raw_material_category_id)?.name;
-        return rmCategory ? `${label} · ${rmCategory}` : label;
+        const rmSubcategory = rmSubcategories.find((c) => c.id === item.raw_material_subcategory_id)?.name;
+        return [label, rmCategory, rmSubcategory].filter(Boolean).join(" · ");
       },
     },
     {
@@ -326,12 +369,16 @@ export default function ItemsPage() {
       header: "Actions",
       render: (item: Item) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -345,14 +392,14 @@ export default function ItemsPage() {
           description="Manage inventory and purchase items"
           icon={Database}
           iconColor="bg-indigo-500/10 text-indigo-500"
-          action={{
+          action={canCreate ? {
             label: "Add Item",
             onClick: () => {
               resetForm();
               setDialogOpen(true);
             },
             icon: Plus,
-          }}
+          } : undefined}
         />
 
         <DataTable
@@ -370,17 +417,13 @@ export default function ItemsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <AutoCodeField
+                  entity="items"
+                  group={formData.category || null}
+                  value={selectedItem?.code}
+                  isEdit={!!selectedItem}
+                  label="Code"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
                   <Input
@@ -452,7 +495,15 @@ export default function ItemsPage() {
                   <Select
                     value={formData.raw_material_category_id}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, raw_material_category_id: value })
+                      setFormData({
+                        ...formData,
+                        raw_material_category_id: value,
+                        // Sub-categories belong to one category; reset on change.
+                        raw_material_subcategory_id:
+                          value === formData.raw_material_category_id
+                            ? formData.raw_material_subcategory_id
+                            : "",
+                      })
                     }
                   >
                     <SelectTrigger>
@@ -470,6 +521,40 @@ export default function ItemsPage() {
                     Used by the consumption module to group this material. Manage
                     categories in Material Consumption → Category Master.
                   </p>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="raw_material_subcategory_id">
+                      {rmCategories.find((c) => c.id === formData.raw_material_category_id)?.requires_subcategory
+                        ? "Sub-Category *"
+                        : "Sub-Category (optional)"}
+                    </Label>
+                    <Select
+                      value={formData.raw_material_subcategory_id || "none"}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          raw_material_subcategory_id: value === "none" ? "" : value,
+                        })
+                      }
+                      disabled={!formData.raw_material_category_id}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No sub-category</SelectItem>
+                        {rmSubcategories
+                          .filter((sub) => sub.category_id === formData.raw_material_category_id)
+                          .map((sub) => (
+                            <SelectItem key={sub.id} value={sub.id}>
+                              {sub.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Manage sub-categories in Material Consumption → Sub-Category Master.
+                    </p>
+                  </div>
                   <div className="space-y-2 pt-2">
                     <Label htmlFor="raw_material_value_category">Value Tier (HP / MP / CM)</Label>
                     <Select

@@ -13,6 +13,8 @@ import { Truck, Package, Clock, CheckCircle, AlertTriangle, BarChart3 } from "lu
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { GateOutCell, GatePassNoCell } from "@/components/gate-pass/DispatchGatePass";
 import { useDispatchGatePasses } from "@/lib/gatePass";
+import { StorePassNoCell } from "@/components/store-pass/DispatchStorePass";
+import { useDispatchStorePasses } from "@/lib/storePass";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -59,6 +61,7 @@ export default function DomesticDispatchDashboard() {
   // Fetch dispatch items for value calculation
   const dispatchIds = dispatches?.map((d) => d.id) || [];
   const gatePasses = useDispatchGatePasses(dispatchIds.slice(0, 15));
+  const storePasses = useDispatchStorePasses(dispatchIds.slice(0, 15));
 
   const { data: dispatchItemsData } = useQuery({
     queryKey: ["domestic-dispatch-items-dashboard", dispatchIds],
@@ -354,6 +357,7 @@ export default function DomesticDispatchDashboard() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Vehicle</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Store pass</TableHead>
                         <TableHead>Gate pass</TableHead>
                         <TableHead>Gate out</TableHead>
                       </TableRow>
@@ -380,6 +384,7 @@ export default function DomesticDispatchDashboard() {
                                 {d.delivery_status?.replace("_", " ")}
                               </Badge>
                             </TableCell>
+                            <TableCell><StorePassNoCell sp={storePasses.get(d.id)} /></TableCell>
                             <TableCell><GatePassNoCell gp={gatePasses.get(d.id)} /></TableCell>
                             <TableCell><GateOutCell gp={gatePasses.get(d.id)} /></TableCell>
                           </TableRow>

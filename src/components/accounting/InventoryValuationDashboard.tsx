@@ -24,7 +24,7 @@ import {
   type ClosingSnapshotRow,
 } from "@/lib/accounting/inventoryValuation";
 import {
-  HELD_STOCK_CATEGORIES, matchesStockCategory, stockCategoryMeta,
+  HELD_STOCK_CATEGORIES, isSellableStockCategory, matchesStockCategory, stockCategoryMeta,
   type StockCategory, type StockCategoryFilterValue,
 } from "@/lib/stockCategories";
 import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
@@ -39,6 +39,7 @@ const fmtRsShort = (n: number) => {
 
 const HELD_ICONS: Record<StockCategory, typeof ShieldAlert> = {
   standard: Package,
+  final_ball: Package,
   cpa: ShieldAlert,
   leak: Droplets,
   rejection: XCircle,
@@ -209,9 +210,9 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       });
     }
 
-    // Production planning only cares about held (non-standard) stock.
+    // Production planning only cares about held (non-sellable) stock.
     const rows = allRows.filter(
-      (r) => (!held || r.stockCategory !== "standard") && matchesStockCategory(r.stockCategory, categoryFilter),
+      (r) => (!held || !isSellableStockCategory(r.stockCategory)) && matchesStockCategory(r.stockCategory, categoryFilter),
     );
 
     // Grouping
@@ -258,7 +259,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       if (fgItemById && fgDeptById) {
         const item = fgItemById.get(itemId);
         if (!item) return;
-        if (held && (item.stock_category ?? "standard") === "standard") return;
+        if (held && isSellableStockCategory(item.stock_category)) return;
         if (!matchesStockCategory(item.stock_category, categoryFilter)) return;
         rate = Number(item.costing_value) || 0;
         const dept = fgDeptById.get(item.department_id);
@@ -288,7 +289,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
     const fgOnly = groups.filter((g) => !g.isWip);
     // Held view values every held row across all departments; the standard view
     // values only sellable finished goods out of Packing.
-    const headlineRows = held ? rows : fgOnly.flatMap((g) => g.rows.filter((r) => r.stockCategory === "standard"));
+    const headlineRows = held ? rows : fgOnly.flatMap((g) => g.rows.filter((r) => isSellableStockCategory(r.stockCategory)));
     const statRows = held ? rows : fgOnly.flatMap((g) => g.rows);
     const headline = {
       value: headlineRows.reduce((s, r) => s + r.value, 0),
@@ -376,7 +377,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       <PageHeader
         title={title}
         description={held
-          ? `${heldLabels} stock only — latest daily stock closing × item costing value. Standard sellable stock is not shown.`
+          ? `${heldLabels} stock only — latest daily stock closing × item costing value. Sellable stock (Standard / Final Ball) is not shown.`
           : isFG
           ? "Current finished-goods stock with valuation — latest daily stock closing × item costing value"
           : "Current raw-material stock with valuation — latest consumption closing × material cost value (intermediates excluded, already valued in WIP)"}

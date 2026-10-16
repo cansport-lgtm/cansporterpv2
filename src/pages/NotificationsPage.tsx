@@ -67,13 +67,16 @@ export default function NotificationsPage() {
               <ul className="divide-y divide-border">
                 {visible.map((n) => {
                   const badge = TYPE_BADGES[n.type] ?? TYPE_BADGES.info;
+                  // Raw-material stock alerts stand out in red.
+                  const stockAlert = n.module === "stock" && n.type === "error";
                   return (
                     <li
                       key={n.id}
                       className={cn(
                         "flex items-start gap-3 px-4 py-3 transition-colors",
                         n.link && "cursor-pointer hover:bg-muted/50",
-                        !n.is_read && "bg-muted/30"
+                        !n.is_read && "bg-muted/30",
+                        stockAlert && "border-l-4 border-l-red-600 bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50"
                       )}
                       onClick={() => handleClick(n)}
                     >
@@ -87,7 +90,7 @@ export default function NotificationsPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={cn("text-sm", !n.is_read ? "font-semibold" : "font-medium")}>
+                          <span className={cn("text-sm", !n.is_read ? "font-semibold" : "font-medium", stockAlert && "text-red-700 dark:text-red-300")}>
                             {n.title}
                           </span>
                           <Badge variant="outline" className={cn("text-[10px]", badge.className)}>

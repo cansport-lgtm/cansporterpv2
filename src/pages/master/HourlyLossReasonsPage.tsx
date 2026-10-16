@@ -31,6 +31,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface LossReason {
   id: string;
@@ -48,8 +49,12 @@ interface ReasonProcess {
 
 export default function HourlyLossReasonsPage() {
   const qc = useQueryClient();
-  const { hasRole } = useAuth();
+  const { hasRole, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // Master Data tiers: manager/officer create + edit, viewer read-only.
+  // Delete on this page was already reserved for super admin and stays that way.
+  const canCreate = hasModulePermission("master_data", "create");
+  const canEdit = hasModulePermission("master_data", "edit");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -131,7 +136,6 @@ export default function HourlyLossReasonsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         category: form.category.trim() || null,
         is_active: form.is_active,
@@ -146,7 +150,7 @@ export default function HourlyLossReasonsPage() {
       } else {
         const { data, error } = await (supabase as any)
           .from("hourly_loss_reasons")
-          .insert(payload)
+          .insert({ ...payload, code: "" })
           .select("id")
           .single();
         if (error) throw error;
@@ -221,8 +225,8 @@ export default function HourlyLossReasonsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.code || !form.name) {
-      toast.error("Code and Name are required");
+    if (!form.name) {
+      toast.error("Name is required");
       return;
     }
     saveMutation.mutate();
@@ -276,14 +280,16 @@ export default function HourlyLossReasonsPage() {
       header: "Actions",
       render: (i: LossReason) => (
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleEdit(i)}
-            title="Edit"
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleEdit(i)}
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           {isSuperAdmin && (
             <Button
               variant="ghost"
@@ -309,11 +315,11 @@ export default function HourlyLossReasonsPage() {
         description="Manage reasons for hourly production losses, mapped per process"
         icon={AlertTriangle}
         iconColor="bg-amber-600 text-white"
-        action={{
+        action={canCreate ? {
           label: "Add Reason",
           onClick: () => setDialogOpen(true),
           icon: Plus,
-        }}
+        } : undefined}
       />
 
       <div className="flex flex-wrap gap-4 mb-6">
@@ -345,15 +351,12 @@ export default function HourlyLossReasonsPage() {
             <ScrollArea className="flex-1 pr-3">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Code *</Label>
-                    <Input
-                      value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value })}
-                      placeholder="e.g., MCH_BD"
-                      required
-                    />
-                  </div>
+                  <AutoCodeField
+                    entity="hourly_loss_reasons"
+                    value={editing?.code}
+                    isEdit={!!editing}
+                    label="Code"
+                  />
                   <div>
                     <Label>Category</Label>
                     <Input

@@ -23,8 +23,11 @@ import { format } from "date-fns";
 import { postDispatchVoucher } from "@/lib/accounting/postDispatchVoucher";
 import { postCOGSForDispatch } from "@/lib/accounting/postCOGSForDispatch";
 import { createInvoiceForDispatch } from "@/lib/sales/createInvoiceForDispatch";
-import { GateOutCell, GatePassNoCell } from "@/components/gate-pass/DispatchGatePass";
+import { FreightCell, GateOutCell, GatePassNoCell } from "@/components/gate-pass/DispatchGatePass";
+import { useGatePassFreight } from "@/lib/gatePassFreight";
 import { useDispatchGatePasses } from "@/lib/gatePass";
+import { StorePassNoCell } from "@/components/store-pass/DispatchStorePass";
+import { canLinkStorePass, useDispatchStorePasses } from "@/lib/storePass";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500',
@@ -50,7 +53,7 @@ interface OrderItem {
 
 export default function DomesticDispatchPage() {
   const queryClient = useQueryClient();
-  const { user, hasModulePermission } = useAuth();
+  const { user, roles, hasModulePermission } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -76,6 +79,8 @@ export default function DomesticDispatchPage() {
 
   const canCreate = hasModulePermission('sales', 'create');
   const canEdit = hasModulePermission('sales', 'edit');
+  // Linking a store pass to its dispatch sheet: the dispatch operator's job (not the store keeper's).
+  const canLinkStore = canLinkStorePass(roles);
 
   useEffect(() => {
     const onAfterPrint = () => setIsPrintMode(false);
@@ -110,6 +115,9 @@ export default function DomesticDispatchPage() {
 
   // Gate pass no. / gate-out time of each dispatch (extra columns only).
   const gatePasses = useDispatchGatePasses((dispatches ?? []).map((d) => d.id));
+  // Freight recorded on those passes (who paid / voucher status). Blank for roles that cannot read it.
+  const freight = useGatePassFreight([...gatePasses.values()].map((g) => g.gate_pass_id));
+  const storePasses = useDispatchStorePasses((dispatches ?? []).map((d) => d.id));
 
   // Fetch dispatch items for viewing
   const { data: dispatchItems } = useQuery({
@@ -1084,19 +1092,21 @@ export default function DomesticDispatchPage() {
                     <TableHead>Date</TableHead>
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Store pass</TableHead>
                     <TableHead>Gate pass</TableHead>
                     <TableHead>Gate out</TableHead>
+                    <TableHead>Freight</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
+                      <TableCell colSpan={11} className="text-center py-8">Loading...</TableCell>
                     </TableRow>
                   ) : filteredDispatches?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                         No dispatches found
                       </TableCell>
                     </TableRow>
@@ -1141,8 +1151,12 @@ export default function DomesticDispatchPage() {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <StorePassNoCell sp={storePasses.get(dispatch.id)} dispatch={canLinkStore ? { id: dispatch.id, dispatch_number: dispatch.dispatch_number } : undefined} />
+                        </TableCell>
                         <TableCell><GatePassNoCell gp={gatePasses.get(dispatch.id)} /></TableCell>
                         <TableCell><GateOutCell gp={gatePasses.get(dispatch.id)} /></TableCell>
+                        <TableCell><FreightCell fr={(() => { const gp = gatePasses.get(dispatch.id); return gp ? freight.get(gp.gate_pass_id) : undefined; })()} /></TableCell>
                         <TableCell className="text-right space-x-1">
                           {canEdit && dispatch.delivery_status !== 'delivered' && (
                             <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(dispatch)}>

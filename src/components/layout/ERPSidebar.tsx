@@ -34,6 +34,9 @@ import {
   Workflow,
   LifeBuoy,
   DoorOpen,
+  CalendarRange,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
@@ -43,6 +46,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import cansportLogo from "@/assets/cansport-logo.png";
@@ -98,7 +103,10 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/planning/dashboard" },
       { title: "Weekly Planning", href: "/planning/weekly" },
+      { title: "Production Requirement", href: "/planning/requirements" },
       { title: "Job Orders", href: "/planning/job-orders" },
+      { title: "Private Label Job Orders", href: "/planning/private-label-job-orders" },
+      { title: "Company Product Job Orders", href: "/planning/company-job-orders" },
       { title: "Job Order Departments", href: "/planning/job-order-departments", superAdminOnly: true },
       { title: "Store Department", href: "/planning/store-management" },
       { title: "Daily Stock Closing", href: "/planning/stock-closing" },
@@ -128,11 +136,13 @@ const navigationItems: NavItem[] = [
       { title: "Chart of Accounts", href: "/accounting/chart-of-accounts" },
       { title: "Parties", href: "/accounting/parties" },
       { title: "Default Accounts", href: "/accounting/default-accounts" },
+      { title: "Expense Account Links", href: "/accounting/expense-links" },
 
       { title: "Entries", href: "", isHeader: true },
       { title: "New Voucher", href: "/accounting/vouchers/new" },
       { title: "Customer Receipts", href: "/accounting/customer-receipts" },
       { title: "Supplier Payments", href: "/accounting/supplier-payments" },
+      { title: "Freight Vouchers", href: "/accounting/freight-vouchers" },
       // Sales / Purchase Returns moved to the Sales and Purchase modules respectively (as proper return invoices).
 
       { title: "Books", href: "", isHeader: true },
@@ -157,6 +167,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Analysis", href: "/accounting/sales-analysis" },
       { title: "Purchase Analysis", href: "/accounting/purchase-analysis" },
       { title: "Expenses Analysis", href: "/accounting/expenses-analysis" },
+      { title: "Trip Fuel Analysis", href: "/accounting/trip-fuel-analysis" },
 
       { title: "Inventory", href: "", isHeader: true },
       { title: "Finished Goods Inventory", href: "/accounting/fg-inventory", allowedRoles: ["accounting_manager", "super_admin"] },
@@ -170,6 +181,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Reconciliation", href: "/accounting/sales-reconciliation" },
       { title: "Purchase Reconciliation", href: "/accounting/purchase-reconciliation" },
       { title: "Production Reconciliation", href: "/accounting/production-reconciliation" },
+      { title: "Expense Reconciliation", href: "/accounting/expense-reconciliation" },
       { title: "Production Cost Recognition", href: "/accounting/production-cost-recognition" },
       { title: "Production Output Recognition", href: "/accounting/production-output-recognition" },
       { title: "Periodic COGS", href: "/accounting/periodic-cogs" },
@@ -215,6 +227,9 @@ const navigationItems: NavItem[] = [
       { title: "Daily Checker Entry", href: "/rejections/checker", highlight: true },
       { title: "New Entry", href: "/rejections/entry" },
       { title: "Rework Tracking", href: "/rejections/rework" },
+      { title: "Downgrades", href: "", isHeader: true },
+      { title: "Downgrade Requests", href: "/rejections/downgrades" },
+      { title: "Downgrade Approvals", href: "/rejections/downgrade-approvals", superAdminOnly: true },
       { title: "Ball Inventory", href: "", isHeader: true },
       { title: "Floor Bin Stock", href: "/rejections/bin-stock" },
       { title: "Ball Ledger", href: "/rejections/ledger" },
@@ -277,6 +292,7 @@ const navigationItems: NavItem[] = [
       { title: "NCR / CAPA", href: "/qa/ncr-capa" },
       { title: "CAPA Dashboard", href: "/qa/capa-dashboard" },
       { title: "QA Release", href: "/qa/release", excludeRoles: ["operator"] },
+      { title: "Quality Report", href: "/qa/quality-report" },
       { title: "Dashboard", href: "/qa/dashboard" },
     ],
   },
@@ -298,6 +314,10 @@ const navigationItems: NavItem[] = [
       { title: "Public Holidays", href: "/hr/public-holidays", superAdminOnly: true },
       { title: "Punctuality Analytics", href: "/hr/punctuality-analytics" },
       { title: "Time Sheet", href: "/hr/time-sheet" },
+      { title: "Staff Gate Passes", href: "/hr/gate-pass" },
+      { title: "New Staff Gate Pass", href: "/hr/gate-pass/new", allowedRoles: ["super_admin", "staff_gate_pass_approver", "hr_manager", "hr_officer"] },
+      { title: "Gate Pass Approvals", href: "/hr/gate-pass/approvals", allowedRoles: ["super_admin", "staff_gate_pass_approver"] },
+      { title: "Trip Fuel Analysis", href: "/hr/trip-fuel-analysis", allowedRoles: ["super_admin", "hr_manager", "hr_officer"] },
     ],
   },
   {
@@ -406,9 +426,11 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Orders", href: "/purchase/orders" },
       { title: "Quality Inspection", href: "/purchase/qc" },
       { title: "QC Checkpoints", href: "/purchase/qc-parameters" },
+      { title: "Gate Inward Register", href: "/purchase/gate-inward" },
       { title: "Goods Receipt", href: "/purchase/grn" },
       { title: "Purchase Invoices", href: "/purchase/invoices" },
       { title: "Purchase Returns", href: "/purchase/returns" },
+      { title: "Material Shortages", href: "/purchase/material-shortages" },
       { title: "Dashboard", href: "/purchase/dashboard" },
     ],
   },
@@ -470,6 +492,8 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/expenses/dashboard" },
       { title: "Operating Expenses Analysis", href: "/expenses/operating-analysis" },
       { title: "Petty Cash", href: "/expenses/petty-cash" },
+      { title: "Trip Fuel Vouchers", href: "/expenses/trip-fuel" },
+      { title: "Freight Vouchers", href: "/expenses/freight-vouchers" },
       { title: "General Expenses", href: "/expenses/general" },
       { title: "Utility Bills", href: "/expenses/utilities" },
       { title: "Budgets", href: "/expenses/budgets" },
@@ -488,6 +512,7 @@ const navigationItems: NavItem[] = [
       { title: "Products Master", href: "/consumption/products" },
       { title: "Raw Materials", href: "/consumption/raw-materials" },
       { title: "Category Master", href: "/consumption/categories" },
+      { title: "Sub-Category Master", href: "/consumption/subcategories" },
       { title: "Consumption BOM", href: "/consumption/bom" },
       { title: "Stock Closing", href: "/consumption/stock-closing" },
       { title: "Stock Closing Dashboard", href: "/consumption/stock-closing-dashboard" },
@@ -497,6 +522,7 @@ const navigationItems: NavItem[] = [
       { title: "Analysis", href: "/consumption/analysis" },
       { title: "Usage Report", href: "/consumption/usage-report" },
       { title: "Value Tier Usage Report", href: "/consumption/value-tier-report" },
+      { title: "Reorder Requirement", href: "/consumption/reorder-requirement" },
     ],
   },
   {
@@ -515,6 +541,10 @@ const navigationItems: NavItem[] = [
       { title: "Category Master", href: "/labour/categories" },
       { title: "Attendance Sheet", href: "/labour/attendance" },
       { title: "Labour Salary", href: "/labour/salary" },
+      { title: "Worker Gate Passes", href: "/labour/gate-pass" },
+      { title: "New Worker Gate Pass", href: "/labour/gate-pass/new", allowedRoles: ["super_admin", "labour_gate_pass_approver", "labour_productivity_approver", "labour_productivity_poster", "floor_incharge"] },
+      { title: "Gate Pass Approvals", href: "/labour/gate-pass/approvals", allowedRoles: ["super_admin", "labour_gate_pass_approver"] },
+      { title: "Attendance Delete Requests", href: "/labour/attendance-delete-requests", allowedRoles: ["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"] },
       { title: "Process Dashboard", href: "/labour/process-dashboard" },
       { title: "Category Dashboard", href: "/labour/category-dashboard" },
       { title: "Individual Performance", href: "/labour/individual-performance" },
@@ -709,10 +739,51 @@ const navigationItems: NavItem[] = [
     color: "text-stone-400",
     module: "gate_pass",
     children: [
+      { title: "Dashboard", href: "/gate-pass/dashboard" },
       { title: "Gate Passes", href: "/gate-pass/passes" },
       { title: "New Gate Pass", href: "/gate-pass/new", allowedRoles: ["super_admin", "gate_pass_manager", "gate_pass_officer"] },
-      { title: "Approvals", href: "/gate-pass/approvals", allowedRoles: ["super_admin", "gate_pass_manager"] },
+      { title: "Approvals", href: "/gate-pass/approvals", allowedRoles: ["super_admin", "gate_pass_manager", "gate_pass_sample_manager", "gate_pass_returnable_manager", "gate_pass_jobwork_manager", "gate_pass_scrap_manager"] },
       { title: "Gate Check", href: "/gate-pass/check", allowedRoles: ["super_admin", "gate_pass_manager", "gate_security"] },
+      { title: "New Inward Entry", href: "/gate-pass/inward/new", allowedRoles: ["super_admin", "gate_pass_manager", "gate_security"] },
+      { title: "Returns & Job Work", href: "/gate-pass/returns" },
+      { title: "Scrap Yard", href: "/gate-pass/scrap-yard" },
+      { title: "Paper Books", href: "/gate-pass/books" },
+      { title: "Freight Vouchers", href: "/gate-pass/freight" },
+      { title: "Transporters", href: "/gate-pass/transporters" },
+      { title: "Dispatch Tracking", href: "/store-pass/tracking", allowedRoles: ["super_admin", "gate_pass_manager"] },
+      { title: "Store ↔ Gate Reconciliation", href: "/store-pass/reconciliation", allowedRoles: ["super_admin", "gate_pass_manager"] },
+    ],
+  },
+  {
+    // Finished goods handed over by the store for dispatch, one pass per vehicle,
+    // reconciled against the gate passes. See docs/STORE_PASS.md.
+    title: "Store Pass",
+    icon: Warehouse,
+    color: "text-indigo-400",
+    module: "store_pass",
+    children: [
+      { title: "Dashboard", href: "/store-pass/dashboard" },
+      { title: "Store Passes", href: "/store-pass/passes" },
+      { title: "New Store Pass", href: "/store-pass/new", allowedRoles: ["super_admin", "store_pass_manager", "store_pass_officer"] },
+      { title: "Dispatch Tracking", href: "/store-pass/tracking" },
+      { title: "Daily Reconciliation", href: "/store-pass/reconciliation" },
+    ],
+  },
+  {
+    // A read-only planner: suggests a dispatch day and a load for every pending
+    // domestic order line from stock, deadlines and the fleet. It books nothing.
+    // See docs/DISPATCH_PLANNER.md.
+    title: "Dispatch Planner",
+    icon: CalendarRange,
+    color: "text-cyan-400",
+    module: "dispatch_planner",
+    children: [
+      { title: "Dashboard", href: "/dispatch-planner/dashboard" },
+      { title: "Suggested Plan", href: "/dispatch-planner/board" },
+      { title: "Pending Lines", href: "/dispatch-planner/pending" },
+      { title: "Saved Versions", href: "/dispatch-planner/versions" },
+      { title: "Vehicles", href: "/dispatch-planner/vehicles" },
+      { title: "Settings", href: "/dispatch-planner/settings", superAdminOnly: true },
     ],
   },
   {
@@ -723,11 +794,23 @@ const navigationItems: NavItem[] = [
       { title: "Departments", href: "/master/departments" },
       { title: "Grades", href: "/master/grades" },
       { title: "Products/SKUs", href: "/master/products" },
+      { title: "Material Setup Check", href: "/master/setup-check" },
       { title: "Machines", href: "/master/machines" },
       { title: "Items", href: "/master/items" },
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
+    ],
+  },
+  {
+    // No `module` key: every logged-in staff member can raise their own company
+    // work gate pass (the page itself needs the login linked to a staff record)
+    // and their own purchase requests.
+    title: "Self Service",
+    icon: DoorOpen,
+    children: [
+      { title: "My Gate Passes", href: "/my-gate-pass" },
+      { title: "My Purchase Requests", href: "/my-purchase-requests" },
     ],
   },
   {
@@ -756,12 +839,37 @@ const navigationItems: NavItem[] = [
 interface ERPSidebarProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
-export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
+const DESKTOP_QUERY = "(min-width: 1024px)"; // Tailwind `lg`
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_QUERY);
+    const onChange = () => setIsDesktop(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isDesktop;
+};
+
+export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: ERPSidebarProps) {
   const location = useLocation();
   const { canAccessModule, canAccessRoute, roles, hasModulePermission } = useAuth();
   const [isAddRawMaterialOpen, setIsAddRawMaterialOpen] = useState(false);
+
+  // The icon rail only applies on desktop; the mobile drawer always shows full labels.
+  const isDesktop = useIsDesktop();
+  const isRail = collapsed && isDesktop;
+  // Module whose flyout submenu is open while in rail mode
+  const [openFlyout, setOpenFlyout] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOpenFlyout(null);
+  }, [location.pathname, location.search, isRail]);
 
   // Check if user is super_admin
   const isSuperAdmin = roles.some(r => r.role === 'super_admin');
@@ -950,19 +1058,45 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
       <aside
         aria-label="Main navigation"
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-dvh-safe w-64 max-w-[85vw] flex-col bg-sidebar border-r border-sidebar-border shadow-xs transition-transform duration-300 pt-safe lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed left-0 top-0 z-50 flex h-dvh-safe w-64 max-w-[85vw] flex-col bg-sidebar border-r border-sidebar-border shadow-xs transition-[transform,width] duration-300 pt-safe lg:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+          isRail && "w-[72px]"
         )}
       >
         {/* Header */}
-        <div className="flex h-16 shrink-0 items-center justify-between px-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <img
-              src={cansportLogo}
-              alt="Cansport Global Industries"
-              className="h-10 w-auto object-contain"
-            />
-          </div>
+        <div
+          className={cn(
+            "flex h-16 shrink-0 items-center border-b border-sidebar-border",
+            isRail ? "justify-center px-2" : "justify-between px-4"
+          )}
+        >
+          {!isRail && (
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={cansportLogo}
+                alt="Cansport Global Industries"
+                className="h-10 w-auto object-contain"
+              />
+            </div>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:inline-flex shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                onClick={onToggleCollapsed}
+                aria-label={isRail ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!isRail}
+              >
+                {isRail ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {isRail ? "Expand sidebar" : "Collapse sidebar"}
+              <span className="ml-2 text-muted-foreground">Ctrl+B</span>
+            </TooltipContent>
+          </Tooltip>
           <Button
             variant="ghost"
             size="icon"
@@ -975,7 +1109,135 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 px-3 scrollbar-thin">
+        <nav
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 scrollbar-thin",
+            isRail ? "px-2 overflow-x-hidden" : "px-3"
+          )}
+        >
+          {isRail ? (
+            <div className="flex flex-col items-center gap-1">
+              {filteredNavigationItems.map((item) => {
+                const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
+                // Same visual language as the expanded menu: prominent modules and an
+                // active direct link get the brand gradient, an active module gets the accent.
+                const gradient = item.prominent || (itemActive && !!item.href);
+                const railButtonClass = cn(
+                  "group relative flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200",
+                  gradient
+                    ? "bg-brand-gradient text-primary-foreground shadow-soft"
+                    : itemActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
+                );
+                const icon = (
+                  <item.icon
+                    className={cn(
+                      "h-5 w-5 transition-transform group-hover:scale-110",
+                      gradient ? "text-primary-foreground" : item.color,
+                    )}
+                  />
+                );
+
+                if (item.href) {
+                  return (
+                    <Tooltip key={item.title}>
+                      <TooltipTrigger asChild>
+                        <Link to={item.href} aria-label={item.title} className={railButtonClass}>
+                          {icon}
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.title}</TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <Popover
+                    key={item.title}
+                    open={openFlyout === item.title}
+                    onOpenChange={(open) => setOpenFlyout(open ? item.title : null)}
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <button type="button" aria-label={item.title} className={railButtonClass}>
+                            {itemActive && !item.prominent && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
+                            )}
+                            {icon}
+                          </button>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      {openFlyout !== item.title && (
+                        <TooltipContent side="right">{item.title}</TooltipContent>
+                      )}
+                    </Tooltip>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      sideOffset={12}
+                      className="w-60 p-2 max-h-[80vh] overflow-y-auto"
+                    >
+                      {item.prominent && item.quickHref ? (
+                        <Link
+                          to={item.quickHref}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-accent"
+                        >
+                          <item.icon className={cn("h-4 w-4", item.color)} />
+                          {item.title}
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 text-sm font-semibold">
+                          <item.icon className={cn("h-4 w-4", item.color)} />
+                          {item.title}
+                        </div>
+                      )}
+                      <div className="mt-1 space-y-0.5 border-t border-border pt-1">
+                        {item.hasQuickAction && item.title === "Floor Inventory" && (
+                          <button
+                            onClick={() => {
+                              setOpenFlyout(null);
+                              setIsAddRawMaterialOpen(true);
+                            }}
+                            className="flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors text-primary hover:bg-accent font-medium"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Raw Material
+                          </button>
+                        )}
+                        {item.children?.map((child, idx) =>
+                          child.isHeader ? (
+                            <div
+                              key={`hdr-${child.title}-${idx}`}
+                              className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none"
+                            >
+                              {child.title}
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.title}
+                              to={child.href}
+                              state={child.state}
+                              onClick={() => setOpenFlyout(null)}
+                              className={cn(
+                                "block rounded-lg px-3 py-1.5 text-sm transition-colors",
+                                isActiveRoute(child.href) && !child.state
+                                  ? "bg-primary/10 text-primary font-semibold"
+                                  : "text-foreground/75 hover:text-foreground hover:bg-accent"
+                              )}
+                            >
+                              {child.title}
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
+            </div>
+          ) : (
           <div className="space-y-0.5">
             {filteredNavigationItems.map((item) => {
               const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
@@ -1107,17 +1369,34 @@ export function ERPSidebar({ isOpen, setIsOpen }: ERPSidebarProps) {
               );
             })}
           </div>
+          )}
         </nav>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-sidebar-border p-3 pb-[calc(0.75rem_+_var(--safe-bottom))] bg-sidebar/80">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="h-4 w-4 mr-3" />
-            Logout
-          </Button>
+        <div className={cn("shrink-0 border-t border-sidebar-border bg-sidebar/80 pb-[calc(0.75rem_+_var(--safe-bottom))]", isRail ? "p-2 flex justify-center" : "p-3")}>
+          {isRail ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Logout"
+                  className="text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Logout</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="h-4 w-4 mr-3" />
+              Logout
+            </Button>
+          )}
         </div>
       </aside>
 

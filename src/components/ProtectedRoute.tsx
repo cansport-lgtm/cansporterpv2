@@ -86,6 +86,10 @@ export function ProtectedRoute({
         return 'machine_monitor';
       case 'gate-pass':
         return 'gate_pass';
+      case 'store-pass':
+        return 'store_pass';
+      case 'dispatch-planner':
+        return 'dispatch_planner';
       case 'crm':
         return 'crm';
       case 'marketing':
@@ -149,14 +153,19 @@ export function ProtectedRoute({
 
     // For pettycash handler, redirect back to petty cash page if accessing unauthorized page
     if (roles.some((r) => r.role === 'pettycash_handler')) {
-      if (location.pathname !== '/expenses/petty-cash') {
+      if (location.pathname !== '/expenses/petty-cash' && location.pathname !== '/expenses/freight-vouchers') {
         return <Navigate to="/expenses/petty-cash" replace />;
       }
     }
 
     // For store operator, redirect back to stock closing page if accessing unauthorized page
     if (roles.some((r) => (r.role as string) === 'store_operator')) {
-      if (location.pathname !== '/consumption/stock-closing') {
+      if (
+        location.pathname !== '/consumption/stock-closing' &&
+        location.pathname !== '/consumption/reorder-requirement' &&
+        location.pathname !== '/purchase/material-shortages' &&
+        !location.pathname.startsWith('/purchase/gate-inward')
+      ) {
         return <Navigate to="/consumption/stock-closing" replace />;
       }
     }
@@ -202,15 +211,20 @@ export function ProtectedRoute({
     // For gate security, redirect back to the Gate Check page when accessing
     // anything outside it.
     if (roles.some((r) => (r.role as string) === 'gate_security')) {
-      if (location.pathname !== '/gate-pass/check') {
+      if (location.pathname !== '/gate-pass/check' && !location.pathname.startsWith('/gate-pass/inward')) {
         return <Navigate to="/gate-pass/check" replace />;
       }
     }
 
     // For closing data poster, redirect to the Planning Daily Stock Closing page when
-    // accessing anything outside their two allowed stock-closing pages.
+    // accessing anything outside their stock-closing, reorder requirement and company job order pages.
     if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {
-      const allowed = ['/planning/stock-closing', '/consumption/stock-closing'];
+      const allowed = [
+        '/planning/stock-closing',
+        '/planning/company-job-orders',
+        '/consumption/stock-closing',
+        '/consumption/reorder-requirement',
+      ];
       if (!allowed.includes(location.pathname)) {
         return <Navigate to="/planning/stock-closing" replace />;
       }

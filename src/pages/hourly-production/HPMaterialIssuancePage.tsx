@@ -66,7 +66,7 @@ export default function HPMaterialIssuancePage() {
       const GENERAL_ROLES = new Set(["super_admin", "admin", "manager", "supervisor"]);
       const FLOOR_INCHARGE = "floor_incharge";
       const HARD_RESTRICTED = new Set([
-        "qa_manager", "maintenance_manager", "operator", "sales_executive",
+        "qa_manager", "qa_super_manager", "maintenance_manager", "operator", "sales_executive",
         "order_management", "private_label_distributor", "pettycash_handler",
         "store_operator", "project_manager", "online_sales_packing",
       ]);

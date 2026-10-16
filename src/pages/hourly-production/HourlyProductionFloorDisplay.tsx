@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Clock, Settings, RefreshCw, ClipboardList, PackageOpen } from "lucide-react";
+import { Clock, Settings, RefreshCw, ClipboardList, PackageOpen, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +43,7 @@ export default function HourlyProductionFloorDisplay() {
   });
   const [showSettings, setShowSettings] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [printOrder, setPrintOrder] = useState<any | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -146,7 +147,7 @@ export default function HourlyProductionFloorDisplay() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("planning_items")
-        .select("id, name, unit")
+        .select("id, code, name, unit")
         .in("id", planningItemIds);
       if (error) throw error;
       return (data || []) as any[];
@@ -160,6 +161,18 @@ export default function HourlyProductionFloorDisplay() {
   const deptMap = useMemo(
     () => Object.fromEntries(departments.map((d: any) => [d.id, d])),
     [departments]
+  );
+
+  const { data: subDepartments = [] } = useQuery({
+    queryKey: ["floor-sub-departments"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("production_sub_departments").select("id, name");
+      return (data || []) as any[];
+    },
+  });
+  const subDeptMap = useMemo(
+    () => Object.fromEntries(subDepartments.map((d: any) => [d.id, d])),
+    [subDepartments]
   );
   const itemsByJobOrder = useMemo(() => {
     const m: Record<string, any[]> = {};
@@ -176,10 +189,10 @@ export default function HourlyProductionFloorDisplay() {
       const k = `${o.required_by_date}::${o.department_id}`;
       (groups[k] = groups[k] || []).push(o);
     }
-    const map: Record<string, { seq: number; total: number }> = {};
+    const map: Record<string, { seq: number; total: number; firstNo: string }> = {};
     for (const k of Object.keys(groups)) {
       const sorted = [...groups[k]].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-      sorted.forEach((o, i) => { map[o.id] = { seq: i + 1, total: sorted.length }; });
+      sorted.forEach((o, i) => { map[o.id] = { seq: i + 1, total: sorted.length, firstNo: sorted[0].job_order_number }; });
     }
     return map;
   }, [todayJobOrders]);
@@ -276,12 +289,20 @@ export default function HourlyProductionFloorDisplay() {
   const totalToday = entries.reduce((s: number, e: any) => s + Number(e.quantity || 0), 0);
   const totalLastHour = entries.filter((e: any) => e.hour_slot === checkHour).reduce((s: number, e: any) => s + Number(e.quantity || 0), 0);
 
+  const handlePrint = (o: any) => {
+    setPrintOrder(o);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   const toggleProcess = (name: string) => {
     setSelectedProcesses((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4">
+    <>
+    <div className="min-h-screen bg-background text-foreground p-4 print:hidden">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <Clock className="h-8 w-8 text-primary" />
@@ -371,7 +392,18 @@ export default function HourlyProductionFloorDisplay() {
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Part {series.seq} of {series.total}</Badge>
                       )}
                     </div>
-                    <Badge variant={isClosed ? "outline" : "default"} className="text-[10px]">{jo.status}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant={isClosed ? "outline" : "default"} className="text-[10px]">{jo.status}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Print"
+                        onClick={() => handlePrint(jo)}
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   {selectedDepartment === "all" && (
                     <p className="text-xs text-muted-foreground mb-1">{deptMap[jo.department_id]?.name || "—"}</p>
@@ -602,5 +634,106 @@ export default function HourlyProductionFloorDisplay() {
         <RefreshCw className="h-3 w-3 animate-spin" /> Auto-refresh: 15s
       </div>
     </div>
+
+    {/* Print view */}
+    {printOrder && (
+      <div className="hidden print:block p-8 text-black bg-white">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold">CANSPORT GLOBAL INDUSTRIES</h1>
+          <h2 className="text-xl font-semibold mt-2">JOB ORDER</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+          <div>
+            <strong>JO Number:</strong> {printOrder.job_order_number}
+          </div>
+          <div className="text-right">
+            <strong>Date:</strong> {printOrder.order_date}
+          </div>
+          <div>
+            <strong>Department:</strong> {deptMap[printOrder.department_id]?.name}
+          </div>
+          <div className="text-right">
+            <strong>Sub-Department:</strong>{" "}
+            {printOrder.sub_department_id
+              ? subDeptMap[printOrder.sub_department_id]?.name || "—"
+              : "—"}
+          </div>
+          <div>
+            <strong>Required By:</strong> {printOrder.required_by_date || "—"}
+          </div>
+          <div className="text-right">
+            <strong>Priority:</strong> {printOrder.priority}
+          </div>
+        </div>
+        {joSeriesMap[printOrder.id] && joSeriesMap[printOrder.id].total > 1 && (
+          <div className="mb-4 text-sm border border-black p-2 bg-gray-100">
+            <strong>
+              Part {joSeriesMap[printOrder.id].seq} of {joSeriesMap[printOrder.id].total}
+            </strong>{" "}
+            for required date {printOrder.required_by_date} —{" "}
+            {deptMap[printOrder.department_id]?.name}
+            {joSeriesMap[printOrder.id].seq > 1 && (
+              <> — continuation of {joSeriesMap[printOrder.id].firstNo}</>
+            )}
+          </div>
+        )}
+        {(() => {
+          const printItems = itemsByJobOrder[printOrder.id] || [];
+          const showItemDetail = printItems.some((it: any) => it.item_detail && String(it.item_detail).trim());
+          return (
+            <table className="w-full border-collapse border border-black text-sm">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="border border-black p-2 text-left">#</th>
+                  <th className="border border-black p-2 text-left">Code</th>
+                  <th className="border border-black p-2 text-left">Item</th>
+                  {showItemDetail && <th className="border border-black p-2 text-left">Item Detail</th>}
+                  <th className="border border-black p-2 text-right">Ordered Qty</th>
+                  <th className="border border-black p-2 text-right w-24">Material Issued Qty</th>
+                  <th className="border border-black p-2 text-left">Unit</th>
+                  <th className="border border-black p-2 text-left">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printItems.map((it: any, idx: number) => {
+                  const pi = planningItemMap[it.planning_item_id];
+                  return (
+                    <tr key={it.id}>
+                      <td className="border border-black p-2">{idx + 1}</td>
+                      <td className="border border-black p-2">{pi?.code || "-"}</td>
+                      <td className="border border-black p-2">{pi?.name || "-"}</td>
+                      {showItemDetail && <td className="border border-black p-2">{it.item_detail || ""}</td>}
+                      <td className="border border-black p-2 text-right">
+                        {Number(it.quantity).toLocaleString("en-IN")}
+                      </td>
+                      <td className="border border-black p-2">&nbsp;</td>
+                      <td className="border border-black p-2">{it.unit || pi?.unit}</td>
+                      <td className="border border-black p-2">{it.remarks || ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          );
+        })()}
+        {printOrder.remarks && (
+          <div className="mt-4 text-sm">
+            <strong>Remarks:</strong> {printOrder.remarks}
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-16 text-sm">
+          <div className="border-t border-black pt-2 text-center">
+            Issued By<br />(Store Keeper)
+          </div>
+          <div className="border-t border-black pt-2 text-center">
+            QA Executive
+          </div>
+          <div className="border-t border-black pt-2 text-center">
+            Received By
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

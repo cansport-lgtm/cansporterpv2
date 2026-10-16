@@ -67,7 +67,7 @@ export default function DispatchPage() {
         .from('sales_dispatches')
         .select(`
           *,
-          sales_orders(order_number, customers(name, code)),
+          sales_orders(order_number, customers(name, code, billing_customer)),
           dispatched_by_user:app_users!sales_dispatches_dispatched_by_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
@@ -575,7 +575,14 @@ export default function DispatchPage() {
                         <TableCell className="font-mono">{dispatch.dispatch_number}</TableCell>
                         <TableCell>{format(new Date(dispatch.dispatch_date), 'dd MMM yyyy')}</TableCell>
                         <TableCell className="font-mono text-sm">{dispatch.sales_orders?.order_number}</TableCell>
-                        <TableCell>{dispatch.sales_orders?.customers?.name}</TableCell>
+                        <TableCell>
+                          <div>{dispatch.sales_orders?.customers?.name}</div>
+                          {dispatch.sales_orders?.customers?.billing_customer && (
+                            <div className="text-xs text-blue-600 font-medium">
+                              Billing: {dispatch.sales_orders.customers.billing_customer}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{dispatch.vehicle_number || '-'}</TableCell>
                         <TableCell>{dispatch.total_packages || '-'}</TableCell>
                         <TableCell>

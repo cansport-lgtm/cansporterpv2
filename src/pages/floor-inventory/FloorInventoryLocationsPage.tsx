@@ -18,6 +18,7 @@ import { MapPin, Plus, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { AutoCodeField } from "@/components/shared/AutoCodeField";
 
 interface Location {
   id: string;
@@ -58,7 +59,6 @@ export default function FloorInventoryLocationsPage() {
           .from("floor_inventory_locations")
           .update({
             name: data.name,
-            code: data.code || null,
             description: data.description || null,
             is_active: data.is_active,
           })
@@ -67,7 +67,7 @@ export default function FloorInventoryLocationsPage() {
       } else {
         const { error } = await supabase.from("floor_inventory_locations").insert({
           name: data.name,
-          code: data.code || null,
+          code: null,
           description: data.description || null,
           is_active: data.is_active,
         });
@@ -188,14 +188,12 @@ export default function FloorInventoryLocationsPage() {
                 placeholder="e.g., Production Floor A"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Code</Label>
-              <Input
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="e.g., PFA"
-              />
-            </div>
+            <AutoCodeField
+              entity="floor_inventory_locations"
+              value={editingLocation?.code}
+              isEdit={!!editingLocation}
+              label="Code"
+            />
             <div className="space-y-2">
               <Label>Description</Label>
               <Textarea
