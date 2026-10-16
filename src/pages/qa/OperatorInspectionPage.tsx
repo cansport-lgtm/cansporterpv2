@@ -616,7 +616,7 @@ export default function OperatorInspectionPage() {
 
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Result *</Label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {["pass", "fail", "hold"].map((result) => (
                         <Button
                           key={result}

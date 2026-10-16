@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import cansportLogo from "@/assets/cansport-logo.png";
 
 interface ERPHeaderProps {
   onMenuClick: () => void;
@@ -47,18 +48,26 @@ export function ERPHeader({ onMenuClick }: ERPHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 border-b border-border/60 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-full items-center justify-between px-4 lg:px-6">
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 pt-safe">
+      <div className="flex h-14 sm:h-16 items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
         {/* Left section */}
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden shrink-0"
             onClick={onMenuClick}
+            aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5" />
           </Button>
+
+          {/* Brand mark — the sidebar (which carries the logo) is a drawer on phones */}
+          <img
+            src={cansportLogo}
+            alt="Cansport Global Industries"
+            className="h-8 w-auto object-contain lg:hidden"
+          />
 
           {/* Search */}
           <div className="hidden md:flex items-center relative group">
@@ -74,7 +83,7 @@ export function ERPHeader({ onMenuClick }: ERPHeaderProps) {
         </div>
 
         {/* Right section */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {/* Notifications */}
           <NotificationBell />
 

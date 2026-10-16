@@ -133,7 +133,7 @@ export default function GuardGateCheckPage() {
           <Keypad prefix={screen.prefix} value={digits} onChange={setDigits}
             onConfirm={() => { const d = digits; setDigits(""); lookUp(`${screen.prefix}-${d}`, screen.prefix); }}
             prefixPicker={
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                 {PREFIXES.map((p) => (
                   <button key={p.value} type="button" aria-label={p.en} aria-pressed={screen.prefix === p.value}
                     onClick={() => setScreen({ kind: "keypad", prefix: p.value })}

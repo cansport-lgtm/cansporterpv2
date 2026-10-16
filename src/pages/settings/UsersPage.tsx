@@ -150,7 +150,7 @@ function UserFormTabs({
   const idPrefix = mode === "create" ? "new" : "edit";
   return (
     <Tabs defaultValue="details" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="w-full sm:grid sm:grid-cols-3">
         <TabsTrigger value="details">Details</TabsTrigger>
         <TabsTrigger value="roles">
           Roles

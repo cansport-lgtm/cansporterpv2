@@ -244,7 +244,7 @@ function OfficeGateCheckPage() {
 
         <Card>
           <CardContent className="p-3 space-y-3">
-            <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Pass kind">
               {([["goods", "Goods out"], ["worker", "Worker"], ["staff", "Staff"], ["inward", "Inward"]] as const).map(([m, label]) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m}
                   className={cn("h-10 rounded-md text-sm font-semibold transition-colors", mode === m ? "bg-background shadow" : "text-muted-foreground")}

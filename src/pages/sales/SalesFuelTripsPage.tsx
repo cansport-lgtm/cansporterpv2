@@ -240,7 +240,7 @@ export default function SalesFuelTripsPage() {
                       <Label>Purpose</Label>
                       <Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Customer visit / Order delivery / etc." />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="space-y-2"><Label>Start Odo *</Label><Input type="number" step="0.1" value={startOdo} onChange={(e) => setStartOdo(e.target.value)} required /></div>
                       <div className="space-y-2"><Label>End Odo *</Label><Input type="number" step="0.1" value={endOdo} onChange={(e) => setEndOdo(e.target.value)} required /></div>
                       <div className="space-y-2"><Label>Km (auto)</Label><Input value={liveKm.toFixed(1)} readOnly className="bg-muted" /></div>

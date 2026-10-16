@@ -991,6 +991,36 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
     }
   }, [location.pathname]);
 
+  // Mobile drawer behaviour (no-ops on desktop where the sidebar is static):
+  // close after navigating, on Escape, and when the viewport grows into the
+  // desktop layout; lock body scroll while the drawer is open.
+  useEffect(() => {
+    setIsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    if (desktop.matches) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    const onDesktop = (e: MediaQueryListEvent) => {
+      if (e.matches) setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    desktop.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onDesktop);
+    };
+  }, [isOpen, setIsOpen]);
+
   const toggleExpanded = (title: string) => {
     setExpandedItems((prev) =>
       prev.includes(title)
@@ -1020,13 +1050,15 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        aria-label="Main navigation"
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border shadow-xs transition-[transform,width] duration-300 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 flex h-dvh-safe w-64 max-w-[85vw] flex-col bg-sidebar border-r border-sidebar-border shadow-xs transition-[transform,width] duration-300 pt-safe lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
           isRail && "w-[72px]"
         )}
@@ -1034,7 +1066,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
         {/* Header */}
         <div
           className={cn(
-            "flex h-16 items-center border-b border-sidebar-border",
+            "flex h-16 shrink-0 items-center border-b border-sidebar-border",
             isRail ? "justify-center px-2" : "justify-between px-4"
           )}
         >
@@ -1070,6 +1102,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
             size="icon"
             className="lg:hidden text-sidebar-foreground"
             onClick={() => setIsOpen(false)}
+            aria-label="Close navigation menu"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -1078,7 +1111,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
         {/* Navigation */}
         <nav
           className={cn(
-            "flex-1 overflow-y-auto py-4 h-[calc(100vh-8rem)] scrollbar-thin",
+            "flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 scrollbar-thin",
             isRail ? "px-2 overflow-x-hidden" : "px-3"
           )}
         >
@@ -1340,7 +1373,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
         </nav>
 
         {/* Footer */}
-        <div className={cn("border-t border-sidebar-border bg-sidebar/80", isRail ? "p-2 flex justify-center" : "p-3")}>
+        <div className={cn("shrink-0 border-t border-sidebar-border bg-sidebar/80 pb-[calc(0.75rem_+_var(--safe-bottom))]", isRail ? "p-2 flex justify-center" : "p-3")}>
           {isRail ? (
             <Tooltip>
               <TooltipTrigger asChild>

@@ -336,7 +336,7 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
                       <DialogTitle>Create Dispatch</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Select Order *</Label>
                           <Select value={formData.order_id} onValueChange={handleOrderSelect}>
@@ -422,7 +422,7 @@ export default function DispatchPageBase({ segment, title }: DispatchPageBasePro
                         </div>
                       )}
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Vehicle Number</Label>
                           <Input

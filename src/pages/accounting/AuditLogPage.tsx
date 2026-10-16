@@ -131,7 +131,7 @@ export default function AuditLogPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Total events</div><div className="text-2xl font-semibold">{totals.total}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Inserts</div><div className="text-2xl font-semibold text-green-600">{totals.inserts}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Updates</div><div className="text-2xl font-semibold text-amber-600">{totals.updates}</div></CardContent></Card>

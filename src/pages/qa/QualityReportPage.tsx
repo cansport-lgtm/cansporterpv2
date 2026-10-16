@@ -466,7 +466,7 @@ export default function QualityReportPage() {
                     sub={data.planTarget ? `${pct(summary.total, data.planTarget)} done` : undefined}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Kpi
                     label="NCRs raised"
                     value={data.ncrRaised.length}

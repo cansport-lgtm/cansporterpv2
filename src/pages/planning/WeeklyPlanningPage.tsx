@@ -511,7 +511,7 @@ export default function WeeklyPlanningPage() {
 
               <div className="space-y-2">
                 <Label>Planned Dates *</Label>
-                <div className="grid grid-cols-3 gap-2 border rounded-lg p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border rounded-lg p-3">
                   {weekDays.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
                     const isSelected = selectedDates.includes(dateKey);

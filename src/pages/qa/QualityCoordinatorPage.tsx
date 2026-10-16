@@ -308,7 +308,7 @@ export default function QualityCoordinatorPage() {
         </CardHeader>
         <CardContent className="space-y-3 px-3 sm:px-6 pb-3 sm:pb-6">
           <p className="text-[11px] sm:text-xs text-muted-foreground">Summary from the Rejections &amp; Wastages module for the selected date range.</p>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-2 sm:gap-3">
             <Kpi
               label="Rejection Qty"
               value={rwKpis.rejQty.toLocaleString()}
@@ -462,7 +462,7 @@ export default function QualityCoordinatorPage() {
         </CardHeader>
         <CardContent className="space-y-3 px-3 sm:px-6 pb-3 sm:pb-6">
           <p className="text-[11px] sm:text-xs text-muted-foreground">{complianceRange.from} → {complianceRange.to}</p>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-2 sm:gap-3">
             <Kpi label="Total Target" value={complianceTotals.target.toLocaleString()} />
             <Kpi label="Total Actual" value={complianceTotals.actual.toLocaleString()} />
             <Kpi label="Compliance" value={`${complianceTotals.pct}%`} />

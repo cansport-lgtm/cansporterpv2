@@ -794,7 +794,7 @@ export default function PurchaseInspectionsPage() {
                             {item.readings.map((r, ri) => {
                               const spec = evalSpec(r);
                               return (
-                                <div key={ri} className="grid grid-cols-12 items-center gap-2 text-sm">
+                                <div key={ri} className="grid grid-cols-12 max-md:[&>*]:!col-span-full items-center gap-2 text-sm">
                                   <div className="col-span-4">
                                     <div className="flex items-center gap-1">
                                       {r.parameter_name}

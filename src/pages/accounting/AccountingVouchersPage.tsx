@@ -202,7 +202,7 @@ export default function AccountingVouchersPage() {
           <DialogHeader><DialogTitle>{selectedVoucher?.voucher_number} — {selectedVoucher && typeBadge(selectedVoucher.voucher_type)}</DialogTitle></DialogHeader>
           {selectedVoucher && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Date:</span> <strong>{format(parseISO(selectedVoucher.voucher_date), "dd MMM yyyy")}</strong></div>
                 <div><span className="text-muted-foreground">Party:</span> <strong>{selectedVoucher.party?.name || "—"}</strong></div>
                 <div><span className="text-muted-foreground">Amount:</span> <strong>Rs. {Number(selectedVoucher.total_amount).toLocaleString()}</strong></div>

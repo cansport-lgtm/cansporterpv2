@@ -323,7 +323,7 @@ export function OrderEditorDialog({
             </div>
             <div className="space-y-2">
               {lines.map((line, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-end border rounded-md p-2">
+                <div key={idx} className="grid grid-cols-12 max-md:[&>*]:!col-span-full gap-2 items-end border rounded-md p-2">
                   <div className="col-span-12 sm:col-span-5 space-y-1">
                     <Label className="text-xs text-muted-foreground">Product</Label>
                     <SearchableSelect

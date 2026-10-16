@@ -43,7 +43,7 @@ export function ERPLayout({ children }: ERPLayoutProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh-safe bg-background">
       <ERPSidebar
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
@@ -51,15 +51,19 @@ export function ERPLayout({ children }: ERPLayoutProps) {
         onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
       />
 
+      {/* min-w-0 lets wide content (tables, charts) scroll inside their own
+          wrappers instead of stretching the page. Below lg the page itself
+          never scrolls sideways; `clip` (unlike `hidden`) keeps sticky
+          headers inside pages working. */}
       <div
         className={cn(
-          "transition-[padding] duration-300",
+          "min-w-0 transition-[padding] duration-300",
           sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-64"
         )}
       >
         <ERPHeader onMenuClick={() => setSidebarOpen(true)} />
 
-        <main className="p-4 lg:p-6">
+        <main className="min-w-0 p-3 pb-[calc(0.75rem_+_var(--safe-bottom))] sm:p-4 sm:pb-4 lg:p-6 lg:pb-6 max-lg:overflow-x-clip">
           {children}
         </main>
       </div>

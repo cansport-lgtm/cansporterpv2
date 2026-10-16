@@ -526,7 +526,7 @@ function RatingRow({ label, value, onChange }: { label: string; value: number | 
   return (
     <div>
       <Label>{label}</Label>
-      <div className="grid grid-cols-5 gap-2 mt-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 max-sm:[&>*]:!col-span-full gap-2 mt-1">
         {[1, 2, 3, 4, 5].map(n => (
           <Button
             key={n}
@@ -765,7 +765,7 @@ function CourtDrawer({
         </div>
 
         <Tabs defaultValue="overview" className="mt-4">
-          <TabsList className="grid grid-cols-5 w-full">
+          <TabsList className="w-full sm:grid sm:grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="interactions">Logs</TabsTrigger>
             <TabsTrigger value="demos">Demos</TabsTrigger>

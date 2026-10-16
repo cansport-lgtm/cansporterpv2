@@ -25,35 +25,40 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div className="page-header">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {Icon && (
           <div
             className={cn(
-              "h-10 w-10 rounded-lg flex items-center justify-center",
+              "h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-lg flex items-center justify-center",
               iconColor || "bg-primary text-primary-foreground"
             )}
           >
             <Icon className="h-5 w-5" />
           </div>
         )}
-        <div>
+        <div className="min-w-0">
           <h1 className="page-title">{title}</h1>
           {description && <p className="page-description">{description}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        {children}
-        {action && (
-          <Button onClick={action.onClick}>
-            {action.icon ? (
-              <action.icon className="h-4 w-4 mr-2" />
-            ) : (
-              <Plus className="h-4 w-4 mr-2" />
-            )}
-            {action.label}
-          </Button>
-        )}
-      </div>
+      {/* On phones the actions wrap and stretch to fill the row (see
+          .page-header-actions in index.css); on sm+ this is the same
+          inline row as before. */}
+      {(children || action) && (
+        <div className="page-header-actions">
+          {children}
+          {action && (
+            <Button onClick={action.onClick}>
+              {action.icon ? (
+                <action.icon className="h-4 w-4 mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              {action.label}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

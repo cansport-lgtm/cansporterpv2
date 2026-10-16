@@ -222,7 +222,7 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">Grade</div>
           <div className="font-semibold">{order.grade_name ?? "—"}</div>
@@ -271,7 +271,7 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         )}
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2">
+      <div className="mt-auto grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Button variant="outline" onClick={onUpdate} disabled={isDone} title="Enter production">
           <ClipboardEdit className="mr-1 h-4 w-4" />
           Update

@@ -188,7 +188,7 @@ export default function AccountingPartiesPage() {
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>{editId ? "Edit" : "New"} Party</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 max-sm:[&>*]:!col-span-full gap-4">
                   <AutoCodeField
                     entity="accounting_parties"
                     value={form.code}

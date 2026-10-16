@@ -774,7 +774,7 @@ export default function DomesticDispatchPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-8 mt-8 pt-8 border-t">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-8 pt-8 border-t">
           <div className="text-center">
             <div className="border-b border-border mb-1 h-12"></div>
             <p className="text-xs">Prepared By</p>
@@ -912,7 +912,7 @@ export default function DomesticDispatchPage() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Dispatch Date</Label>
                           <Input
@@ -1034,7 +1034,7 @@ export default function DomesticDispatchPage() {
                         </div>
                       )}
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Vehicle Number</Label>
                           <Input
@@ -1226,7 +1226,7 @@ export default function DomesticDispatchPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Vehicle Number</Label>
                     <Input

@@ -52,7 +52,7 @@ export default function DayBookPage() {
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-[180px]" />
       </PageHeader>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Receipts</div><div className="text-2xl font-semibold text-green-600">Rs. {totalReceipts.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Payments</div><div className="text-2xl font-semibold text-red-600">Rs. {totalPayments.toLocaleString()}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Total Volume</div><div className="text-2xl font-semibold">Rs. {totalAll.toLocaleString()}</div></CardContent></Card>

@@ -2594,7 +2594,7 @@ export default function Dashboard() {
                           <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
                             Activity Health
                           </p>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div className="rounded-md border bg-red-50 dark:bg-red-950/20 p-3 text-center">
                               <p className="text-xs text-red-700 dark:text-red-400">Overdue</p>
                               <p className="text-xl font-bold text-red-700 dark:text-red-400">

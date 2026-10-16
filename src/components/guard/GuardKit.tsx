@@ -119,7 +119,7 @@ export function Keypad({ prefix, value, onChange, onConfirm, prefixPicker }: {
           {value}<span className="text-slate-300">{"_".repeat(Math.max(0, 3 - value.length))}</span>
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2.5 flex-1 min-h-[300px]">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 flex-1 min-h-[300px]">
         {KEYS.map((k) => (
           <button key={k} type="button" onClick={() => press(k)}
             className="rounded-2xl bg-white shadow-[0_3px_0_#cbd5e1] text-4xl font-bold font-sans active:translate-y-[2px]">{k}</button>

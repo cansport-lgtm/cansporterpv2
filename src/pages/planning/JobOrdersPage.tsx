@@ -1101,7 +1101,7 @@ export default function JobOrdersPage() {
               <strong>Remarks:</strong> {printOrder.remarks}
             </div>
           )}
-          <div className="grid grid-cols-3 gap-6 mt-16 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-16 text-sm">
             <div className="border-t border-black pt-2 text-center">
               Issued By<br />(Store Keeper)
             </div>

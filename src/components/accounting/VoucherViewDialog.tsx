@@ -208,7 +208,7 @@ export function VoucherViewDialog({ voucherId, onOpenChange }: VoucherViewDialog
         </DialogHeader>
         {voucher && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <div><span className="text-muted-foreground">Date:</span> <strong>{format(parseISO(voucher.voucher_date), "dd MMM yyyy")}</strong></div>
               <div><span className="text-muted-foreground">Party:</span> <strong>{voucher.party?.name || "—"}</strong></div>
               <div><span className="text-muted-foreground">Amount:</span> <strong>Rs. {Number(voucher.total_amount).toLocaleString()}</strong></div>

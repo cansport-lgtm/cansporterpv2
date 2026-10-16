@@ -532,7 +532,7 @@ export default function RejectionsWastageEntryPage() {
                 {viewFrom === viewTo ? viewFrom : `${viewFrom} → ${viewTo}`}
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 max-sm:[&>*]:!col-span-full gap-1">
               {(["day","week","month","custom"] as const).map((m) => (
                 <Button
                   key={m}
