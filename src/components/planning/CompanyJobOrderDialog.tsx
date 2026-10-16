@@ -55,6 +55,9 @@ interface Props {
 
 const LINE_CONTROL = "h-12 w-full text-base";
 
+/** Packings most used on company orders: listed first in the Packing picker. */
+const PINNED_PACKINGS = ["12 Dz CTN", "20 Dz Bag"];
+
 function toForm(d: PljoDetail): CjoForm {
   const o = d.order;
   return {
@@ -100,6 +103,16 @@ export function CompanyJobOrderDialog({ orderId, onOpenChange, canEdit }: Props)
 
   const { data: products = [] } = useQuery({ queryKey: ["cjo-products"], queryFn: fetchCompanyProducts });
   const { data: packingTypes = [] } = usePackingTypes();
+  const packingOptions = useMemo(() => {
+    const rank = (label: string) => {
+      const i = PINNED_PACKINGS.indexOf(label);
+      return i === -1 ? PINNED_PACKINGS.length : i;
+    };
+    // Stable sort: the rest keep the master's order.
+    return [...packingTypes]
+      .sort((a, b) => rank(a.label) - rank(b.label))
+      .map((p) => ({ value: p.id, label: p.label }));
+  }, [packingTypes]);
 
   // ---------------------------------------------------------- state
   const order = detail?.order ?? null;
@@ -357,7 +370,7 @@ export function CompanyJobOrderDialog({ orderId, onOpenChange, canEdit }: Props)
                                   value={l.packing_type_id}
                                   onValueChange={(v) => setLine(i, { packing_type_id: v })}
                                   options={withSaved(
-                                    packingTypes.map((p) => ({ value: p.id, label: p.label })),
+                                    packingOptions,
                                     saved?.packing_type_id,
                                     saved?.packing_label,
                                   )}

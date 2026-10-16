@@ -141,8 +141,8 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // 48h window (enforced in the entry/planning pages). No delete; planning has no approve.
   production_operator: ['production', 'planning', 'dashboard'],
   // Closing Data Poster: posts Daily Stock Closing (Production Planning) and Stock Closing
-  // (Material Consumption). Module access opens both sidebar groups; route restrictions below
-  // confine it to just the two stock-closing pages.
+  // (Material Consumption), and makes Company Product Job Orders (Production Planning).
+  // Module access opens both sidebar groups; route restrictions below confine it to those pages.
   closing_data_poster: ['planning', 'material_consumption', 'dashboard'],
   // Accounting access tiers — limited to the accounting module (+ dashboard landing)
   accounting_poster: ['accounting', 'dashboard'],
@@ -246,8 +246,14 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   // Production operator: full Production + Planning modules (prefix match covers all their pages).
   production_operator: ['/production', '/planning', '/dashboard'],
   // Closing Data Poster: ONLY the two stock-closing pages — Daily Stock Closing (Planning)
-  // and Stock Closing (Material Consumption). Nothing else in those modules is reachable.
-  closing_data_poster: ['/planning/stock-closing', '/consumption/stock-closing', '/consumption/reorder-requirement'],
+  // and Stock Closing (Material Consumption) — plus Reorder Requirement and Company Product
+  // Job Orders (Planning). Nothing else in those modules is reachable.
+  closing_data_poster: [
+    '/planning/stock-closing',
+    '/planning/company-job-orders',
+    '/consumption/stock-closing',
+    '/consumption/reorder-requirement',
+  ],
   // Accounting Poster: post entries + review books/ledgers + read masters needed to post.
   // NO reports and NO accounting dashboard (it surfaces cash/bank/inventory balances).
   accounting_poster: [
@@ -1039,7 +1045,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     //   • dispatch_operator     → sales / domestic (dispatch; no pricing pages)
     //   • sales_order_manager   → sales / domestic (orders + dispatch)
     //   • production_operator   → production / planning (production also gets approve, above)
-    //   • closing_data_poster   → planning / material_consumption (stock closing)
+    //   • closing_data_poster   → planning / material_consumption (stock closing, company job orders)
     // Out-of-scope, delete and approve all fall through to the per-user module_permissions
     // check below, which denies them (strict roles carry no module_permissions rows).
     const grantsWithinScope = (modules: string[]): boolean =>
