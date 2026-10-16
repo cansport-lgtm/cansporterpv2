@@ -217,9 +217,14 @@ export function ProtectedRoute({
     }
 
     // For closing data poster, redirect to the Planning Daily Stock Closing page when
-    // accessing anything outside their stock-closing and reorder requirement pages.
+    // accessing anything outside their stock-closing, reorder requirement and company job order pages.
     if (roles.some((r) => (r.role as string) === 'closing_data_poster')) {
-      const allowed = ['/planning/stock-closing', '/consumption/stock-closing', '/consumption/reorder-requirement'];
+      const allowed = [
+        '/planning/stock-closing',
+        '/planning/company-job-orders',
+        '/consumption/stock-closing',
+        '/consumption/reorder-requirement',
+      ];
       if (!allowed.includes(location.pathname)) {
         return <Navigate to="/planning/stock-closing" replace />;
       }

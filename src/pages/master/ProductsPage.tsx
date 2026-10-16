@@ -104,12 +104,13 @@ const EMPTY_FORM = {
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
-  const { hasModulePermission, user } = useAuth();
+  const { hasModulePermission, user, roles } = useAuth();
   // Master Data tiers: manager/officer create + edit, viewer read-only; delete stays
   // with super admin (or an explicit per-user delete grant on the module).
   const canCreate = hasModulePermission("master_data", "create");
   const canEdit = hasModulePermission("master_data", "edit");
   const canDelete = hasModulePermission("master_data", "delete");
+  const isSuperAdmin = roles.some((r) => r.role === "super_admin");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -568,6 +569,7 @@ export default function ProductsPage() {
           slots={material.slots}
           categories={material.categories}
           subcategories={material.subcategories}
+          canRename={isSuperAdmin}
         />
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Upload, Search, Image } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { findSimilarPartyName } from "@/lib/accounting/partyNameSimilarity";
 
 interface Customer {
   id: string;
@@ -34,6 +35,8 @@ interface Customer {
   payment_terms: number | null;
   is_active: boolean;
   logo_url: string | null;
+  sales_segment: string | null;
+  billing_customer: string | null;
 }
 
 interface CustomerFormData {
@@ -48,6 +51,7 @@ interface CustomerFormData {
   gst_number: string;
   credit_limit: string;
   payment_terms: string;
+  billing_customer: string;
   is_active: boolean;
 }
 
@@ -63,6 +67,7 @@ const initialFormData: CustomerFormData = {
   gst_number: '',
   credit_limit: '',
   payment_terms: '30',
+  billing_customer: '',
   is_active: true,
 };
 
@@ -117,6 +122,20 @@ export default function CustomersPage() {
     return [...new Set(allAreas)].sort() as string[];
   }, [customers]);
 
+  // Billing customer is picked from existing private label customers — no
+  // free-form names. The saved value and the customer's own name are always
+  // offered so existing records stay editable and a shop can bill itself.
+  const billingCustomerOptions = useMemo(() => {
+    const names = (customers || [])
+      .filter(c => c.is_active && c.name && c.sales_segment === 'private_label')
+      .map(c => c.name);
+    const current = (formData.billing_customer || '').trim();
+    if (current && !names.includes(current)) names.push(current);
+    const self = (formData.name || '').trim();
+    if (self && !names.includes(self)) names.push(self);
+    return [...new Set(names)].sort();
+  }, [customers, formData.billing_customer, formData.name]);
+
   // Create/Update mutation
   const saveMutation = useMutation({
     mutationFn: async (data: CustomerFormData) => {
@@ -131,6 +150,7 @@ export default function CustomersPage() {
         gst_number: data.gst_number || null,
         credit_limit: data.credit_limit ? parseFloat(data.credit_limit) : null,
         payment_terms: data.payment_terms ? parseInt(data.payment_terms) : null,
+        billing_customer: data.billing_customer.trim() || null,
         is_active: data.is_active,
       };
 
@@ -239,6 +259,7 @@ export default function CustomersPage() {
       gst_number: customer.gst_number || '',
       credit_limit: customer.credit_limit?.toString() || '',
       payment_terms: customer.payment_terms?.toString() || '30',
+      billing_customer: customer.billing_customer || '',
       is_active: customer.is_active ?? true,
     });
     setIsDialogOpen(true);
@@ -249,6 +270,25 @@ export default function CustomersPage() {
     if (!formData.name) {
       toast.error('Name is required');
       return;
+    }
+    // Guard against near-duplicate billing names ("Osama Trader" vs "Osama
+    // Traders"), which would read as two different billing customers.
+    const billing = (formData.billing_customer || '').trim();
+    if (billing) {
+      const establishedBillings = [...new Set(
+        (customers || [])
+          .filter(c => c.id !== editingCustomer?.id)
+          .map(c => (c.billing_customer || '').trim())
+          .filter(Boolean)
+      )];
+      const similar = findSimilarPartyName(billing, establishedBillings);
+      if (similar) {
+        const ok = confirm(
+          `Billing customer "${billing}" looks like a different spelling of "${similar}", which other customers already use.\n\n` +
+          `Press Cancel to go back and pick "${similar}", or OK to save "${billing}" as a separate billing customer anyway.`
+        );
+        if (!ok) return;
+      }
     }
     saveMutation.mutate(formData);
   };
@@ -267,7 +307,8 @@ export default function CustomersPage() {
   const filteredCustomers = customers?.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
+    c.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.billing_customer?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -392,6 +433,32 @@ export default function CustomersPage() {
                         </div>
                       </div>
 
+                      <div className="space-y-2">
+                        <Label>Billing Customer</Label>
+                        <Select
+                          value={formData.billing_customer || ''}
+                          onValueChange={(value) =>
+                            setFormData({
+                              ...formData,
+                              billing_customer: value === '__self__' ? (formData.name || '').trim() : value,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue placeholder="Select billing customer" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background z-50">
+                            {(formData.name || '').trim() && (
+                              <SelectItem value="__self__">Same as this customer (self-billing)</SelectItem>
+                            )}
+                            {billingCustomerOptions.map((name) => (
+                              <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Who is invoiced for this customer. If this customer pays its own bills, choose "Same as this customer".</p>
+                      </div>
+
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>GST Number</Label>
@@ -454,6 +521,7 @@ export default function CustomersPage() {
                     <TableHead>Logo</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>Billing Customer</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>City</TableHead>
                     <TableHead>GST</TableHead>
@@ -464,11 +532,11 @@ export default function CustomersPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">Loading...</TableCell>
+                      <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
                     </TableRow>
                   ) : filteredCustomers?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No customers found
                       </TableCell>
                     </TableRow>
@@ -490,6 +558,7 @@ export default function CustomersPage() {
                         </TableCell>
                         <TableCell className="font-mono text-sm">{customer.code}</TableCell>
                         <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell className="text-blue-600 font-medium">{customer.billing_customer || '-'}</TableCell>
                         <TableCell>
                           <div className="text-sm">{customer.contact_person || '-'}</div>
                           <div className="text-xs text-muted-foreground">{customer.phone || ''}</div>

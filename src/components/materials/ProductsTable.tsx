@@ -38,16 +38,16 @@ interface Props {
 // Column widths (% of the table). Every column fits the page width; the
 // table only scrolls sideways on screens narrower than its minimum width.
 const BASE_COLS: { key: string; label: string; title?: string; width: number; align?: "right" }[] = [
-  { key: "code", label: "Code", width: 3.8 },
+  { key: "code", label: "Code", width: 5.2 },
   { key: "name", label: "Name", width: 6.8 },
   { key: "owner", label: "Owner", width: 4.4 },
   { key: "grade", label: "Grade", width: 3.6 },
-  { key: "uom", label: "UOM", width: 4.6 },
+  { key: "uom", label: "UOM", width: 4.1 },
   { key: "output", label: "Std Output", width: 4.2, align: "right" },
-  { key: "planning", label: "Planning Item", width: 6.3 },
+  { key: "planning", label: "Planning Item", width: 5.9 },
   { key: "cost", label: "Std Cost / Dz", title: "Standard cost per dozen (Rs.)", width: 4.6, align: "right" },
   { key: "sell", label: "Std Sell / Dz", title: "Standard selling price per dozen (Rs.)", width: 4.6, align: "right" },
-  { key: "status", label: "Status", width: 5 },
+  { key: "status", label: "Status", width: 4.5 },
 ];
 const COLOR_WIDTH = 4.5;
 const ACTIONS_WIDTH = 4.4;
@@ -79,12 +79,12 @@ export function ProductsTable({
   const slotWidth = showMaterials ? (100 - fixed) / slots.length : 0;
   const colCount = BASE_COLS.length + 1 + (showMaterials ? slots.length + 1 : 0);
 
-  const th = "overflow-hidden px-1.5 py-2 text-left align-bottom text-[9.5px] font-semibold uppercase leading-[1.15] tracking-tight text-muted-foreground first:pl-2.5";
-  const td = "px-1.5 py-2 align-middle first:pl-2.5";
+  const th = "overflow-hidden bg-muted px-1 2xl:px-1.5 py-2 text-left align-bottom text-[9.5px] font-semibold uppercase leading-[1.15] tracking-tight text-muted-foreground first:pl-2.5";
+  const td = "overflow-hidden px-1 py-2 2xl:px-1.5 align-middle first:pl-2.5";
 
   return (
     <div className="max-h-[calc(100vh-15rem)] min-h-[16rem] overflow-auto rounded-lg border bg-card">
-      <table className={cn("w-full table-fixed border-collapse text-[12px] leading-snug", showMaterials ? "min-w-[1040px]" : "min-w-[720px]")}>
+      <table className={cn("w-full table-fixed border-collapse text-[12px] leading-snug", showMaterials ? "min-w-[1000px]" : "min-w-[720px]")}>
         <colgroup>
           {BASE_COLS.map((c) => (
             <col key={c.key} style={{ width: `${c.width}%` }} />
@@ -96,16 +96,16 @@ export function ProductsTable({
         <thead className="sticky top-0 z-20 bg-muted shadow-[0_1px_0_hsl(var(--border))]">
           {showMaterials && (
             <tr className="border-b border-border/70">
-              <th colSpan={BASE_COLS.length} className="px-2.5 pt-2 pb-1 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <th colSpan={BASE_COLS.length} className="bg-muted px-2.5 pt-2 pb-1 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 Product
               </th>
               <th
                 colSpan={slots.length + 1}
-                className="border-l border-border/70 px-1.5 pt-2 pb-1 text-left text-[10px] font-semibold uppercase tracking-wider text-primary"
+                className="border-l border-border/70 bg-muted px-1.5 pt-2 pb-1 text-left text-[10px] font-semibold uppercase tracking-wider text-primary"
               >
                 Raw materials · item and quantity per dozen
               </th>
-              <th />
+              <th className="bg-muted" />
             </tr>
           )}
           <tr>
@@ -142,9 +142,13 @@ export function ProductsTable({
               const sell = Number(p.standard_selling_price) > 0 ? money(p.standard_selling_price) : null;
               return (
                 <tr key={p.id} className="border-t border-border/60 transition-colors hover:bg-muted/40">
-                  <td className={cn(td, "font-medium tabular-nums")}>{p.code}</td>
+                  <td className={cn(td, "font-medium tabular-nums")}>
+                    <span className="line-clamp-2 text-[11.5px] leading-tight [overflow-wrap:anywhere]" title={p.code}>
+                      {p.code}
+                    </span>
+                  </td>
                   <td className={td}>
-                    <span className="line-clamp-2 font-medium [overflow-wrap:break-word]" title={p.name}>
+                    <span className="line-clamp-2 font-medium [overflow-wrap:anywhere]" title={p.name}>
                       {p.name}
                     </span>
                   </td>
@@ -167,7 +171,7 @@ export function ProductsTable({
                   <td className={cn(td, "text-right tabular-nums")}>{p.standard_output_rate ?? "-"}</td>
                   <td className={td}>
                     {planning ? (
-                      <span className="line-clamp-2 [overflow-wrap:break-word]" title={planning}>{planning}</span>
+                      <span className="line-clamp-2 [overflow-wrap:anywhere]" title={planning}>{planning}</span>
                     ) : (
                       <Unset text="not linked" />
                     )}
@@ -186,7 +190,7 @@ export function ProductsTable({
                   {showMaterials && (
                     <td className={cn(td, "border-l border-border/70")} title={p.color ?? ""}>
                       {p.color ? (
-                        <span className="line-clamp-2 [overflow-wrap:break-word]">{p.color}</span>
+                        <span className="block truncate">{p.color}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -215,13 +219,13 @@ export function ProductsTable({
                           <div className="min-w-0">
                             <span
                               className={cn(
-                                "line-clamp-2 text-[11.5px] font-medium leading-tight [overflow-wrap:break-word]",
+                                "line-clamp-2 text-[11px] font-medium leading-tight [overflow-wrap:anywhere] 2xl:text-[11.5px]",
                                 row.inherited && "italic text-foreground/75",
                               )}
                             >
                               {it?.name ?? "Inactive item"}
                             </span>
-                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10.5px] text-muted-foreground">
+                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] tracking-tight text-muted-foreground 2xl:text-[10.5px] 2xl:tracking-normal">
                               <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STOCK_DOT[level])} />
                               <span className="truncate">
                                 {qty}

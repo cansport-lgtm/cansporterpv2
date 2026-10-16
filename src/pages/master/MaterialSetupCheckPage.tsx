@@ -91,7 +91,7 @@ export default function MaterialSetupCheckPage() {
   const groups: Group[] = useMemo(() => {
     const productsMissing = products
       .filter((p) => effectiveMaterials(p, material.byProduct).size === 0)
-      .map((p) => ({ name: `${p.code} · ${p.name}`, issue: "No materials set — orders show “Materials not set”", link: "/master/products" }));
+      .map((p) => ({ name: `${p.code} · ${p.name}`, issue: "No materials set — orders say “Set the materials”", link: "/master/products" }));
 
     const slotsUnset = material.slots
       .filter((s) => !s.category_id)

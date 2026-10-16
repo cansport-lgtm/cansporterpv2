@@ -210,7 +210,7 @@ export default function StorePassDetailPage() {
               <CardContent className="p-0 overflow-x-auto">
                 <Table className="min-w-[560px]">
                   <TableHeader>
-                    <TableRow><TableHead className="w-10">#</TableHead><TableHead>Item</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Dozens</TableHead><TableHead className="text-right">Cartons</TableHead><TableHead>Remark</TableHead></TableRow>
+                    <TableRow><TableHead className="w-10">#</TableHead><TableHead>Item</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Dozens</TableHead><TableHead className="text-right">Packages (carton/bora)</TableHead><TableHead>Remark</TableHead></TableRow>
                   </TableHeader>
                   <TableBody>
                     {items.map((i) => (

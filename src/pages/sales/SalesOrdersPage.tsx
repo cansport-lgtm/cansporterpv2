@@ -135,7 +135,7 @@ export default function SalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, code, name, address, payment_terms')
+        .select('id, code, name, address, payment_terms, billing_customer')
         .eq('is_active', true)
         .eq('sales_segment', 'private_label')
         .order('name');
@@ -425,6 +425,14 @@ export default function SalesOrdersPage() {
       toast.error('Please select a customer');
       return;
     }
+    // Billing customer is optional for private label for now — warn, don't block.
+    const selectedCustomer = customers?.find(c => c.id === formData.customer_id);
+    if (!(selectedCustomer?.billing_customer || '').trim()) {
+      toast.warning(
+        `"${selectedCustomer?.name || 'This customer'}" has no Billing Customer set. ` +
+        `Set it on the Customers page so billing knows who to invoice.`
+      );
+    }
     if (formData.items.length === 0) {
       toast.error('Please add at least one item');
       return;
@@ -558,6 +566,14 @@ export default function SalesOrdersPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {formData.customer_id && (() => {
+                                const billing = customers?.find(c => c.id === formData.customer_id)?.billing_customer;
+                                return billing ? (
+                                  <p className="text-xs text-blue-600 font-medium">Billing: {billing}</p>
+                                ) : (
+                                  <p className="text-xs text-amber-600">No billing customer set</p>
+                                );
+                              })()}
                             </div>
                             <div className="space-y-2">
                               <Label>Order Date</Label>
@@ -785,6 +801,11 @@ export default function SalesOrdersPage() {
                                 <div>
                                   <div className="font-medium">{order.customers?.name}</div>
                                   <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                                  {order.customers?.billing_customer && (
+                                    <div className="text-xs text-blue-600 font-medium mt-0.5">
+                                      Billing: {order.customers.billing_customer}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </TableCell>
@@ -950,6 +971,11 @@ export default function SalesOrdersPage() {
                       <div>
                         <div className="font-medium">{order.customers?.name}</div>
                         <div className="text-xs text-muted-foreground">{order.customers?.code}</div>
+                        {order.customers?.billing_customer && (
+                          <div className="text-xs text-blue-600 font-medium mt-0.5">
+                            Billing: {order.customers.billing_customer}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1041,6 +1067,11 @@ export default function SalesOrdersPage() {
                   <div>
                     <div className="text-sm text-muted-foreground">Customer</div>
                     <div className="font-medium">{viewOrder.customers?.name}</div>
+                    {viewOrder.customers?.billing_customer && (
+                      <div className="text-xs text-blue-600 font-medium">
+                        Billing: {viewOrder.customers.billing_customer}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Order Date</div>

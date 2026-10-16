@@ -150,7 +150,7 @@ export function printStorePass(p: StorePass, qrSvg: string) {
       ${linked ? `<div><span class="muted">Dispatches</span> <b>${esc(linked)}</b></div>` : ""}
     </div>
     <table>
-      <thead><tr><th>#</th><th>Item</th><th class="right">Cartons</th><th class="right">Dozens</th><th>Remark</th></tr></thead>
+      <thead><tr><th>#</th><th>Item</th><th class="right">Packages (carton/bora)</th><th class="right">Dozens</th><th>Remark</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="2" class="right bold">Total handed over</td><td class="right bold">${t.packages}</td><td class="right bold">${esc(fmtQty(t.quantity))}</td><td></td></tr></tfoot>
     </table>
@@ -303,8 +303,8 @@ export type Severity = "high" | "medium" | "info";
 export const DISCREPANCY_META: Record<DiscrepancyCode, { label: string; severity: Severity; help: string }> = {
   OUT_NO_SP: { label: "Out without store pass", severity: "high", help: "The vehicle left the gate and the store never issued a store pass for this dispatch." },
   SP_NOT_OUT: { label: "Issued, not out", severity: "high", help: "The store handed the goods over but they have not left the gate." },
-  SP_VS_GP: { label: "Store ≠ gate", severity: "high", help: "What the store issued differs from what the guard counted at the gate." },
-  SP_VS_DC: { label: "Store ≠ DC", severity: "medium", help: "What the store handed over differs from the dispatch as it is now. The office corrects the dispatch, or the store explains." },
+  SP_VS_GP: { label: "Store ≠ gate (dz)", severity: "high", help: "The dozens the store issued differ from the dozens at the gate (guard's count, else the printed gate pass). Packages are not compared." },
+  SP_VS_DC: { label: "Store ≠ DC (dz)", severity: "medium", help: "The dozens the store handed over differ from the dispatch as it is now. Packages are not compared. The office corrects the dispatch, or the store explains." },
   DC_CHANGED: { label: "DC changed after issue", severity: "medium", help: "The office edited the dispatch after the store pass was issued." },
   SP_UNLINKED: { label: "Not linked to a dispatch", severity: "medium", help: "The store issued this pass but it is not linked to any system dispatch, so nothing can be compared yet. The dispatch operator links it from the Domestic Dispatch page (Store pass column)." },
   SP_CANCELLED_AFTER_ISSUE: { label: "Issued pass cancelled", severity: "info", help: "An issued store pass for this dispatch was cancelled by a manager." },
@@ -378,13 +378,25 @@ export type ReconProductRow = {
   gp_counted_quantity: number | null;
 };
 
-/** What the gate counted for a dispatch: cartons when the lines had them, else dozens; printed figures when nothing was counted (manager release). */
+/** Packages are cartons or boras. Shown for reference only: reconciliation matches on dozens. */
+export const PKG_LABEL = "Packages (carton/bora)";
+export const PKG = "pkg";
+
+/**
+ * What left the gate for a dispatch. Dozens decide the match: the guard's counted
+ * dozens, else the printed gate pass dozens (counted = false). Packages ride along
+ * for reference (guard's count, else printed).
+ */
 export const gateFigure = (r: Pick<ReconRow, "gp_counted_packages" | "gp_counted_quantity" | "gp_packages" | "gp_quantity">) => {
-  if (r.gp_counted_packages !== null && r.gp_counted_packages !== undefined) return { value: Number(r.gp_counted_packages), unit: "ctn" as const, counted: true };
-  if (r.gp_counted_quantity !== null && r.gp_counted_quantity !== undefined) return { value: Number(r.gp_counted_quantity), unit: "dz" as const, counted: true };
-  if (r.gp_packages !== null && r.gp_packages !== undefined) return { value: Number(r.gp_packages), unit: "ctn" as const, counted: false };
-  if (r.gp_quantity !== null && r.gp_quantity !== undefined) return { value: Number(r.gp_quantity), unit: "dz" as const, counted: false };
-  return null;
+  const has = (n: number | null | undefined) => n !== null && n !== undefined;
+  if (!has(r.gp_counted_quantity) && !has(r.gp_quantity)) return null;
+  const counted = has(r.gp_counted_quantity);
+  const pkg = has(r.gp_counted_packages) ? r.gp_counted_packages : r.gp_packages;
+  return {
+    dz: Number(counted ? r.gp_counted_quantity : r.gp_quantity),
+    counted,
+    packages: has(pkg) ? Number(pkg) : null,
+  };
 };
 
 export type GateStoreStatus = { mode: "off" | "warn" | "block"; missing: string[] };

@@ -79,7 +79,7 @@ export function MaterialCheckPanel({ lines, mode, savedAt, closedReason, showPur
                   counts.short && `${counts.short} short`,
                   counts.below_min && `${counts.below_min} below min stock`,
                   counts.unknown && `${counts.unknown} stock unknown`,
-                  counts.not_set && `${counts.not_set} materials not set`,
+                  counts.not_set && `Set the materials for ${counts.not_set} product(s)`,
                   counts.old && `${counts.old} old count`,
                 ]
                   .filter(Boolean)

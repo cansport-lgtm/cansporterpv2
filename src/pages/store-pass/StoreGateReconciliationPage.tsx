@@ -31,7 +31,7 @@ import { esc, printDocument } from "@/lib/printDocument";
 import { statusMeta as gpStatusMeta } from "@/lib/gatePass";
 import {
   canLinkStorePass,
-  SEVERITY_TONE, discrepancyMeta, errorMessage, fmtQty, gateFigure, spDb, todayPk,
+  PKG, PKG_LABEL, SEVERITY_TONE, discrepancyMeta, errorMessage, fmtQty, gateFigure, spDb, todayPk,
   type ReconProductRow, type ReconRow,
 } from "@/lib/storePass";
 
@@ -126,9 +126,9 @@ export default function StoreGateReconciliationPage() {
     const out = rows.filter((r) => inRange(r.out_date, from, to));
     const sum = (xs: ReconRow[], f: (r: ReconRow) => number | null) => xs.reduce((s, r) => s + Number(f(r) ?? 0), 0);
     return {
-      dc: { n: dc.length, dz: sum(dc, (r) => r.dc_quantity ?? 0), ctn: sum(dc, (r) => r.dc_packages ?? 0) },
-      sp: { n: new Set(sp.map((r) => r.store_pass_id)).size, dz: sum(sp, (r) => r.sp_quantity), ctn: sum(sp, (r) => r.sp_packages) },
-      out: { n: new Set(out.map((r) => r.gate_pass_id)).size, dz: sum(out, (r) => gateFigure(r)?.unit === "dz" ? gateFigure(r)!.value : r.gp_quantity), ctn: sum(out, (r) => gateFigure(r)?.unit === "ctn" ? gateFigure(r)!.value : r.gp_packages) },
+      dc: { n: dc.length, dz: sum(dc, (r) => r.dc_quantity ?? 0), pkg: sum(dc, (r) => r.dc_packages ?? 0) },
+      sp: { n: new Set(sp.map((r) => r.store_pass_id)).size, dz: sum(sp, (r) => r.sp_quantity), pkg: sum(sp, (r) => r.sp_packages) },
+      out: { n: new Set(out.map((r) => r.gate_pass_id)).size, dz: sum(out, (r) => gateFigure(r)?.dz ?? 0), pkg: sum(out, (r) => gateFigure(r)?.packages ?? 0) },
       openHigh: sum(rows, (r) => r.open_high),
       openMedium: sum(rows, (r) => r.open_medium),
       explained: rows.reduce((s, r) => s + r.explained.length, 0),
@@ -144,11 +144,11 @@ export default function StoreGateReconciliationPage() {
       const g = gateFigure(r);
       return {
         Dispatch: r.dispatch_number ?? "", "DC date": r.dispatch_date ?? "", Customer: r.customer_name ?? "", Orders: r.order_numbers ?? "", "SP plan": r.sp_dispatch_plan_no ?? "", "Handed over to": r.sp_received_by ?? "",
-        "DC dz": r.dc_quantity ?? "", "DC ctn": r.dc_packages ?? "",
+        "DC dz": r.dc_quantity ?? "", [`DC ${PKG_LABEL}`]: r.dc_packages ?? "",
         "Store pass": r.sp_number ?? "", "SP status": r.sp_status ?? "", "SP issued": r.sp_issued_at ? format(new Date(r.sp_issued_at), "yyyy-MM-dd HH:mm") : "",
-        "SP dz": r.sp_quantity ?? "", "SP ctn": r.sp_packages ?? "",
+        "SP dz": r.sp_quantity ?? "", [`SP ${PKG_LABEL}`]: r.sp_packages ?? "",
         "Gate pass": r.gp_number ?? "", "GP status": r.gp_status ?? "", "Gate out": r.gate_out_at ? format(new Date(r.gate_out_at), "yyyy-MM-dd HH:mm") : "",
-        "Gate figure": g ? `${fmtQty(g.value)} ${g.unit}${g.counted ? "" : " (printed)"}` : "",
+        "Gate dz": g ? g.dz : "", "Gate dz source": g ? (g.counted ? "counted" : "printed") : "", [`Gate ${PKG_LABEL}`]: g?.packages ?? "",
         Discrepancies: r.codes.map((c) => discrepancyMeta(c).label).join("; "),
         "Open high": r.open_high, "Open medium": r.open_medium,
         Explained: r.explained.map((e) => `${discrepancyMeta(e.code).label}: ${e.note} (${e.by ?? ""})`).join(" | "),
@@ -156,11 +156,12 @@ export default function StoreGateReconciliationPage() {
     })), "By dispatch");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(products.map((p) => ({
       SKU: p.product_code ?? "", Product: p.product_name ?? "",
-      "DC dz": Number(p.dc_quantity), "DC ctn": Number(p.dc_packages),
-      "Store dz": Number(p.sp_quantity), "Store ctn": Number(p.sp_packages),
-      "Gate dz": Number(p.gp_quantity), "Gate ctn": Number(p.gp_packages),
-      "Gate counted ctn": p.gp_counted_packages ?? "", "Gate counted dz": p.gp_counted_quantity ?? "",
-      "Store − gate dz": Number(p.sp_quantity) - Number(p.gp_quantity), "Store − gate ctn": Number(p.sp_packages) - Number(p.gp_packages),
+      "DC dz": Number(p.dc_quantity), [`DC ${PKG_LABEL}`]: Number(p.dc_packages),
+      "Store dz": Number(p.sp_quantity), [`Store ${PKG_LABEL}`]: Number(p.sp_packages),
+      "Gate dz": Number(p.gp_quantity), [`Gate ${PKG_LABEL}`]: Number(p.gp_packages),
+      "Gate counted dz": p.gp_counted_quantity ?? "", [`Gate counted ${PKG_LABEL}`]: p.gp_counted_packages ?? "",
+      "Store − gate dz": Number(p.sp_quantity) - Number(p.gp_counted_quantity ?? p.gp_quantity),
+      "DC − store dz": Number(p.dc_quantity) - Number(p.sp_quantity),
     }))), "By product");
     XLSX.writeFile(wb, `Store-Gate-Reconciliation-${from}${single ? "" : `_to_${to}`}.xlsx`);
   };
@@ -177,21 +178,22 @@ export default function StoreGateReconciliationPage() {
       <div class="head"><div><h1>Cansport Global Industries</h1><div class="bold" style="margin-top:6px; letter-spacing:.06em">STORE ↔ GATE RECONCILIATION · ${esc(label)}</div></div>
       <div class="xs muted" style="text-align:right">Printed ${esc(format(new Date(), "dd MMM yyyy, HH:mm"))}</div></div>
       <div class="cards">
-        <div><b>Dispatches</b> ${summary.dc.n} · ${esc(fmtQty(summary.dc.dz))} dz · ${summary.dc.ctn} ctn</div>
-        <div><b>Store passes issued</b> ${summary.sp.n} · ${esc(fmtQty(summary.sp.dz))} dz · ${summary.sp.ctn} ctn</div>
-        <div><b>Gate outs</b> ${summary.out.n} · ${esc(fmtQty(summary.out.dz))} dz · ${summary.out.ctn} ctn</div>
+        <div><b>Dispatches</b> ${summary.dc.n} · ${esc(fmtQty(summary.dc.dz))} dz · ${summary.dc.pkg} ${PKG}</div>
+        <div><b>Store passes issued</b> ${summary.sp.n} · ${esc(fmtQty(summary.sp.dz))} dz · ${summary.sp.pkg} ${PKG}</div>
+        <div><b>Gate outs</b> ${summary.out.n} · ${esc(fmtQty(summary.out.dz))} dz · ${summary.out.pkg} ${PKG}</div>
         <div><b>Open discrepancies</b> ${summary.openHigh} high · ${summary.openMedium} medium · ${summary.explained} explained</div>
       </div>
-      <table><thead><tr><th>Dispatch</th><th>Customer</th><th class="right">DC dz / ctn</th><th>Store pass</th><th>Gate pass</th><th>Out</th><th>Discrepancies</th></tr></thead>
+      <div class="xs muted" style="margin-top:6px">Matched on dozens only. ${esc(PKG_LABEL)} (${PKG}) are shown for reference.</div>
+      <table><thead><tr><th>Dispatch</th><th>Customer</th><th class="right">DC dz / ${PKG}</th><th>Store pass</th><th>Gate pass</th><th>Out</th><th>Discrepancies</th></tr></thead>
       <tbody>${filtered.map((r) => {
         const g = gateFigure(r);
         return `<tr><td><b>${esc(r.dispatch_number ?? "—")}</b>${r.sp_dispatch_plan_no ? `<div class="xs muted">plan ${esc(r.sp_dispatch_plan_no)}</div>` : ""}</td><td>${esc(r.customer_name ?? r.sp_received_by ?? "")}</td><td class="right">${r.dc_quantity === null ? "—" : `${esc(fmtQty(r.dc_quantity))} / ${Number(r.dc_packages)}`}</td>
           <td>${r.sp_number ? `${esc(r.sp_number)} · ${esc(fmtQty(r.sp_quantity))} / ${Number(r.sp_packages ?? 0)} · ${esc(fmtT(r.sp_issued_at))}` : "none"}</td>
-          <td>${r.gp_number ? `${esc(r.gp_number)}${g ? ` · ${esc(fmtQty(g.value))} ${g.unit}` : ""}` : "—"}</td><td>${esc(fmtT(r.gate_out_at))}</td>
+          <td>${r.gp_number ? `${esc(r.gp_number)}${g ? ` · ${esc(fmtQty(g.dz))} dz${g.packages !== null ? ` / ${g.packages} ${PKG}` : ""}` : ""}` : "—"}</td><td>${esc(fmtT(r.gate_out_at))}</td>
           <td>${r.codes.map((c) => esc(discrepancyMeta(c).label) + (r.explained.some((e) => e.code === c) ? " (explained)" : "")).join("; ") || "Matches"}</td></tr>`;
       }).join("")}</tbody></table>
-      <table><thead><tr><th>SKU</th><th class="right">DC dz / ctn</th><th class="right">Store dz / ctn</th><th class="right">Gate dz / ctn</th><th class="right">Store − gate</th></tr></thead>
-      <tbody>${products.map((p) => `<tr><td>${esc(p.product_code ?? "")} · ${esc(p.product_name ?? "")}</td><td class="right">${esc(fmtQty(p.dc_quantity))} / ${Number(p.dc_packages)}</td><td class="right">${esc(fmtQty(p.sp_quantity))} / ${Number(p.sp_packages)}</td><td class="right">${esc(fmtQty(p.gp_quantity))} / ${Number(p.gp_packages)}</td><td class="right">${esc(fmtQty(Number(p.sp_quantity) - Number(p.gp_quantity)))} / ${Number(p.sp_packages) - Number(p.gp_packages)}</td></tr>`).join("")}</tbody></table>
+      <table><thead><tr><th>SKU</th><th class="right">DC dz / ${PKG}</th><th class="right">Store dz / ${PKG}</th><th class="right">Gate dz / ${PKG}</th><th class="right">Store − gate dz</th></tr></thead>
+      <tbody>${products.map((p) => `<tr><td>${esc(p.product_code ?? "")} · ${esc(p.product_name ?? "")}</td><td class="right">${esc(fmtQty(p.dc_quantity))} / ${Number(p.dc_packages)}</td><td class="right">${esc(fmtQty(p.sp_quantity))} / ${Number(p.sp_packages)}</td><td class="right">${esc(fmtQty(p.gp_counted_quantity ?? p.gp_quantity))} / ${Number(p.gp_counted_packages ?? p.gp_packages)}</td><td class="right">${esc(fmtQty(Number(p.sp_quantity) - Number(p.gp_counted_quantity ?? p.gp_quantity)))}</td></tr>`).join("")}</tbody></table>
     </div>`;
     printDocument(`Reconciliation ${label}`, body);
   };
@@ -201,7 +203,7 @@ export default function StoreGateReconciliationPage() {
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
         <PageHeader
           title="Daily Reconciliation · Store ↔ Gate"
-          description="What the office dispatched, what the store issued and what left the gate, lined up per dispatch for one day (Pakistan time). Domestic sales only."
+          description="What the office dispatched, what the store issued and what left the gate, lined up per dispatch for one day (Pakistan time). Domestic sales only. Discrepancies are raised on dozens only; packages (carton/bora) are shown for reference."
           icon={Scale}
         >
           <Button variant="outline" onClick={exportExcel} disabled={rows.length === 0}><FileSpreadsheet className="h-4 w-4 mr-1" /> Export</Button>
@@ -235,9 +237,9 @@ export default function StoreGateReconciliationPage() {
 
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           {[
-            { label: `Dispatches dated ${single ? "today" : "in range"}`, value: summary.dc.n, sub: `${fmtQty(summary.dc.dz)} dz · ${summary.dc.ctn} ctn`, tone: "" },
-            { label: "Store passes issued", value: summary.sp.n, sub: `${fmtQty(summary.sp.dz)} dz · ${summary.sp.ctn} ctn`, tone: "" },
-            { label: "Gate outs (sales passes)", value: summary.out.n, sub: `${fmtQty(summary.out.dz)} dz · ${summary.out.ctn} ctn`, tone: "" },
+            { label: `Dispatches dated ${single ? "today" : "in range"}`, value: summary.dc.n, sub: `${fmtQty(summary.dc.dz)} dz · ${summary.dc.pkg} ${PKG}`, tone: "" },
+            { label: "Store passes issued", value: summary.sp.n, sub: `${fmtQty(summary.sp.dz)} dz · ${summary.sp.pkg} ${PKG}`, tone: "" },
+            { label: "Gate outs (sales passes)", value: summary.out.n, sub: `${fmtQty(summary.out.dz)} dz · ${summary.out.pkg} ${PKG}`, tone: "" },
             { label: "Open discrepancies", value: summary.openHigh + summary.openMedium, sub: `${summary.openHigh} high · ${summary.openMedium} medium · ${summary.explained} explained`, tone: summary.openHigh ? "border-red-200 bg-red-50 text-red-800" : "" },
           ].map((k) => (
             <Card key={k.label} className={cn(k.tone)}>
@@ -252,7 +254,7 @@ export default function StoreGateReconciliationPage() {
 
         {summary.inside.length > 0 && (
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
-            <b>{fmtQty(summary.inside.reduce((s, r) => s + Number(r.sp_quantity ?? 0), 0))} dz · {summary.inside.reduce((s, r) => s + Number(r.sp_packages ?? 0), 0)} ctn</b> issued by the store are still inside the factory
+            <b>{fmtQty(summary.inside.reduce((s, r) => s + Number(r.sp_quantity ?? 0), 0))} dz · {summary.inside.reduce((s, r) => s + Number(r.sp_packages ?? 0), 0)} {PKG}</b> issued by the store are still inside the factory
             ({summary.inside.map((r) => r.dispatch_number ?? r.sp_number).join(", ")}).{to === today ? " They may still go out today." : ""}
           </div>
         )}
@@ -271,9 +273,9 @@ export default function StoreGateReconciliationPage() {
                     <TableRow>
                       <TableHead>Dispatch</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead className="text-right">DC<br /><span className="text-[10px] font-normal">dz / ctn</span></TableHead>
-                      <TableHead>Store pass<br /><span className="text-[10px] font-normal">issued dz / ctn</span></TableHead>
-                      <TableHead>Gate pass<br /><span className="text-[10px] font-normal">counted</span></TableHead>
+                      <TableHead className="text-right">DC<br /><span className="text-[10px] font-normal">dz / {PKG}</span></TableHead>
+                      <TableHead>Store pass<br /><span className="text-[10px] font-normal">issued dz / {PKG}</span></TableHead>
+                      <TableHead>Gate pass<br /><span className="text-[10px] font-normal">counted dz / {PKG}</span></TableHead>
                       <TableHead>Out</TableHead>
                       <TableHead>Discrepancy</TableHead>
                       <TableHead />
@@ -328,7 +330,7 @@ export default function StoreGateReconciliationPage() {
                                 <Link to={`/gate-pass/passes/${r.gate_pass_id}`} className="font-mono text-primary hover:underline">{r.gp_number}</Link>
                                 <div className="text-xs text-muted-foreground whitespace-nowrap">
                                   {r.gp_status === "held" ? <span className="text-amber-700 font-semibold">Held</span> : gpStatusMeta(r.gp_status ?? "").label}
-                                  {g ? ` · ${fmtQty(g.value)} ${g.unit}${g.counted ? "" : " (printed)"}` : ""}
+                                  {g ? ` · ${fmtQty(g.dz)} dz${g.packages !== null ? ` / ${g.packages} ${PKG}` : ""}${g.counted ? "" : " (printed)"}` : ""}
                                 </div>
                               </div>
                             ) : <span className="text-muted-foreground">—</span>}
@@ -380,10 +382,10 @@ export default function StoreGateReconciliationPage() {
                         <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(filtered.reduce((s, r) => s + Number(r.dc_quantity ?? 0), 0))} / {filtered.reduce((s, r) => s + Number(r.dc_packages ?? 0), 0)}</TableCell>
                         <TableCell className="tabular-nums whitespace-nowrap">{fmtQty(filtered.reduce((s, r) => s + Number(r.sp_status === "issued" ? r.sp_quantity ?? 0 : 0), 0))} / {filtered.reduce((s, r) => s + Number(r.sp_status === "issued" ? r.sp_packages ?? 0 : 0), 0)}</TableCell>
                         <TableCell className="tabular-nums whitespace-nowrap">
-                          {fmtQty(filtered.reduce((s, r) => s + Number(gateFigure(r)?.unit === "dz" ? gateFigure(r)!.value : r.gp_quantity ?? 0), 0))} dz · {filtered.reduce((s, r) => s + Number(gateFigure(r)?.unit === "ctn" ? gateFigure(r)!.value : r.gp_packages ?? 0), 0)} ctn
+                          {fmtQty(filtered.reduce((s, r) => s + (gateFigure(r)?.dz ?? 0), 0))} dz · {filtered.reduce((s, r) => s + (gateFigure(r)?.packages ?? 0), 0)} {PKG}
                         </TableCell>
                         <TableCell colSpan={3} className="font-normal text-sm text-muted-foreground">
-                          {summary.inside.length > 0 ? `Store − gate: ${fmtQty(summary.inside.reduce((s, r) => s + Number(r.sp_quantity ?? 0), 0))} dz · ${summary.inside.reduce((s, r) => s + Number(r.sp_packages ?? 0), 0)} ctn still inside` : ""}
+                          {summary.inside.length > 0 ? `Store − gate: ${fmtQty(summary.inside.reduce((s, r) => s + Number(r.sp_quantity ?? 0), 0))} dz · ${summary.inside.reduce((s, r) => s + Number(r.sp_packages ?? 0), 0)} ${PKG} still inside` : ""}
                         </TableCell>
                       </TableRow>
                     </tfoot>
@@ -397,7 +399,7 @@ export default function StoreGateReconciliationPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">By product · {label}</CardTitle>
-                <p className="text-sm text-muted-foreground">For checking the FG store: what each SKU should have lost on the day. Gate figures are the guard's count where a count exists, else the printed pass.</p>
+                <p className="text-sm text-muted-foreground">For checking the FG store: what each SKU should have lost on the day. Gate figures are the guard's count where a count exists, else the printed pass. Matched on dozens only; {PKG_LABEL} ({PKG}) are for reference.</p>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table className="min-w-[900px]">
@@ -407,26 +409,26 @@ export default function StoreGateReconciliationPage() {
                       <TableHead className="text-right">Dispatched (DC)</TableHead>
                       <TableHead className="text-right">Store issued (SP)</TableHead>
                       <TableHead className="text-right">Gate (GP)</TableHead>
-                      <TableHead className="text-right">Store − gate</TableHead>
-                      <TableHead className="text-right">DC − store</TableHead>
+                      <TableHead className="text-right">Store − gate<br /><span className="text-[10px] font-normal">dz</span></TableHead>
+                      <TableHead className="text-right">DC − store<br /><span className="text-[10px] font-normal">dz</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {products.length === 0 ? (
                       <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nothing on this day.</TableCell></TableRow>
                     ) : products.map((p) => {
-                      const gDz = p.gp_counted_quantity ?? (p.gp_counted_packages !== null ? null : p.gp_quantity);
-                      const gCtn = p.gp_counted_packages ?? p.gp_packages;
-                      const dDz = Number(p.sp_quantity) - Number(gDz ?? p.gp_quantity);
-                      const dCtn = Number(p.sp_packages) - Number(gCtn);
+                      const gDz = Number(p.gp_counted_quantity ?? p.gp_quantity);
+                      const gPkg = Number(p.gp_counted_packages ?? p.gp_packages);
+                      const dDz = Number(p.sp_quantity) - gDz;
+                      const dcDz = Number(p.dc_quantity) - Number(p.sp_quantity);
                       return (
                         <TableRow key={p.product_id ?? "none"}>
                           <TableCell className="font-medium">{p.product_code ?? "—"} <span className="text-muted-foreground">· {p.product_name ?? ""}</span></TableCell>
-                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(p.dc_quantity)} dz / {Number(p.dc_packages)} ctn</TableCell>
-                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(p.sp_quantity)} dz / {Number(p.sp_packages)} ctn</TableCell>
-                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(gDz ?? p.gp_quantity)} dz / {Number(gCtn)} ctn</TableCell>
-                          <TableCell className={cn("text-right tabular-nums whitespace-nowrap font-semibold", dDz !== 0 || dCtn !== 0 ? "text-red-700" : "text-emerald-700")}>{fmtQty(dDz)} dz / {dCtn} ctn</TableCell>
-                          <TableCell className={cn("text-right tabular-nums whitespace-nowrap", Number(p.dc_quantity) !== Number(p.sp_quantity) ? "text-amber-700 font-semibold" : "text-muted-foreground")}>{fmtQty(Number(p.dc_quantity) - Number(p.sp_quantity))} dz / {Number(p.dc_packages) - Number(p.sp_packages)} ctn</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(p.dc_quantity)} dz / {Number(p.dc_packages)} {PKG}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(p.sp_quantity)} dz / {Number(p.sp_packages)} {PKG}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtQty(gDz)} dz / {gPkg} {PKG}</TableCell>
+                          <TableCell className={cn("text-right tabular-nums whitespace-nowrap font-semibold", dDz !== 0 ? "text-red-700" : "text-emerald-700")}>{fmtQty(dDz)} dz</TableCell>
+                          <TableCell className={cn("text-right tabular-nums whitespace-nowrap", dcDz !== 0 ? "text-amber-700 font-semibold" : "text-muted-foreground")}>{fmtQty(dcDz)} dz</TableCell>
                         </TableRow>
                       );
                     })}
@@ -484,7 +486,7 @@ export default function StoreGateReconciliationPage() {
               </div>
               <div>
                 <Label htmlFor="rc-note">What explains it *</Label>
-                <Textarea id="rc-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 1 carton damaged and re-packed; DC corrected to 145 dz" />
+                <Textarea id="rc-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 2 dz damaged and re-packed; DC corrected to 145 dz" />
               </div>
             </div>
           )}

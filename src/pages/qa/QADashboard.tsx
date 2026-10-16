@@ -34,6 +34,81 @@ import { cn } from "@/lib/utils";
 
 const COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6'];
 
+const PROCESS_PIE_COLORS = [
+  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+  '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#06b6d4', '#a855f7',
+  '#eab308', '#64748b', '#d946ef', '#0ea5e9',
+];
+
+function ProcessPieCard({ userName, processData }: { userName: string; processData: { name: string; value: number }[] }) {
+  const data = [...processData].filter((p) => p.value > 0).sort((a, b) => b.value - a.value);
+  const total = data.reduce((sum, p) => sum + p.value, 0);
+
+  return (
+    <Card className="flex flex-col">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium truncate" title={userName}>{userName}</CardTitle>
+        <p className="text-xs text-muted-foreground">Total: {total} inspections</p>
+      </CardHeader>
+      <CardContent className="flex-1">
+        {data.length > 0 ? (
+          <>
+            <div className="h-[160px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={38}
+                    outerRadius={70}
+                    paddingAngle={data.length > 1 ? 1 : 0}
+                    dataKey="value"
+                    nameKey="name"
+                    isAnimationActive={false}
+                  >
+                    {data.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={PROCESS_PIE_COLORS[index % PROCESS_PIE_COLORS.length]} stroke="hsl(var(--card))" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [`${value} (${((value / total) * 100).toFixed(1)}%)`, name]}
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="mt-3 space-y-1.5 max-h-[168px] overflow-y-auto pr-1">
+              {data.map((p, index) => (
+                <li key={p.name} className="grid grid-cols-[10px_1fr_auto_44px] items-center gap-2 text-xs">
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: PROCESS_PIE_COLORS[index % PROCESS_PIE_COLORS.length] }}
+                  />
+                  <span className="truncate text-foreground" title={p.name}>{p.name}</span>
+                  <span className="font-medium tabular-nums text-right">{p.value}</span>
+                  <span className="text-muted-foreground tabular-nums text-right">
+                    {((p.value / total) * 100).toFixed(0)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">
+            No inspections
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function QADashboard() {
   const navigate = useNavigate();
   const [processViewMode, setProcessViewMode] = useState<"daily" | "monthly">("daily");
@@ -1687,49 +1762,7 @@ export default function QADashboard() {
             <h3 className="text-lg font-semibold mb-4">Machine Operators - Process-wise Inspections</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
               {userProcessInspections.operators.map((operator) => (
-                <Card key={operator.userId}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">{operator.userName}</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      Total: {operator.processData.reduce((sum, p) => sum + p.value, 0)} inspections
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px]">
-                      {operator.processData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={operator.processData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, value }) => `${name}: ${value}`}
-                              outerRadius={60}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {operator.processData.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'hsl(var(--card))', 
-                                border: '1px solid hsl(var(--border))',
-                                borderRadius: '8px'
-                              }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                          No inspections
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProcessPieCard key={operator.userId} userName={operator.userName} processData={operator.processData} />
               ))}
             </div>
           </>
@@ -1741,49 +1774,7 @@ export default function QADashboard() {
             <h3 className="text-lg font-semibold mb-4">QA Officers - Process-wise Inspections</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
               {userProcessInspections.qaOfficers.map((officer) => (
-                <Card key={officer.userId}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">{officer.userName}</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      Total: {officer.processData.reduce((sum, p) => sum + p.value, 0)} inspections
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px]">
-                      {officer.processData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={officer.processData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, value }) => `${name}: ${value}`}
-                              outerRadius={60}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {officer.processData.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'hsl(var(--card))', 
-                                border: '1px solid hsl(var(--border))',
-                                borderRadius: '8px'
-                              }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                          No inspections
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProcessPieCard key={officer.userId} userName={officer.userName} processData={officer.processData} />
               ))}
             </div>
           </>
