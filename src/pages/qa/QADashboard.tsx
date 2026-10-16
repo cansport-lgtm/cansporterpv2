@@ -31,6 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
+import { QADashboardExportButton } from "@/components/qa/QADashboardExportButton";
 
 const COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6'];
 
@@ -773,7 +774,23 @@ export default function QADashboard() {
         <PageHeader 
           title="QA Dashboard" 
           description="Quality Assurance overview and metrics"
-        />
+        >
+          <QADashboardExportButton
+            defaultFrom={new Date(`${totalInspDateStart}T00:00:00`)}
+            defaultTo={new Date(`${totalInspDateEnd}T00:00:00`)}
+            keyProcessCodes={keyProcessCodes}
+            todayPlanDate={todayStr}
+            todayPlanItems={planItemsWithProgress.map((item: any) => ({
+              department: item.production_departments?.name || "",
+              process: item.qa_processes?.name || "All Processes",
+              grade: item.grades?.name || "",
+              assignedTo: item.app_users?.full_name || "",
+              target: item.target_inspections || 0,
+              completed: item.completed,
+              progress: item.progress,
+            }))}
+          />
+        </PageHeader>
 
         {/* Total Inspections Card with Date Filter */}
         <Card>
