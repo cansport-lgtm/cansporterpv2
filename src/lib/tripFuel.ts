@@ -79,6 +79,8 @@ export const FUEL_KEYS = {
   settings: "staff-trip-fuel-settings",
   lastEndKm: "staff-trip-fuel-last-end-km",
   events: "staff-trip-fuel-events",
+  travelAllowed: "staff-trip-fuel-travel-allowed",
+  mine: "staff-trip-fuel-mine",
 };
 
 export function invalidateTripFuelQueries(queryClient: QueryClient) {
@@ -142,37 +144,59 @@ export function useLastEndKm(employeeId: string | undefined) {
   });
 }
 
+/** Whether the staff member is paid travel allowance (employees.travel_allowance_allowed): only they can claim trip fuel. */
+export function useTravelAllowanceAllowed(employeeId: string | undefined) {
+  return useQuery<boolean | null>({
+    queryKey: [FUEL_KEYS.travelAllowed, employeeId],
+    enabled: Boolean(employeeId),
+    queryFn: async () => {
+      const { data, error } = await ppDb.from("employees").select("travel_allowance_allowed").eq("id", employeeId).maybeSingle();
+      if (error || !data) return null;
+      return Boolean(data.travel_allowance_allowed);
+    },
+  });
+}
+
 export const fmtKm = (n: number | null | undefined) => (n == null ? "—" : `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`);
 export const fmtRs = (n: number | null | undefined) => (n == null ? "—" : `Rs ${Math.round(Number(n)).toLocaleString()}`);
 
-/** Print the cash voucher. `pass` adds the gate times when it is at hand. */
-export function printTripFuelVoucher(v: TripFuelVoucher, pass?: Pick<PersonGatePass, "pass_number" | "gate_out_at" | "gate_in_at"> | null) {
+type VoucherPass = Pick<PersonGatePass, "pass_number" | "gate_out_at" | "gate_in_at">;
+
+// Two vouchers to an A4 sheet, each in a fixed half with a cut line between them.
+const TFV_PRINT_CSS = `
+  @page { size: A4; margin: 8mm; }
+  body { padding: 0; }
+  .tfv-sheet { height: 281mm; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+  .tfv-sheet:last-child { page-break-after: auto; break-after: auto; }
+  .tfv-slot { height: 50%; overflow: hidden; padding: 4mm 0; }
+  .tfv-slot + .tfv-slot { border-top: 1px dashed #999; }
+  .tfv { max-width: 560px; margin: 0 auto; border: 1px solid #999; padding: 12px 16px; }
+  .tfv .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 11px; margin-top: 8px; }
+  .tfv .amount { margin-top: 10px; border: 2px solid #111; padding: 8px 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  .tfv .amount b { font-size: 20px; }
+  .tfv .sign { display: flex; gap: 12px; margin-top: 30px; }
+  .tfv .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; font-size: 9px; text-align: center; }
+`;
+
+function tripFuelVoucherHtml(v: TripFuelVoucher, pass?: VoucherPass | null) {
   const p = pass ?? v.pass;
   const status = fuelStatusMeta(v.status).label;
-  const body = `
-  <style>
-    .tfv { max-width: 520px; margin: 0 auto; border: 1px solid #999; padding: 16px 18px; }
-    .tfv .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 12px; margin-top: 12px; }
-    .tfv .amount { margin-top: 14px; border: 2px solid #111; padding: 10px 12px; display: flex; justify-content: space-between; align-items: baseline; }
-    .tfv .amount b { font-size: 22px; }
-    .tfv .sign { display: flex; gap: 12px; margin-top: 42px; }
-    .tfv .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; font-size: 10px; text-align: center; }
-  </style>
-  <div class="wrap tfv">
-    <div class="head" style="margin-bottom:8px; padding-bottom:8px">
+  return `
+  <div class="tfv">
+    <div class="head" style="margin-bottom:6px; padding-bottom:6px">
       <div>
-        <h1 style="font-size:16px">Cansport Global Industries</h1>
-        <div class="bold" style="margin-top:6px; letter-spacing:.08em; font-size:13px">TRIP FUEL · CASH PAYMENT VOUCHER</div>
+        <h1 style="font-size:15px">Cansport Global Industries</h1>
+        <div class="bold" style="margin-top:4px; letter-spacing:.08em; font-size:12px">TRIP FUEL · CASH PAYMENT VOUCHER</div>
         ${v.status === "pending_approval" ? `<div class="bold" style="color:#b45309">NOT APPROVED YET — NOT PAYABLE</div>` : ""}
         ${v.status === "rejected" || v.status === "cancelled" ? `<div class="bold" style="color:#b42318">${esc(status.toUpperCase())} — NOT PAYABLE</div>` : ""}
       </div>
       <div style="text-align:right">
-        <div class="bold" style="font-size:16px">${esc(v.voucher_number)}</div>
+        <div class="bold" style="font-size:15px">${esc(v.voucher_number)}</div>
         <div class="xs muted">${esc(format(new Date(v.trip_date), "dd MMM yyyy"))}</div>
       </div>
     </div>
     <div>
-      <div class="big" style="font-size:18px; font-weight:700">${esc(v.person?.full_name ?? "")}</div>
+      <div class="big" style="font-size:16px; font-weight:700">${esc(v.person?.full_name ?? "")}</div>
       <div class="muted">${esc(v.person?.employee_code ?? "")}${v.person?.production_departments?.name ? ` · ${esc(v.person.production_departments.name)}` : ""}</div>
     </div>
     <div class="facts">
@@ -202,5 +226,21 @@ export function printTripFuelVoucher(v: TripFuelVoucher, pass?: Pick<PersonGateP
       <div>Received by<br>&nbsp;<br>&nbsp;</div>
     </div>
   </div>`;
-  printDocument(v.voucher_number, body);
+}
+
+/** Print cash vouchers two to an A4 sheet. Each item's `pass` adds the gate times when it is at hand. */
+export function printTripFuelVouchers(items: { voucher: TripFuelVoucher; pass?: VoucherPass | null }[]) {
+  if (items.length === 0) return;
+  const sheets: string[] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    const slots = items.slice(i, i + 2).map(({ voucher, pass }) => `<div class="tfv-slot">${tripFuelVoucherHtml(voucher, pass)}</div>`);
+    sheets.push(`<div class="tfv-sheet">${slots.join("")}</div>`);
+  }
+  const title = items.length === 1 ? items[0].voucher.voucher_number : `Trip fuel vouchers (${items.length})`;
+  printDocument(title, `<style>${TFV_PRINT_CSS}</style>${sheets.join("")}`);
+}
+
+/** Print one cash voucher (top half of the sheet). `pass` adds the gate times when it is at hand. */
+export function printTripFuelVoucher(v: TripFuelVoucher, pass?: VoucherPass | null) {
+  printTripFuelVouchers([{ voucher: v, pass }]);
 }

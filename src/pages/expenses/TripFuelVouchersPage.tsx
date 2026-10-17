@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { errorMessage, fmtDT, hasAnyRole, ppDb, todayPk } from "@/lib/personGatePass";
 import {
   FUEL_APPROVE_ROLES, FUEL_FILTER_STATUSES, FUEL_KEYS, FUEL_SELECT, FUEL_SETTINGS_ROLES, FUEL_STATUS_META, fmtKm, fmtRs, fuelStatusMeta,
-  isApprovedFuel, printTripFuelVoucher, useTripFuelSettings, type TripFuelVoucher,
+  isApprovedFuel, printTripFuelVoucher, printTripFuelVouchers, useTripFuelSettings, type TripFuelVoucher,
 } from "@/lib/tripFuel";
 
 /**
@@ -163,10 +163,15 @@ export default function TripFuelVouchersPage() {
 
         <Card>
           <CardContent className="p-0">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground border-b">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground border-b">
               <span><b className="text-foreground">{filtered.length}</b> vouchers</span>
               <span><b className="text-foreground">{totals.approvedCount}</b> approved · <b className="text-foreground">{fmtRs(totals.approved)}</b> · {fmtKm(totals.km)}</span>
               <span><b className="text-foreground">{fmtRs(totals.awaiting)}</b> awaiting HR approval</span>
+              {totals.approvedCount > 0 && (
+                <Button variant="outline" size="sm" className="ml-auto h-7" onClick={() => printTripFuelVouchers(filtered.filter((v) => isApprovedFuel(v.status)).map((voucher) => ({ voucher })))}>
+                  <Printer className="h-3.5 w-3.5 mr-1" /> Print approved ({totals.approvedCount}) · 2 per page
+                </Button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <Table>

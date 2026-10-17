@@ -85,7 +85,8 @@ check these roles; the tables are read-only to the app.
 | Gate Pass Approvals | `/hr/gate-pass/approvals` | Queue for the approver, plus short leaves overdue at the gate |
 | Gate Check | `/gate-pass/check` | **Goods / vehicle**, **Worker** and **Staff** modes on the guard's existing page |
 | HR Dashboard | `/hr/dashboard` | The four cards at the top and the rescan alerts |
-| Employees | `/hr/employees` | Photo upload (`employees.photo_url`, bucket `staff-photos`) so the guard can match the person; **Login user** link and **Field duty allowed** switch |
+| Employees | `/hr/employees` | Photo upload (`employees.photo_url`, bucket `staff-photos`) so the guard can match the person; **Login user** link, **Field duty allowed** and **Travel allowance** switches |
+| My Travel Vouchers | `/my-travel-vouchers` | Self-service for staff with travel allowance: own trip fuel vouchers, print two to a page, trips still to claim |
 
 ### Company work report
 
@@ -156,15 +157,29 @@ counted as approved, and keep their paid-by / paid-at details.
   Rate and figures are frozen on the voucher.
 - **Voucher.** `TFV-000001` … with staff, pass, date, route, odometer or km,
   rate, amount and signature lines (claimed by, approved by HR, paid by cashier,
-  received by; the cashier and receiver sign by hand). Printable from the pass page
-  and the Trip Fuel Vouchers page.
+  received by; the cashier and receiver sign by hand). Printable from the pass page,
+  My Travel Vouchers and the Trip Fuel Vouchers page. Vouchers print **two to an A4
+  page** in fixed halves with a dashed cut line; printing several at once fills the
+  sheets in pairs.
+- **Who may claim: travel allowance.** Only staff with **Travel allowance** switched
+  on (Employees page, `employees.travel_allowance_allowed`, migration
+  `20261101120000_staff_travel_allowance.sql`, rollback
+  `supabase/rollbacks/20261101120000_staff_travel_allowance_down.sql`). A trigger on
+  `staff_trip_fuel_vouchers` refuses a new voucher for anyone else, whether the staff
+  member or HR raises it; the pass page shows a note instead of the claim form.
+  Existing vouchers are untouched, and staff who already had a live voucher when the
+  switch was added start with it on.
 - **Roles.** Claim: the staff member on the pass (self-service) or HR. Approve
   / reject: `hr_manager` (and super admin), always. Cancel: the claimant or an HR
   manager while the claim is pending; only an HR manager once it is approved (cash
   may already be out, so settle that with the staff member by hand). No new role.
 - **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for HR**;
   **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the register of
-  every voucher (filters, print, Excel export) and holds the settings. The staff register shows the voucher on each trip and km / fuel per
+  every voucher (filters, print, **Print approved · 2 per page**, Excel export) and
+  holds the settings. **Self Service → My Travel Vouchers** (`/my-travel-vouchers`,
+  shown only to staff with travel allowance) lists the staff member's own vouchers
+  for the chosen dates, prints the selected or all approved ones two to a page, and
+  lists finished company work trips not claimed yet with a **Claim fuel** link. The staff register shows the voucher on each trip and km / fuel per
   person in the Company work summary and its export.
 - **Notifications.** Claim → HR managers. Approved → claimant and cashiers
   (`pettycash_handler`, `expenses_manager`): "approved for Rs X, the cashier pays it

@@ -466,6 +466,7 @@ export type MyEmployee = {
   full_name: string;
   photo_url: string | null;
   field_duty_allowed: boolean | null;
+  travel_allowance_allowed: boolean | null;
   designations?: { name: string } | null;
   production_departments?: { name: string } | null;
 };
@@ -478,7 +479,7 @@ export function useMyEmployee(userId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await ppDb
         .from("employees")
-        .select("id, employee_code, full_name, photo_url, field_duty_allowed, designations(name), production_departments(name)")
+        .select("id, employee_code, full_name, photo_url, field_duty_allowed, travel_allowance_allowed, designations(name), production_departments(name)")
         .eq("app_user_id", userId)
         .eq("is_active", true)
         .order("created_at")
