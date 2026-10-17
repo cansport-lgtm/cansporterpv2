@@ -108,6 +108,7 @@ import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
 import MyGatePassListPage from "./pages/hr/MyGatePassListPage";
 import MyGatePassFormPage from "./pages/hr/MyGatePassFormPage";
 import MyGatePassDetailPage from "./pages/hr/MyGatePassDetailPage";
+import MyTravelVouchersPage from "./pages/hr/MyTravelVouchersPage";
 
 // Sales pages
 import SalesDashboard from "./pages/sales/SalesDashboard";
@@ -657,6 +658,7 @@ const App = () => (
             <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
             <Route path="/my-gate-pass/new" element={<ProtectedRoute><MyGatePassFormPage /></ProtectedRoute>} />
             <Route path="/my-gate-pass/:id" element={<ProtectedRoute><MyGatePassDetailPage /></ProtectedRoute>} />
+            <Route path="/my-travel-vouchers" element={<ProtectedRoute><MyTravelVouchersPage /></ProtectedRoute>} />
             <Route path="/my-purchase-requests" element={<ProtectedRoute><MyPurchaseRequestsPage /></ProtectedRoute>} />
             <Route path="/my-purchase-requests/new" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
             <Route path="/my-purchase-requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />

@@ -1221,6 +1221,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // login, so every role may open them (the database checks the link on every write).
     if (route === '/my-gate-pass' || route.startsWith('/my-gate-pass/')) return true;
 
+    // My Travel Vouchers: the trip fuel vouchers of the staff record linked to the
+    // login, to print for the cashier. Same rule as My Gate Passes.
+    if (route === '/my-travel-vouchers') return true;
+
     // My Purchase Requests: anyone raises their own purchase requests and follows
     // them; department heads approve their department's here. The pages only act
     // through the purchase_request_* database functions, which check who may do what.

@@ -49,6 +49,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyEmployee } from "@/lib/personGatePass";
 import type { Database as SupabaseDatabase } from "@/integrations/supabase/types";
 import cansportLogo from "@/assets/cansport-logo.png";
 
@@ -61,6 +62,7 @@ interface NavChild {
   requiresApprove?: string; // module name; only show if user has approve permission for this module
   excludeRoles?: AppRole[];
   allowedRoles?: AppRole[]; // any-of allow-list; only show if the user has one of these roles
+  requiresTravelAllowance?: boolean; // only show if the login's staff record is paid travel allowance
   state?: Record<string, any>;
   // When true, this entry renders as a non-clickable section header inside the
   // module's children. Used to group long modules (e.g. Accounting) into
@@ -810,6 +812,7 @@ const navigationItems: NavItem[] = [
     icon: DoorOpen,
     children: [
       { title: "My Gate Passes", href: "/my-gate-pass" },
+      { title: "My Travel Vouchers", href: "/my-travel-vouchers", requiresTravelAllowance: true },
       { title: "My Purchase Requests", href: "/my-purchase-requests" },
     ],
   },
@@ -858,7 +861,8 @@ const useIsDesktop = () => {
 
 export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: ERPSidebarProps) {
   const location = useLocation();
-  const { canAccessModule, canAccessRoute, roles, hasModulePermission } = useAuth();
+  const { canAccessModule, canAccessRoute, roles, hasModulePermission, user } = useAuth();
+  const { data: myEmployee } = useMyEmployee(user?.id);
   const [isAddRawMaterialOpen, setIsAddRawMaterialOpen] = useState(false);
 
   // The icon rail only applies on desktop; the mobile drawer always shows full labels.
@@ -883,6 +887,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
 
       return item.children.filter((child) => {
         if (child.superAdminOnly && !isSuperAdmin) return false;
+        if (child.requiresTravelAllowance && !myEmployee?.travel_allowance_allowed) return false;
 
         // Section headers are always visible alongside their group (we drop
         // dangling headers later, after route-level filtering).
@@ -961,7 +966,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
       // Remove parent items with no children after filtering
       .filter((item): item is NavItem => Boolean(item))
       .filter((item) => !item.children || item.children.length > 0);
-  }, [isSuperAdmin, roles, canAccessModule, canAccessRoute, hasModulePermission]);
+  }, [isSuperAdmin, roles, canAccessModule, canAccessRoute, hasModulePermission, myEmployee?.travel_allowance_allowed]);
 
   // Some sidebar entries carry a default query string (e.g. ?type=customer on the
   // ledger views) so we compare only the path portion when locating the active module.

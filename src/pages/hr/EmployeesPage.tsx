@@ -41,6 +41,7 @@ interface Employee {
   allowances: number | null;
   photo_url?: string | null;
   field_duty_allowed?: boolean | null;
+  travel_allowance_allowed?: boolean | null;
   app_user_id?: string | null;
   ref1_name?: string | null;
   ref1_relationship?: string | null;
@@ -111,6 +112,7 @@ const EmployeesPage = () => {
     duty_hours: "8",
     photo_url: "",
     field_duty_allowed: false,
+    travel_allowance_allowed: false,
     app_user_id: "",
     ...referencesFrom(),
   });
@@ -233,6 +235,7 @@ const EmployeesPage = () => {
         duty_hours: data.duty_hours ? parseFloat(data.duty_hours) : 8,
         photo_url: data.photo_url || null,
         field_duty_allowed: data.field_duty_allowed,
+        travel_allowance_allowed: data.travel_allowance_allowed,
         app_user_id: data.app_user_id || null,
         ...Object.fromEntries(REFERENCE_KEYS.map((k) => [k, data[k]?.trim() || null])),
       };
@@ -324,6 +327,7 @@ const EmployeesPage = () => {
       duty_hours: "8",
       photo_url: "",
       field_duty_allowed: false,
+      travel_allowance_allowed: false,
       app_user_id: "",
       ...referencesFrom(),
     });
@@ -350,6 +354,7 @@ const EmployeesPage = () => {
       duty_hours: (employee as any).duty_hours?.toString() || "8",
       photo_url: employee.photo_url || "",
       field_duty_allowed: Boolean(employee.field_duty_allowed),
+      travel_allowance_allowed: Boolean(employee.travel_allowance_allowed),
       app_user_id: employee.app_user_id || "",
       ...referencesFrom(employee),
     });
@@ -783,6 +788,16 @@ const EmployeesPage = () => {
                   <div>
                     <Label>Field duty allowed</Label>
                     <p className="text-[11px] text-muted-foreground">Official duty passes are approved the moment they are raised (purchase officers, drivers, …).</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={formData.travel_allowance_allowed}
+                    onCheckedChange={(checked) => setFormData({ ...formData, travel_allowance_allowed: checked })}
+                  />
+                  <div>
+                    <Label>Travel allowance</Label>
+                    <p className="text-[11px] text-muted-foreground">Can claim trip fuel vouchers on official duty passes and print them under Self Service → My Travel Vouchers.</p>
                   </div>
                 </div>
               </div>

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { errorMessage, fmtDT, hasAnyRole, ppDb, type PersonGatePass, type PersonPassVariant } from "@/lib/personGatePass";
 import {
   FUEL_APPROVE_ROLES, FUEL_KEYS, fmtKm, fmtRs, fuelStatusMeta, invalidateTripFuelQueries, isApprovedFuel, printTripFuelVoucher,
-  useLastEndKm, useTripFuelSettings, useTripFuelVoucher, type TripFuelVoucher,
+  useLastEndKm, useTravelAllowanceAllowed, useTripFuelSettings, useTripFuelVoucher, type TripFuelVoucher,
 } from "@/lib/tripFuel";
 
 type EventRow = { id: string; event: string; message: string | null; created_at: string; actor: { full_name: string | null } | null };
@@ -43,6 +43,7 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
   const { data: voucher, isLoading } = useTripFuelVoucher(pass.id);
   const { data: settings } = useTripFuelSettings();
   const { data: lastEndKm } = useLastEndKm(voucher ? undefined : pass.employee_id);
+  const { data: travelAllowed } = useTravelAllowanceAllowed(voucher ? undefined : pass.employee_id);
 
   const [mode, setMode] = useState<"odometer" | "manual">("odometer");
   const [route, setRoute] = useState(pass.destination ?? "");
@@ -248,6 +249,16 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
     );
   }
   if (!canClaim) return null;
+  if (travelAllowed === false) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">{title}</CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Travel allowance is not enabled for {self ? "you" : "this staff member"}, so trip fuel cannot be claimed on this pass. HR turns it on on the Employees page.
+        </CardContent>
+      </Card>
+    );
+  }
 
   const ready = route.trim().length > 0 && km > 0 && km <= maxKm && rate > 0 && !claim.isPending;
 
