@@ -18,7 +18,7 @@ that carries the tables, roles, routes and wording.
 | Kind | Meaning | What happens |
 |---|---|---|
 | **Half day** | The staff member leaves and does not come back today | When the guard scans them out, the date is marked **Half day** in HR attendance (see below) |
-| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Up to 3 h outside in office hours (08:30–19:30) → no effect; over 3 h → **Half day**; over 8 h → **Absent** (see below). Still out at 19:30 → **Not returned**, with the same rule on the time outside |
 | **Official duty** | Company work: purchases, bank, site visit. Expected within N minutes (default 180) | Guard scans **Out**, later **In**. A **destination** is recorded with the purpose. **Attendance is never touched.** Late return is information for HR, not a warning. Still out at day end → **Not scanned in**, no half day, HR informed |
 
 Official duty was added in `20261004120000_staff_gate_pass_official_duty.sql`
@@ -213,8 +213,8 @@ Staff attendance is one row per employee per day in `attendance`
 (`present`, `absent`, `half_day`, `late`, `on_leave`), read by the Salary
 Sheet, Attendance Sheet, Time Sheet and Punctuality Analytics. So:
 
-- When a half-day pass goes **Out** (or a short leave becomes **Not
-  returned**), `staff_gate_pass_mark_half_day` sets the attendance row of that
+- When a half-day pass goes **Out** (or a short leave passes the 3-hour
+  threshold below), `staff_gate_pass_mark_half_day` sets the attendance row of that
   staff member for that date to `half_day`, creating the row if there is none,
   fills `check_out` with the gate-out time where blank, and adds the remark
   "Left on gate pass SGP-…".
@@ -232,6 +232,27 @@ Sheet, Attendance Sheet, Time Sheet and Punctuality Analytics. So:
 
 There is no override: once the staff member is out on a half-day pass, that
 date is a half day.
+
+### Short leave: time-outside thresholds
+
+From `20261103130000_staff_gate_pass_outside_thresholds.sql` (the staff
+equivalent of the worker rule). Time outside counts only inside the official
+hours, 08:30 to 19:30 (`day_start_time` / `official_end_time` in
+`staff_gate_pass_settings`), from the gate-out scan to the gate-in scan or 19:30:
+
+| Time outside | Effect (`staff_gate_passes.attendance_effect`) |
+|---|---|
+| 3 h or less | none — attendance is not touched |
+| over 3 h (`half_day_after_minutes`, 180) | `half_day`: attendance row Half day, as above |
+| over 8 h (`absent_after_minutes`, 480) | `absent`: attendance row Absent (created if missing); the trigger keeps it absent |
+
+The effect is applied the moment the threshold is crossed (five-minute tick)
+or at the gate-in scan; scanning in later never undoes it. A short leave still
+out closes at 19:30 (or the staff member's later day end) as **Not returned**
+with whatever its time outside earned — under 3 h means no half day. The old
+`auto_half_day_not_returned` setting is no longer read. Passes closed before
+the migration keep the half day they already marked. A super admin changes the
+limits with `staff_gate_pass_settings_update(jsonb)`.
 
 ## Notifications (module `hr`, link to the pass page)
 

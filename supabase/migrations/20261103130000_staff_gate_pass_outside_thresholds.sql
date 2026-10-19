@@ -32,7 +32,7 @@
 -- the half day they already marked (the new rule applies from now on).
 -- Written without DROP INDEX / DROP FUNCTION (hosted runner).
 -- Builds on 20261004120000_staff_gate_pass_official_duty.sql.
--- Rollback: supabase/rollbacks/20261103120000_staff_gate_pass_outside_thresholds_down.sql
+-- Rollback: supabase/rollbacks/20261103130000_staff_gate_pass_outside_thresholds_down.sql
 -- ============================================================================
 
 -- 1. Schema ------------------------------------------------------------------

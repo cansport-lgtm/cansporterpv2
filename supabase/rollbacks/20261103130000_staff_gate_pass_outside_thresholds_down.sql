@@ -1,4 +1,4 @@
--- Rollback for 20261103120000_staff_gate_pass_outside_thresholds.sql
+-- Rollback for 20261103130000_staff_gate_pass_outside_thresholds.sql
 -- HR attendance rows set to Absent by a pass are NOT restored automatically;
 -- each one's previous status is in staff_gate_pass_events (event
 -- 'absent_marked', details.previous_status) if it must be corrected.

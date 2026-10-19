@@ -7,7 +7,7 @@
 //   workers  supabase/migrations/20261002120100_labour_gate_pass.sql
 //   staff    supabase/migrations/20261003120100_staff_gate_pass.sql
 // Time-outside thresholds on short leave: 20261006120000_labour_gate_pass_outside_thresholds.sql
-// (workers) and 20261103120000_staff_gate_pass_outside_thresholds.sql (staff).
+// (workers) and 20261103130000_staff_gate_pass_outside_thresholds.sql (staff).
 // Every write goes through the <prefix>_* functions; the tables are read-only here.
 
 import { format } from "date-fns";
