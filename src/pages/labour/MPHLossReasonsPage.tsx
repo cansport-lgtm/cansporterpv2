@@ -860,6 +860,15 @@ function Kpi({ label, value, sub, className = "" }: { label: string; value: stri
 // Source-page links are for super admin only: the coordinator's role cannot open those pages.
 function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: DepartmentMph; detail?: DepartmentMphDetail; compact?: boolean; showLinks?: boolean }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [lang, setLangState] = useState<ResultLang>(readResultLang);
+  const setLang = (l: ResultLang) => {
+    setLangState(l);
+    try {
+      localStorage.setItem(RESULT_LANG_KEY, l);
+    } catch {
+      // Private mode / storage blocked: the choice just doesn't persist.
+    }
+  };
   const items = detail?.items ?? [];
   const workers = detail?.workers ?? [];
   const authorized = round1(items.reduce((s, i) => s + i.authorized, 0));
@@ -1026,28 +1035,77 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
         </section>
       </div>
 
-      {/* Result */}
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900 leading-relaxed">
-        <div className="flex items-center gap-2 font-semibold mb-0.5"><Step n={3} red /> Result</div>
-        {d.department_name} earned <b className="tabular-nums">{fmtMph(d.authorized_mph)}</b> MPH from {fmtQty(d.output)} units
-        {items.length > 0 ? ` across ${items.length} item${items.length === 1 ? "" : "s"}` : ""}, but used{" "}
-        <b className="tabular-nums">{fmtMph(d.used_mph)}</b> MPH of labour{workers.length > 0 ? ` from ${workers.length} workers` : ""}.
-        {net < 0 ? (
-          <> So <b className="tabular-nums">{fmtMph(-net)}</b> MPH is lost.</>
+      {/* Result — Urdu by default, English on the toggle; the choice is kept per device. */}
+      <div className={`rounded-lg border px-3 py-2.5 text-sm leading-relaxed ${net < 0 ? "border-red-200 bg-red-50 text-red-900" : "border-green-200 bg-green-50 text-green-900"}`}>
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <div className="flex items-center gap-2 font-semibold">
+            <Step n={3} red={net < 0} green={net >= 0} />
+            {lang === "ur" ? <span className="font-urdu text-base leading-7">نتیجہ</span> : "Result"}
+            {lang === "ur" && <span className="text-xs font-normal opacity-70">Result</span>}
+          </div>
+          <div className="inline-flex rounded-full border bg-background overflow-hidden" role="group" aria-label="Result language">
+            <button type="button" onClick={() => setLang("ur")} className={`h-8 px-3 text-xs font-semibold font-urdu ${lang === "ur" ? "bg-primary text-primary-foreground" : "text-foreground"}`}>اردو</button>
+            <button type="button" onClick={() => setLang("en")} className={`h-8 px-3 text-xs font-semibold ${lang === "en" ? "bg-primary text-primary-foreground" : "text-foreground"}`}>English</button>
+          </div>
+        </div>
+        {lang === "ur" ? (
+          <p dir="rtl" lang="ur" className="font-urdu text-right text-[16px] leading-[2.1] m-0">
+            <bdi className="font-sans font-semibold">{d.department_name}</bdi> نے{" "}
+            <N>{fmtQty(d.output)}</N> یونٹس{items.length > 0 ? <> (<N>{items.length}</N> آئٹمز)</> : null} کی <bdi className="font-sans font-semibold">Production</bdi> سے{" "}
+            <N>{fmtMph(d.authorized_mph)}</N> MPH کمائے، {net < 0 ? "لیکن" : "اور"}{" "}
+            {workers.length > 0 ? <><N>{workers.length}</N> {workers.length === 1 ? "ورکر" : "ورکرز"} کی مزدوری میں </> : "مزدوری میں "}
+            <N>{fmtMph(d.used_mph)}</N> MPH استعمال ہوئے۔{" "}
+            {net < 0 ? (
+              <>اس لیے <N>{fmtMph(-net)}</N> MPH کا <bdi className="font-sans font-semibold">Loss</bdi> ہوا۔</>
+            ) : (
+              <>اس لیے کوئی <bdi className="font-sans font-semibold">Loss</bdi> نہیں ہوا — <N>{fmtMph(net)}</N> MPH <bdi className="font-sans font-semibold">Save</bdi> ہوئے۔</>
+            )}
+            {d.output > 0 ? (
+              <> فی یونٹ استعمال شدہ MPH <N>{perUnit.toFixed(3)}</N> ہے، جبکہ معیار <N>{standard.toFixed(3)}</N> ہے۔</>
+            ) : (
+              <> آج اس ڈیپارٹمنٹ کی کوئی <bdi className="font-sans font-semibold">Production</bdi> <bdi className="font-sans font-semibold">Post</bdi> نہیں ہوئی۔</>
+            )}
+          </p>
         ) : (
-          <> So <b className="tabular-nums">{fmtMph(net)}</b> MPH is saved.</>
-        )}
-        {d.output > 0 && (
-          <> Used MPH per unit = <b className="tabular-nums">{perUnit.toFixed(3)}</b> against a standard of <b className="tabular-nums">{standard.toFixed(3)}</b>.</>
+          <p className="m-0">
+            {d.department_name} earned <b className="tabular-nums">{fmtMph(d.authorized_mph)}</b> MPH from {fmtQty(d.output)} units
+            {items.length > 0 ? ` across ${items.length} item${items.length === 1 ? "" : "s"}` : ""}, but used{" "}
+            <b className="tabular-nums">{fmtMph(d.used_mph)}</b> MPH of labour{workers.length > 0 ? ` from ${workers.length} workers` : ""}.
+            {net < 0 ? (
+              <> So <b className="tabular-nums">{fmtMph(-net)}</b> MPH is lost.</>
+            ) : (
+              <> So <b className="tabular-nums">{fmtMph(net)}</b> MPH is saved.</>
+            )}
+            {d.output > 0 ? (
+              <> Used MPH per unit = <b className="tabular-nums">{perUnit.toFixed(3)}</b> against a standard of <b className="tabular-nums">{standard.toFixed(3)}</b>.</>
+            ) : (
+              <> No production was posted for this department today.</>
+            )}
+          </p>
         )}
       </div>
     </div>
   );
 }
 
-function Step({ n, red = false }: { n: number; red?: boolean }) {
+type ResultLang = "ur" | "en";
+const RESULT_LANG_KEY = "mph_result_lang";
+const readResultLang = (): ResultLang => {
+  try {
+    return localStorage.getItem(RESULT_LANG_KEY) === "en" ? "en" : "ur";
+  } catch {
+    return "ur";
+  }
+};
+
+// A number or English word inside the Urdu sentence: isolated so it never flips.
+function N({ children }: { children: React.ReactNode }) {
+  return <bdi className="font-mono font-semibold tabular-nums">{children}</bdi>;
+}
+
+function Step({ n, red = false, green = false }: { n: number; red?: boolean; green?: boolean }) {
   return (
-    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${red ? "bg-red-700" : "bg-primary"}`}>
+    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${red ? "bg-red-700" : green ? "bg-green-700" : "bg-primary"}`}>
       {n}
     </span>
   );
