@@ -141,8 +141,14 @@ export default function MPHLossReasonsMasterPage() {
       };
       let reasonId = editing?.id;
       if (editing) {
-        const { error } = await (supabase as any).from("mph_loss_reasons").update(payload).eq("id", editing.id);
+        // RLS lets only a super admin write; a silently unmatched update must not look saved.
+        const { data, error } = await (supabase as any)
+          .from("mph_loss_reasons")
+          .update(payload)
+          .eq("id", editing.id)
+          .select("id");
         if (error) throw error;
+        if (!data?.length) throw new Error("Not saved — only a super admin can edit reasons");
       } else {
         const { data, error } = await (supabase as any)
           .from("mph_loss_reasons")
