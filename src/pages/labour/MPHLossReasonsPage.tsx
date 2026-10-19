@@ -478,7 +478,7 @@ export default function MPHLossReasonsPage() {
                   <DrawerDescription>{format(parseISO(date), "dd MMM yyyy")} · item by item</DrawerDescription>
                 </DrawerHeader>
                 <div className="overflow-y-auto px-4 pb-6">
-                  <CalcPanel d={calcDept.dept} detail={detail[calcDept.dept.department_id]} compact date={date} />
+                  <CalcPanel d={calcDept.dept} detail={detail[calcDept.dept.department_id]} compact showLinks={isSuperAdmin} />
                 </div>
               </>
             )}
@@ -616,7 +616,7 @@ export default function MPHLossReasonsPage() {
 
                 {calcOpen && (
                   <div className="border-b bg-muted/20 px-4 py-4">
-                    <CalcPanel d={d.dept} detail={detail[d.dept.department_id]} date={date} />
+                    <CalcPanel d={d.dept} detail={detail[d.dept.department_id]} showLinks={isSuperAdmin} />
                   </div>
                 )}
 
@@ -857,7 +857,8 @@ function Kpi({ label, value, sub, className = "" }: { label: string; value: stri
 }
 
 // The calculation behind a department's numbers: every item and every worker.
-function CalcPanel({ d, detail, compact = false, date }: { d: DepartmentMph; detail?: DepartmentMphDetail; compact?: boolean; date: string }) {
+// Source-page links are for super admin only: the coordinator's role cannot open those pages.
+function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: DepartmentMph; detail?: DepartmentMphDetail; compact?: boolean; showLinks?: boolean }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const items = detail?.items ?? [];
   const workers = detail?.workers ?? [];
@@ -956,9 +957,11 @@ function CalcPanel({ d, detail, compact = false, date }: { d: DepartmentMph; det
               </table>
             </div>
           )}
-          <Link to="/production/daily-entry" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
-            Open Daily Entry <ExternalLink className="h-3 w-3" />
-          </Link>
+          {showLinks && (
+            <Link to="/production/daily-entry" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
+              Open Daily Entry <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
         </section>
 
         {/* Workers */}
@@ -1015,9 +1018,11 @@ function CalcPanel({ d, detail, compact = false, date }: { d: DepartmentMph; det
               </table>
             </div>
           )}
-          <Link to="/labour/todays-target" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
-            Open deployment sheet <ExternalLink className="h-3 w-3" />
-          </Link>
+          {showLinks && (
+            <Link to="/labour/todays-target" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
+              Open deployment sheet <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
         </section>
       </div>
 
