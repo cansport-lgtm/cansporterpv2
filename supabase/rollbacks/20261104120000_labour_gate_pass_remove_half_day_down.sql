@@ -1,4 +1,4 @@
--- Rollback for 20261102120000_labour_gate_pass_remove_half_day.sql
+-- Rollback for 20261104120000_labour_gate_pass_remove_half_day.sql
 -- Puts the half day back on every pass that lost it (repair or by hand).
 
 UPDATE public.labour_gate_passes g

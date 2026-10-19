@@ -121,8 +121,8 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
   const canConvert = canApprove && pass.status === "out" && pass.pass_kind === "short_leave";
   const halfDayMarked = marksHalfDay(pass);
   const absentMarked = marksAbsent(pass);
-  // Super admin can lift a wrong half day (a short leave still out would be marked again by the tick).
-  const canRemoveHalfDay = Boolean(variant.attendanceEffects) && hasAnyRole(roles, ["super_admin"]) && halfDayMarked
+  // Super admin can lift a wrong half day on a worker pass (a short leave still out would be marked again by the tick).
+  const canRemoveHalfDay = variant.key === "worker" && hasAnyRole(roles, ["super_admin"]) && halfDayMarked
     && !(pass.pass_kind === "short_leave" && pass.status === "out");
   const autoApproved = Boolean(pass.approved_at) && !pass.approved_by;
   const fn = variant.fnPrefix;

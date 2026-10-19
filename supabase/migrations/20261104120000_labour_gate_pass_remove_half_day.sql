@@ -21,7 +21,7 @@
 -- back (their earlier work type is not recorded); the count is in the event,
 -- and a super admin can edit them to Full Day.
 -- Builds on 20261006120000_labour_gate_pass_outside_thresholds.sql.
--- Rollback: supabase/rollbacks/20261102120000_labour_gate_pass_remove_half_day_down.sql
+-- Rollback: supabase/rollbacks/20261104120000_labour_gate_pass_remove_half_day_down.sql
 -- ============================================================================
 
 -- 1. One-time repair -------------------------------------------------------------
@@ -57,7 +57,7 @@ BEGIN
     PERFORM public.labour_gate_pass_log(r.id, 'half_day_removed',
       'Half day removed (old rule fix): outside ' || r.minutes || ' min of working time, not over '
         || s.half_day_after_minutes || ' min',
-      jsonb_build_object('source', 'repair_20261102', 'minutes', r.minutes,
+      jsonb_build_object('source', 'repair_20261104', 'minutes', r.minutes,
         'half_day_rows_left', (SELECT count(*) FROM public.labour_productivity_targets t
                                 WHERE t.employee_id = r.employee_id AND t.target_date = r.pass_date
                                   AND t.work_type = 'half_day')));

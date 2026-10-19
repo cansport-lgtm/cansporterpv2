@@ -169,7 +169,7 @@ entries again. Productivity rows already at half day are not changed back
 many are left so they can be edited to Full Day. Not offered on a short leave
 still out — the next tick would mark it again.
 
-**Old-rule repair (20261102120000).** Before the time-outside thresholds, a
+**Old-rule repair (20261104120000).** Before the time-outside thresholds, a
 short leave still out at day end was marked half day however short the time
 outside, and those marks were carried into `attendance_effect`. The migration
 clears the half day on every short leave whose working time outside is not
