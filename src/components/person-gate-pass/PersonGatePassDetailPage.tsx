@@ -182,7 +182,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
           <div className="rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900">
             <b>{format(new Date(pass.pass_date), "dd MMM")} is marked ABSENT</b> for this {variant.noun}
             {pass.attendance_marked_at ? ` (${fmtDT(pass.attendance_marked_at)})` : ""}: outside {pass.work_minutes_outside ?? "over the limit"} min of working time on a short leave.
-            The productivity entries for that date were removed (kept in the history below) and no entry can be posted for it.
+            {" "}{variant.absentMarkedText}
           </div>
         )}
 

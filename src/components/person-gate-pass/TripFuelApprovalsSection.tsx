@@ -13,14 +13,15 @@ import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { errorMessage, fmtDT, hasAnyRole, ppDb } from "@/lib/personGatePass";
-import { FUEL_APPROVE_ROLES, FUEL_KEYS, FUEL_SELECT, fmtKm, fmtRs, invalidateTripFuelQueries, type TripFuelVoucher } from "@/lib/tripFuel";
+import { FUEL_APPROVE_ROLES, FUEL_KEYS, FUEL_SELECT, fmtKm, fmtRs, invalidateTripFuelQueries, isOwnFuelClaim, type TripFuelVoucher } from "@/lib/tripFuel";
 
-/** Trip fuel claims waiting for the HR manager, on the staff gate pass approvals page. */
+/** Trip fuel claims waiting for an HR manager or staff gate pass approver, on the staff gate pass approvals page. */
 export function TripFuelApprovalsSection({ basePath }: { basePath: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { roles } = useAuth();
+  const { user, roles } = useAuth();
   const canApprove = hasAnyRole(roles, FUEL_APPROVE_ROLES);
+  const isSuperAdmin = hasAnyRole(roles, ["super_admin"]);
   const [target, setTarget] = useState<TripFuelVoucher | null>(null);
   const [reason, setReason] = useState("");
 
@@ -53,10 +54,10 @@ export function TripFuelApprovalsSection({ basePath }: { basePath: string }) {
   return (
     <Card className="border-amber-200">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2"><Fuel className="h-4 w-4" /> Trip fuel claims waiting for HR · {pending.length}</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><Fuel className="h-4 w-4" /> Trip fuel claims waiting for approval · {pending.length}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {!canApprove && <div className="text-xs text-muted-foreground">Only an HR manager (or a super admin) approves fuel claims.</div>}
+        {!canApprove && <div className="text-xs text-muted-foreground">Only an HR manager or a staff gate pass approver (or a super admin) approves fuel claims.</div>}
         {pending.map((v) => (
           <div key={v.id} className="rounded-lg border p-3 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,7 +79,10 @@ export function TripFuelApprovalsSection({ basePath }: { basePath: string }) {
             </div>
             <div className="text-sm"><span className="text-muted-foreground">Route:</span> {v.route}{v.notes ? <span className="text-muted-foreground"> · {v.notes}</span> : null}</div>
             {v.odometer_photo_url && <a href={v.odometer_photo_url} target="_blank" rel="noreferrer" className="text-xs underline">Odometer photo</a>}
-            {canApprove && (
+            {canApprove && !isSuperAdmin && isOwnFuelClaim(v, user?.id) && (
+              <div className="text-xs text-muted-foreground text-right">Your own claim: another approver must approve or reject it.</div>
+            )}
+            {canApprove && (isSuperAdmin || !isOwnFuelClaim(v, user?.id)) && (
               <div className="flex gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => setTarget(v)}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>
                 <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800" disabled={review.isPending} onClick={() => review.mutate({ id: v.id, approve: true })}>

@@ -18,7 +18,7 @@ that carries the tables, roles, routes and wording.
 | Kind | Meaning | What happens |
 |---|---|---|
 | **Half day** | The staff member leaves and does not come back today | When the guard scans them out, the date is marked **Half day** in HR attendance (see below) |
-| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Still out at day end → **Not returned** and the day is marked Half day (setting, default on) |
+| **Short leave** | Personal errand: goes out and comes back, expected within N minutes (default 30) | Guard scans **Out**, later **In**. Out time, in time and minutes outside are recorded. Late return notifies HR and the approver. Up to 3 h outside in office hours (08:30–19:30) → no effect; over 3 h → **Half day**; over 8 h → **Absent** (see below). Still out at 19:30 → **Not returned**, with the same rule on the time outside |
 | **Official duty** | Company work: purchases, bank, site visit. Expected within N minutes (default 180) | Guard scans **Out**, later **In**. A **destination** is recorded with the purpose. **Attendance is never touched.** Late return is information for HR, not a warning. Still out at day end → **Not scanned in**, no half day, HR informed |
 
 Official duty was added in `20261004120000_staff_gate_pass_official_duty.sql`
@@ -133,11 +133,11 @@ managed by hand.
 
 ```
 trip over (pass returned / not scanned in) → staff member or HR claims → pending_approval
-  → HR manager approves → approved (voucher printed, cash collected from the cashier)
-rejected (HR manager) · cancelled (claimant or HR manager while pending; HR manager only once approved)
+  → HR manager or staff gate pass approver approves → approved (voucher printed, cash collected from the cashier)
+rejected (HR manager or staff gate pass approver) · cancelled (claimant or HR manager while pending; HR manager only once approved)
 ```
 
-**HR approval is final.** There is no "mark paid" step: the cashier pays cash against
+**Approval is final.** There is no "mark paid" step: the cashier pays cash against
 the printed voucher and nothing is recorded for that (migration
 `20261015120000_trip_fuel_approval_final.sql`). `staff_trip_fuel_pay` now refuses.
 Vouchers that were marked paid earlier (TFV-000001) keep status `paid`, are shown and
@@ -156,7 +156,7 @@ counted as approved, and keep their paid-by / paid-at details.
   Expenses → Trip Fuel Vouchers, with `fuel_max_km_per_trip`, default 300).
   Rate and figures are frozen on the voucher.
 - **Voucher.** `TFV-000001` … with staff, pass, date, route, odometer or km,
-  rate, amount and signature lines (claimed by, approved by HR, paid by cashier,
+  rate, amount and signature lines (claimed by, approved by with the approver's role, paid by cashier,
   received by; the cashier and receiver sign by hand). Printable from the pass page,
   My Travel Vouchers and the Trip Fuel Vouchers page. Vouchers print **two to an A4
   page** in fixed halves with a dashed cut line; printing several at once fills the
@@ -170,10 +170,19 @@ counted as approved, and keep their paid-by / paid-at details.
   Existing vouchers are untouched, and staff who already had a live voucher when the
   switch was added start with it on.
 - **Roles.** Claim: the staff member on the pass (self-service) or HR. Approve
-  / reject: `hr_manager` (and super admin), always. Cancel: the claimant or an HR
+  / reject: `hr_manager` or `staff_gate_pass_approver` (and super admin), since
+  `20261103120000_trip_fuel_gate_pass_approver.sql` (rollback
+  `supabase/rollbacks/20261103120000_trip_fuel_gate_pass_approver_down.sql`). Nobody
+  but a super admin approves or rejects a claim they raised or a claim for themselves.
+  Who approved is recorded on the voucher: `approved_by`, `approved_at` and
+  `approved_as` (the role they acted in: `hr_manager`, `staff_gate_pass_approver` or
+  `super_admin`; blank on older vouchers, shown as HR), and in the voucher history
+  (`staff_trip_fuel_events.details.role`). The pass page, the vouchers register, its
+  export and the printed voucher show "Name (Role)". Cancel: the claimant or an HR
   manager while the claim is pending; only an HR manager once it is approved (cash
-  may already be out, so settle that with the staff member by hand). No new role.
-- **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for HR**;
+  may already be out, so settle that with the staff member by hand). The staff gate
+  pass approver cannot cancel.
+- **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for approval**;
   **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the register of
   every voucher (filters, print, **Print approved · 2 per page**, Excel export) and
   holds the settings. **Self Service → My Travel Vouchers** (`/my-travel-vouchers`,
@@ -181,10 +190,10 @@ counted as approved, and keep their paid-by / paid-at details.
   for the chosen dates, prints the selected or all approved ones two to a page, and
   lists finished company work trips not claimed yet with a **Claim fuel** link. The staff register shows the voucher on each trip and km / fuel per
   person in the Company work summary and its export.
-- **Notifications.** Claim → HR managers. Approved → claimant and cashiers
+- **Notifications.** Claim → HR managers and staff gate pass approvers. Approved → claimant and cashiers
   (`pettycash_handler`, `expenses_manager`): "approved for Rs X, the cashier pays it
   in cash against the printed voucher". Rejected → claimant.
-  Cancelled → claimant, HR managers (and cashiers when it was already approved).
+  Cancelled → claimant, HR managers, staff gate pass approvers (and cashiers when it was already approved).
 
 ### Trip fuel analysis and the ledger check
 
@@ -204,8 +213,8 @@ Staff attendance is one row per employee per day in `attendance`
 (`present`, `absent`, `half_day`, `late`, `on_leave`), read by the Salary
 Sheet, Attendance Sheet, Time Sheet and Punctuality Analytics. So:
 
-- When a half-day pass goes **Out** (or a short leave becomes **Not
-  returned**), `staff_gate_pass_mark_half_day` sets the attendance row of that
+- When a half-day pass goes **Out** (or a short leave passes the 3-hour
+  threshold below), `staff_gate_pass_mark_half_day` sets the attendance row of that
   staff member for that date to `half_day`, creating the row if there is none,
   fills `check_out` with the gate-out time where blank, and adds the remark
   "Left on gate pass SGP-…".
@@ -223,6 +232,27 @@ Sheet, Attendance Sheet, Time Sheet and Punctuality Analytics. So:
 
 There is no override: once the staff member is out on a half-day pass, that
 date is a half day.
+
+### Short leave: time-outside thresholds
+
+From `20261103130000_staff_gate_pass_outside_thresholds.sql` (the staff
+equivalent of the worker rule). Time outside counts only inside the official
+hours, 08:30 to 19:30 (`day_start_time` / `official_end_time` in
+`staff_gate_pass_settings`), from the gate-out scan to the gate-in scan or 19:30:
+
+| Time outside | Effect (`staff_gate_passes.attendance_effect`) |
+|---|---|
+| 3 h or less | none — attendance is not touched |
+| over 3 h (`half_day_after_minutes`, 180) | `half_day`: attendance row Half day, as above |
+| over 8 h (`absent_after_minutes`, 480) | `absent`: attendance row Absent (created if missing); the trigger keeps it absent |
+
+The effect is applied the moment the threshold is crossed (five-minute tick)
+or at the gate-in scan; scanning in later never undoes it. A short leave still
+out closes at 19:30 (or the staff member's later day end) as **Not returned**
+with whatever its time outside earned — under 3 h means no half day. The old
+`auto_half_day_not_returned` setting is no longer read. Passes closed before
+the migration keep the half day they already marked. A super admin changes the
+limits with `staff_gate_pass_settings_update(jsonb)`.
 
 ## Notifications (module `hr`, link to the pass page)
 
