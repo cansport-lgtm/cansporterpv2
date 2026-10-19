@@ -16,7 +16,7 @@ import { fmtRs } from "@/lib/gatePassFreight";
 import { giDb } from "@/lib/gateInward";
 
 type PassRow = {
-  id: string; pass_number: string; pass_type: string; status: string; party_name: string;
+  id: string; pass_number: string; pass_type: string; status: string; pass_date: string; party_name: string;
   vehicle_number: string | null; gate_out_at: string | null; held_at: string | null; hold_note: string | null;
   is_backfill: boolean; created_at: string;
 };
@@ -31,7 +31,7 @@ export default function GatePassDashboardPage() {
     queryFn: async () => {
       const { data, error } = await gpDb
         .from("gate_passes")
-        .select("id, pass_number, pass_type, status, party_name, vehicle_number, gate_out_at, held_at, hold_note, is_backfill, created_at")
+        .select("id, pass_number, pass_type, status, pass_date, party_name, vehicle_number, gate_out_at, held_at, hold_note, is_backfill, created_at")
         .or(`gate_out_at.gte.${monthStart}T00:00:00+05:00,status.in.(pending_approval,approved,held)`)
         .order("created_at", { ascending: false })
         .limit(2000);
@@ -90,7 +90,7 @@ export default function GatePassDashboardPage() {
 
   const outToday = recent.filter((r) => r.gate_out_at && new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(r.gate_out_at)) === today);
   const pending = recent.filter((r) => r.status === "pending_approval");
-  const waiting = recent.filter((r) => r.status === "approved");
+  const waiting = recent.filter((r) => r.status === "approved" && r.pass_date === today);
   const held = recent.filter((r) => r.status === "held");
   const outside = useMemo(() => {
     const m = new Map<string, OpenLine>();
