@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Printer, Siren, UserMinus, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Printer, Siren, Undo2, UserMinus, XCircle } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -39,13 +39,14 @@ const EVENT_LABEL: Record<string, string> = {
   out: "Out at gate",
   in: "Back at gate",
   half_day_marked: "Half day marked",
+  half_day_removed: "Half day removed",
   overdue: "Late back",
   not_returned: "Not returned",
   expired: "Expired",
   rescan_attempt: "Old pass scanned again at gate",
 };
 
-type DialogKind = null | "approve" | "reject" | "cancel" | "convert";
+type DialogKind = null | "approve" | "reject" | "cancel" | "convert" | "removeHalfDay";
 
 /** One worker or staff gate pass: QR, slip, timeline and the approver / applicant actions. */
 export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVariant }) {
@@ -94,8 +95,9 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
       if (error) throw error;
       return data;
     },
-    onSuccess: (_d, v) => {
-      toast({ title: v.done });
+    onSuccess: (d, v) => {
+      const left = (d as { half_day_rows_left?: number } | null)?.half_day_rows_left ?? 0;
+      toast({ title: v.done, description: left > 0 ? `${left} productivity entr${left === 1 ? "y is" : "ies are"} still half day for that date — edit to Full Day if needed.` : undefined });
       setDialog(null);
       setRemarks("");
       refresh();
@@ -119,6 +121,9 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
   const canConvert = canApprove && pass.status === "out" && pass.pass_kind === "short_leave";
   const halfDayMarked = marksHalfDay(pass);
   const absentMarked = marksAbsent(pass);
+  // Super admin can lift a wrong half day on a worker pass (a short leave still out would be marked again by the tick).
+  const canRemoveHalfDay = variant.key === "worker" && hasAnyRole(roles, ["super_admin"]) && halfDayMarked
+    && !(pass.pass_kind === "short_leave" && pass.status === "out");
   const autoApproved = Boolean(pass.approved_at) && !pass.approved_by;
   const fn = variant.fnPrefix;
 
@@ -129,6 +134,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
     reject: { title: "Reject this pass", description: "The person who applied will be told, with your reason.", needReason: true, fn: `${fn}_review`, args: { p_id: pass.id, p_approve: false, p_remarks: remarks }, done: "Rejected", destructive: true },
     cancel: { title: "Cancel this pass", description: "It can no longer be used at the gate.", needReason: true, fn: `${fn}_cancel`, args: { p_id: pass.id, p_reason: remarks }, done: "Cancelled", destructive: true },
     convert: { title: "Convert to half day", description: `The ${variant.noun} did not come back. The pass becomes Not returned and the date is marked Half day.`, needReason: true, fn: `${fn}_convert_half_day`, args: { p_id: pass.id, p_reason: remarks }, done: "Marked half day", destructive: true },
+    removeHalfDay: { title: "Remove half day", description: `${format(new Date(pass.pass_date), "dd MMM yyyy")} is no longer a half day for this ${variant.noun}: productivity entries for that date can be posted as Full Day again. Entries already at half day are not changed.`, needReason: true, fn: `${fn}_remove_half_day`, args: { p_id: pass.id, p_reason: remarks }, done: "Half day removed" },
   };
 
   return (
@@ -145,6 +151,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
               </>
             )}
             {canConvert && <Button size="sm" variant="destructive" onClick={() => setDialog("convert")}><UserMinus className="h-4 w-4 mr-1" /> Did not return · mark half day</Button>}
+            {canRemoveHalfDay && <Button size="sm" variant="outline" onClick={() => setDialog("removeHalfDay")}><Undo2 className="h-4 w-4 mr-1" /> Remove half day</Button>}
             {canCancel && <Button size="sm" variant="outline" onClick={() => setDialog("cancel")}><XCircle className="h-4 w-4 mr-1" /> Cancel pass</Button>}
           </div>
         </PageHeader>

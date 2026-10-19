@@ -159,8 +159,39 @@ Attendance Sheet, Time Sheet and Labour Salary read. So:
   was posted.
 - The view `v_labour_gate_pass_half_days` lists these dates.
 
-There is no override: once the worker is out on a half-day pass, that date is
-a half day.
+### Removing a wrong half day
+
+A **super admin** can lift the half day from a pass with **Remove half day**
+on the pass page (`labour_gate_pass_remove_half_day(p_id, p_reason)`, reason
+required, logged as "Half day removed"). The date is then open for Full Day
+entries again. Productivity rows already at half day are not changed back
+(their earlier work type is not recorded); the toast and the history say how
+many are left so they can be edited to Full Day. Not offered on a short leave
+still out — the next tick would mark it again.
+
+**Old-rule repair (20261104120000).** Before the time-outside thresholds, a
+short leave still out at day end was marked half day however short the time
+outside, and those marks were carried into `attendance_effect`. The migration
+clears the half day on every short leave whose working time outside is not
+over the threshold (180 min), except passes an approver converted by hand,
+and logs "Half day removed (old rule fix)". Preview what it changes, read-only:
+
+```sql
+SELECT g.pass_number, g.pass_date, e.employee_code, e.full_name, g.status, g.gate_out_at, g.gate_in_at,
+       public.labour_gate_pass_work_minutes(g.gate_out_at,
+         LEAST(COALESCE(g.gate_in_at, public.labour_gate_pass_day_end_at(g.pass_date)),
+               public.labour_gate_pass_day_end_at(g.pass_date)), g.pass_date) AS minutes_outside
+  FROM public.labour_gate_passes g JOIN public.labour_employees e ON e.id = g.employee_id
+ WHERE g.pass_kind = 'short_leave' AND g.attendance_effect = 'half_day' AND g.status <> 'out'
+   AND g.gate_out_at IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM public.labour_gate_pass_events ev WHERE ev.pass_id = g.id
+                    AND ev.event = 'not_returned' AND ev.message ILIKE 'Converted to half day by the approver%')
+   AND public.labour_gate_pass_work_minutes(g.gate_out_at,
+         LEAST(COALESCE(g.gate_in_at, public.labour_gate_pass_day_end_at(g.pass_date)),
+               public.labour_gate_pass_day_end_at(g.pass_date)), g.pass_date)
+       <= (SELECT half_day_after_minutes FROM public.labour_gate_pass_settings WHERE id)
+ ORDER BY g.pass_date, g.pass_number;
+```
 
 ## Notifications (module `labour`, link to the pass page)
 
