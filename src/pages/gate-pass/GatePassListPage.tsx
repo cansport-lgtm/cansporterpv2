@@ -77,12 +77,12 @@ export default function GatePassListPage() {
   });
 
   // Live counts regardless of the date range: what needs attention right now.
-  const { data: live = [] } = useQuery<{ status: string }[]>({
+  const { data: live = [] } = useQuery<{ status: string; pass_date: string }[]>({
     queryKey: ["gate-passes-live"],
     queryFn: async () => {
       const { data, error } = await gpDb
         .from("gate_passes")
-        .select("status")
+        .select("status, pass_date")
         .in("status", ["pending_approval", "held", "approved"]);
       if (error) throw error;
       return data ?? [];
@@ -122,7 +122,8 @@ export default function GatePassListPage() {
   };
   const kpis = [
     { label: "Out today", value: rows.filter((r) => r.gate_out_at && format(new Date(r.gate_out_at), "yyyy-MM-dd") === today).length, tone: "" },
-    { label: "Waiting at gate (approved)", value: live.filter((r) => r.status === "approved").length, tone: "text-sky-700" },
+    // Only today's approved passes: older ones that never went out are not waiting at the gate.
+    { label: "Waiting at gate (approved)", value: live.filter((r) => r.status === "approved" && r.pass_date === today).length, tone: "text-sky-700" },
     { label: "Pending approval", value: live.filter((r) => r.status === "pending_approval").length, tone: "text-amber-700" },
     { label: "Held at gate", value: live.filter((r) => r.status === "held").length, tone: "text-red-700" },
   ];
