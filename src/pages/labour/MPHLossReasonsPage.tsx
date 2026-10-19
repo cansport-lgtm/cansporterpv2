@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { Bell, Plus, Printer, Save, Send, Trash2, AlertTriangle, Unlock, Gauge } from "lucide-react";
+import {
+  Bell, Plus, Printer, Save, Send, Trash2, AlertTriangle, Unlock, Gauge, ChevronDown, ChevronUp,
+  ChevronRight, ChevronLeft, Search, Calculator, ArrowRight, ExternalLink, Check, X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -12,15 +15,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   type DepartmentMph,
+  type DepartmentMphDetail,
   type MphLossReason,
   MPH_LOSS_TOLERANCE,
   escapeHtml,
-  fetchDepartmentMph,
+  fetchMphDay,
   fmtMph,
+  fmtQty,
   reasonsForDepartment,
   round1,
 } from "@/lib/mphLoss";
@@ -60,16 +67,26 @@ const newLine = (): LineDraft => ({ key: `l${++lineSeq}`, reason_id: "", mph_los
 
 type DeptStatus = "complete" | "partial" | "over" | "pending";
 
-const STATUS_BADGE: Record<DeptStatus, { label: string; className: string }> = {
-  complete: { label: "Complete", className: "bg-green-100 text-green-700 hover:bg-green-100" },
-  partial: { label: "Partly explained", className: "bg-amber-100 text-amber-800 hover:bg-amber-100" },
-  over: { label: "More than loss", className: "bg-orange-100 text-orange-800 hover:bg-orange-100" },
-  pending: { label: "Pending", className: "bg-red-100 text-red-700 hover:bg-red-100" },
+const STATUS_BADGE: Record<DeptStatus, { label: string; className: string; dot: string }> = {
+  complete: { label: "Complete", className: "bg-green-100 text-green-700 hover:bg-green-100", dot: "bg-green-600" },
+  partial: { label: "Partly explained", className: "bg-amber-100 text-amber-800 hover:bg-amber-100", dot: "bg-amber-500" },
+  over: { label: "More than loss", className: "bg-orange-100 text-orange-800 hover:bg-orange-100", dot: "bg-orange-500" },
+  pending: { label: "Pending", className: "bg-red-100 text-red-700 hover:bg-red-100", dot: "bg-red-600" },
 };
+
+interface DeptState {
+  dept: DepartmentMph;
+  loss: number;
+  lines: LineDraft[];
+  explained: number;
+  remaining: number;
+  status: DeptStatus;
+}
 
 export default function MPHLossReasonsPage() {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
+  const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const date = params.get("date") || format(new Date(), "yyyy-MM-dd");
   const setDate = (d: string) => d && setParams({ date: d }, { replace: true });
@@ -99,10 +116,12 @@ export default function MPHLossReasonsPage() {
     },
   });
 
-  const { data: liveDepts = [], isLoading: loadingMph } = useQuery({
+  const { data: live, isLoading: loadingMph } = useQuery({
     queryKey: ["mph-loss-live", date],
-    queryFn: () => fetchDepartmentMph(date),
+    queryFn: () => fetchMphDay(date),
   });
+  const liveDepts = live?.departments ?? [];
+  const detail = live?.detail ?? {};
 
   const { data: saved, isLoading: loadingReport } = useQuery({
     queryKey: ["mph-loss-report", date],
@@ -176,7 +195,7 @@ export default function MPHLossReasonsPage() {
 
   const reasonById = useMemo(() => Object.fromEntries(reasons.map((r) => [r.id, r])), [reasons]);
 
-  const deptState = useMemo(() => {
+  const deptState: DeptState[] = useMemo(() => {
     return lossDepts.map((d) => {
       const loss = round1(-d.net_mph);
       const deptLines = lines[d.department_id] ?? [];
@@ -209,13 +228,23 @@ export default function MPHLossReasonsPage() {
   );
   const allExplained = deptState.length > 0 && deptState.every((d) => d.status === "complete");
 
+  // Reasons already used for this date, shown first in the phone picker.
+  const usedReasonIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.values(lines).forEach((ls) => ls.forEach((l) => l.reason_id && ids.add(l.reason_id)));
+    return ids;
+  }, [lines]);
+
   const updateLine = (deptId: string, key: string, patch: Partial<LineDraft>) =>
     setLines((prev) => ({
       ...prev,
       [deptId]: (prev[deptId] ?? []).map((l) => (l.key === key ? { ...l, ...patch } : l)),
     }));
-  const addLine = (deptId: string) =>
-    setLines((prev) => ({ ...prev, [deptId]: [...(prev[deptId] ?? []), newLine()] }));
+  const addLine = (deptId: string) => {
+    const line = newLine();
+    setLines((prev) => ({ ...prev, [deptId]: [...(prev[deptId] ?? []), line] }));
+    return line.key;
+  };
   const removeLine = (deptId: string, key: string) =>
     setLines((prev) => ({ ...prev, [deptId]: (prev[deptId] ?? []).filter((l) => l.key !== key) }));
 
@@ -368,6 +397,98 @@ export default function MPHLossReasonsPage() {
 
   const isLoading = loadingMph || loadingReport;
 
+  // ---- Phone state -------------------------------------------------------
+  const [mobileDeptId, setMobileDeptId] = useState<string | null>(null);
+  const [mobileFilter, setMobileFilter] = useState<"pending" | "all">("pending");
+  const [picker, setPicker] = useState<{ deptId: string; lineKey: string } | null>(null);
+  const [calcDeptId, setCalcDeptId] = useState<string | null>(null);
+  // Desktop: departments with the calculation panel open.
+  const [openCalc, setOpenCalc] = useState<Set<string>>(new Set());
+  const toggleCalc = (id: string) =>
+    setOpenCalc((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  useEffect(() => {
+    setMobileDeptId(null);
+  }, [date]);
+
+  const mobileDept = deptState.find((d) => d.dept.department_id === mobileDeptId) ?? null;
+  const pickerDept = deptState.find((d) => d.dept.department_id === picker?.deptId) ?? null;
+  const calcDept = deptState.find((d) => d.dept.department_id === calcDeptId) ?? null;
+
+  const commonProps = {
+    date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, canEditRole, isLoading,
+    deptState, totals, allDepts, lossDepts, noLossCount, reasons, mapping, reasonById, detail,
+    updateLine, addLine, removeLine, handleSave, handlePrint, saveMutation, reopenMutation, allExplained,
+  };
+
+  if (isMobile) {
+    return (
+      <ERPLayout>
+        {mobileDept ? (
+          <MobileDepartment
+            {...commonProps}
+            d={mobileDept}
+            onBack={() => setMobileDeptId(null)}
+            onNext={() => {
+              const idx = deptState.findIndex((x) => x.dept.department_id === mobileDept.dept.department_id);
+              const next = deptState.slice(idx + 1).find((x) => x.status !== "complete") ?? deptState[idx + 1];
+              setMobileDeptId(next ? next.dept.department_id : null);
+            }}
+            onPickReason={(lineKey) => setPicker({ deptId: mobileDept.dept.department_id, lineKey })}
+            onShowCalc={() => setCalcDeptId(mobileDept.dept.department_id)}
+          />
+        ) : (
+          <MobileOverview
+            {...commonProps}
+            filter={mobileFilter}
+            setFilter={setMobileFilter}
+            onOpen={(id) => setMobileDeptId(id)}
+          />
+        )}
+
+        <Drawer open={!!picker} onOpenChange={(o) => !o && setPicker(null)}>
+          <DrawerContent className="max-h-[88vh]">
+            {pickerDept && picker && (
+              <ReasonPicker
+                dept={pickerDept}
+                options={reasonsForDepartment(reasons, mapping, pickerDept.dept.department_id)}
+                usedIds={usedReasonIds}
+                current={pickerDept.lines.find((l) => l.key === picker.lineKey)?.reason_id ?? ""}
+                onPick={(id) => {
+                  updateLine(picker.deptId, picker.lineKey, { reason_id: id });
+                  setPicker(null);
+                }}
+                onClose={() => setPicker(null)}
+              />
+            )}
+          </DrawerContent>
+        </Drawer>
+
+        <Drawer open={!!calcDept} onOpenChange={(o) => !o && setCalcDeptId(null)}>
+          <DrawerContent className="max-h-[92vh]">
+            {calcDept && (
+              <>
+                <DrawerHeader className="text-left pb-2">
+                  <DrawerTitle>How {calcDept.dept.department_name} got −{fmtMph(calcDept.loss)}</DrawerTitle>
+                  <DrawerDescription>{format(parseISO(date), "dd MMM yyyy")} · item by item</DrawerDescription>
+                </DrawerHeader>
+                <div className="overflow-y-auto px-4 pb-6">
+                  <CalcPanel d={calcDept.dept} detail={detail[calcDept.dept.department_id]} compact date={date} />
+                </div>
+              </>
+            )}
+          </DrawerContent>
+        </Drawer>
+      </ERPLayout>
+    );
+  }
+
+  // ---- Desktop -------------------------------------------------------------
   return (
     <ERPLayout>
       <div className="space-y-5 p-4 md:p-6">
@@ -423,42 +544,7 @@ export default function MPHLossReasonsPage() {
           </div>
         </div>
 
-        {/* Status banner */}
-        {isSubmitted ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            <Badge className="bg-green-600 hover:bg-green-600">Submitted</Badge>
-            <span>
-              {report?.report_number} — submitted
-              {report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""}
-              {report?.submitted_at ? `, ${format(new Date(report.submitted_at), "dd MMM yyyy HH:mm")}` : ""}. Locked
-              {isSuperAdmin ? " — reopen to change it." : "; ask a super admin to reopen it for changes."}
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <Bell className="h-4 w-4" />
-            <span className="flex-1 min-w-[260px]">
-              {report?.notified_at ? (
-                <>
-                  <b>Production posted</b> for {format(parseISO(date), "dd MMM yyyy")} at{" "}
-                  {format(new Date(report.notified_at), "HH:mm")} —{" "}
-                </>
-              ) : null}
-              {lossDepts.length} of {allDepts.length} departments are in loss.
-            </span>
-            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Draft · not submitted</Badge>
-          </div>
-        )}
-        {isSubmitted && report?.production_changed_at && (
-          <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-            <AlertTriangle className="h-4 w-4" />
-            More production was posted for this date on {format(new Date(report.production_changed_at), "dd MMM yyyy HH:mm")},
-            after the reasons were submitted. The figures below are the submitted ones and may no longer match MPH Analysis.
-          </div>
-        )}
-        {!canEditRole && (
-          <p className="text-sm text-muted-foreground">View only — the Production Coordinator enters these reasons.</p>
-        )}
+        <StatusBanners {...commonProps} />
 
         {/* KPI strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -492,16 +578,29 @@ export default function MPHLossReasonsPage() {
             const options = reasonsForDepartment(reasons, mapping, d.dept.department_id);
             const badge = STATUS_BADGE[d.status];
             const pct = d.loss > 0 ? Math.min((d.explained / d.loss) * 100, 100) : 0;
+            const calcOpen = openCalc.has(d.dept.department_id);
             return (
               <Card key={d.dept.department_id} className="overflow-hidden">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b bg-muted/40 px-4 py-3">
-                  <h2 className="flex-1 min-w-[160px] text-base font-semibold">{d.dept.department_name}</h2>
-                  <div className="flex gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-muted/40 px-4 py-3">
+                  <h2 className="flex-1 min-w-[140px] text-base font-semibold">{d.dept.department_name}</h2>
+                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground tabular-nums">
+                    <span>Output <b className="text-foreground">{fmtQty(d.dept.output)}</b></span>
                     <span>Authorized <b className="text-foreground">{fmtMph(d.dept.authorized_mph)}</b></span>
                     <span>Used <b className="text-foreground">{fmtMph(d.dept.used_mph)}</b></span>
                     <span>Net <b className="text-red-600">{fmtMph(d.dept.net_mph)}</b></span>
+                    <span>MPH/unit <b className="text-foreground">{d.dept.output > 0 ? (d.dept.used_mph / d.dept.output).toFixed(3) : "—"}</b></span>
                   </div>
-                  <div className="w-[190px]">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`h-8 ${calcOpen ? "bg-blue-50 border-blue-200 text-blue-700" : "text-blue-700"}`}
+                    onClick={() => toggleCalc(d.dept.department_id)}
+                    aria-expanded={calcOpen}
+                  >
+                    {calcOpen ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+                    {calcOpen ? "Hide calculation" : "Show calculation"}
+                  </Button>
+                  <div className="w-[170px]">
                     <div className="text-xs text-muted-foreground mb-1">
                       Explained {fmtMph(d.explained)} of {fmtMph(d.loss)}
                     </div>
@@ -514,6 +613,12 @@ export default function MPHLossReasonsPage() {
                   </div>
                   <Badge className={badge.className}>{badge.label}</Badge>
                 </div>
+
+                {calcOpen && (
+                  <div className="border-b bg-muted/20 px-4 py-4">
+                    <CalcPanel d={d.dept} detail={detail[d.dept.department_id]} date={date} />
+                  </div>
+                )}
 
                 <CardContent className="p-4 space-y-3">
                   {d.lines.length === 0 ? (
@@ -627,17 +732,7 @@ export default function MPHLossReasonsPage() {
                         ) : (
                           <span />
                         )}
-                        <span
-                          className={`text-sm font-semibold ${
-                            d.status === "complete" ? "text-green-700" : "text-amber-700"
-                          }`}
-                        >
-                          {d.status === "complete"
-                            ? "Fully explained"
-                            : d.status === "over"
-                            ? `${fmtMph(-d.remaining)} MPH more than the loss`
-                            : `${fmtMph(d.remaining)} MPH still to explain`}
-                        </span>
+                        <RemainingText d={d} />
                       </div>
                     </>
                   )}
@@ -662,6 +757,93 @@ export default function MPHLossReasonsPage() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Shared pieces
+// ---------------------------------------------------------------------------
+
+type Common = {
+  date: string;
+  setDate: (d: string) => void;
+  pendingDates: string[];
+  report: Report | null;
+  isSubmitted: boolean;
+  isSuperAdmin: boolean;
+  canEdit: boolean;
+  canEditRole: boolean;
+  isLoading: boolean;
+  deptState: DeptState[];
+  totals: { loss: number; explained: number; remaining: number; done: number; partial: number; authorized: number; used: number };
+  allDepts: DepartmentMph[];
+  lossDepts: DepartmentMph[];
+  noLossCount: number;
+  reasons: MphLossReason[];
+  mapping: { reason_id: string; department_id: string }[];
+  reasonById: Record<string, MphLossReason>;
+  detail: Record<string, DepartmentMphDetail>;
+  updateLine: (deptId: string, key: string, patch: Partial<LineDraft>) => void;
+  addLine: (deptId: string) => string;
+  removeLine: (deptId: string, key: string) => void;
+  handleSave: (submit: boolean) => void;
+  handlePrint: () => void;
+  saveMutation: { isPending: boolean };
+  reopenMutation: { isPending: boolean; mutate: () => void };
+  allExplained: boolean;
+};
+
+function RemainingText({ d, className = "" }: { d: DeptState; className?: string }) {
+  return (
+    <span className={`text-sm font-semibold ${d.status === "complete" ? "text-green-700" : "text-amber-700"} ${className}`}>
+      {d.status === "complete"
+        ? "Fully explained"
+        : d.status === "over"
+        ? `${fmtMph(-d.remaining)} MPH more than the loss`
+        : `${fmtMph(d.remaining)} MPH still to explain`}
+    </span>
+  );
+}
+
+function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, lossDepts, allDepts }: Common) {
+  return (
+    <>
+      {isSubmitted ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          <Badge className="bg-green-600 hover:bg-green-600">Submitted</Badge>
+          <span>
+            {report?.report_number} — submitted
+            {report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""}
+            {report?.submitted_at ? `, ${format(new Date(report.submitted_at), "dd MMM yyyy HH:mm")}` : ""}. Locked
+            {isSuperAdmin ? " — reopen to change it." : "; ask a super admin to reopen it for changes."}
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <Bell className="h-4 w-4 shrink-0" />
+          <span className="flex-1 min-w-[200px]">
+            {report?.notified_at ? (
+              <>
+                <b>Production posted</b> for {format(parseISO(date), "dd MMM yyyy")} at{" "}
+                {format(new Date(report.notified_at), "HH:mm")} —{" "}
+              </>
+            ) : null}
+            {lossDepts.length} of {allDepts.length} departments are in loss.
+          </span>
+          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Draft · not submitted</Badge>
+        </div>
+      )}
+      {isSubmitted && report?.production_changed_at && (
+        <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          More production was posted for this date on {format(new Date(report.production_changed_at), "dd MMM yyyy HH:mm")},
+          after the reasons were submitted. The figures below are the submitted ones and may no longer match MPH Analysis.
+        </div>
+      )}
+      {!canEditRole && (
+        <p className="text-sm text-muted-foreground">View only — the Production Coordinator enters these reasons.</p>
+      )}
+    </>
+  );
+}
+
 function Kpi({ label, value, sub, className = "" }: { label: string; value: string; sub: string; className?: string }) {
   return (
     <Card>
@@ -671,5 +853,650 @@ function Kpi({ label, value, sub, className = "" }: { label: string; value: stri
         <div className="text-xs text-muted-foreground">{sub}</div>
       </CardContent>
     </Card>
+  );
+}
+
+// The calculation behind a department's numbers: every item and every worker.
+function CalcPanel({ d, detail, compact = false, date }: { d: DepartmentMph; detail?: DepartmentMphDetail; compact?: boolean; date: string }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const items = detail?.items ?? [];
+  const workers = detail?.workers ?? [];
+  const authorized = round1(items.reduce((s, i) => s + i.authorized, 0));
+  const used = round1(workers.reduce((s, w) => s + w.mph, 0));
+  // A submitted report keeps its own figures; the live detail may differ if production was posted later.
+  const stale = Math.abs(authorized - d.authorized_mph) > 0.05 || Math.abs(used - d.used_mph) > 0.05;
+  const net = round1(d.authorized_mph - d.used_mph);
+  const perUnit = d.output > 0 ? d.used_mph / d.output : 0;
+  const standard = d.output > 0 ? d.authorized_mph / d.output : 0;
+  const efficiency = d.used_mph > 0 ? (d.authorized_mph / d.used_mph) * 100 : 0;
+
+  const itemGroups = groupBy(items, (i) => i.sub_department);
+  const workerGroups = groupBy(workers, (w) => w.process);
+  const LIMIT = 3;
+  const toggle = (k: string) =>
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  const th = "text-[11px] font-semibold text-muted-foreground text-left px-2 py-1.5 border-b whitespace-nowrap";
+  const td = `${compact ? "text-[13px]" : "text-sm"} px-2 py-1.5 border-b border-muted align-top`;
+  const num = "text-right tabular-nums";
+
+  return (
+    <div className={`space-y-4 ${compact ? "" : ""}`}>
+      {/* Formula strip */}
+      <div className="rounded-lg bg-slate-900 text-white px-4 py-3">
+        <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 text-center">
+          <div><div className="text-[11px] opacity-70">Authorized</div><div className="text-xl font-semibold tabular-nums">{fmtMph(d.authorized_mph)}</div></div>
+          <div className="text-lg opacity-60">−</div>
+          <div><div className="text-[11px] opacity-70">Used</div><div className="text-xl font-semibold tabular-nums">{fmtMph(d.used_mph)}</div></div>
+          <div className="text-lg opacity-60">=</div>
+          <div><div className="text-[11px] opacity-70">Net</div><div className={`text-xl font-semibold tabular-nums ${net < 0 ? "text-red-300" : "text-green-300"}`}>{fmtMph(net)}</div></div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/15 flex flex-wrap justify-between gap-x-4 text-xs opacity-85">
+          <span>Efficiency <b className="tabular-nums">{efficiency.toFixed(1)}%</b></span>
+          <span>Used / unit <b className="tabular-nums">{d.output > 0 ? perUnit.toFixed(3) : "—"}</b></span>
+          <span>Workers <b className="tabular-nums">{workers.length}</b></span>
+        </div>
+      </div>
+
+      {stale && (
+        <p className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+          The item and worker rows below are today's entries ({fmtMph(authorized)} / {fmtMph(used)}); the totals above are the ones this report was saved with.
+        </p>
+      )}
+
+      <div className={compact ? "space-y-4" : "grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-5 items-start"}>
+        {/* Items */}
+        <section>
+          <div className="flex items-start gap-2 mb-1.5">
+            <Step n={1} />
+            <div>
+              <div className="text-sm font-semibold">Authorized MPH, item by item</div>
+              <div className="text-xs text-muted-foreground">Each posted item: output × MPH number = MPH earned. The MPH number is set per sub-department in MPH Master.</div>
+            </div>
+          </div>
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3">No production posted for this department.</p>
+          ) : (
+            <div className="rounded-md border bg-background overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead><tr><th className={th}>Item</th>{!compact && <th className={th}>Shift</th>}<th className={`${th} text-right`}>Output</th><th className={`${th} text-right`}>× MPH</th><th className={`${th} text-right`}>= MPH</th>{!compact && <th className={`${th} text-right`}>Share</th>}</tr></thead>
+                <tbody>
+                  {itemGroups.map(([sub, rows]) => {
+                    const subTotal = round1(rows.reduce((s, r) => s + r.authorized, 0));
+                    return [
+                      <tr key={`g-${sub}`} className="bg-indigo-50 text-indigo-900">
+                        <td className={`${td} font-semibold text-xs`} colSpan={compact ? 3 : 4}>{sub} · MPH number {rows[0].mph_number.toFixed(3)}</td>
+                        <td className={`${td} ${num} font-semibold text-xs`}>{fmtMph(subTotal)}</td>
+                        {!compact && <td className={`${td} ${num} text-xs`}>{authorized > 0 ? Math.round((subTotal / authorized) * 100) : 0}%</td>}
+                      </tr>,
+                      ...rows.map((r, i) => (
+                        <tr key={`${sub}-${i}`}>
+                          <td className={td}><b>{r.item_name}</b>{(r.item_code || (compact && r.shift)) && <div className="text-[11px] text-muted-foreground">{[r.item_code, compact ? r.shift : null].filter(Boolean).join(" · ")}</div>}</td>
+                          {!compact && <td className={td}>{r.shift}</td>}
+                          <td className={`${td} ${num}`}>{fmtQty(r.output)}</td>
+                          <td className={`${td} ${num} text-muted-foreground`}>× {r.mph_number.toFixed(3)}</td>
+                          <td className={`${td} ${num} font-semibold`}>{fmtMph(r.authorized)}</td>
+                          {!compact && <td className={`${td} ${num} text-muted-foreground`}>{authorized > 0 ? Math.round((r.authorized / authorized) * 100) : 0}%</td>}
+                        </tr>
+                      )),
+                    ];
+                  })}
+                  <tr className="font-semibold bg-muted/40">
+                    <td className={`${td} border-t-2 border-t-foreground`} colSpan={compact ? 1 : 2}>Total · {items.length} item{items.length === 1 ? "" : "s"}</td>
+                    <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtQty(d.output)}</td>
+                    <td className={`${td} border-t-2 border-t-foreground`} />
+                    <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtMph(authorized)}</td>
+                    {!compact && <td className={`${td} ${num} border-t-2 border-t-foreground`}>100%</td>}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <Link to="/production/daily-entry" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
+            Open Daily Entry <ExternalLink className="h-3 w-3" />
+          </Link>
+        </section>
+
+        {/* Workers */}
+        <section>
+          <div className="flex items-start gap-2 mb-1.5">
+            <Step n={2} />
+            <div>
+              <div className="text-sm font-semibold">Used MPH, worker by worker</div>
+              <div className="text-xs text-muted-foreground">From Today's Deployment: each worker's MPH for the day, grouped by process.</div>
+            </div>
+          </div>
+          {workers.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3">No labour deployed to this department.</p>
+          ) : (
+            <div className="rounded-md border bg-background overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead><tr><th className={th}>Worker</th><th className={th}>Shift</th><th className={`${th} text-right`}>Hours</th><th className={`${th} text-right`}>MPH</th></tr></thead>
+                <tbody>
+                  {workerGroups.map(([proc, rows]) => {
+                    const open = expanded.has(proc);
+                    const shown = open ? rows : rows.slice(0, LIMIT);
+                    const hidden = rows.length - shown.length;
+                    const hiddenMph = round1(rows.slice(LIMIT).reduce((s, r) => s + r.mph, 0));
+                    return [
+                      <tr key={`g-${proc}`} className="bg-indigo-50 text-indigo-900">
+                        <td className={`${td} font-semibold text-xs`} colSpan={3}>{proc} · {rows.length} worker{rows.length === 1 ? "" : "s"}</td>
+                        <td className={`${td} ${num} font-semibold text-xs`}>{fmtMph(round1(rows.reduce((s, r) => s + r.mph, 0)))}</td>
+                      </tr>,
+                      ...shown.map((w, i) => (
+                        <tr key={`${proc}-${i}`}>
+                          <td className={td}><b>{w.employee_code}</b> {w.employee_name}</td>
+                          <td className={`${td} text-muted-foreground whitespace-nowrap`}>{w.shift}</td>
+                          <td className={`${td} ${num} text-muted-foreground`}>{w.hours ?? "—"}</td>
+                          <td className={`${td} ${num} font-semibold`}>{fmtMph(w.mph)}</td>
+                        </tr>
+                      )),
+                      hidden > 0 || open ? (
+                        <tr key={`m-${proc}`}>
+                          <td className={td} colSpan={3}>
+                            <button type="button" className="text-primary font-medium text-sm min-h-[36px]" onClick={() => toggle(proc)}>
+                              {open ? "Show fewer" : `+ ${hidden} more worker${hidden === 1 ? "" : "s"}`}
+                            </button>
+                          </td>
+                          <td className={`${td} ${num}`}>{open ? "" : fmtMph(hiddenMph)}</td>
+                        </tr>
+                      ) : null,
+                    ];
+                  })}
+                  <tr className="font-semibold bg-muted/40">
+                    <td className={`${td} border-t-2 border-t-foreground`} colSpan={3}>Total · {workers.length} worker{workers.length === 1 ? "" : "s"}</td>
+                    <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtMph(used)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <Link to="/labour/todays-target" className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-1.5 min-h-[36px]">
+            Open deployment sheet <ExternalLink className="h-3 w-3" />
+          </Link>
+        </section>
+      </div>
+
+      {/* Result */}
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900 leading-relaxed">
+        <div className="flex items-center gap-2 font-semibold mb-0.5"><Step n={3} red /> Result</div>
+        {d.department_name} earned <b className="tabular-nums">{fmtMph(d.authorized_mph)}</b> MPH from {fmtQty(d.output)} units
+        {items.length > 0 ? ` across ${items.length} item${items.length === 1 ? "" : "s"}` : ""}, but used{" "}
+        <b className="tabular-nums">{fmtMph(d.used_mph)}</b> MPH of labour{workers.length > 0 ? ` from ${workers.length} workers` : ""}.
+        {net < 0 ? (
+          <> So <b className="tabular-nums">{fmtMph(-net)}</b> MPH is lost.</>
+        ) : (
+          <> So <b className="tabular-nums">{fmtMph(net)}</b> MPH is saved.</>
+        )}
+        {d.output > 0 && (
+          <> Used MPH per unit = <b className="tabular-nums">{perUnit.toFixed(3)}</b> against a standard of <b className="tabular-nums">{standard.toFixed(3)}</b>.</>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Step({ n, red = false }: { n: number; red?: boolean }) {
+  return (
+    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${red ? "bg-red-700" : "bg-primary"}`}>
+      {n}
+    </span>
+  );
+}
+
+function groupBy<T>(rows: T[], key: (r: T) => string): [string, T[]][] {
+  const map = new Map<string, T[]>();
+  rows.forEach((r) => {
+    const k = key(r);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k)!.push(r);
+  });
+  return Array.from(map.entries());
+}
+
+// ---------------------------------------------------------------------------
+// Phone
+// ---------------------------------------------------------------------------
+
+function MobileOverview(
+  props: Common & { filter: "pending" | "all"; setFilter: (f: "pending" | "all") => void; onOpen: (id: string) => void }
+) {
+  const { date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, isLoading, deptState, totals, allDepts, lossDepts, noLossCount,
+    handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
+  const pct = totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100;
+  const shown = filter === "pending" ? deptState.filter((d) => d.status !== "complete") : deptState;
+
+  return (
+    <div className="pb-28">
+      {/* App bar */}
+      <div className="sticky top-0 z-20 bg-background border-b">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-bold leading-tight">MPH Loss Reasons</div>
+            <div className="text-xs text-muted-foreground">{format(parseISO(date), "dd MMM yyyy")}</div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Print report" onClick={handlePrint} disabled={isLoading}>
+            <Printer className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="flex gap-2 px-3 pb-2 overflow-x-auto">
+          <label className="shrink-0 inline-flex items-center h-10 px-3 rounded-full border bg-background text-sm font-semibold gap-2">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              aria-label="Production date"
+              className="bg-transparent text-base outline-none w-[130px]"
+            />
+          </label>
+          {pendingDates.filter((d) => d !== date).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDate(d)}
+              className="shrink-0 inline-flex items-center gap-1.5 h-10 px-3 rounded-full border border-red-200 bg-background text-sm font-semibold text-red-800"
+            >
+              <span className="h-2 w-2 rounded-full bg-red-600" /> {format(parseISO(d), "dd MMM")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-3 pt-3 space-y-3">
+        {/* Progress */}
+        <Card>
+          <CardContent className="p-4 space-y-2.5">
+            <div className="flex justify-between items-end gap-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Still to explain</div>
+                <div className={`text-3xl font-semibold tabular-nums leading-tight ${totals.remaining > 0 ? "text-amber-700" : "text-green-700"}`}>
+                  {fmtMph(totals.remaining)} <span className="text-sm font-medium text-muted-foreground">MPH</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground">Total loss</div>
+                <div className="text-lg font-semibold tabular-nums text-red-700">−{fmtMph(totals.loss)}</div>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className="h-2 rounded-full bg-green-600" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span><b className="text-green-700">{fmtMph(totals.explained)}</b> explained · {pct}%</span>
+              <span><b className="text-foreground">{totals.done}</b> of {deptState.length} departments done</span>
+            </div>
+            {isSubmitted ? (
+              <div className="flex items-center gap-2 text-xs text-green-900 bg-green-50 rounded-md px-2.5 py-2">
+                <Check className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">Submitted {report?.submitted_at ? format(new Date(report.submitted_at), "dd MMM HH:mm") : ""}{report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""} · locked</span>
+                {isSuperAdmin && (
+                  <button type="button" className="font-semibold underline min-h-[32px]" onClick={() => reopenMutation.mutate()} disabled={reopenMutation.isPending}>Reopen</button>
+                )}
+              </div>
+            ) : report?.notified_at ? (
+              <div className="flex items-center gap-2 text-xs text-blue-900 bg-blue-50 rounded-md px-2.5 py-2">
+                <Bell className="h-3.5 w-3.5 shrink-0" />
+                Production posted {format(new Date(report.notified_at), "HH:mm")} · {lossDepts.length} of {allDepts.length} departments in loss
+              </div>
+            ) : null}
+            {isSubmitted && report?.production_changed_at && (
+              <div className="flex items-center gap-2 text-xs text-orange-900 bg-orange-50 rounded-md px-2.5 py-2">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Production changed after submission — figures may differ from MPH Analysis.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* List header */}
+        <div className="flex items-center justify-between px-0.5">
+          <div className="text-sm font-bold">Departments in loss</div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilter("pending")}
+              className={`h-8 px-3 rounded-full border text-xs font-semibold ${filter === "pending" ? "border-primary bg-blue-50 text-primary" : "bg-background"}`}
+            >
+              Pending {deptState.length - totals.done}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className={`h-8 px-3 rounded-full border text-xs font-semibold ${filter === "all" ? "border-primary bg-blue-50 text-primary" : "bg-background"}`}
+            >
+              All {deptState.length}
+            </button>
+          </div>
+        </div>
+
+        <Card className="overflow-hidden">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
+          ) : shown.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center px-4">
+              {deptState.length === 0
+                ? allDepts.length === 0
+                  ? "No production or labour MPH recorded for this date."
+                  : "No department is in MPH loss — nothing to explain."
+                : "Every department is explained. Submit when ready."}
+            </p>
+          ) : (
+            shown.map((d) => {
+              const s = STATUS_BADGE[d.status];
+              return (
+                <button
+                  key={d.dept.department_id}
+                  type="button"
+                  onClick={() => onOpen(d.dept.department_id)}
+                  className="flex w-full items-center gap-3 px-4 min-h-[64px] text-left border-b last:border-b-0 active:bg-muted/60"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${s.dot}`} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[15px] font-semibold truncate">{d.dept.department_name}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {d.lines.length === 0
+                        ? "No reason yet"
+                        : d.status === "complete"
+                        ? `Fully explained · ${d.lines.length} reason${d.lines.length === 1 ? "" : "s"}`
+                        : `${fmtMph(d.explained)} of ${fmtMph(d.loss)} explained · ${d.lines.length} reason${d.lines.length === 1 ? "" : "s"}`}
+                    </span>
+                  </span>
+                  <span className={`text-base font-semibold tabular-nums ${d.status === "complete" ? "text-muted-foreground" : "text-red-700"}`}>
+                    −{fmtMph(d.loss)}
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                </button>
+              );
+            })
+          )}
+        </Card>
+
+        {noLossCount > 0 && (
+          <p className="text-xs text-muted-foreground px-0.5">
+            {noLossCount} department{noLossCount === 1 ? "" : "s"} with no loss hidden.
+          </p>
+        )}
+      </div>
+
+      {/* Sticky actions */}
+      {canEdit && (
+        <div className="fixed inset-x-0 bottom-0 z-30 bg-background border-t px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] grid grid-cols-[1fr_1.5fr] gap-2.5 shadow-[0_-8px_24px_rgba(0,0,0,.06)]">
+          <Button variant="outline" className="h-12 text-[15px] rounded-xl" onClick={() => handleSave(false)} disabled={saveMutation.isPending || isLoading}>
+            Save draft
+          </Button>
+          <Button className="h-12 text-[15px] rounded-xl" onClick={() => handleSave(true)} disabled={saveMutation.isPending || isLoading || !allExplained}>
+            {allExplained ? "Submit reasons" : `Submit · ${fmtMph(totals.remaining)} left`}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileDepartment(
+  props: Common & {
+    d: DeptState;
+    onBack: () => void;
+    onNext: () => void;
+    onPickReason: (lineKey: string) => void;
+    onShowCalc: () => void;
+  }
+) {
+  const { d, date, deptState, canEdit, reasonById, updateLine, addLine, removeLine, handleSave, saveMutation, isLoading,
+    onBack, onNext, onPickReason, onShowCalc } = props;
+  const idx = deptState.findIndex((x) => x.dept.department_id === d.dept.department_id);
+  const pct = d.loss > 0 ? Math.min((d.explained / d.loss) * 100, 100) : 0;
+  const deptId = d.dept.department_id;
+  const input = "h-12 text-base rounded-[10px]";
+
+  return (
+    <div className="pb-28">
+      <div className="sticky top-0 z-20 bg-background border-b flex items-center gap-1 px-2 py-2">
+        <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Back to departments" onClick={onBack}>
+          <ChevronLeft className="h-6 w-6" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-bold leading-tight truncate">{d.dept.department_name}</div>
+          <div className="text-xs text-muted-foreground">{format(parseISO(date), "dd MMM yyyy")} · {idx + 1} of {deptState.length}</div>
+        </div>
+        <Button variant="outline" size="sm" className="h-10 rounded-full border-blue-200 bg-blue-50 text-primary mr-1" onClick={onShowCalc}>
+          <Calculator className="h-4 w-4 mr-1.5" /> Calculation
+        </Button>
+      </div>
+
+      <div className="px-3 pt-3 space-y-3">
+        <Card>
+          <CardContent className="p-3 space-y-2.5">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-muted/50 py-2"><div className="text-[11px] text-muted-foreground">Authorized</div><div className="text-[17px] font-semibold tabular-nums">{fmtMph(d.dept.authorized_mph)}</div></div>
+              <div className="rounded-lg bg-muted/50 py-2"><div className="text-[11px] text-muted-foreground">Used</div><div className="text-[17px] font-semibold tabular-nums">{fmtMph(d.dept.used_mph)}</div></div>
+              <div className="rounded-lg bg-red-50 py-2"><div className="text-[11px] text-red-800">Net loss</div><div className="text-[17px] font-semibold tabular-nums text-red-700">{fmtMph(d.loss)}</div></div>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-2 rounded-full ${d.status === "complete" ? "bg-green-600" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-muted-foreground"><b className="text-foreground">{fmtMph(d.explained)}</b> of {fmtMph(d.loss)} explained</span>
+              <RemainingText d={d} className="text-[13px]" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {d.lines.map((l, i) => {
+          const reason = reasonById[l.reason_id];
+          const gap = round1(d.remaining + (Number(l.mph_lost) || 0));
+          const showFill = canEdit && d.remaining > MPH_LOSS_TOLERANCE;
+          return (
+            <Card key={l.key}>
+              <CardContent className="p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Reason {i + 1}</span>
+                  {canEdit && (
+                    <Button variant="ghost" size="icon" className="h-10 w-10 -my-2 -mr-2 text-muted-foreground" aria-label={`Remove reason ${i + 1}`} onClick={() => removeLine(deptId, l.key)}>
+                      <Trash2 className="h-[18px] w-[18px]" />
+                    </Button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => canEdit && onPickReason(l.key)}
+                  disabled={!canEdit}
+                  className={`flex w-full items-center justify-between gap-2 ${input} border px-3 text-left bg-background ${!l.reason_id ? "border-primary" : ""}`}
+                >
+                  <span className="flex flex-col min-w-0">
+                    <span className={`text-[15px] font-semibold truncate ${!reason ? "text-muted-foreground font-normal" : ""}`}>{reason?.name ?? "Select reason…"}</span>
+                    {reason?.category && <span className="text-[11px] text-muted-foreground">{reason.category}</span>}
+                  </span>
+                  <ChevronDown className="h-[18px] w-[18px] text-muted-foreground shrink-0" />
+                </button>
+                <div className="grid grid-cols-[1.2fr_1fr] gap-2.5">
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                    MPH lost
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.1"
+                      placeholder="0.0"
+                      className={`${input} text-right font-semibold tabular-nums`}
+                      value={l.mph_lost}
+                      disabled={!canEdit}
+                      onChange={(e) => updateLine(deptId, l.key, { mph_lost: e.target.value })}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                    Workers
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      className={`${input} text-right tabular-nums`}
+                      value={l.workers_affected}
+                      disabled={!canEdit}
+                      onChange={(e) => updateLine(deptId, l.key, { workers_affected: e.target.value })}
+                    />
+                  </label>
+                </div>
+                {showFill && (
+                  <button
+                    type="button"
+                    onClick={() => updateLine(deptId, l.key, { mph_lost: String(gap) })}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full border border-amber-300 bg-amber-50 text-amber-900 text-[13px] font-semibold"
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" /> Use remaining {fmtMph(d.remaining)} → {fmtMph(gap)}
+                  </button>
+                )}
+                <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                  Remarks
+                  <Input
+                    placeholder="What happened?"
+                    className={`${input} font-normal`}
+                    value={l.remarks}
+                    disabled={!canEdit}
+                    onChange={(e) => updateLine(deptId, l.key, { remarks: e.target.value })}
+                  />
+                </label>
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              const key = addLine(deptId);
+              onPickReason(key);
+            }}
+            className="flex w-full items-center justify-center gap-2 h-12 rounded-xl border-[1.5px] border-dashed border-blue-300 bg-blue-50 text-primary text-[15px] font-semibold"
+          >
+            <Plus className="h-[18px] w-[18px]" /> {d.lines.length === 0 ? "Add a reason" : "Add another reason"}
+          </button>
+        )}
+        {!canEdit && d.lines.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">No reason entered.</p>
+        )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-background border-t px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] grid grid-cols-[1fr_1.5fr] gap-2.5 shadow-[0_-8px_24px_rgba(0,0,0,.06)]">
+        {canEdit ? (
+          <Button variant="outline" className="h-12 text-[15px] rounded-xl" onClick={() => handleSave(false)} disabled={saveMutation.isPending || isLoading}>
+            Save draft
+          </Button>
+        ) : (
+          <Button variant="outline" className="h-12 text-[15px] rounded-xl" onClick={onBack}>Back</Button>
+        )}
+        <Button className="h-12 text-[15px] rounded-xl" onClick={onNext}>
+          {idx + 1 < deptState.length ? "Next department" : "Back to list"} <ChevronRight className="h-[18px] w-[18px] ml-1" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ReasonPicker({
+  dept, options, usedIds, current, onPick, onClose,
+}: {
+  dept: DeptState;
+  options: MphLossReason[];
+  usedIds: Set<string>;
+  current: string;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("all");
+  const categories = Array.from(new Set(options.map((o) => o.category).filter(Boolean))) as string[];
+  const filtered = options.filter(
+    (o) =>
+      (cat === "all" || o.category === cat) &&
+      (!q || `${o.name} ${o.description ?? ""} ${o.category ?? ""}`.toLowerCase().includes(q.toLowerCase()))
+  );
+  const used = filtered.filter((o) => usedIds.has(o.id));
+  const rest = filtered.filter((o) => !usedIds.has(o.id));
+
+  const Row = ({ r }: { r: MphLossReason }) => {
+    const selected = r.id === current;
+    return (
+      <button
+        type="button"
+        onClick={() => onPick(r.id)}
+        className={`flex w-full items-center gap-3 px-4 min-h-[56px] py-2.5 text-left border-b last:border-b-0 active:bg-muted/60 ${selected ? "bg-blue-50" : ""}`}
+      >
+        <span className="w-5 shrink-0">{selected && <Check className="h-5 w-5 text-primary" />}</span>
+        <span className="flex-1 min-w-0">
+          <span className={`block text-[15px] font-semibold ${selected ? "text-blue-900" : ""}`}>{r.name}</span>
+          {r.description && <span className="block text-xs text-muted-foreground">{r.description}</span>}
+        </span>
+        {r.category && <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">{r.category}</span>}
+      </button>
+    );
+  };
+
+  return (
+    <div className="flex flex-col max-h-[88vh]">
+      <DrawerHeader className="text-left pb-2 pr-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <DrawerTitle>Reason for {dept.dept.department_name}</DrawerTitle>
+            <DrawerDescription>{options.length} reason{options.length === 1 ? "" : "s"} apply to this department</DrawerDescription>
+          </div>
+          <Button variant="ghost" size="icon" className="h-11 w-11 -mt-1" aria-label="Close" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      </DrawerHeader>
+      <div className="px-4 pb-2.5">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search reasons"
+            aria-label="Search reasons"
+            className="h-12 text-base rounded-xl pl-10 bg-muted/40"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoFocus
+          />
+        </div>
+      </div>
+      {categories.length > 1 && (
+        <div className="flex gap-2 px-4 pb-2.5 overflow-x-auto">
+          {["all", ...categories].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCat(c)}
+              className={`shrink-0 h-8 px-3 rounded-full border text-xs font-semibold ${cat === c ? "border-primary bg-primary text-primary-foreground" : "bg-background"}`}
+            >
+              {c === "all" ? "All" : c}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="overflow-y-auto border-t pb-[env(safe-area-inset-bottom)]">
+        {filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10 px-4">
+            {options.length === 0 ? "No reasons set up for this department. Ask a super admin to add them in Master Data → MPH Loss Reasons." : "No reason matches."}
+          </p>
+        ) : (
+          <>
+            {used.length > 0 && (
+              <>
+                <div className="text-[11px] font-semibold text-muted-foreground px-4 pt-2.5 pb-1 bg-muted/40">USED TODAY</div>
+                {used.map((r) => <Row key={r.id} r={r} />)}
+                <div className="text-[11px] font-semibold text-muted-foreground px-4 pt-2.5 pb-1 bg-muted/40">ALL REASONS</div>
+              </>
+            )}
+            {rest.map((r) => <Row key={r.id} r={r} />)}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
