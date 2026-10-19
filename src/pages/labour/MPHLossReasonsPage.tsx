@@ -115,8 +115,8 @@ export default function MPHLossReasonsPage() {
       if (error) throw error;
       if (!report) return { report: null, departments: [] as DepartmentMph[], lines: [] as SavedLine[] };
       const [deptRes, lineRes] = await Promise.all([
-        (supabase as any).from("mph_loss_report_departments").select("*").eq("report_id", report.id),
-        (supabase as any).from("mph_loss_report_lines").select("*").eq("report_id", report.id).order("sort_order"),
+        (supabase as any).from("mph_loss_report_departments").select("*").eq("report_id", report.id).is("superseded_at", null),
+        (supabase as any).from("mph_loss_report_lines").select("*").eq("report_id", report.id).is("superseded_at", null).order("sort_order"),
       ]);
       if (deptRes.error) throw deptRes.error;
       if (lineRes.error) throw lineRes.error;
