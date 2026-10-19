@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { errorMessage, fmtDT, hasAnyRole, ppDb, todayPk } from "@/lib/personGatePass";
 import {
-  FUEL_APPROVE_ROLES, FUEL_FILTER_STATUSES, FUEL_KEYS, FUEL_SELECT, FUEL_SETTINGS_ROLES, FUEL_STATUS_META, fmtKm, fmtRs, fuelStatusMeta,
+  FUEL_APPROVE_ROLES, FUEL_FILTER_STATUSES, approverName, approverRoleLabel, FUEL_KEYS, FUEL_SELECT, FUEL_SETTINGS_ROLES, FUEL_STATUS_META, fmtKm, fmtRs, fuelStatusMeta,
   isApprovedFuel, printTripFuelVoucher, printTripFuelVouchers, useTripFuelSettings, type TripFuelVoucher,
 } from "@/lib/tripFuel";
 
@@ -31,7 +31,7 @@ export default function TripFuelVouchersPage() {
   const { toast } = useToast();
   const { roles } = useAuth();
   const canSettings = hasAnyRole(roles, FUEL_SETTINGS_ROLES);
-  const isHr = hasAnyRole(roles, FUEL_APPROVE_ROLES);
+  const canApprove = hasAnyRole(roles, FUEL_APPROVE_ROLES);
   const today = todayPk();
   const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(today);
@@ -93,7 +93,7 @@ export default function TripFuelVouchersPage() {
       Voucher: v.voucher_number, "Trip date": v.trip_date, Pass: v.pass?.pass_number ?? "", Code: v.person?.employee_code ?? "", Name: v.person?.full_name ?? "",
       Department: v.person?.production_departments?.name ?? "", Destination: v.destination ?? "", Route: v.route ?? "",
       "Start km": v.start_km ?? "", "End km": v.end_km ?? "", Km: Number(v.km), "Rate / km": Number(v.rate_per_km), Amount: Number(v.amount),
-      Status: fuelStatusMeta(v.status).label, "Claimed by": v.creator?.full_name ?? "", "Approved by": v.approver?.full_name ?? "",
+      Status: fuelStatusMeta(v.status).label, "Claimed by": v.creator?.full_name ?? "", "Approved by": v.approver?.full_name ?? "", "Approved as": approverRoleLabel(v),
       "Approved at": v.approved_at ? format(new Date(v.approved_at), "dd MMM yyyy HH:mm") : "", Remarks: v.approval_remarks ?? v.cancel_reason ?? "",
     }))), "Vouchers");
     XLSX.writeFile(wb, `trip-fuel-vouchers-${fromDate}-to-${toDate}.xlsx`);
@@ -166,7 +166,7 @@ export default function TripFuelVouchersPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground border-b">
               <span><b className="text-foreground">{filtered.length}</b> vouchers</span>
               <span><b className="text-foreground">{totals.approvedCount}</b> approved · <b className="text-foreground">{fmtRs(totals.approved)}</b> · {fmtKm(totals.km)}</span>
-              <span><b className="text-foreground">{fmtRs(totals.awaiting)}</b> awaiting HR approval</span>
+              <span><b className="text-foreground">{fmtRs(totals.awaiting)}</b> awaiting approval</span>
               {totals.approvedCount > 0 && (
                 <Button variant="outline" size="sm" className="ml-auto h-7" onClick={() => printTripFuelVouchers(filtered.filter((v) => isApprovedFuel(v.status)).map((voucher) => ({ voucher })))}>
                   <Printer className="h-3.5 w-3.5 mr-1" /> Print approved ({totals.approvedCount}) · 2 per page
@@ -210,7 +210,7 @@ export default function TripFuelVouchersPage() {
                         <TableCell className="text-right whitespace-nowrap">{fmtKm(v.km)}</TableCell>
                         <TableCell className="text-right font-semibold whitespace-nowrap">{fmtRs(v.amount)}</TableCell>
                         <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{v.approved_at ? `${v.approver?.full_name ?? ""} · ${fmtDT(v.approved_at)}` : ""}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{v.approved_at ? `${approverName(v)} · ${fmtDT(v.approved_at)}` : ""}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="sm" onClick={() => printTripFuelVoucher(v)}><Printer className="h-4 w-4" /></Button>
                         </TableCell>
@@ -223,7 +223,7 @@ export default function TripFuelVouchersPage() {
           </CardContent>
         </Card>
 
-        {isHr && <p className="text-xs text-muted-foreground">Claims waiting for approval are on HR → Gate Pass Approvals and on each pass page.</p>}
+        {canApprove && <p className="text-xs text-muted-foreground">Claims waiting for approval are on HR → Gate Pass Approvals and on each pass page.</p>}
       </div>
     </ERPLayout>
   );

@@ -483,7 +483,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "hr",
     label: "Staff Gate Pass Approver",
     tier: "special",
-    description: "HR – approve / reject staff gate passes (half day, short leave), cancel a pass before it is out, convert an overdue short leave to a half day; HR manager / officer apply",
+    description: "HR – approve / reject staff gate passes (half day, short leave) and trip fuel claims (not their own), cancel a pass before it is out, convert an overdue short leave to a half day; HR manager / officer apply",
     color: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   },
 
