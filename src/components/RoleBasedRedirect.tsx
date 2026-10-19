@@ -166,6 +166,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/labour/attendance-delete-requests" replace />;
   }
 
+  // Production Coordinator lands on the MPH loss reasons for today
+  if (roles.some(r => (r.role as string) === 'production_coordinator')) {
+    return <Navigate to="/labour/mph-loss-reasons" replace />;
+  }
+
   // Staff Gate Pass Approver lands on the staff gate pass approvals
   if (roles.some(r => (r.role as string) === 'staff_gate_pass_approver')) {
     return <Navigate to="/hr/gate-pass/approvals" replace />;

@@ -15,22 +15,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { errorMessage, fmtDT, hasAnyRole, ppDb, type PersonGatePass, type PersonPassVariant } from "@/lib/personGatePass";
 import {
-  FUEL_APPROVE_ROLES, FUEL_KEYS, fmtKm, fmtRs, fuelStatusMeta, invalidateTripFuelQueries, isApprovedFuel, printTripFuelVoucher,
+  FUEL_APPROVE_ROLES, FUEL_HR_ROLES, FUEL_KEYS, approverName, approverRoleLabel, isOwnFuelClaim, fmtKm, fmtRs, fuelStatusMeta, invalidateTripFuelQueries, isApprovedFuel, printTripFuelVoucher,
   useLastEndKm, useTravelAllowanceAllowed, useTripFuelSettings, useTripFuelVoucher, type TripFuelVoucher,
 } from "@/lib/tripFuel";
 
-type EventRow = { id: string; event: string; message: string | null; created_at: string; actor: { full_name: string | null } | null };
+type EventRow = { id: string; event: string; message: string | null; details: { role?: string } | null; created_at: string; actor: { full_name: string | null } | null };
 
 const EVENT_LABEL: Record<string, string> = {
-  claimed: "Claimed", approved: "Approved by HR", rejected: "Rejected", paid: "Marked paid", cancelled: "Cancelled",
+  claimed: "Claimed", approved: "Approved", rejected: "Rejected", paid: "Marked paid", cancelled: "Cancelled",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel";
 
 /**
  * Trip fuel on an official duty staff pass: the claim form (route, odometer or
- * kilometres, optional photo) and, once claimed, the voucher with HR approval,
- * cancel and print. HR approval is final: the cashier pays against the printed
+ * kilometres, optional photo) and, once claimed, the voucher with approval (HR
+ * manager or staff gate pass approver), cancel and print. Approval is final: the cashier pays against the printed
  * voucher and nothing is recorded for that. Shown on the pass page once the trip is over.
  */
 export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVariant; pass: PersonGatePass }) {
@@ -40,6 +40,8 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
   const self = Boolean(variant.selfService);
   const canClaim = self || hasAnyRole(roles, variant.applyRoles);
   const canApprove = hasAnyRole(roles, FUEL_APPROVE_ROLES);
+  const isHr = hasAnyRole(roles, FUEL_HR_ROLES);
+  const isSuperAdmin = hasAnyRole(roles, ["super_admin"]);
   const { data: voucher, isLoading } = useTripFuelVoucher(pass.id);
   const { data: settings } = useTripFuelSettings();
   const { data: lastEndKm } = useLastEndKm(voucher ? undefined : pass.employee_id);
@@ -63,7 +65,7 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
     queryFn: async () => {
       const { data, error } = await ppDb
         .from("staff_trip_fuel_events")
-        .select("id, event, message, created_at, actor:app_users!staff_trip_fuel_events_created_by_fkey(full_name)")
+        .select("id, event, message, details, created_at, actor:app_users!staff_trip_fuel_events_created_by_fkey(full_name)")
         .eq("voucher_id", voucher!.id)
         .order("created_at");
       if (error) return [];
@@ -147,8 +149,10 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
     const v: TripFuelVoucher = voucher;
     const status = fuelStatusMeta(v.status);
     const isMaker = v.created_by === user?.id;
+    // Nobody but a super admin reviews their own claim (the database enforces it too).
+    const ownClaim = isOwnFuelClaim(v, user?.id) && !isSuperAdmin;
     // A pending claim can be cancelled by its maker or HR; an approved voucher only by HR (cash may already be out).
-    const canCancel = (v.status === "pending_approval" && (canApprove || isMaker)) || (v.status === "approved" && canApprove);
+    const canCancel = (v.status === "pending_approval" && (isHr || isMaker)) || (v.status === "approved" && isHr);
     const dialogMeta: Record<Exclude<DialogKind, null>, { title: string; description: string; needReason: boolean; fn: string; args: Record<string, unknown>; done: string; destructive?: boolean }> = {
       approve: { title: "Approve this fuel claim?", description: `${fmtRs(v.amount)} for ${fmtKm(v.km)}. The staff member collects the cash from the cashier against the printed voucher. Approval is final: there is no separate payment step.`, needReason: false, fn: "staff_trip_fuel_review", args: { p_id: v.id, p_approve: true, p_remarks: remarks || null }, done: "Approved" },
       reject: { title: "Reject this fuel claim", description: "The claimant will be told, with your reason.", needReason: true, fn: "staff_trip_fuel_review", args: { p_id: v.id, p_approve: false, p_remarks: remarks }, done: "Rejected", destructive: true },
@@ -161,7 +165,7 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
           <div className="flex flex-wrap gap-2 items-center">
             <Badge variant={status.variant}>{status.label}</Badge>
             <Button variant="outline" size="sm" onClick={() => printTripFuelVoucher(v, pass)}><Printer className="h-4 w-4 mr-1" /> Print voucher</Button>
-            {canApprove && v.status === "pending_approval" && (
+            {canApprove && !ownClaim && v.status === "pending_approval" && (
               <>
                 <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800" onClick={() => setDialog("approve")}><CheckCircle2 className="h-4 w-4 mr-1" /> Approve</Button>
                 <Button size="sm" variant="destructive" onClick={() => setDialog("reject")}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>
@@ -182,7 +186,7 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
             <dd>{v.start_km != null ? `Odometer ${Number(v.start_km).toLocaleString()} → ${Number(v.end_km).toLocaleString()}` : "Entered by hand"}</dd>
             <dt className="text-muted-foreground">Claimed by</dt><dd>{v.creator?.full_name ?? "—"} · {fmtDT(v.created_at)}</dd>
             <dt className="text-muted-foreground">{v.status === "rejected" ? "Rejected by" : "Approved by"}</dt>
-            <dd>{v.approver?.full_name ?? "—"}{v.approved_at ? ` · ${fmtDT(v.approved_at)}` : ""}{v.approval_remarks ? ` — ${v.approval_remarks}` : ""}</dd>
+            <dd>{approverName(v) || "—"}{v.approved_at ? ` · ${fmtDT(v.approved_at)}` : ""}{v.approval_remarks ? ` — ${v.approval_remarks}` : ""}</dd>
             {v.paid_at && <><dt className="text-muted-foreground">Marked paid by</dt><dd>{v.payer?.full_name ?? "cashier"} · {fmtDT(v.paid_at)}{v.paid_remarks ? ` — ${v.paid_remarks}` : ""}</dd></>}
             {v.cancelled_at && <><dt className="text-muted-foreground">Cancelled</dt><dd>{fmtDT(v.cancelled_at)} — {v.cancel_reason}</dd></>}
             {v.notes && <><dt className="text-muted-foreground">Notes</dt><dd>{v.notes}</dd></>}
@@ -204,7 +208,7 @@ export function TripFuelClaimCard({ variant, pass }: { variant: PersonPassVarian
                   <span className="whitespace-nowrap w-24">{fmtDT(ev.created_at)}</span>
                   <span className="font-semibold text-foreground">{EVENT_LABEL[ev.event] ?? ev.event}</span>
                   {ev.message && <span>{ev.message}</span>}
-                  {ev.actor?.full_name && <span>by {ev.actor.full_name}</span>}
+                  {ev.actor?.full_name && <span>by {ev.actor.full_name}{ev.details?.role ? ` (${approverRoleLabel({ approved_as: ev.details.role, approved_at: ev.created_at })})` : ""}</span>}
                 </li>
               ))}
             </ol>

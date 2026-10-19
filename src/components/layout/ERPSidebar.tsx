@@ -553,6 +553,8 @@ const navigationItems: NavItem[] = [
       { title: "Public Holidays", href: "/labour/public-holidays" },
       { title: "MPH Management", href: "/labour/mph-management" },
       { title: "MPH Analysis", href: "/labour/mph-analysis" },
+      { title: "MPH Loss Reasons", href: "/labour/mph-loss-reasons" },
+      { title: "MPH Loss Reason Analysis", href: "/labour/mph-loss-analysis" },
       { title: "Edit Requests", href: "/labour/edit-requests", requiresApprove: "labour" },
       { title: "Dashboard", href: "/labour/dashboard" },
     ],
@@ -802,6 +804,7 @@ const navigationItems: NavItem[] = [
       { title: "Units", href: "/master/units" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
+      { title: "MPH Loss Reasons", href: "/master/mph-loss-reasons", superAdminOnly: true },
     ],
   },
   {
