@@ -63,8 +63,8 @@ export default function MPHLossReasonAnalysisPage() {
       const ids = (reports || []).map((r: ReportRow) => r.id);
       if (ids.length === 0) return { reports: [] as ReportRow[], departments: [] as any[], lines: [] as any[] };
       const [deptRes, lineRes] = await Promise.all([
-        (supabase as any).from("mph_loss_report_departments").select("*").in("report_id", ids),
-        (supabase as any).from("mph_loss_report_lines").select("*").in("report_id", ids).order("sort_order"),
+        (supabase as any).from("mph_loss_report_departments").select("*").in("report_id", ids).is("superseded_at", null),
+        (supabase as any).from("mph_loss_report_lines").select("*").in("report_id", ids).is("superseded_at", null).order("sort_order"),
       ]);
       if (deptRes.error) throw deptRes.error;
       if (lineRes.error) throw lineRes.error;

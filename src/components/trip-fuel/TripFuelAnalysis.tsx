@@ -261,7 +261,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-[190px] h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="live">Awaiting HR and approved</SelectItem>
+              <SelectItem value="live">Awaiting approval and approved</SelectItem>
               <SelectItem value="all">Everything</SelectItem>
               {FUEL_FILTER_STATUSES.map((k) => <SelectItem key={k} value={k}>{FUEL_STATUS_META[k].label}</SelectItem>)}
             </SelectContent>
@@ -277,7 +277,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
         <MetricCard title="Distance" value={fmtKm(kpi.km)} icon={Gauge} description="travelled" />
         <MetricCard title="Claimed" value={fmtRs(kpi.claimed)} icon={Fuel} description="awaiting HR and approved" />
         <MetricCard title="Approved" value={fmtRs(kpi.approved)} icon={ThumbsUp} description="cash payable by the cashier" />
-        <MetricCard title="Awaiting HR" value={fmtRs(kpi.awaiting)} icon={Hourglass} description={`${kpi.awaitingCount} claim${kpi.awaitingCount === 1 ? "" : "s"}`} />
+        <MetricCard title="Awaiting approval" value={fmtRs(kpi.awaiting)} icon={Hourglass} description={`${kpi.awaitingCount} claim${kpi.awaitingCount === 1 ? "" : "s"}`} />
         <MetricCard title="Cost per km" value={kpi.perKm ? `Rs ${kpi.perKm.toFixed(2)}` : "—"} icon={Gauge} description="claimed ÷ km" />
       </div>
 
@@ -381,7 +381,7 @@ export function TripFuelAnalysis({ scope }: { scope: Scope }) {
                   <TableHead className="text-right">Km</TableHead>
                   <TableHead className="text-right">Claimed</TableHead>
                   <TableHead className="text-right">Approved</TableHead>
-                  <TableHead className="text-right">Awaiting HR</TableHead>
+                  <TableHead className="text-right">Awaiting approval</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

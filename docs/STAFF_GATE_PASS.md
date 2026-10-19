@@ -133,11 +133,11 @@ managed by hand.
 
 ```
 trip over (pass returned / not scanned in) → staff member or HR claims → pending_approval
-  → HR manager approves → approved (voucher printed, cash collected from the cashier)
-rejected (HR manager) · cancelled (claimant or HR manager while pending; HR manager only once approved)
+  → HR manager or staff gate pass approver approves → approved (voucher printed, cash collected from the cashier)
+rejected (HR manager or staff gate pass approver) · cancelled (claimant or HR manager while pending; HR manager only once approved)
 ```
 
-**HR approval is final.** There is no "mark paid" step: the cashier pays cash against
+**Approval is final.** There is no "mark paid" step: the cashier pays cash against
 the printed voucher and nothing is recorded for that (migration
 `20261015120000_trip_fuel_approval_final.sql`). `staff_trip_fuel_pay` now refuses.
 Vouchers that were marked paid earlier (TFV-000001) keep status `paid`, are shown and
@@ -156,7 +156,7 @@ counted as approved, and keep their paid-by / paid-at details.
   Expenses → Trip Fuel Vouchers, with `fuel_max_km_per_trip`, default 300).
   Rate and figures are frozen on the voucher.
 - **Voucher.** `TFV-000001` … with staff, pass, date, route, odometer or km,
-  rate, amount and signature lines (claimed by, approved by HR, paid by cashier,
+  rate, amount and signature lines (claimed by, approved by with the approver's role, paid by cashier,
   received by; the cashier and receiver sign by hand). Printable from the pass page,
   My Travel Vouchers and the Trip Fuel Vouchers page. Vouchers print **two to an A4
   page** in fixed halves with a dashed cut line; printing several at once fills the
@@ -170,10 +170,19 @@ counted as approved, and keep their paid-by / paid-at details.
   Existing vouchers are untouched, and staff who already had a live voucher when the
   switch was added start with it on.
 - **Roles.** Claim: the staff member on the pass (self-service) or HR. Approve
-  / reject: `hr_manager` (and super admin), always. Cancel: the claimant or an HR
+  / reject: `hr_manager` or `staff_gate_pass_approver` (and super admin), since
+  `20261103120000_trip_fuel_gate_pass_approver.sql` (rollback
+  `supabase/rollbacks/20261103120000_trip_fuel_gate_pass_approver_down.sql`). Nobody
+  but a super admin approves or rejects a claim they raised or a claim for themselves.
+  Who approved is recorded on the voucher: `approved_by`, `approved_at` and
+  `approved_as` (the role they acted in: `hr_manager`, `staff_gate_pass_approver` or
+  `super_admin`; blank on older vouchers, shown as HR), and in the voucher history
+  (`staff_trip_fuel_events.details.role`). The pass page, the vouchers register, its
+  export and the printed voucher show "Name (Role)". Cancel: the claimant or an HR
   manager while the claim is pending; only an HR manager once it is approved (cash
-  may already be out, so settle that with the staff member by hand). No new role.
-- **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for HR**;
+  may already be out, so settle that with the staff member by hand). The staff gate
+  pass approver cannot cancel.
+- **Pages.** Gate Pass Approvals shows **Trip fuel claims waiting for approval**;
   **Expenses → Trip Fuel Vouchers** (`/expenses/trip-fuel`) is the register of
   every voucher (filters, print, **Print approved · 2 per page**, Excel export) and
   holds the settings. **Self Service → My Travel Vouchers** (`/my-travel-vouchers`,
@@ -181,10 +190,10 @@ counted as approved, and keep their paid-by / paid-at details.
   for the chosen dates, prints the selected or all approved ones two to a page, and
   lists finished company work trips not claimed yet with a **Claim fuel** link. The staff register shows the voucher on each trip and km / fuel per
   person in the Company work summary and its export.
-- **Notifications.** Claim → HR managers. Approved → claimant and cashiers
+- **Notifications.** Claim → HR managers and staff gate pass approvers. Approved → claimant and cashiers
   (`pettycash_handler`, `expenses_manager`): "approved for Rs X, the cashier pays it
   in cash against the printed voucher". Rejected → claimant.
-  Cancelled → claimant, HR managers (and cashiers when it was already approved).
+  Cancelled → claimant, HR managers, staff gate pass approvers (and cashiers when it was already approved).
 
 ### Trip fuel analysis and the ledger check
 

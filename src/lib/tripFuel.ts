@@ -11,7 +11,7 @@ import { fmtDT, ppDb, type PersonGatePass } from "@/lib/personGatePass";
 export type TripFuelStatus = "pending_approval" | "approved" | "paid" | "rejected" | "cancelled";
 
 export const FUEL_STATUS_META: Record<TripFuelStatus, { label: string; variant: "warning" | "success" | "destructive" | "secondary" | "info" | "soft" }> = {
-  pending_approval: { label: "Awaiting HR approval", variant: "warning" },
+  pending_approval: { label: "Awaiting approval", variant: "warning" },
   approved: { label: "Approved", variant: "success" },
   // Vouchers marked paid before approval became final; they count as approved.
   paid: { label: "Approved", variant: "success" },
@@ -21,8 +21,25 @@ export const FUEL_STATUS_META: Record<TripFuelStatus, { label: string; variant: 
 
 export const fuelStatusMeta = (s: string) => FUEL_STATUS_META[s as TripFuelStatus] ?? { label: s, variant: "secondary" as const };
 
-/** Approval by the HR manager is final: there is no separate "mark paid" step. */
-export const FUEL_APPROVE_ROLES = ["super_admin", "hr_manager"];
+/** Approval (by an HR manager or a staff gate pass approver) is final: there is no separate "mark paid" step. */
+export const FUEL_APPROVE_ROLES = ["super_admin", "hr_manager", "staff_gate_pass_approver"];
+/** Cancelling someone else's claim, or any approved voucher, stays with HR. */
+export const FUEL_HR_ROLES = ["super_admin", "hr_manager"];
+
+const APPROVER_ROLE_LABEL: Record<string, string> = {
+  hr_manager: "HR Manager",
+  staff_gate_pass_approver: "Staff Gate Pass Approver",
+  super_admin: "Super Admin",
+};
+/** The capacity the voucher was approved / rejected in; vouchers reviewed before it was recorded were HR. */
+export const approverRoleLabel = (v: Pick<TripFuelVoucher, "approved_as" | "approved_at">) =>
+  v.approved_at ? (v.approved_as ? APPROVER_ROLE_LABEL[v.approved_as] ?? v.approved_as : "HR") : "";
+/** "Ali Khan (Staff Gate Pass Approver)" */
+export const approverName = (v: TripFuelVoucher) =>
+  v.approver?.full_name ? `${v.approver.full_name}${approverRoleLabel(v) ? ` (${approverRoleLabel(v)})` : ""}` : "";
+/** A claim the user raised or one for themselves: they cannot approve it (super admin excepted, as in the database). */
+export const isOwnFuelClaim = (v: TripFuelVoucher, appUserId: string | undefined) =>
+  Boolean(appUserId) && (v.created_by === appUserId || v.person?.app_user_id === appUserId);
 /** Statuses that count as approved fuel (paid is an older status for the same thing). */
 export const isApprovedFuel = (status: string) => status === "approved" || status === "paid";
 /** Statuses offered in filters; "approved" covers the older paid ones too. */
@@ -51,13 +68,14 @@ export type TripFuelVoucher = {
   created_at: string;
   approved_by: string | null;
   approved_at: string | null;
+  approved_as: string | null;
   approval_remarks: string | null;
   paid_by: string | null;
   paid_at: string | null;
   paid_remarks: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
-  person?: { employee_code: string; full_name: string; photo_url: string | null; production_departments?: { name: string } | null } | null;
+  person?: { employee_code: string; full_name: string; photo_url: string | null; app_user_id?: string | null; production_departments?: { name: string } | null } | null;
   pass?: { pass_number: string; gate_out_at: string | null; gate_in_at: string | null } | null;
   creator?: { full_name: string | null } | null;
   approver?: { full_name: string | null } | null;
@@ -66,7 +84,7 @@ export type TripFuelVoucher = {
 
 export const FUEL_SELECT =
   "*," +
-  "person:employees(employee_code, full_name, photo_url, production_departments(name))," +
+  "person:employees(employee_code, full_name, photo_url, app_user_id, production_departments(name))," +
   "pass:staff_gate_passes(pass_number, gate_out_at, gate_in_at)," +
   "creator:app_users!staff_trip_fuel_vouchers_created_by_fkey(full_name)," +
   "approver:app_users!staff_trip_fuel_vouchers_approved_by_fkey(full_name)," +
@@ -221,7 +239,7 @@ function tripFuelVoucherHtml(v: TripFuelVoucher, pass?: VoucherPass | null) {
     </div>
     <div class="sign">
       <div>Claimed by<br><b>${esc(v.creator?.full_name ?? "")}</b><br><span class="muted">${esc(fmtDT(v.created_at))}</span></div>
-      <div>Approved by (HR)<br><b>${esc(v.approver?.full_name ?? "")}</b><br><span class="muted">${v.approved_at ? esc(fmtDT(v.approved_at)) : "&nbsp;"}</span></div>
+      <div>Approved by<br><b>${esc(v.approver?.full_name ?? "")}</b>${approverRoleLabel(v) ? ` <span class="muted">(${esc(approverRoleLabel(v))})</span>` : ""}<br><span class="muted">${v.approved_at ? esc(fmtDT(v.approved_at)) : "&nbsp;"}</span></div>
       <div>Paid by (cashier)<br><b>${esc(v.payer?.full_name ?? "")}</b><br>&nbsp;</div>
       <div>Received by<br>&nbsp;<br>&nbsp;</div>
     </div>
