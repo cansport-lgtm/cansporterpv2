@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { endOfMonth, format, parseISO } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -54,7 +54,8 @@ export const OvertimeDialog = ({
     queryFn: async () => {
       if (!employee) return [];
       const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
+      // The real last day: "2026-04-31" is not a date, and Postgres refuses the whole query.
+      const endDate = format(endOfMonth(parseISO(startDate)), "yyyy-MM-dd");
       
       const { data, error } = await supabase
         .from("labour_productivity_targets")
@@ -67,28 +68,6 @@ export const OvertimeDialog = ({
       
       if (error) throw error;
       return data as OvertimeEntry[];
-    },
-    enabled: !!employee && open,
-  });
-
-  // Fetch productivity entries for this employee (to update overtime)
-  const { data: productivityEntries = [] } = useQuery({
-    queryKey: ["employee-productivity-entries", employee?.id, month],
-    queryFn: async () => {
-      if (!employee) return [];
-      const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
-      
-      const { data, error } = await supabase
-        .from("labour_productivity_targets")
-        .select("id, target_date")
-        .eq("employee_id", employee.id)
-        .gte("target_date", startDate)
-        .lte("target_date", endDate)
-        .order("target_date", { ascending: false });
-      
-      if (error) throw error;
-      return data;
     },
     enabled: !!employee && open,
   });
@@ -154,8 +133,17 @@ export const OvertimeDialog = ({
           .eq("id", editingId);
         if (error) throw error;
       } else {
-        // Check if there's an existing entry for this date
-        const existingEntry = productivityEntries.find(e => e.target_date === overtimeDate);
+        // Look the date up in the database rather than a cached month list: when that list
+        // failed to load, every save made a second "overtime only" full day (an extra 12 MPH).
+        const { data: existingRows, error: existingError } = await supabase
+          .from("labour_productivity_targets")
+          .select("id")
+          .eq("employee_id", employee.id)
+          .eq("target_date", overtimeDate)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        if (existingError) throw existingError;
+        const existingEntry = existingRows?.[0];
         
         if (existingEntry) {
           // Update existing entry with overtime
@@ -196,7 +184,6 @@ export const OvertimeDialog = ({
       toast.success(editingId ? "Overtime updated successfully" : "Overtime recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["labour-productivity-month"] });
       queryClient.invalidateQueries({ queryKey: ["employee-overtime", employee?.id, month] });
-      queryClient.invalidateQueries({ queryKey: ["employee-productivity-entries", employee?.id, month] });
       resetForm();
     },
     onError: (error) => {
