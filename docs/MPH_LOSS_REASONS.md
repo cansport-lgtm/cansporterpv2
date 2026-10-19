@@ -31,6 +31,25 @@ loss. This feature records **why** each loss happened.
 7. Weekly review uses the Reason Analysis page (MPH lost by reason, daily loss,
    department × reason matrix, reason log).
 
+## Calculation panel and phone layout
+
+Every department on the entry page can show the calculation behind its numbers
+("Show calculation" on desktop, the **Calculation** button on a phone):
+
+1. **Authorized MPH, item by item** — every posted production entry (grade,
+   sub-department, shift): output × the sub-department's MPH number, with
+   sub-department subtotals and the department total.
+2. **Used MPH, worker by worker** — every worker from Today's Deployment,
+   grouped by process, with hours and MPH.
+3. **Result** in plain words: earned vs used, MPH lost, MPH per unit against
+   the standard.
+
+Below 768px the page becomes a phone flow: an overview list of departments in
+loss (tap one), a department screen with stacked reason cards, a bottom-sheet
+reason picker (search, category chips, "used today" first), a "Use remaining"
+shortcut, and sticky Save / Submit buttons. Desktop (≥768px) keeps the original
+layout.
+
 ## Role
 
 `production_coordinator` (Labour module, special tier). Confined to the MPH loss
