@@ -8,7 +8,7 @@ example), but together they can never pass **12 MPH**.
 
 The database refuses any new or changed entry that would take the worker's total for
 that date above 12 (trigger `labour_productivity_mph_cap`, migration
-`20261102120000_labour_mph_daily_cap.sql`). That covers every way an entry is written:
+`20261104120000_labour_mph_daily_cap.sql`). That covers every way an entry is written:
 the entry form, edit-request approval, Excel import and the Overtime dialog. The
 refusal names the entries the worker already has, for example:
 

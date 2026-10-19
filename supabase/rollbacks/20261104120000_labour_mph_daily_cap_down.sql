@@ -1,4 +1,4 @@
--- Rollback for 20261102120000_labour_mph_daily_cap.sql
+-- Rollback for 20261104120000_labour_mph_daily_cap.sql
 -- Removes the 12 MPH per day rule. The clean-up of the old over-limit days
 -- (overtime folded into the real entry, leftover drafts deleted) stays.
 

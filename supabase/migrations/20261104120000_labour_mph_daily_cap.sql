@@ -25,7 +25,7 @@
 --    refused with a message naming the other entries. A per worker/day
 --    advisory lock makes two simultaneous saves queue instead of both passing.
 --
--- Rollback: supabase/rollbacks/20261102120000_labour_mph_daily_cap_down.sql
+-- Rollback: supabase/rollbacks/20261104120000_labour_mph_daily_cap_down.sql
 -- (removes the rule; the clean-up is not undone).
 -- ============================================================================
 
