@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { endOfMonth, format, parseISO } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -51,7 +51,8 @@ export const AttendanceAllowanceDialog = ({
     queryFn: async () => {
       if (!employee) return [];
       const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
+      // The real last day: "2026-04-31" is not a date, and Postgres refuses the whole query.
+      const endDate = format(endOfMonth(parseISO(startDate)), "yyyy-MM-dd");
       
       const { data, error } = await supabase
         .from("labour_attendance_allowances")
