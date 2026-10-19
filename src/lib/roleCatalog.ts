@@ -320,6 +320,13 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     description: "Labour Productivity – approve / reject supervisors' requests to delete a worker's attendance entry marked by mistake (approval deletes the entry); sees the attendance delete log sheet",
     color: "bg-rose-500/10 text-rose-600 border-rose-500/20",
   },
+  production_coordinator: {
+    module: "labour",
+    label: "Production Coordinator (MPH loss reasons)",
+    tier: "special",
+    description: "Labour Productivity – when production is posted, gives the reason(s) for every department in MPH loss, submits and prints the MPH Loss Reason Report; sees MPH Analysis and the reason analysis",
+    color: "bg-red-500/10 text-red-600 border-red-500/20",
+  },
 
   // qa
   qa_super_manager: {
