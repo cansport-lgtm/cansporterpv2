@@ -6,6 +6,8 @@
 // The rules live in the database:
 //   workers  supabase/migrations/20261002120100_labour_gate_pass.sql
 //   staff    supabase/migrations/20261003120100_staff_gate_pass.sql
+// Time-outside thresholds on short leave: 20261006120000_labour_gate_pass_outside_thresholds.sql
+// (workers) and 20261103120000_staff_gate_pass_outside_thresholds.sql (staff).
 // Every write goes through the <prefix>_* functions; the tables are read-only here.
 
 import { format } from "date-fns";
@@ -68,10 +70,12 @@ export type PersonPassVariant = {
   halfDayEffect: string;
   /** Detail-page banner once the day is marked. */
   halfDayMarkedText: (rows: number | null) => string;
+  /** Detail-page banner once the day is marked absent: what happened to the attendance. */
+  absentMarkedText: string;
   /**
    * The pass table carries attendance_effect ('half_day' | 'absent') and the
    * half-day view an `effect` column: short leaves past the time-outside
-   * thresholds mark a half day or an absence (workers only).
+   * thresholds mark a half day or an absence.
    */
   attendanceEffects?: boolean;
   /** Sentence added to the Short leave kind description. */
@@ -123,6 +127,7 @@ export const WORKER_PASS: PersonPassVariant = {
   approvalsDescription: "Passes waiting for the labour gate pass approver, and short leaves overdue at the gate (company work is never overdue)",
   halfDayEffect: "When the guard scans the worker out, the day is marked Half day: every productivity entry for that date becomes a half day, and any entry added later for that date stays a half day.",
   halfDayMarkedText: (rows) => `${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} set to half day. Any entry added later for that date stays a half day.`,
+  absentMarkedText: "The productivity entries for that date were removed (kept in the history below) and no entry can be posted for it.",
   halfDayGateText: (rows) => `Half day marked for today (${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} updated).`,
   personSubline: (p) => p?.category ?? "",
   attendanceEffects: true,
@@ -161,8 +166,11 @@ export const STAFF_PASS: PersonPassVariant = {
   approvalsDescription: "Passes waiting for the staff gate pass approver, and short leaves overdue at the gate",
   halfDayEffect: "When the guard scans the staff member out, the day is marked Half day in HR attendance: the attendance row for that date becomes Half Day (created if missing), and anything written later for that date stays a half day. The Salary Sheet counts it as half a day.",
   halfDayMarkedText: () => "HR attendance for that date is Half Day. Anything written later for that date (Attendance page, Excel import) stays a half day.",
+  absentMarkedText: "HR attendance for that date is Absent. Anything written later for that date (Attendance page, Excel import) stays absent.",
   halfDayGateText: () => "Half day marked for today in HR attendance.",
   personSubline: (p) => p?.designations?.name ?? "",
+  attendanceEffects: true,
+  shortLeaveRule: "Up to 3 h outside in office hours (08:30–19:30) → no effect; over 3 h → half day; over 8 h → absent. Not back by day end → the same rule on the time outside.",
 };
 
 /** The staff member's own view: raise and follow official duty passes without an HR role. */
@@ -182,9 +190,10 @@ export const PERSON_PASS_VARIANTS: PersonPassVariant[] = [WORKER_PASS, STAFF_PAS
 export const isOfficialDuty = (k: string | null | undefined) => k === "official_duty";
 
 /**
- * The attendance effect of a pass: 'half_day', 'absent' or null. Worker passes
- * carry it in attendance_effect; staff passes still derive it (a half-day pass
- * out, or a non-official pass not returned). Official duty never has one.
+ * The attendance effect of a pass: 'half_day', 'absent' or null, as carried in
+ * attendance_effect. Rows read without that column fall back to the old rule
+ * (a half-day pass out, or a non-official pass not returned). Official duty
+ * never has one.
  */
 export const attendanceEffect = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }): "half_day" | "absent" | null => {
   if (p.attendance_effect !== undefined) return (p.attendance_effect as "half_day" | "absent" | null) ?? null;
@@ -195,7 +204,7 @@ export const attendanceEffect = (p: Pick<PersonGatePass, "pass_kind" | "status">
 export const marksHalfDay = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }) =>
   attendanceEffect(p) === "half_day";
 
-/** Did this pass mark the worker absent (short leave outside over the limit)? */
+/** Did this pass mark the person absent (short leave outside over the limit)? */
 export const marksAbsent = (p: Pick<PersonGatePass, "pass_kind" | "status"> & { attendance_effect?: string | null }) =>
   attendanceEffect(p) === "absent";
 
@@ -260,10 +269,10 @@ export type PersonGatePass = {
   overdue_notified_at: string | null;
   half_day_marked_at: string | null;
   half_day_rows: number | null;
-  /** Workers only: 'half_day' | 'absent' once a threshold or a half-day pass applied. */
+  /** 'half_day' | 'absent' once a threshold or a half-day pass applied. */
   attendance_effect?: "half_day" | "absent" | null;
   attendance_marked_at?: string | null;
-  /** Workers only: minutes outside inside the official hours. */
+  /** Minutes outside inside the official hours (short leave). */
   work_minutes_outside?: number | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
@@ -372,10 +381,10 @@ export function useLivePersonPasses(v: PersonPassVariant) {
   });
 }
 
-// Dates marked Half day (or, for workers, Absent) by a gate pass, for the sheets and the salary.
+// Dates marked Half day or Absent by a gate pass, for the sheets and the salary.
 export type HalfDayMark = {
   employee_id: string; pass_date: string; pass_number: string; pass_kind: string; status: string; gate_out_at: string | null;
-  /** Workers only; staff marks are always half days. */
+  /** Read when the variant has attendanceEffects. */
   effect?: "half_day" | "absent" | null;
   work_minutes_outside?: number | null;
 };
