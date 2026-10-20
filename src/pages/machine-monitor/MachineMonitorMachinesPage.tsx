@@ -31,6 +31,7 @@ interface Machine {
   code: string;
   department: string | null;
   location: string | null;
+  assigned_worker: string | null;
   custom_statuses: string[];
   current_status: string;
   is_active: boolean;
@@ -49,6 +50,7 @@ export default function MachineMonitorMachinesPage() {
     code: "",
     department: "",
     location: "",
+    assigned_worker: "",
     sort_order: 0,
     breakdown_reasons: [...DEFAULT_BREAKDOWN_REASONS],
     performance_issue_reasons: [...DEFAULT_PERFORMANCE_REASONS],
@@ -89,6 +91,7 @@ export default function MachineMonitorMachinesPage() {
         name: values.name,
         department: values.department || null,
         location: values.location || null,
+        assigned_worker: values.assigned_worker.trim() || null,
         sort_order: values.sort_order,
         custom_statuses: joinReasonGroups(values.breakdown_reasons, values.performance_issue_reasons),
         is_active: values.is_active,
@@ -137,6 +140,7 @@ export default function MachineMonitorMachinesPage() {
       code: "",
       department: "",
       location: "",
+      assigned_worker: "",
       sort_order: 0,
       breakdown_reasons: [...DEFAULT_BREAKDOWN_REASONS],
       performance_issue_reasons: [...DEFAULT_PERFORMANCE_REASONS],
@@ -153,6 +157,7 @@ export default function MachineMonitorMachinesPage() {
       code: m.code,
       department: m.department || "",
       location: m.location || "",
+      assigned_worker: m.assigned_worker || "",
       sort_order: m.sort_order,
       breakdown_reasons: groups.breakdown_reasons,
       performance_issue_reasons: groups.performance_issue_reasons,
@@ -202,6 +207,7 @@ export default function MachineMonitorMachinesPage() {
     { key: "name", header: "Name" },
     { key: "department", header: "Department", render: (row: Machine) => row.department || "—" },
     { key: "location", header: "Location", render: (row: Machine) => row.location || "—" },
+    { key: "assigned_worker", header: "Assigned Worker", render: (row: Machine) => row.assigned_worker || "—" },
     {
       key: "current_status",
       header: "Current Status",
@@ -338,9 +344,19 @@ export default function MachineMonitorMachinesPage() {
                 <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
               </div>
             </div>
-            <div>
-              <Label>Sort Order</Label>
-              <Input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Assigned Worker</Label>
+                <Input
+                  value={form.assigned_worker}
+                  placeholder="Worker name"
+                  onChange={(e) => setForm({ ...form, assigned_worker: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Sort Order</Label>
+                <Input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} />
+              </div>
             </div>
 
             {/* Breakdown reasons */}

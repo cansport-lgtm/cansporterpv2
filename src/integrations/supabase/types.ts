@@ -7889,6 +7889,7 @@ export type Database = {
       }
       machine_monitor_machines: {
         Row: {
+          assigned_worker: string | null
           code: string
           created_at: string
           current_remarks: string | null
@@ -7904,6 +7905,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_worker?: string | null
           code: string
           created_at?: string
           current_remarks?: string | null
@@ -7919,6 +7921,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_worker?: string | null
           code?: string
           created_at?: string
           current_remarks?: string | null
