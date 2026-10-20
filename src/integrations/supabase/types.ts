@@ -4336,6 +4336,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           joining_date: string | null
+          late_grace_minutes: number
           leave_quota_type: string
           status: string | null
           updated_at: string | null
@@ -4361,6 +4362,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           joining_date?: string | null
+          late_grace_minutes?: number
           leave_quota_type?: string
           status?: string | null
           updated_at?: string | null
@@ -4386,6 +4388,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           joining_date?: string | null
+          late_grace_minutes?: number
           leave_quota_type?: string
           status?: string | null
           updated_at?: string | null

@@ -1,8 +1,11 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Pencil, Trash2, Upload, X, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Upload, X, Loader2, Clock } from "lucide-react";
 import { EmployeeAvatar } from "@/components/labour/EmployeeAvatar";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { OfficialTimingsDialog } from "@/components/hr/OfficialTimingsDialog";
+import { formatTiming, lateAfter, shortTime } from "@/lib/officialTiming";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { AutoCodeField } from "@/components/shared/AutoCodeField";
@@ -40,6 +43,10 @@ interface Employee {
   basic_salary: number | null;
   allowances: number | null;
   photo_url?: string | null;
+  duty_start_time?: string | null;
+  duty_end_time?: string | null;
+  duty_hours?: number | null;
+  late_grace_minutes?: number | null;
   field_duty_allowed?: boolean | null;
   travel_allowance_allowed?: boolean | null;
   app_user_id?: string | null;
@@ -92,6 +99,9 @@ const EmployeesPage = () => {
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("active");
+  const [timingsOpen, setTimingsOpen] = useState(false);
+  const { hasRole } = useAuth();
+  const canEditTimings = hasRole("super_admin") || hasRole("hr_manager") || hasRole("hr_officer");
 
   const [formData, setFormData] = useState({
     employee_code: "",
@@ -110,6 +120,7 @@ const EmployeesPage = () => {
     duty_start_time: "09:00",
     duty_end_time: "18:00",
     duty_hours: "8",
+    late_grace_minutes: "15",
     photo_url: "",
     field_duty_allowed: false,
     travel_allowance_allowed: false,
@@ -233,6 +244,7 @@ const EmployeesPage = () => {
         duty_start_time: data.duty_start_time || "09:00",
         duty_end_time: data.duty_end_time || "18:00",
         duty_hours: data.duty_hours ? parseFloat(data.duty_hours) : 8,
+        late_grace_minutes: data.late_grace_minutes === "" ? 15 : parseInt(data.late_grace_minutes, 10),
         photo_url: data.photo_url || null,
         field_duty_allowed: data.field_duty_allowed,
         travel_allowance_allowed: data.travel_allowance_allowed,
@@ -256,6 +268,7 @@ const EmployeesPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
       queryClient.invalidateQueries({ queryKey: ["employees-active"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-employees-time-sheet"] });
       toast.success(editingEmployee ? "Employee updated" : "Employee added");
       resetForm();
     },
@@ -325,6 +338,7 @@ const EmployeesPage = () => {
       duty_start_time: "09:00",
       duty_end_time: "18:00",
       duty_hours: "8",
+      late_grace_minutes: "15",
       photo_url: "",
       field_duty_allowed: false,
       travel_allowance_allowed: false,
@@ -349,9 +363,10 @@ const EmployeesPage = () => {
       basic_salary: employee.basic_salary?.toString() || "",
       allowances: employee.allowances?.toString() || "",
       attendance_allowance: (employee as any).attendance_allowance?.toString() || "",
-      duty_start_time: (employee as any).duty_start_time || "09:00",
-      duty_end_time: (employee as any).duty_end_time || "18:00",
-      duty_hours: (employee as any).duty_hours?.toString() || "8",
+      duty_start_time: shortTime(employee.duty_start_time) || "09:00",
+      duty_end_time: shortTime(employee.duty_end_time) || "18:00",
+      duty_hours: employee.duty_hours?.toString() || "8",
+      late_grace_minutes: (employee.late_grace_minutes ?? 15).toString(),
       photo_url: employee.photo_url || "",
       field_duty_allowed: Boolean(employee.field_duty_allowed),
       travel_allowance_allowed: Boolean(employee.travel_allowance_allowed),
@@ -372,6 +387,11 @@ const EmployeesPage = () => {
       toast.error("Please fill in required fields");
       return;
     }
+    const grace = Number(formData.late_grace_minutes);
+    if (formData.late_grace_minutes !== "" && (!Number.isInteger(grace) || grace < 0 || grace > 240)) {
+      toast.error("Late grace must be 0–240 minutes");
+      return;
+    }
     saveMutation.mutate(formData);
   };
 
@@ -379,6 +399,9 @@ const EmployeesPage = () => {
     emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.employee_code.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Official Timings editor works on active staff only.
+  const activeEmployees = useMemo(() => employees.filter((e) => e.is_active), [employees]);
 
   const columns: Column<Employee>[] = [
     {
@@ -405,6 +428,16 @@ const EmployeesPage = () => {
       key: "designation",
       header: "Designation",
       render: (item) => item.designations?.name || "-",
+    },
+    {
+      key: "official_timing",
+      header: "Official Timing",
+      render: (item) => (
+        <div className="whitespace-nowrap">
+          <div className="font-mono text-xs">{formatTiming(item)}</div>
+          <div className="text-[11px] text-muted-foreground">Late after {lateAfter(item)}</div>
+        </div>
+      ),
     },
     {
       key: "contact_number",
@@ -474,9 +507,23 @@ const EmployeesPage = () => {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        {canEditTimings && (
+          <Button variant="outline" className="ml-auto" onClick={() => setTimingsOpen(true)} disabled={isLoading}>
+            <Clock className="mr-2 h-4 w-4" /> Official Timings
+          </Button>
+        )}
       </div>
 
       <DataTable columns={columns} data={filteredEmployees} emptyMessage="No employees found" />
+
+      {timingsOpen && (
+        <OfficialTimingsDialog
+          open={timingsOpen}
+          onOpenChange={setTimingsOpen}
+          employees={activeEmployees}
+          departments={departments}
+        />
+      )}
 
       {/* Add/Edit Employee Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -639,7 +686,7 @@ const EmployeesPage = () => {
               {/* Duty Hours Section */}
               <div className="border-t pt-4">
                 <Label className="text-sm font-semibold text-muted-foreground">Official Duty Hours</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
                   <div>
                     <Label className="text-xs">Start Time</Label>
                     <Input
@@ -668,7 +715,22 @@ const EmployeesPage = () => {
                       step="0.5"
                     />
                   </div>
+                  <div>
+                    <Label className="text-xs">Late Grace (min)</Label>
+                    <Input
+                      type="number"
+                      value={formData.late_grace_minutes}
+                      onChange={(e) => setFormData({ ...formData, late_grace_minutes: e.target.value })}
+                      placeholder="15"
+                      min="0"
+                      max="240"
+                      step="1"
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Check-in after {lateAfter({ duty_start_time: formData.duty_start_time, late_grace_minutes: Number(formData.late_grace_minutes) || 0 })} counts as late.
+                </p>
               </div>
 
               <div className="rounded-lg border border-dashed bg-muted/30 p-4">
