@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Activity, Clock, Monitor, RefreshCw, AlertTriangle, Factory, ClipboardList, Package } from "lucide-react";
+import { Activity, Clock, Monitor, RefreshCw, AlertTriangle, Factory, ClipboardList, Package, User } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -171,6 +171,46 @@ export default function HourlyProductionLiveOverviewPage() {
         .order("name", { ascending: true });
       if (error) throw error;
       return (data || []) as any[];
+    },
+    refetchInterval: REFRESH_INTERVAL,
+  });
+
+  // Worker who put each running machine into its current Running status
+  const runningMachines = machines.filter((m: any) => parseBaseStatus(m.current_status || "") === "Running");
+  const runningIds = runningMachines.map((m: any) => m.id);
+  const { data: runningWorkerMap = {} } = useQuery({
+    queryKey: ["live-overview-running-workers", runningIds.join(",")],
+    enabled: runningIds.length > 0,
+    queryFn: async () => {
+      const earliest = runningMachines.reduce(
+        (min: number, m: any) => Math.min(min, new Date(m.current_status_since).getTime()),
+        Date.now()
+      );
+      const { data: logs, error } = await (supabase as any)
+        .from("machine_monitor_status_log")
+        .select("machine_id, changed_by, changed_at")
+        .in("machine_id", runningIds)
+        .not("changed_by", "is", null)
+        .gte("changed_at", new Date(earliest - 60000).toISOString())
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      const userByMachine: Record<string, string> = {};
+      for (const l of logs || []) {
+        if (!userByMachine[l.machine_id]) userByMachine[l.machine_id] = l.changed_by;
+      }
+      const userIds = Array.from(new Set(Object.values(userByMachine)));
+      if (userIds.length === 0) return {};
+      const { data: users, error: uErr } = await (supabase as any)
+        .from("app_users")
+        .select("id, full_name")
+        .in("id", userIds);
+      if (uErr) throw uErr;
+      const nameById = Object.fromEntries((users || []).map((u: any) => [u.id, u.full_name]));
+      const map: Record<string, string> = {};
+      for (const [machineId, userId] of Object.entries(userByMachine)) {
+        if (nameById[userId]) map[machineId] = nameById[userId];
+      }
+      return map;
     },
     refetchInterval: REFRESH_INTERVAL,
   });
@@ -769,6 +809,14 @@ export default function HourlyProductionLiveOverviewPage() {
                             </div>
                             <div className="text-xs font-semibold leading-tight truncate" title={m.name}>{m.name}</div>
                             <div className={cn("text-[11px] font-bold uppercase tracking-wide mt-1", style.text)}>{m.current_status}</div>
+                            {group.status === "Running" && (
+                              <div className="flex items-center gap-1 text-[10px] mt-0.5 truncate" title={runningWorkerMap[m.id] || "Worker not recorded"}>
+                                <User className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                <span className={cn("truncate", runningWorkerMap[m.id] ? "font-medium" : "text-muted-foreground italic")}>
+                                  {runningWorkerMap[m.id] || "—"}
+                                </span>
+                              </div>
+                            )}
                             <div className="text-[9px] text-muted-foreground">{since}</div>
                           </div>
                         );
