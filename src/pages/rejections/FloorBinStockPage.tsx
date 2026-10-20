@@ -18,6 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type StockRow = {
   id: string;
@@ -34,6 +35,8 @@ type StockRow = {
 const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 export default function FloorBinStockPage() {
+  const { canViewPrices } = useAuth();
+  const showPrices = canViewPrices();
   const [locationFilter, setLocationFilter] = useState("all");
 
   const { data: rows = [], isLoading } = useQuery<StockRow[]>({
@@ -113,7 +116,7 @@ export default function FloorBinStockPage() {
               description={
                 l.type === "leaker_wip"
                   ? "Cores waiting to be covered — not sellable yet"
-                  : `${l.code} · value ${fmt(l.value)}`
+                  : showPrices ? `${l.code} · value ${fmt(l.value)}` : l.code
               }
             />
           ))}
@@ -133,9 +136,11 @@ export default function FloorBinStockPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="ml-auto">
-              <Badge variant="secondary">Total value {fmt(totalValue)}</Badge>
-            </div>
+            {showPrices && (
+              <div className="ml-auto">
+                <Badge variant="secondary">Total value {fmt(totalValue)}</Badge>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -158,8 +163,8 @@ export default function FloorBinStockPage() {
                       <TableHead>Grade</TableHead>
                       <TableHead>Defect grade</TableHead>
                       <TableHead className="text-right">Qty (pcs)</TableHead>
-                      <TableHead className="text-right">Unit cost</TableHead>
-                      <TableHead className="text-right">Value</TableHead>
+                      {showPrices && <TableHead className="text-right">Unit cost</TableHead>}
+                      {showPrices && <TableHead className="text-right">Value</TableHead>}
                       <TableHead>Oldest</TableHead>
                       <TableHead>Last movement</TableHead>
                     </TableRow>
@@ -192,10 +197,12 @@ export default function FloorBinStockPage() {
                           <TableCell className="text-right font-semibold tabular-nums">
                             {fmt(r.quantity)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {fmt(r.unit_cost)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{fmt(r.stock_value)}</TableCell>
+                          {showPrices && (
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {fmt(r.unit_cost)}
+                            </TableCell>
+                          )}
+                          {showPrices && <TableCell className="text-right tabular-nums">{fmt(r.stock_value)}</TableCell>}
                           <TableCell className="text-muted-foreground text-sm">
                             {age === null ? "—" : age === 0 ? "today" : `${age} day${age > 1 ? "s" : ""}`}
                           </TableCell>

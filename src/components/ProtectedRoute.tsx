@@ -193,7 +193,8 @@ export function ProtectedRoute({
     }
 
     // For purchase QC inspector, redirect back to the Quality Inspection page when
-    // accessing anything outside it (keeps them away from every pricing page).
+    // accessing anything outside its allowed pages (keeps them away from every
+    // pricing page).
     if (roles.some((r) => (r.role as string) === 'purchase_qc_inspector')) {
       if (location.pathname !== '/purchase/qc') {
         return <Navigate to="/purchase/qc" replace />;

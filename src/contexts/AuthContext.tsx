@@ -157,11 +157,12 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // handles purchase invoices/returns. Confined to purchase routes via ROLE_ROUTE_RESTRICTIONS.
   purchase_officer: ['purchase', 'dashboard'],
   purchase_manager: ['purchase', 'dashboard'],
-  // Purchase QC Inspector: a single-purpose quality role. 'purchase' keeps the
-  // Purchase sidebar group visible and satisfies the /purchase/* module check;
-  // route lockdown below confines it to just the Quality Inspection page, and it
-  // never sees prices (canViewPrices).
-  purchase_qc_inspector: ['purchase', 'dashboard'],
+  // Purchase QC Inspector: a quality role. 'purchase' keeps the Purchase sidebar
+  // group visible and satisfies the /purchase/* module check; 'rejections_wastages'
+  // does the same for the floor checker pages. Route lockdown below confines it to
+  // the Quality Inspection page plus those few R&W pages, and it never sees prices
+  // (canViewPrices).
+  purchase_qc_inspector: ['purchase', 'rejections_wastages', 'dashboard'],
   // QA Inspector: a single-purpose quality role. 'qa' satisfies the /qa/* module
   // check; route lockdown below confines it to just the inspection entry form —
   // no QA dashboard or any other QA page.
@@ -298,11 +299,17 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/returns',
     '/purchase/material-shortages',
   ],
-  // Purchase QC Inspector: ONLY the Quality Inspection page. No orders, goods
-  // receipt, invoices, returns, suppliers or dashboard (all of which expose
-  // prices/amounts).
+  // Purchase QC Inspector: the Quality Inspection page, plus the floor checker's
+  // Rejections & Wastages pages — Daily Checker Entry (ball rejections / leakages),
+  // New Entry (wastages) and the Floor Bin Stock / Ball Ledger to read. No orders,
+  // goods receipt, invoices, returns, suppliers or dashboard (all of which expose
+  // prices/amounts); no R&W dashboard, analytics, downgrades or masters.
   purchase_qc_inspector: [
     '/purchase/qc',
+    '/rejections/checker',
+    '/rejections/entry',
+    '/rejections/bin-stock',
+    '/rejections/ledger',
   ],
   // QA Inspector: ONLY the inspection entry form (chrome-free operator layout).
   // No QA dashboard, inspections list, release, NCR/CAPA or master pages.
@@ -1063,6 +1070,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // check below, which denies them (strict roles carry no module_permissions rows).
     const grantsWithinScope = (modules: string[]): boolean =>
       modules.includes(module) && permission !== 'delete' && permission !== 'approve';
+
+    // Purchase QC Inspector: view / create / edit within Rejections & Wastages (the
+    // checker entry and wastage pages). Never approve or delete — downgrades stay
+    // with the QA side. GRANT-ONLY like the roles below.
+    if (
+      roles.some(r => r.role === 'purchase_qc_inspector') &&
+      module === 'rejections_wastages' &&
+      (permission === 'view' || permission === 'create' || permission === 'edit')
+    ) {
+      return true;
+    }
 
     // QA Inspector: view + create ONLY within the QA module (the inspection entry
     // form needs view to render and create to save). GRANT-ONLY (additive) like the

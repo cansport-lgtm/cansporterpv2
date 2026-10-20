@@ -672,7 +672,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "purchase",
     label: "QC Inspector (no prices)",
     tier: "special",
-    description: "Quality Inspection page only – inspects incoming raw material against POs and approves QC; no prices, no other purchase pages",
+    description: "Quality Inspection page – inspects incoming raw material against POs and approves QC; plus Rejections & Wastages – Daily Checker Entry (ball rejections / leakages) and New Entry (wastages), Floor Bin Stock / Ball Ledger view only; no approve, delete or downgrades; no prices, no other purchase pages",
     color: "bg-emerald-600/10 text-emerald-600 border-emerald-600/20",
   },
 

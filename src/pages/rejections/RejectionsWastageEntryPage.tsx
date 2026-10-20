@@ -29,8 +29,11 @@ type Lookup = { id: string; name: string; code?: string | null; unit?: string | 
 
 export default function RejectionsWastageEntryPage() {
   const today = format(new Date(), "yyyy-MM-dd");
-  const { user, hasRole } = useAuth();
+  const { user, hasRole, roles, canViewPrices } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // The QC checker enters and edits here but never sees costs or deletes entries.
+  const showPrices = canViewPrices();
+  const canDelete = isSuperAdmin || !roles.some((r) => r.role === "purchase_qc_inspector");
   const qc = useQueryClient();
 
   const [entryDate, setEntryDate] = useState(today);
@@ -631,11 +634,13 @@ export default function RejectionsWastageEntryPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label className="text-xs">Unit Cost (Rs.)</Label>
-                    <Input type="number" inputMode="decimal" value={rejForm.unit_cost} readOnly className="bg-muted" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
-                  </div>
+                  {showPrices && (
+                    <div>
+                      <Label className="text-xs">Unit Cost (Rs.)</Label>
+                      <Input type="number" inputMode="decimal" value={rejForm.unit_cost} readOnly className="bg-muted" />
+                      <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <Label className="text-xs">Reason</Label>
                     <Select value={rejForm.reason_id} onValueChange={(v) => setRejForm({ ...rejForm, reason_id: v })}>
@@ -674,7 +679,7 @@ export default function RejectionsWastageEntryPage() {
                             {r.disposition}
                           </Badge>
                           <span className="font-medium">{r.rejected_qty} {r.unit}</span>
-                          {r.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(r.total_cost).toLocaleString()}</span>}
+                          {showPrices && r.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(r.total_cost).toLocaleString()}</span>}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {materialMap[r.material_id]?.name || "—"} · {processMap[r.process_id]?.name || "—"}
@@ -690,9 +695,11 @@ export default function RejectionsWastageEntryPage() {
                             <Pencil className="h-4 w-4 text-blue-600" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => deleteRej(r.id)} className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" onClick={() => deleteRej(r.id)} className="h-8 w-8">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -725,11 +732,13 @@ export default function RejectionsWastageEntryPage() {
                     <Label className="text-xs">Unit</Label>
                     <Input value={wstForm.unit} readOnly className="h-11 bg-muted" />
                   </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Unit Cost (Rs.)</Label>
-                    <Input type="number" inputMode="decimal" value={wstForm.unit_cost} readOnly className="bg-muted" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
-                  </div>
+                  {showPrices && (
+                    <div className="col-span-2">
+                      <Label className="text-xs">Unit Cost (Rs.)</Label>
+                      <Input type="number" inputMode="decimal" value={wstForm.unit_cost} readOnly className="bg-muted" />
+                      <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <Label className="text-xs">Disposition</Label>
                     <Select value={wstForm.disposition_id} onValueChange={(v) => setWstForm({ ...wstForm, disposition_id: v })}>
@@ -776,7 +785,7 @@ export default function RejectionsWastageEntryPage() {
                         <div className="flex flex-wrap gap-2 items-center text-sm">
                           <span className="font-medium">{materialMap[w.material_id]?.name || "—"}</span>
                           <Badge variant="outline">{w.wasted_qty} {w.unit}</Badge>
-                          {w.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(w.total_cost).toLocaleString()}</span>}
+                          {showPrices && w.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(w.total_cost).toLocaleString()}</span>}
                         </div>
                         <div className="text-xs">
                           <span className="text-muted-foreground">Reason: </span>{reasonMap[w.reason_id]?.name || "—"}
@@ -789,9 +798,11 @@ export default function RejectionsWastageEntryPage() {
                             <Pencil className="h-4 w-4 text-blue-600" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => deleteWst(w.id)} className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" onClick={() => deleteWst(w.id)} className="h-8 w-8">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -834,11 +845,13 @@ export default function RejectionsWastageEntryPage() {
                     <Label className="text-xs">Unit</Label>
                     <Input value={lkgForm.unit} readOnly className="h-11 bg-muted" />
                   </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Unit Cost (Rs.)</Label>
-                    <Input type="number" inputMode="decimal" value={lkgForm.unit_cost} readOnly className="bg-muted" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
-                  </div>
+                  {showPrices && (
+                    <div className="col-span-2">
+                      <Label className="text-xs">Unit Cost (Rs.)</Label>
+                      <Input type="number" inputMode="decimal" value={lkgForm.unit_cost} readOnly className="bg-muted" />
+                      <p className="text-[10px] text-muted-foreground mt-1">Set in Materials Master</p>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <Label className="text-xs">Disposition</Label>
                     <Select value={lkgForm.disposition_id} onValueChange={(v) => setLkgForm({ ...lkgForm, disposition_id: v })}>
@@ -885,7 +898,7 @@ export default function RejectionsWastageEntryPage() {
                         <div className="flex flex-wrap gap-2 items-center text-sm">
                           <span className="font-medium">{materialMap[l.material_id]?.name || "—"}</span>
                           <Badge variant="outline">{l.leaked_qty} {l.unit}</Badge>
-                          {l.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(l.total_cost).toLocaleString()}</span>}
+                          {showPrices && l.unit_cost > 0 && <span className="text-xs text-muted-foreground">Rs. {Number(l.total_cost).toLocaleString()}</span>}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {processMap[l.process_id]?.name || "—"}
@@ -901,9 +914,11 @@ export default function RejectionsWastageEntryPage() {
                             <Pencil className="h-4 w-4 text-blue-600" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => deleteLkg(l.id)} className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {canDelete && (
+                          <Button variant="ghost" size="icon" onClick={() => deleteLkg(l.id)} className="h-8 w-8">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
