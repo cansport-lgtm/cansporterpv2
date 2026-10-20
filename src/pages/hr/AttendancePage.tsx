@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { formatTiming, isLateCheckIn, lateAfter } from "@/lib/officialTiming";
 
 const STATUSES = [
   { value: "present", label: "Present" },
@@ -78,13 +79,23 @@ export default function AttendancePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, full_name")
+        .select("id, employee_code, full_name, duty_start_time, duty_end_time, duty_hours, late_grace_minutes")
         .eq("is_active", true)
         .order("full_name");
       if (error) throw error;
       return data;
     },
   });
+
+  const selectedEmployee = employees.find((e) => e.id === formData.employee_id);
+
+  // Present ⇄ Late follows the employee's own start time + grace; other statuses are left alone.
+  const withSuggestedStatus = (next: AttendanceFormData): AttendanceFormData => {
+    if (!["present", "late"].includes(next.status) || !next.check_in) return next;
+    const emp = employees.find((e) => e.id === next.employee_id);
+    if (!emp) return next;
+    return { ...next, status: isLateCheckIn(next.check_in, emp) ? "late" : "present" };
+  };
 
   // Fetch attendance records
   const { data: attendance = [], isLoading } = useQuery({
@@ -408,7 +419,7 @@ export default function AttendancePage() {
                 <Label>Employee *</Label>
                 <Select
                   value={formData.employee_id}
-                  onValueChange={(v) => setFormData({ ...formData, employee_id: v })}
+                  onValueChange={(v) => setFormData(withSuggestedStatus({ ...formData, employee_id: v }))}
                   disabled={!!selectedRecord}
                 >
                   <SelectTrigger>
@@ -422,6 +433,11 @@ export default function AttendancePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedEmployee && (
+                  <p className="text-xs text-muted-foreground">
+                    Official timing {formatTiming(selectedEmployee)} · late after {lateAfter(selectedEmployee)}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -457,7 +473,7 @@ export default function AttendancePage() {
                   <Input
                     type="time"
                     value={formData.check_in}
-                    onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
+                    onChange={(e) => setFormData(withSuggestedStatus({ ...formData, check_in: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">

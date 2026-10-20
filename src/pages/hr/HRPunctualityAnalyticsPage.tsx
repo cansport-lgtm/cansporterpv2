@@ -12,8 +12,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Cell } from "recharts";
 import { Clock, TrendingDown, Users, Building2, AlertTriangle, Search } from "lucide-react";
 import { format, startOfMonth, endOfMonth, getDaysInMonth, getDay, subMonths } from "date-fns";
+import { isLateCheckIn, lateAfter } from "@/lib/officialTiming";
 
-const LATE_THRESHOLD_TIME = "09:15";
+// attendance.status is stored as present / late / half_day / absent / on_leave;
+// the analytics below work on the short codes.
+const STATUS_CODE: Record<string, string> = { present: "P", late: "L", half_day: "H", absent: "A", on_leave: "OL" };
 
 const months = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
@@ -52,7 +55,7 @@ export default function HRPunctualityAnalyticsPage() {
     queryFn: async () => {
       let query = supabase
         .from("attendance")
-        .select("*, employees!inner(full_name, employee_code, department_id, production_departments:department_id(name))")
+        .select("*, employees!inner(full_name, employee_code, department_id, duty_start_time, late_grace_minutes, production_departments:department_id(name))")
         .gte("attendance_date", monthStart)
         .lte("attendance_date", monthEnd);
 
@@ -61,7 +64,7 @@ export default function HRPunctualityAnalyticsPage() {
       }
 
       const { data } = await query;
-      return data || [];
+      return (data || []).map((r) => ({ ...r, status: STATUS_CODE[r.status] ?? r.status }));
     },
   });
 
@@ -79,7 +82,7 @@ export default function HRPunctualityAnalyticsPage() {
           .select("*", { count: "exact", head: true })
           .gte("attendance_date", ms)
           .lte("attendance_date", me)
-          .eq("status", "L");
+          .in("status", ["late", "L"]);
         results.push({ month: format(d, "MMM yy"), lateCount: count || 0 });
       }
       return results;
@@ -89,7 +92,8 @@ export default function HRPunctualityAnalyticsPage() {
   const analytics = useMemo(() => {
     if (!attendanceData?.length) return null;
 
-    const isLate = (record: any) => record.status === "L" || (record.check_in && record.check_in > LATE_THRESHOLD_TIME);
+    // Late = marked late, or checked in after the employee's own start time + grace.
+    const isLate = (record: any) => record.status === "L" || isLateCheckIn(record.check_in, record.employees);
 
     const totalEntries = attendanceData.filter((r) => ["P", "L", "H"].includes(r.status)).length;
     const lateEntries = attendanceData.filter(isLate);
@@ -156,7 +160,7 @@ export default function HRPunctualityAnalyticsPage() {
     }));
 
     // Employee table
-    const empMap: Record<string, { name: string; code: string; dept: string; total: number; present: number; late: number; absent: number; halfDay: number; checkIns: string[] }> = {};
+    const empMap: Record<string, { name: string; code: string; dept: string; lateAfter: string; total: number; present: number; late: number; absent: number; halfDay: number; checkIns: string[] }> = {};
     attendanceData.forEach((r: any) => {
       const empId = r.employee_id;
       if (!empMap[empId]) {
@@ -164,6 +168,7 @@ export default function HRPunctualityAnalyticsPage() {
           name: r.employees?.full_name || "Unknown",
           code: r.employees?.employee_code || "",
           dept: r.employees?.production_departments?.name || "Unknown",
+          lateAfter: lateAfter(r.employees),
           total: 0, present: 0, late: 0, absent: 0, halfDay: 0, checkIns: [],
         };
       }
@@ -347,6 +352,7 @@ export default function HRPunctualityAnalyticsPage() {
                       <tr className="border-b bg-muted/50">
                         <th className="text-left p-2 font-medium">Employee</th>
                         <th className="text-left p-2 font-medium hidden md:table-cell">Dept</th>
+                        <th className="text-center p-2 font-medium hidden md:table-cell">Late After</th>
                         <th className="text-center p-2 font-medium">P</th>
                         <th className="text-center p-2 font-medium">L</th>
                         <th className="text-center p-2 font-medium">A</th>
@@ -364,6 +370,7 @@ export default function HRPunctualityAnalyticsPage() {
                             </div>
                           </td>
                           <td className="p-2 text-muted-foreground hidden md:table-cell truncate max-w-[80px]">{emp.dept}</td>
+                          <td className="text-center p-2 font-mono text-muted-foreground hidden md:table-cell">{emp.lateAfter}</td>
                           <td className="text-center p-2">{emp.present}</td>
                           <td className="text-center p-2 font-medium text-destructive">{emp.late}</td>
                           <td className="text-center p-2">{emp.absent}</td>
@@ -376,7 +383,7 @@ export default function HRPunctualityAnalyticsPage() {
                         </tr>
                       ))}
                       {analytics.employeeTable.length === 0 && (
-                        <tr><td colSpan={7} className="text-center p-4 text-muted-foreground">No records found</td></tr>
+                        <tr><td colSpan={8} className="text-center p-4 text-muted-foreground">No records found</td></tr>
                       )}
                     </tbody>
                   </table>
