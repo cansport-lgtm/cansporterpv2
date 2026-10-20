@@ -175,8 +175,11 @@ export default function HourlyProductionLiveOverviewPage() {
     refetchInterval: REFRESH_INTERVAL,
   });
 
-  // Worker who put each running machine into its current Running status
-  const runningMachines = machines.filter((m: any) => parseBaseStatus(m.current_status || "") === "Running");
+  // Worker who put each running machine into its current Running status,
+  // shown when the machine has no assigned worker
+  const runningMachines = machines.filter(
+    (m: any) => parseBaseStatus(m.current_status || "") === "Running" && !m.assigned_worker
+  );
   const runningIds = runningMachines.map((m: any) => m.id);
   const { data: runningWorkerMap = {} } = useQuery({
     queryKey: ["live-overview-running-workers", runningIds.join(",")],
@@ -809,14 +812,20 @@ export default function HourlyProductionLiveOverviewPage() {
                             </div>
                             <div className="text-xs font-semibold leading-tight truncate" title={m.name}>{m.name}</div>
                             <div className={cn("text-[11px] font-bold uppercase tracking-wide mt-1", style.text)}>{m.current_status}</div>
-                            {group.status === "Running" && (
-                              <div className="flex items-center gap-1 text-[10px] mt-0.5 truncate" title={runningWorkerMap[m.id] || "Worker not recorded"}>
-                                <User className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                <span className={cn("truncate", runningWorkerMap[m.id] ? "font-medium" : "text-muted-foreground italic")}>
-                                  {runningWorkerMap[m.id] || "—"}
-                                </span>
-                              </div>
-                            )}
+                            {(m.assigned_worker || group.status === "Running") && (() => {
+                              const worker = m.assigned_worker || runningWorkerMap[m.id];
+                              const title = m.assigned_worker
+                                ? `Assigned worker: ${m.assigned_worker}`
+                                : worker ? `Started by: ${worker}` : "No worker assigned";
+                              return (
+                                <div className="flex items-center gap-1 text-[10px] mt-0.5 truncate" title={title}>
+                                  <User className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                  <span className={cn("truncate", worker ? "font-medium" : "text-muted-foreground italic")}>
+                                    {worker || "—"}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             <div className="text-[9px] text-muted-foreground">{since}</div>
                           </div>
                         );
