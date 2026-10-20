@@ -130,7 +130,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "production",
     label: "Officer",
     tier: "officer",
-    description: "Production – create and edit entries (no approve, no delete)",
+    description: "Production – create and edit entries (no approve, no delete); Production Planning – make job orders and view the Daily Closing Dashboard (quantities only, no amounts)",
     color: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   },
   production_viewer: {

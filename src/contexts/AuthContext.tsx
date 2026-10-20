@@ -551,6 +551,17 @@ for (const def of MODULE_TIER_DEFINITIONS) {
 // store ↔ gate reconciliation): the gate is the other half of that comparison.
 ROLE_MODULE_ACCESS['gate_pass_manager'].push('store_pass');
 ROLE_ROUTE_RESTRICTIONS['gate_pass_manager'].push('/store-pass');
+// Production Officer also works in Production Planning: makes job orders (Job Orders,
+// Private Label and Company Product Job Orders) and views the Daily Closing Dashboard,
+// which shows quantities only — stock values stay super-admin-only in-page. Nothing
+// else in Planning (stock closing entry, masters, weekly plan, …) is reachable.
+ROLE_MODULE_ACCESS['production_officer'].push('planning');
+ROLE_ROUTE_RESTRICTIONS['production_officer'].push(
+  '/planning/job-orders',
+  '/planning/private-label-job-orders',
+  '/planning/company-job-orders',
+  '/planning/closing-dashboard',
+);
 // The Dispatch Planner only READS sales orders, dispatches and stock and suggests a plan;
 // the people who make the orders and the dispatches read its pages (view only — the
 // planner's own writes stay with the dispatch_planner_* tiers).
