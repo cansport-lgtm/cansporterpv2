@@ -24,7 +24,7 @@ import {
   type ClosingSnapshotRow,
 } from "@/lib/accounting/inventoryValuation";
 import {
-  HELD_STOCK_CATEGORIES, isSellableStockCategory, matchesStockCategory, stockCategoryMeta,
+  HELD_STOCK_CATEGORIES, isHeldStockCategory, isSellableStockCategory, matchesStockCategory, stockCategoryMeta,
   type StockCategory, type StockCategoryFilterValue,
 } from "@/lib/stockCategories";
 import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
@@ -44,6 +44,8 @@ const HELD_ICONS: Record<StockCategory, typeof ShieldAlert> = {
   leak: Droplets,
   rejection: XCircle,
   lot: PackageOpen,
+  cutting_kapra: Package,
+  compounds: Package,
 };
 
 const WIP_COLOR = "#f59e0b";
@@ -210,9 +212,9 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       });
     }
 
-    // Production planning only cares about held (non-sellable) stock.
+    // Production planning only cares about held stock.
     const rows = allRows.filter(
-      (r) => (!held || !isSellableStockCategory(r.stockCategory)) && matchesStockCategory(r.stockCategory, categoryFilter),
+      (r) => (!held || isHeldStockCategory(r.stockCategory)) && matchesStockCategory(r.stockCategory, categoryFilter),
     );
 
     // Grouping
@@ -259,7 +261,7 @@ export function InventoryValuationDashboard({ variant, heldOnly = false }: Inven
       if (fgItemById && fgDeptById) {
         const item = fgItemById.get(itemId);
         if (!item) return;
-        if (held && isSellableStockCategory(item.stock_category)) return;
+        if (held && !isHeldStockCategory(item.stock_category)) return;
         if (!matchesStockCategory(item.stock_category, categoryFilter)) return;
         rate = Number(item.costing_value) || 0;
         const dept = fgDeptById.get(item.department_id);
