@@ -80,6 +80,8 @@ export type PersonPassVariant = {
   attendanceEffects?: boolean;
   /** Sentence added to the Short leave kind description. */
   shortLeaveRule?: string;
+  /** The approver can turn an overdue short leave into a half day ("Did not return · mark half day"). */
+  convertShortLeave?: boolean;
   /** Gate Check result line after a half-day Out. */
   halfDayGateText: (rows: number | null) => string;
   /** Second line under the name: category (workers) or designation (staff). */
@@ -131,6 +133,7 @@ export const WORKER_PASS: PersonPassVariant = {
   halfDayGateText: (rows) => `Half day marked for today (${rows ?? 0} productivity entr${rows === 1 ? "y" : "ies"} updated).`,
   personSubline: (p) => p?.category ?? "",
   attendanceEffects: true,
+  convertShortLeave: true,
   shortLeaveRule: "Over 3 h outside in working hours (08:30–19:30) → half day; over 6 h → absent, and that day's productivity entries are removed. Not back by day end → the same rule on the time outside.",
 };
 

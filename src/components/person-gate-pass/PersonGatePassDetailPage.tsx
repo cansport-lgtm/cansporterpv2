@@ -118,7 +118,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
   const rescans = events.filter((ev) => ev.event === "rescan_attempt").length;
   // The person who raised the pass can always cancel it before Out (HR, or the staff member themselves).
   const canCancel = ["pending_approval", "approved"].includes(pass.status) && (canApprove || isMaker || (canApply && isMaker));
-  const canConvert = canApprove && pass.status === "out" && pass.pass_kind === "short_leave";
+  const canConvert = canApprove && variant.convertShortLeave && pass.status === "out" && pass.pass_kind === "short_leave";
   const halfDayMarked = marksHalfDay(pass);
   const absentMarked = marksAbsent(pass);
   // Super admin can lift a wrong half day on a worker pass (a short leave still out would be marked again by the tick).
@@ -165,7 +165,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
         {late > 0 && !official && (
           <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900 flex gap-2">
             <AlertTriangle className="h-5 w-5 shrink-0 text-red-700" />
-            <div>The {variant.noun} is <b>{late} min</b> past the expected return ({fmtDT(pass.expected_back_at)}). {canApprove ? "If they will not be back, convert the pass to a half day." : "The approver has been told."}</div>
+            <div>The {variant.noun} is <b>{late} min</b> past the expected return ({fmtDT(pass.expected_back_at)}). {canConvert ? "If they will not be back, convert the pass to a half day." : canApprove ? "Attendance follows the time-outside rule." : "The approver has been told."}</div>
           </div>
         )}
         {late > 0 && official && (
