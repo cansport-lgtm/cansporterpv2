@@ -372,6 +372,7 @@ const navigationItems: NavItem[] = [
       { title: "Customer Logos", href: "/sales/customer-logos" },
       { title: "Customer Pricing", href: "/sales/customer-pricing" },
       { title: "Sales Orders", href: "/sales/orders" },
+      { title: "Awaiting Dispatch", href: "/sales/awaiting-dispatch" },
       { title: "Dispatch", href: "/sales/dispatch" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
       { title: "Salesman Activity", href: "/sales/salesman-activity" },
@@ -396,6 +397,7 @@ const navigationItems: NavItem[] = [
       { title: "Packing Master", href: "/domestic/packing-types" },
       { title: "Order Status Board", href: "/domestic/order-status" },
       { title: "New Item", href: "/domestic/new-item" },
+      { title: "Awaiting Dispatch", href: "/domestic/awaiting-dispatch" },
       { title: "Pending Dispatch", href: "/domestic/pending-dispatch" },
       { title: "Dispatch", href: "/domestic/dispatch" },
       { title: "Invoices", href: "/domestic/invoices" },
@@ -414,6 +416,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Customers", href: "/export/customers" },
       { title: "Sales Orders", href: "/export/orders" },
+      { title: "Awaiting Dispatch", href: "/export/awaiting-dispatch" },
       { title: "Dispatch", href: "/export/dispatch" },
       { title: "Dashboard", href: "/export/dashboard" },
     ],
