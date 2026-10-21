@@ -26,7 +26,7 @@ system dispatches. A pass is four things:
 
 | | |
 |---|---|
-| **Dispatch plan no.** | Free text, required — the number on the dispatch plan (a planner version `DPV-000012`, or the dispatch number `DC-00412` when known). It tells the dispatch operator which dispatch to link the pass to; a pass whose plan number is a DC number is offered first |
+| **Dispatch plan no.** | Free text, required — the number written on the paper dispatch plan. Reference only: it is shown on the pass and in the Link dialog to help the dispatch operator find the pass, and is never read as a dispatch (DC) number or used to link by itself |
 | **Items** | Typed by the keeper: description (free text), optional product, dozens, cartons, remark. At least one item with a quantity |
 | **Handed over to** | The name of the person the goods were handed to (loader / driver) — required to issue |
 | **Photo** | Of the stock at the loading dock — required to issue |
@@ -39,8 +39,9 @@ Tracking, the Gate Check notice and the daily reconciliation compare on. It is
 **not the store keeper's job**: the keeper only makes and issues the pass. The
 **dispatch operator** links it, from the Domestic Dispatch page — the **Store
 pass** column has a **Link** button per dispatch (or **Change** when it is
-already on a pass) that opens the list of live passes, the one whose plan number
-is this DC first, with items, hand-over person and issue time. Issuing a pass
+already on a pass) that opens the list of live passes, unlinked ones first,
+with plan number, items, hand-over person and issue time; the operator picks
+by checking those against the dispatch plan. Issuing a pass
 with no link sends the dispatch operators a notification. Store pass managers
 and gate pass managers can also link, from the pass page (**Link to dispatch**).
 An issued pass with no link shows in the reconciliation as **Not linked to a
@@ -166,8 +167,7 @@ roles: `store_pass_can_link()`), and for the operator's dialog
 `store_pass_reconcile_products(from, to)`, `store_pass_recon_resolve`,
 `store_pass_recon_reopen`, `store_pass_settings_save`,
 `store_pass_gate_status(gate_pass_id)`. Internal: `store_pass_build` (the
-lines from what the keeper typed), `store_pass_match_dispatch` (plan number →
-dispatch), `store_pass_unlinked`, `store_pass_log`, `store_pass_notify`,
+lines from what the keeper typed), `store_pass_unlinked`, `store_pass_log`, `store_pass_notify`,
 `store_pass_recon_dispatch_ids`, `store_pass_missing_for_gate_pass`,
 `store_pass_notify_discrepancies` (cron). Settings in `store_pass_settings`
 (`required_at_gate`), explanations in `store_pass_recon_notes`.

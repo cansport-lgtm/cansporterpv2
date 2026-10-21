@@ -51,8 +51,9 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
   });
   useEffect(() => {
     if (!open) return;
-    // Preselect: the pass it is on, else the one whose plan number is this DC.
-    const cur = candidates.find((c) => c.is_current) ?? candidates.find((c) => c.plan_matches);
+    // Preselect only the pass this dispatch is already on. The plan number is a
+    // reference written by the keeper, never a reason to pick a pass by itself.
+    const cur = candidates.find((c) => c.is_current);
     setPicked(cur?.store_pass_id ?? null);
   }, [open, candidates]);
 
@@ -88,7 +89,7 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
         <DialogHeader>
           <DialogTitle>Link {dispatch.dispatch_number} to a store pass</DialogTitle>
           <DialogDescription>
-            Pick the store pass the keeper issued for these goods. Passes whose plan number is this dispatch come first.
+            Pick the store pass the keeper issued for these goods: check the items, the hand-over person and the plan number against the dispatch plan. Unlinked passes come first.
             One store pass per dispatch. {current ? "This dispatch is already linked: changing or removing the link is a correction." : "Once linked, only a super admin can change it, so check before you save."}
           </DialogDescription>
         </DialogHeader>
@@ -115,7 +116,7 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
                 const checked = picked === c.store_pass_id;
                 const taken = c.linked_count > 0 && !c.is_current; // on another dispatch: one pass, one dispatch
                 return (
-                  <TableRow key={c.store_pass_id} className={cn(taken ? "opacity-60" : "cursor-pointer", checked && "bg-primary/5", c.plan_matches && !checked && !taken && "bg-emerald-50/60")}
+                  <TableRow key={c.store_pass_id} className={cn(taken ? "opacity-60" : "cursor-pointer", checked && "bg-primary/5")}
                     onClick={() => { if (!taken) setPicked(checked ? null : c.store_pass_id); }}>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox aria-label={`Pick ${c.pass_number}`} checked={checked} disabled={taken} onCheckedChange={(v) => setPicked(v === true ? c.store_pass_id : null)} />
@@ -126,7 +127,6 @@ export function LinkStorePassDialog({ dispatch, current, open, onOpenChange }: P
                     </TableCell>
                     <TableCell className="text-sm">
                       {c.dispatch_plan_no ?? "—"}
-                      {c.plan_matches && <div className="text-[11px] font-semibold text-emerald-700">matches this DC</div>}
                     </TableCell>
                     <TableCell className="text-sm">{c.received_by_name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">{c.item_count} · {fmtQty(c.quantity)} / {Number(c.packages)}</TableCell>

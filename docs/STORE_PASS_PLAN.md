@@ -8,8 +8,9 @@ Decisions taken: no approval step; gate behaviour `warn` first,
 vehicle or driver and does not pick system dispatches. The pass is now a
 free-text **dispatch plan no.**, free-text **items**, the **hand-over person**
 and a **photo of the stock at the loading dock**. Linking to system dispatches
-is optional (automatic when the plan number is a DC number, else by the
-office) and remains the basis of tracking and reconciliation. See
+is optional, done by the office (the plan number is a reference only, never
+read as a DC number; the automatic link by plan number was removed on
+11 Nov 2026) and remains the basis of tracking and reconciliation. See
 `docs/STORE_PASS.md` for what is live; the sections below describe the
 original design.
 
