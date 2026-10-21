@@ -117,7 +117,7 @@ export function PersonGatePassApprovalsPage({ variant }: { variant: PersonPassVa
                 <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50/60 p-3">
                   <PersonLine p={p} />
                   <div className="text-sm text-red-800 font-semibold">{overdueMinutes(p)} min overdue · out {fmtDT(p.gate_out_at)} · due {fmtDT(p.expected_back_at)}</div>
-                  {canApprove && (
+                  {canApprove && variant.convertShortLeave && (
                     <Button size="sm" variant="destructive" onClick={() => setTarget({ pass: p, kind: "convert" })}>Did not return · mark half day</Button>
                   )}
                 </div>
