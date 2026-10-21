@@ -119,6 +119,7 @@ import SalesOrdersPage from "./pages/sales/SalesOrdersPage";
 import CustomerVisitDashboard from "./pages/sales/CustomerVisitDashboard";
 import SalesmanActivityReportPage from "./pages/sales/SalesmanActivityReportPage";
 import DispatchPage from "./pages/sales/DispatchPage";
+import AwaitingDispatchPage from "./pages/sales/AwaitingDispatchPage";
 import COGSPage from "./pages/sales/COGSPage";
 
 // Domestic Sales pages
@@ -128,6 +129,7 @@ import DomesticOrdersPage from "./pages/domestic/DomesticOrdersPage";
 import DomesticDispatchPage from "./pages/domestic/DomesticDispatchPage";
 import DomesticDispatchDashboard from "./pages/domestic/DomesticDispatchDashboard";
 import DomesticPendingDispatchPage from "./pages/domestic/DomesticPendingDispatchPage";
+import DomesticAwaitingDispatchPage from "./pages/domestic/DomesticAwaitingDispatchPage";
 import DomesticDispatchAcknowledgementPage from "./pages/domestic/DomesticDispatchAcknowledgementPage";
 import DomesticItemOpeningPage from "./pages/domestic/DomesticItemOpeningPage";
 import DomesticNewItemPage from "./pages/domestic/DomesticNewItemPage";
@@ -141,6 +143,7 @@ import ExportDashboard from "./pages/export/ExportDashboard";
 import ExportCustomersPage from "./pages/export/ExportCustomersPage";
 import ExportOrdersPage from "./pages/export/ExportOrdersPage";
 import ExportDispatchPage from "./pages/export/ExportDispatchPage";
+import ExportAwaitingDispatchPage from "./pages/export/ExportAwaitingDispatchPage";
 
 // Master Data pages
 import DepartmentsPage from "./pages/master/DepartmentsPage";
@@ -706,6 +709,7 @@ const App = () => (
             <Route path="/sales/quotations" element={<ProtectedRoute><QuotationsPage /></ProtectedRoute>} />
             <Route path="/sales/orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
             <Route path="/sales/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
+            <Route path="/sales/awaiting-dispatch" element={<ProtectedRoute><AwaitingDispatchPage /></ProtectedRoute>} />
             <Route path="/accounting/cogs" element={<ProtectedRoute><COGSPage /></ProtectedRoute>} />
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
@@ -729,6 +733,7 @@ const App = () => (
             <Route path="/domestic/new-item" element={<ProtectedRoute><DomesticNewItemPage /></ProtectedRoute>} />
             <Route path="/domestic/item-opening" element={<ProtectedRoute><DomesticItemOpeningPage /></ProtectedRoute>} />
             <Route path="/domestic/pending-dispatch" element={<ProtectedRoute><DomesticPendingDispatchPage /></ProtectedRoute>} />
+            <Route path="/domestic/awaiting-dispatch" element={<ProtectedRoute><DomesticAwaitingDispatchPage /></ProtectedRoute>} />
             <Route path="/domestic/dispatch" element={<ProtectedRoute><DomesticDispatchPage /></ProtectedRoute>} />
             <Route path="/domestic/dispatch-dashboard" element={<ProtectedRoute><DomesticDispatchDashboard /></ProtectedRoute>} />
             <Route path="/domestic/dispatch-acknowledgement" element={<ProtectedRoute><DomesticDispatchAcknowledgementPage /></ProtectedRoute>} />
@@ -741,6 +746,7 @@ const App = () => (
             <Route path="/export/dashboard" element={<ProtectedRoute><ExportDashboard /></ProtectedRoute>} />
             <Route path="/export/customers" element={<ProtectedRoute><ExportCustomersPage /></ProtectedRoute>} />
             <Route path="/export/orders" element={<ProtectedRoute><ExportOrdersPage /></ProtectedRoute>} />
+            <Route path="/export/awaiting-dispatch" element={<ProtectedRoute><ExportAwaitingDispatchPage /></ProtectedRoute>} />
             <Route path="/export/dispatch" element={<ProtectedRoute><ExportDispatchPage /></ProtectedRoute>} />
             <Route path="/export/*" element={<ProtectedRoute><ComingSoon title="Export Sales" /></ProtectedRoute>} />
 

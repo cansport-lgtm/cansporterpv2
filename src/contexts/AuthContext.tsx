@@ -207,12 +207,12 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
 const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   order_management: ['/production/orders'], // Can ONLY access production orders page
   floor_incharge: ['/labour/entry', '/labour/todays-target', '/labour/gate-pass', '/labour/attendance-delete-requests'], // Labour productivity entry, today's target, worker gate passes (apply), attendance delete requests (raise / follow own)
-  private_label_distributor: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/visit-dashboard'], // Private Label Sales view-only (all pages)
+  private_label_distributor: ['/sales/dashboard', '/sales/orders', '/sales/awaiting-dispatch', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/visit-dashboard'], // Private Label Sales view-only (all pages)
   // Private Label Sales tiers: the module's operational pages (no master-config pages like
   // City/Area Master, Customer Categories or Fuel Vehicles/Prices, which stay super-admin-only).
-  private_label_manager: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
-  private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
-  private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
+  private_label_manager: ['/sales/dashboard', '/sales/orders', '/sales/awaiting-dispatch', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
+  private_label_officer: ['/sales/dashboard', '/sales/orders', '/sales/awaiting-dispatch', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
+  private_label_viewer: ['/sales/dashboard', '/sales/orders', '/sales/awaiting-dispatch', '/sales/dispatch', '/sales/customers', '/sales/customer-logos', '/sales/customer-pricing', '/sales/visit-dashboard', '/sales/salesman-activity', '/sales/fuel/trips', '/sales/fuel/payouts'],
   pettycash_handler: ['/expenses/petty-cash', '/expenses/trip-fuel', '/expenses/freight-vouchers'], // Petty cash handler: petty cash, trip fuel vouchers and freight vouchers they pay
   store_operator: ['/consumption/stock-closing', '/consumption/reorder-requirement', '/purchase/gate-inward', '/purchase/material-shortages'], // Store operator: stock closing + reorder requirement + gate inward register + raw-material shortage alerts
   project_manager: ['/projects', '/projects/list', '/projects/kanban'], // Project manager: project management pages only
