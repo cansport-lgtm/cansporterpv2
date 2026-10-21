@@ -4,10 +4,25 @@
 // No ERP login: the supervisor unlocks it with the floor PIN, which a super
 // admin sets on the Private Label Job Orders page. The PIN is checked by the
 // database on every call, so a changed PIN locks the page on its next refresh.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { CheckCircle2, ClipboardEdit, Factory, Loader2, Lock, Printer, RefreshCw, RotateCcw, Tag } from "lucide-react";
+import {
+  AlarmClock,
+  BellOff,
+  BellRing,
+  CheckCircle2,
+  ClipboardEdit,
+  Factory,
+  Loader2,
+  Lock,
+  PauseCircle,
+  Printer,
+  RefreshCw,
+  RotateCcw,
+  Tag,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +41,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrivateLabelFloorProgressDialog } from "@/components/planning/PrivateLabelFloorProgressDialog";
+import { PrivateLabelFloorCheckinDialog } from "@/components/planning/PrivateLabelFloorCheckinDialog";
 import { cn } from "@/lib/utils";
 import {
   FloorPinError,
@@ -41,10 +57,22 @@ import {
   type PljoOrderType,
 } from "@/lib/privateLabelJobOrder";
 import { printPrivateLabelJobOrder } from "@/lib/privateLabelJobOrderPrint";
+import { gateAlarmReady, primeGateAlarm, startGateAlarm, stopGateAlarm } from "@/lib/gateAlarm";
+import {
+  ALARM_REPEAT_MS,
+  ALARM_SECONDS,
+  SHIFT_END_HOUR,
+  SHIFT_START_HOUR,
+  formatDuration,
+  isShiftTime,
+  updateStatus,
+  type UpdateStatus,
+} from "@/lib/floorUpdateClock";
 
 const REFRESH_INTERVAL = 15000;
 const PIN_STORAGE_KEY = "pljo-floor-pin";
 const NAME_STORAGE_KEY = "pljo-floor-name";
+const MUTE_MS = 5 * 60 * 1000;
 
 type TypeFilter = "all" | PljoOrderType;
 
@@ -153,13 +181,52 @@ function PinScreen({ message, onUnlock }: { message: string | null; onUnlock: (p
 
 interface OrderCardProps {
   order: FloorOrder;
+  update: UpdateStatus;
   printing: boolean;
   onPrint: () => void;
   onUpdate: () => void;
+  onCheckin: () => void;
   onDone: () => void;
 }
 
-function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProps) {
+// Last floor update on the order, for the clock strip.
+function lastUpdateText(order: FloorOrder) {
+  const progress = order.last_progress_at ? new Date(order.last_progress_at).getTime() : 0;
+  const checkin = order.last_checkin_at ? new Date(order.last_checkin_at).getTime() : 0;
+  if (!progress && !checkin) return order.issued_at ? `Issued ${format(new Date(order.issued_at), "hh:mm a")} · no entries yet` : null;
+  if (checkin > progress)
+    return `No progress check-in ${format(checkin, "hh:mm a")}${order.last_checkin_by ? ` by ${order.last_checkin_by}` : ""} · ${order.last_checkin_reason}`;
+  return `Last update ${format(progress, "hh:mm a")}${order.last_progress_by ? ` by ${order.last_progress_by}` : ""}`;
+}
+
+function UpdateClock({ order, update }: { order: FloorOrder; update: UpdateStatus }) {
+  if (update.state === "done") return null;
+  const detail = lastUpdateText(order);
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-3 py-2",
+        update.state === "ok" && "bg-green-50 text-green-800",
+        update.state === "due_soon" && "bg-amber-100 text-amber-900",
+        update.state === "overdue" && "animate-pulse bg-red-600 text-white",
+      )}
+    >
+      <div className={cn("flex items-center gap-2 font-bold", update.state === "overdue" ? "text-lg" : "text-base")}>
+        {update.state === "overdue" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <AlarmClock className="h-5 w-5 shrink-0" />}
+        {update.state === "overdue"
+          ? `NO UPDATE FOR ${formatDuration(update.elapsedMs)}`
+          : update.state === "due_soon"
+            ? `Update due in ${formatDuration(update.remainingMs)}`
+            : update.elapsedMs < 60000
+              ? "Updated just now"
+              : `Updated ${formatDuration(update.elapsedMs)} ago`}
+      </div>
+      {detail && <div className={cn("text-xs", update.state === "overdue" ? "text-red-50" : "opacity-80")}>{detail}</div>}
+    </div>
+  );
+}
+
+function OrderCard({ order, update, printing, onPrint, onUpdate, onCheckin, onDone }: OrderCardProps) {
   const overdue = order.required_by_date && order.required_by_date < format(new Date(), "yyyy-MM-dd");
   const total = Number(order.total_dozens);
   const done = Number(order.done_dozens);
@@ -174,6 +241,8 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         "flex flex-col gap-3 rounded-xl border-2 bg-card p-4",
         isCompany && "border-sky-200",
         isDone && "border-green-500 bg-green-50/40",
+        update.state === "due_soon" && "border-amber-400",
+        update.state === "overdue" && "border-red-600 bg-red-50/60 ring-4 ring-red-500/40",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -255,6 +324,8 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         </span>
       </div>
 
+      <UpdateClock order={order} update={update} />
+
       <div className="space-y-1">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Produced</span>
@@ -271,8 +342,21 @@ function OrderCard({ order, printing, onPrint, onUpdate, onDone }: OrderCardProp
         )}
       </div>
 
+      {!isDone && (update.state === "overdue" || update.state === "due_soon") && (
+        <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={onCheckin}>
+          <PauseCircle className="mr-1 h-4 w-4" />
+          No progress? Give a reason
+        </Button>
+      )}
+
       <div className="mt-auto grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <Button variant="outline" onClick={onUpdate} disabled={isDone} title="Enter production">
+        <Button
+          variant={update.state === "overdue" ? "default" : "outline"}
+          className={cn(update.state === "overdue" && "bg-red-600 hover:bg-red-700")}
+          onClick={onUpdate}
+          disabled={isDone}
+          title="Enter production"
+        >
           <ClipboardEdit className="mr-1 h-4 w-4" />
           Update
         </Button>
@@ -303,6 +387,7 @@ export default function PrivateLabelFloorPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [progressOrder, setProgressOrder] = useState<FloorOrder | null>(null);
+  const [checkinOrder, setCheckinOrder] = useState<FloorOrder | null>(null);
   const [doneOrder, setDoneOrder] = useState<FloorOrder | null>(null);
   const [savingDone, setSavingDone] = useState(false);
   // Done orders leave the list; this brings them back so one can be reopened.
@@ -318,6 +403,22 @@ export default function PrivateLabelFloorPage() {
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // Browsers only allow sound after a tap: any tap on the screen turns the
+  // alarm sound on.
+  const [soundReady, setSoundReady] = useState(gateAlarmReady);
+  const [mutedUntil, setMutedUntil] = useState(0);
+  useEffect(() => {
+    const prime = () => {
+      primeGateAlarm();
+      setTimeout(() => setSoundReady(gateAlarmReady()), 100);
+    };
+    document.addEventListener("pointerdown", prime);
+    return () => {
+      document.removeEventListener("pointerdown", prime);
+      stopGateAlarm();
+    };
   }, []);
 
   const lock = (status: FloorPinStatus | null) => {
@@ -419,11 +520,53 @@ export default function PrivateLabelFloorPage() {
   const typeCount = (t: PljoOrderType) =>
     orders.filter((o) => (o.order_type ?? "private_label") === t && !o.production_done_at).length;
 
+  // 2-hour update clock of every order, recomputed each second.
+  const updates = useMemo(() => {
+    const m = new Map<string, UpdateStatus>();
+    for (const o of orders) m.set(o.id, updateStatus(o.last_activity_at, !!o.production_done_at, now));
+    return m;
+  }, [orders, now]);
+  const stateOf = (o: FloorOrder) => updates.get(o.id)?.state ?? "done";
+  const STATE_RANK = { overdue: 0, due_soon: 1, ok: 2, done: 3 } as const;
+  // Every overdue order, whatever the tab: the alarm is for the whole floor.
+  const overdueOrders = orders
+    .filter((o) => stateOf(o) === "overdue")
+    .sort((a, b) => (updates.get(b.id)?.elapsedMs ?? 0) - (updates.get(a.id)?.elapsedMs ?? 0));
+  const overdueKey = overdueOrders.map((o) => o.id).join(",");
+  const inShift = isShiftTime(now);
+  const muted = mutedUntil > now.getTime();
+
+  // Siren: at once when an order goes overdue, then every few minutes while
+  // any order stays overdue. Only during the shift, and not while muted.
+  const lastAlarmAt = useRef(0);
+  const alarmedIds = useRef(new Set<string>());
+  useEffect(() => {
+    const ids = overdueKey ? overdueKey.split(",") : [];
+    const hasNew = ids.some((id) => !alarmedIds.current.has(id));
+    alarmedIds.current = new Set(ids);
+    if (ids.length === 0 || !pin) {
+      stopGateAlarm();
+      return;
+    }
+    if (!inShift || muted) return;
+    const t = now.getTime();
+    if (hasNew || t - lastAlarmAt.current >= ALARM_REPEAT_MS) {
+      lastAlarmAt.current = t;
+      startGateAlarm(ALARM_SECONDS);
+    }
+  }, [overdueKey, inShift, muted, now, pin]);
+
+  const muteAlarm = () => {
+    setMutedUntil(Date.now() + MUTE_MS);
+    stopGateAlarm();
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // Done orders are hidden unless asked for, then listed after the rest.
+    // Overdue orders first, then due soon; done orders are hidden unless
+    // asked for, then listed after the rest.
     const sorted = (showDone ? [...typeOrders] : typeOrders.filter((o) => !o.production_done_at)).sort(
-      (a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at),
+      (a, b) => STATE_RANK[stateOf(a)] - STATE_RANK[stateOf(b)],
     );
     if (!q) return sorted;
     return sorted.filter((o) =>
@@ -440,7 +583,8 @@ export default function PrivateLabelFloorPage() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [typeOrders, search, showDone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeOrders, search, showDone, updates]);
 
   if (!pin) return <PinScreen message={pinMessage} onUnlock={unlock} />;
 
@@ -448,6 +592,8 @@ export default function PrivateLabelFloorPage() {
   const doneCount = typeOrders.filter((o) => o.production_done_at).length;
   const totalDz = typeOrders.reduce((s, o) => s + Number(o.total_dozens), 0);
   const doneDz = typeOrders.reduce((s, o) => s + Number(o.done_dozens), 0);
+  const typeOverdue = typeOrders.filter((o) => stateOf(o) === "overdue").length;
+  const typeDueSoon = typeOrders.filter((o) => stateOf(o) === "due_soon").length;
 
   return (
     <div className="min-h-screen bg-background p-4 text-foreground">
@@ -459,6 +605,10 @@ export default function PrivateLabelFloorPage() {
           <div>
             <h1 className="text-2xl font-bold">Private Label &amp; Company Job Orders</h1>
             <p className="text-sm text-muted-foreground">{format(now, "EEEE, d MMM yyyy — hh:mm:ss a")}</p>
+            <p className="text-xs text-muted-foreground">
+              Update every order at least every 2 hours · shift {String(SHIFT_START_HOUR).padStart(2, "0")}:00–{SHIFT_END_HOUR}:00
+              {!inShift && " · outside shift: clock paused"}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -472,6 +622,12 @@ export default function PrivateLabelFloorPage() {
             <Button variant={showDone ? "secondary" : "outline"} onClick={() => setShowDone((v) => !v)}>
               <CheckCircle2 className="mr-2 h-4 w-4" />
               {showDone ? "Hide done" : `Show done (${doneCount})`}
+            </Button>
+          )}
+          {overdueOrders.length > 0 && !soundReady && (
+            <Button variant="outline" className="border-amber-400 bg-amber-50 text-amber-900" onClick={() => primeGateAlarm()}>
+              <BellRing className="mr-2 h-4 w-4" />
+              Tap to turn on alarm sound
             </Button>
           )}
           <Button variant="outline" onClick={() => lock(null)}>
@@ -503,7 +659,32 @@ export default function PrivateLabelFloorPage() {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {overdueOrders.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl bg-red-600 p-4 text-white shadow-lg">
+          <div className="flex animate-pulse items-center gap-2 text-2xl font-extrabold tracking-wide">
+            <TriangleAlert className="h-8 w-8" />
+            UPDATE OVERDUE
+          </div>
+          <div className="min-w-[200px] flex-1 text-base font-semibold">
+            {overdueOrders.length === 1 ? "1 job order has" : `${overdueOrders.length} job orders have`} had no update for more
+            than 2 hours:{" "}
+            {overdueOrders.map((o, i) => (
+              <span key={o.id}>
+                {i > 0 && " · "}
+                <b className="font-mono">{o.pl_job_order_number}</b> ({formatDuration(updates.get(o.id)?.elapsedMs ?? 0)})
+              </span>
+            ))}
+          </div>
+          {inShift && (
+            <Button variant="secondary" className="text-red-700" onClick={muteAlarm} disabled={muted}>
+              <BellOff className="mr-2 h-4 w-4" />
+              {muted ? `Sound muted (${formatDuration(mutedUntil - now.getTime())})` : "Mute sound 5 min"}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Issued orders</div>
           <div className="text-4xl font-bold">{typeOrders.length}</div>
@@ -521,6 +702,11 @@ export default function PrivateLabelFloorPage() {
           <div className="text-xs text-muted-foreground">
             {doneDz.toLocaleString()} / {totalDz.toLocaleString()} Dz
           </div>
+        </div>
+        <div className={cn("rounded-xl border bg-card p-4 text-center", typeOverdue > 0 && "border-2 border-red-600 bg-red-50")}>
+          <div className="text-sm text-muted-foreground">Update overdue</div>
+          <div className={cn("text-4xl font-bold", typeOverdue > 0 && "text-red-600")}>{typeOverdue}</div>
+          {typeDueSoon > 0 && <div className="text-xs font-medium text-amber-700">{typeDueSoon} due within 30 min</div>}
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="text-sm text-muted-foreground">Not printed yet</div>
@@ -550,9 +736,11 @@ export default function PrivateLabelFloorPage() {
             <OrderCard
               key={o.id}
               order={o}
+              update={updates.get(o.id) ?? updateStatus(null, true, now)}
               printing={printingId === o.id}
               onPrint={() => print(o)}
               onUpdate={() => setProgressOrder(o)}
+              onCheckin={() => setCheckinOrder(o)}
               onDone={() => setDoneOrder(o)}
             />
           ))}
@@ -571,6 +759,23 @@ export default function PrivateLabelFloorPage() {
           }}
           onClose={(saved) => {
             setProgressOrder(null);
+            if (saved) qc.invalidateQueries({ queryKey: ["pljo-floor"] });
+          }}
+        />
+      )}
+
+      {checkinOrder && (
+        <PrivateLabelFloorCheckinDialog
+          pin={pin}
+          order={checkinOrder}
+          enteredBy={enteredBy}
+          onEnteredByChange={changeName}
+          onPinError={(e) => {
+            setCheckinOrder(null);
+            handlePinError(e);
+          }}
+          onClose={(saved) => {
+            setCheckinOrder(null);
             if (saved) qc.invalidateQueries({ queryKey: ["pljo-floor"] });
           }}
         />
@@ -616,6 +821,7 @@ export default function PrivateLabelFloorPage() {
       <div className="mt-6 flex items-center justify-end gap-2 text-xs text-muted-foreground">
         <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
         Auto-refresh: 15s
+        {overdueOrders.length > 0 && inShift && <> · Alarm sound repeats every 5 min while an order is overdue</>}
         {dataUpdatedAt > 0 && <> · Updated {format(dataUpdatedAt, "hh:mm:ss a")}</>}
       </div>
     </div>
