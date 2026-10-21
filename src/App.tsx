@@ -117,6 +117,7 @@ import CustomerLogosPage from "./pages/sales/CustomerLogosPage";
 import QuotationsPage from "./pages/sales/QuotationsPage";
 import SalesOrdersPage from "./pages/sales/SalesOrdersPage";
 import CustomerVisitDashboard from "./pages/sales/CustomerVisitDashboard";
+import SalesmanActivityReportPage from "./pages/sales/SalesmanActivityReportPage";
 import DispatchPage from "./pages/sales/DispatchPage";
 import COGSPage from "./pages/sales/COGSPage";
 
@@ -709,6 +710,7 @@ const App = () => (
             <Route path="/sales/returns" element={<ProtectedRoute><SalesReturnsPage /></ProtectedRoute>} />
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
+            <Route path="/sales/salesman-activity" element={<ProtectedRoute><SalesmanActivityReportPage /></ProtectedRoute>} />
             {/* Sales geo masters + fuel (v1 top-ups) */}
             <Route path="/sales/cities" element={<ProtectedRoute><CitiesMasterPage /></ProtectedRoute>} />
             <Route path="/sales/areas" element={<ProtectedRoute><AreasMasterPage /></ProtectedRoute>} />
