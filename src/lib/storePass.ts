@@ -191,7 +191,6 @@ export type LinkCandidate = {
   linked_count: number;
   linked_dispatches: string | null;
   is_current: boolean;
-  plan_matches: boolean | null;
 };
 
 export type DispatchStorePass = {

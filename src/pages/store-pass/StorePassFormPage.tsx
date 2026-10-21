@@ -145,9 +145,9 @@ export default function StorePassFormPage() {
               <CardContent className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
                 <div>
                   <Label htmlFor="sp-plan">Dispatch plan no. *</Label>
-                  <Input id="sp-plan" value={planNo} className="h-11 text-lg" placeholder="e.g. DPV-000012 or DC-00412"
+                  <Input id="sp-plan" value={planNo} className="h-11 text-lg" placeholder="e.g. 12"
                     onChange={(e) => setPlanNo(e.target.value.toUpperCase())} />
-                  <p className="text-xs text-muted-foreground mt-1">Write the number on the dispatch plan. If it is the dispatch (DC) number, the pass links to that dispatch by itself.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Write the number on the dispatch plan. It is for reference only; the dispatch operator links the pass to the dispatch sheet.</p>
                 </div>
                 <div>
                   <Label htmlFor="sp-date">Date</Label>
