@@ -643,9 +643,9 @@ BEGIN
   IF NOT public.facilities_can('operate') THEN
     RAISE EXCEPTION 'You do not have permission to create service tickets.';
   END IF;
-  SELECT e.id, e.code, e.name, e.location, t.name AS type_name, t.checklist
-    INTO e FROM public.facilities_equipment e JOIN public.facilities_equipment_types t ON t.id = e.type_id
-   WHERE e.id = p_equipment_id;
+  SELECT eq.id, eq.code, eq.name, eq.location, t.name AS type_name, t.checklist
+    INTO e FROM public.facilities_equipment eq JOIN public.facilities_equipment_types t ON t.id = eq.type_id
+   WHERE eq.id = p_equipment_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Equipment not found.'; END IF;
   SELECT id INTO v_existing FROM public.facilities_tickets
    WHERE equipment_id = p_equipment_id AND category = 'preventive' AND status IN ('open','assigned','in_progress')
