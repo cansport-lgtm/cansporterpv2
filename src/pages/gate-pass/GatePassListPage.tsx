@@ -168,28 +168,28 @@ export default function GatePassListPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {kpis.map((k) => (
             <Card key={k.label}>
-              <CardContent className="p-4">
+              <CardContent className="p-3 md:p-4">
                 <div className="text-xs text-muted-foreground">{k.label}</div>
-                <div className={cn("text-2xl font-display font-bold mt-1", k.tone)}>{k.value}</div>
+                <div className={cn("text-xl md:text-2xl font-display font-bold mt-1", k.tone)}>{k.value}</div>
               </CardContent>
             </Card>
           ))}
         </div>
 
         <Card>
-          <CardContent className="p-3 md:p-4 flex flex-wrap items-end gap-3">
-            <div>
+          <CardContent className="p-3 md:p-4 grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-end">
+            <div className="min-w-0">
               <Label className="text-xs">From</Label>
-              <Input type="date" className="w-40" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <Input type="date" className="w-full md:w-40" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className="text-xs">To</Label>
-              <Input type="date" className="w-40" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <Input type="date" className="w-full md:w-40" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className="text-xs">Type</Label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All types</SelectItem>
                   {PASS_TYPES.filter((t) => t.available).map((t) => (
@@ -198,10 +198,10 @@ export default function GatePassListPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className="text-xs">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full md:w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   {Object.entries(STATUS_META)
@@ -210,7 +210,7 @@ export default function GatePassListPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-1 min-w-[200px]">
+            <div className="col-span-2 md:col-span-1 md:flex-1 md:min-w-[200px]">
               <Label className="text-xs" htmlFor="gp-search">Search</Label>
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -221,7 +221,73 @@ export default function GatePassListPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Phones: one card per pass. Tap opens the pass; the SP number opens the store pass. */}
+        <div className="md:hidden space-y-2">
+          {isLoading ? (
+            <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>
+          ) : filtered.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-muted-foreground">No gate passes in this range.</CardContent></Card>
+          ) : filtered.map((r) => {
+            const t = passTypeMeta(r.pass_type);
+            const s = statusMeta(r.status);
+            const sps = storePassesOf(r, storePasses);
+            const ref = reference(r);
+            return (
+              <Card key={r.id} className="cursor-pointer active:bg-muted/50" onClick={() => navigate(`/gate-pass/passes/${r.id}`)}>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold text-primary">{r.pass_number}</div>
+                      <div className="text-xs text-muted-foreground">{format(new Date(r.pass_date), "dd MMM yyyy")}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <Badge variant={s.variant}>{s.label}</Badge>
+                      {r.status === "out" && r.gate_out_at && (
+                        <div className="text-xs text-muted-foreground mt-1">{format(new Date(r.gate_out_at), "dd MMM HH:mm")}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="font-medium truncate" title={r.party_name}>{r.party_name}</div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap", t.badgeClass)}>{t.label}</span>
+                    {r.is_backfill && <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200">Backfill</span>}
+                    {r.vehicle_number && <span className="text-xs font-mono bg-muted rounded px-1.5 py-0.5">{r.vehicle_number}</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">Reference</div>
+                      <div className="truncate" title={ref}>{ref || "—"}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">Qty</div>
+                      <div className="tabular-nums">{qtySummary(r)}</div>
+                    </div>
+                    {r.pass_type === "sales" && (
+                      <div className="col-span-2 min-w-0">
+                        <div className="text-muted-foreground">Store pass</div>
+                        {sps.length === 0 ? <div className="text-amber-700 font-medium">No store pass</div>
+                          : <div className="flex flex-wrap gap-x-3">
+                              {sps.map((sp) => (
+                                <Link key={sp.store_pass_id} to={`/store-pass/passes/${sp.store_pass_id}`} onClick={(e) => e.stopPropagation()}
+                                  className={cn("font-mono hover:underline", sp.status === "issued" ? "text-emerald-700" : "text-muted-foreground")}>
+                                  {sp.pass_number}{sp.status !== "issued" ? ` (${sp.status})` : ""}
+                                </Link>
+                              ))}
+                            </div>}
+                      </div>
+                    )}
+                  </div>
+                  {r.status === "held" && r.hold_note && (
+                    <div className="text-xs text-red-700 truncate" title={r.hold_note}>{r.hold_note}</div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Tablets and desktops: the table, unchanged. */}
+        <Card className="hidden md:block">
           <CardContent className="p-0 overflow-x-auto">
             <Table className="min-w-[1120px]">
               <TableHeader>
