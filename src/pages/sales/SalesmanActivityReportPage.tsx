@@ -357,16 +357,37 @@ export default function SalesmanActivityReportPage() {
           : ""
       }</table>`;
 
-    const body = `<div class="wrap">
+    // Compact one-page A4 layout: secondary sections sit side by side, and the script at
+    // the end scales the whole sheet down (widening it to keep the full page width) when
+    // a busy day would otherwise spill onto a second page.
+    const body = `<style>
+        @page { size: A4 portrait; margin: 8mm; }
+        body { padding: 0; font-size: 9.5px; }
+        .wrap { max-width: none; width: 194mm; margin: 0; }
+        .head { padding-bottom: 6px; margin-bottom: 8px; }
+        .head h1 { font-size: 15px; }
+        .kpis { display: flex; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px; }
+        .kpis > div { flex: 1; padding: 4px 6px; border-left: 1px solid #ddd; }
+        .kpis > div:first-child { border-left: none; }
+        .kpis .v { font-size: 12px; font-weight: 700; }
+        .kpis .s { font-size: 8.5px; color: #666; }
+        .cols { display: flex; gap: 10px; align-items: flex-start; }
+        .cols > div { flex: 1; min-width: 0; }
+        .section-title { margin: 8px 0 3px; font-size: 9px; }
+        th { padding: 3px 4px; font-size: 9px; }
+        td { padding: 2.5px 4px; }
+        .sign { margin-top: 28px; }
+      </style>
+      <div class="wrap" id="sheet">
       <div class="head"><div><h1>Salesman Daily Activity</h1><div class="muted">Private Label Sales</div></div>
         <div class="right"><div class="bold">${esc(salesmanName)}</div><div>${esc(prettyDate)}</div></div></div>
-      <div class="grid2">
-        <div><div class="label">Shops visited</div>${shopCount}</div>
-        <div><div class="label">Areas covered</div>${areas.length}</div>
-        <div><div class="label">Market issues</div>${issues.length}</div>
-        <div><div class="label">Fuel</div>${esc(money(fuelAmount))} · ${qty(fuelKm)} km</div>
-        <div><div class="label">Confirmed orders</div>${orders?.length || 0} · ${esc(money(ordersTotal))}</div>
-        <div><div class="label">Time in market</div>${esc(marketTime)}</div>
+      <div class="kpis">
+        <div><div class="label">Shops visited</div><div class="v">${shopCount}</div><div class="s">${esc(visitTypeSummary)}</div></div>
+        <div><div class="label">Areas covered</div><div class="v">${areas.length}</div></div>
+        <div><div class="label">Market issues</div><div class="v">${issues.length}</div></div>
+        <div><div class="label">Fuel</div><div class="v">${esc(money(fuelAmount))}</div><div class="s">${qty(fuelKm)} km · ${qty(fuelLitres)} L</div></div>
+        <div><div class="label">Confirmed orders</div><div class="v">${esc(money(ordersTotal))}</div><div class="s">${orders?.length || 0} orders</div></div>
+        <div><div class="label">Time in market</div><div class="v">${esc(marketTime)}</div><div class="s">${firstIn && lastOut ? `${time(firstIn)} → ${time(lastOut)}` : ""}</div></div>
       </div>
       <div class="section-title">Shops visited</div>
       ${table(
@@ -381,40 +402,66 @@ export default function SalesmanActivityReportPage() {
         ]),
         [5]
       )}
-      <div class="section-title">Areas visited</div>
-      ${table(["Area", "City", "Shops"], areas.map((a) => [a.area, a.city, String(a.shops)]), [2])}
-      <div class="section-title">Market issues</div>
-      ${table(["Shop", "Area", "Type", "Issue", "Action"], issues.map((i) => [i.shop, i.area, i.kind, i.issue, i.action]))}
-      <div class="section-title">Fuel expenses</div>
-      ${table(
-        ["From → To", "Purpose", "KM", "Litres", "Amount", "Status"],
-        (trips || []).map((t) => [
-          `${t.from_location || "—"} → ${t.to_location || "—"}`,
-          t.purpose || "",
-          qty(Number(t.km || 0)),
-          qty(Number(t.litres || 0)),
-          money(Number(t.amount || 0)),
-          t.status,
-        ]),
-        [2, 3, 4],
-        ["Total (excl. rejected)", "", qty(fuelKm), qty(fuelLitres), money(fuelAmount), ""]
-      )}
-      <div class="section-title">Confirmed distributor orders</div>
-      ${table(
-        ["Order #", "Distributor", "Area", "Qty (Dzn)", "Net amount", "Status"],
-        (orders || []).map((o) => [
-          o.order_number,
-          o.customers?.name || "",
-          areaOf(o.customers),
-          qty(orderQty(o)),
-          money(orderAmount(o)),
-          statusLabel(o.status),
-        ]),
-        [3, 4],
-        ["Total", "", "", qty(ordersQtyTotal), money(ordersTotal), ""]
-      )}
+      <div class="cols">
+        <div style="flex:0 0 32%">
+          <div class="section-title">Areas visited</div>
+          ${table(["Area", "City", "Shops"], areas.map((a) => [a.area, a.city, String(a.shops)]), [2])}
+        </div>
+        <div>
+          <div class="section-title">Market issues</div>
+          ${table(["Shop", "Type", "Issue", "Action"], issues.map((i) => [i.shop, i.kind, i.issue, i.action]))}
+        </div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="section-title">Fuel expenses</div>
+          ${table(
+            ["Route", "KM", "Litres", "Amount", "Status"],
+            (trips || []).map((t) => [
+              `${t.from_location || "—"} → ${t.to_location || "—"}`,
+              qty(Number(t.km || 0)),
+              qty(Number(t.litres || 0)),
+              money(Number(t.amount || 0)),
+              t.status,
+            ]),
+            [1, 2, 3],
+            ["Total (excl. rejected)", qty(fuelKm), qty(fuelLitres), money(fuelAmount), ""]
+          )}
+        </div>
+        <div>
+          <div class="section-title">Confirmed distributor orders</div>
+          ${table(
+            ["Order #", "Distributor", "Qty (Dzn)", "Amount", "Status"],
+            (orders || []).map((o) => [
+              o.order_number,
+              o.customers?.name || "",
+              qty(orderQty(o)),
+              money(orderAmount(o)),
+              statusLabel(o.status),
+            ]),
+            [2, 3],
+            ["Total", "", qty(ordersQtyTotal), money(ordersTotal), ""]
+          )}
+        </div>
+      </div>
       <div class="sign"><div>Salesman</div><div>Sales Manager</div></div>
-    </div>`;
+    </div>
+    <script>
+      (function () {
+        var sheet = document.getElementById("sheet");
+        var mm = 96 / 25.4;
+        var pageW = 194 * mm, pageH = 281 * mm * 0.98;
+        var zoom = 1;
+        for (var i = 0; i < 4; i++) {
+          sheet.style.width = pageW / zoom + "px";
+          var next = Math.min(1, pageH / sheet.offsetHeight);
+          if (Math.abs(next - zoom) < 0.005) break;
+          zoom = next;
+        }
+        sheet.style.width = pageW / zoom + "px";
+        sheet.style.zoom = String(zoom);
+      })();
+    </script>`;
     printDocument(`Salesman Activity ${salesmanName} ${prettyDate}`, body);
   };
 
