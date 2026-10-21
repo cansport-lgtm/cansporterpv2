@@ -1,4 +1,4 @@
-# Admin & Facilities — plan (draft for review, 21 Oct 2026)
+# Admin & Facilities — plan (decisions confirmed 21 Oct 2026, mockup only, nothing built yet)
 
 A new sidebar group **Admin & Facilities** (module key `facilities`, routes
 `/facilities/...`) for the office administration work that today happens on
@@ -24,8 +24,8 @@ document, rollback script, a doc in `docs/` when it goes live.
 | Office assets | `fixed_assets` (category `office_assets`), QR labels, Reconciliation | **Custody** (who holds which asset) is new; the asset itself stays in the Fixed Asset register. Issuing an asset never changes its value or status |
 | Cameras / equipment | `fixed_assets` | Each camera and each piece of office equipment can point at a fixed asset (`fixed_asset_id`, optional) so warranty, purchase price and disposal stay in one place |
 | Office supplies | Purchase Requests (`PRQ-`, category `office_supplies`), `items` master, GRN | Employees ask the **admin store** (new, small stock). When stock is below its reorder level, the admin officer raises a normal purchase request pre-filled from the shortage. A GRN for an office-supplies item posts the quantity into the admin store |
-| SIM bills | Expenses → Utility Bills / General Expenses, HR salary | Monthly SIM bill is entered once; the over-limit part per employee is exported to HR as a deduction line (phase 3) |
-| Equipment faults | Help Desk pattern (`helpdesk_tickets`) and production `maintenance_work_orders` | Office equipment tickets are a **separate** table (different asset base, different people) but the same shape: ticket number, priority, assigned to, resolution, timeline. Production machines stay in Maintenance |
+| SIM bills | Expenses → Utility Bills / General Expenses | Monthly SIM bill is entered once and posts to Expenses; over-limit is reported, not deducted |
+| Equipment faults | Help Desk pattern (`helpdesk_tickets`) and production `maintenance_work_orders` | Office equipment tickets are a **separate** table (confirmed) (different asset base, different people) but the same shape: ticket number, priority, assigned to, resolution, timeline. Production machines stay in Maintenance |
 | Cleaning inspection | 5S Audit (`five_s_checkpoints`, `five_s_audits`, responses, action items) | Same checkpoint → run → response → action item shape, with areas instead of departments and photo per failed point |
 | Employees | `employees` | Custody, SIMs, clearance on exit |
 | Alerts | `notify_user` / `notify_role`, System Notifications | Missed camera check, overdue inspections, AMC expiry, SIM over limit |
@@ -37,7 +37,7 @@ document, rollback script, a doc in `docs/` when it goes live.
 | | |
 |---|---|
 | Masters | **Cameras**: code (`CAM-01`), name, zone (Gate, Store, Floor A, Office, Parking…), NVR/DVR and channel number, IP (optional), fixed asset (optional), active flag. **Recorders** (NVR/DVR): name, channels, retention days expected |
-| Document | **Daily check** `CCK-000001`, one per calendar day (unique on date). Lines are generated from all active cameras |
+| Document | **Daily check** `CCK-000001`, **once a day** (unique on date, confirmed). Lines are generated from all active cameras |
 | Line result | `ok` · `blurry` · `offline` · `damaged` · `no_recording` · `wrong_angle`, remark, optional photo |
 | Recorder part | Per NVR: recording OK yes/no, days of footage available, HDD status, date/time correct, remark |
 | Flow | `draft` (guard/admin officer fills on phone) → `submitted` (locked; summary counts) → optional `reviewed` by admin manager |
@@ -70,8 +70,8 @@ document, rollback script, a doc in `docs/` when it goes live.
 
 | | |
 |---|---|
-| Admin store | Small stock of consumables: items from the `items` master, category `office_supplies` (stationery, toner, tea/sugar, cleaning material, water bottles). Per item: on hand, reorder level, reorder qty, location |
-| Document | **Supply request** `SR-000001` by any employee (Self Service → My Supply Requests): department, lines (item, qty), reason. Approval: department head (reuse `purchase_request` department-head logic) **only above a per-item free quantity** (e.g. a pen does not need approval, a toner does). Then admin issues: issued qty ≤ approved qty, stock reduced, employee acknowledges |
+| Admin store | **Quantities are tracked** (confirmed). Small stock of consumables: items from the `items` master, category `office_supplies` (stationery, toner, tea/sugar, cleaning material, water bottles). Per item: on hand, reorder level, reorder qty, location |
+| Document | **Supply request** `SR-000001` by any employee (Self Service → My Supply Requests): department, lines (item, qty), reason. Approval: **department head on every request** (confirmed; reuse `purchase_request` department-head logic, head may lower quantities). Then admin issues: issued qty ≤ approved qty, stock reduced, employee acknowledges |
 | Stock in | GRN of an office-supplies purchase order posts to the admin store (trigger on GRN confirm, phase 2). Manual "opening stock" and "adjustment" entries with reason by `facilities_manager` |
 | Reorder | **Shortage list**: items at or below reorder level. One click → new purchase request (`PRQ-`, category `office_supplies`) pre-filled with reorder quantities, handed to the existing purchase flow |
 | Reports | Consumption by department per month (cost from item unit price), top items, request turnaround |
@@ -82,8 +82,8 @@ document, rollback script, a doc in `docs/` when it goes live.
 |---|---|
 | Register | **SIMs**: number, network (Jazz, Zong, Telenor, Ufone), package name, monthly package cost, monthly limit (PKR), type (voice/data/device), status (`in_stock`, `issued`, `suspended`, `lost`, `closed`), PUK/ICCID (visible to admin only) |
 | Document | **SIM issue / return** `SIM-000001`: SIM, employee, date, handset (optional link to an office asset), acknowledgement. One SIM has one holder at a time |
-| Monthly bill | **Bill run** per network per month: upload / enter amount per number. Over-limit = amount − limit. Lines over limit are flagged; admin marks each as `company_bears` / `deduct_from_salary` / `waived`. Deduction lines export to HR (phase 3: a table HR's salary report reads) |
-| Alerts | Bill not entered by the 10th; SIM with no holder but status issued; employee leaving with a SIM (clearance) |
+| Monthly bill | **Bill run** per network per month: upload / enter amount per number. Over-limit = amount − limit. **The company bears the bill** (confirmed): no salary deduction. Over-limit lines are only flagged with an optional note, and a monthly over-limit report goes to the facilities manager. Bill total posts to Expenses → Utility Bills |
+| Alerts | Bill not entered by the 10th; same number over limit 3 months running; SIM with no holder but status issued; employee leaving with a SIM (clearance) |
 
 ### 2.6 Office equipment maintenance
 
@@ -194,19 +194,26 @@ src/App.tsx                  routes
 |---|---|---|
 | **1** | Module, roles, dashboard, **camera daily check**, **cleaning inspection** + action items, masters, missed-check / overdue alerts | Pure new data, no other module touched, immediate daily use |
 | **2** | **Asset custody** on Fixed Assets, **admin store + supply requests**, reorder → purchase request | Touches Fixed Assets (read) and Purchase (creates PRQ through existing functions) |
-| **3** | **SIM register + monthly bills**, deduction export to HR, employee clearance banner in HR | Needs HR agreement on the deduction line |
+| **3** | **SIM register + monthly bills**, over-limit report, employee clearance banner in HR | Touches Expenses and HR (read) |
 | **4** | **Equipment register, tickets, service calendar, AMC alerts**; camera fault → ticket switched on | Reuses step-1 masters; closes the loop |
 
 Each step ships with its migration, rollback, doc and sidebar entries;
 steps 1 and 2 are the first PR candidates.
 
-## 8. Decisions needed before building
+## 8. Decisions
 
-1. **Who does the camera check** — the gate guard (existing `guard` role, on the guard phone) or an admin officer? Affects which layout it opens in.
-2. **One check per day or per shift** (morning / night)?
-3. **Supply request approval**: department head for everything, or only above a free quantity per item (proposed)?
-4. **Admin store stock**: do we track quantities at all (proposed yes, simple on-hand), or only requests and issues?
-5. **SIM over-limit**: deduct from salary through HR, or company bears by default and admin flags exceptions?
-6. **Equipment tickets** separate from production Maintenance (proposed) or one ticket list with an "office" type?
-7. **Vendors / AMC**: use `suppliers` from Purchase for AMC vendors (proposed) or a free-text vendor on the equipment?
-8. Which "etc." items from 2.7 matter most for the next phase.
+Confirmed 21 Oct 2026:
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Camera check frequency | **Once a day** |
+| 2 | Supply request approval | **Department head approves every request** |
+| 3 | Admin store | **Quantities tracked** (on hand, reorder level, ledger) |
+| 4 | SIM over-limit | **Company bears**; over-limit only reported |
+| 5 | Equipment tickets | **Separate** from production Maintenance |
+
+Still open (can be settled when step 1 starts):
+
+1. **Who does the camera check** — the gate guard (existing `guard` role, guard phone layout) or an admin officer. The mockup works for either; it only decides which layout the page opens in.
+2. **AMC vendors**: use `suppliers` from Purchase (proposed) or free text on the equipment.
+3. Which "etc." items from 2.7 come next (visitor log, vehicle booking, key register, courier register, utility meter readings, generator fuel log).

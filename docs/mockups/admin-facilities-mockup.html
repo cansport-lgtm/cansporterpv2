@@ -175,7 +175,7 @@ no check by 11:00  ►  notify facilities_manager + super_admin</div></div>
       <div>
         <p class="muted" style="margin:0 0 8px;font-size:12px">Phone view · guard or admin officer walks the NVR screens</p>
         <div class="phone">
-          <div class="ph"><span>CCK-000205 · 21 Oct · draft</span><span>7 / 24 done</span></div>
+          <div class="ph"><span>CCK-000205 · 21 Oct · once daily · draft</span><span>7 / 24 done</span></div>
           <div class="bar"><i style="width:29%"></i></div>
           <div class="camline"><div class="nm"><b>CAM-01 Main gate</b><span class="muted">NVR-1 ch 1</span></div><div class="seg"><button class="ok">OK</button><button>Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div></div>
           <div class="camline"><div class="nm"><b>CAM-02 Gate inward</b><span class="muted">NVR-1 ch 2</span></div><div class="seg"><button class="ok">OK</button><button>Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div></div>
@@ -276,10 +276,10 @@ no check by 11:00  ►  notify facilities_manager + super_admin</div></div>
         <tr><td class="mono">SR-000541</td><td>Ayesha Khan</td><td>Sales</td><td>Toner HP 85A ×1, A4 ×2 reams</td><td><span class="pill p-warn">with dept head</span></td></tr>
         <tr><td class="mono">SR-000540</td><td>Imran Shah</td><td>Export</td><td>Box files ×6, markers ×4</td><td><span class="pill p-warn">with dept head</span></td></tr>
         <tr><td class="mono">SR-000539</td><td>Rashid</td><td>Admin</td><td>Phenyl 5 L ×2, tissue ×10</td><td><span class="pill p-info">approved · to issue</span></td></tr>
-        <tr><td class="mono">SR-000538</td><td>Farah Noor</td><td>HR</td><td>Pens ×12, stapler ×1</td><td><span class="pill p-info">no approval needed · to issue</span></td></tr>
+        <tr><td class="mono">SR-000538</td><td>Farah Noor</td><td>HR</td><td>Pens ×12, stapler ×1</td><td><span class="pill p-info">approved · to issue</span></td></tr>
         <tr><td class="mono">SR-000537</td><td>Usman Tariq</td><td>Sales</td><td>Visiting cards ×1 box</td><td><span class="pill p-ok">issued 20 Oct</span></td></tr>
       </table></div>
-      <div class="flow" style="margin-top:10px">employee raises SR → (dept head approves, only above free qty) → admin issues from store → employee acknowledges
+      <div class="flow" style="margin-top:10px">employee raises SR → dept head approves (every request) → admin issues from store (stock reduced) → employee acknowledges
 stock ≤ reorder level → "Raise purchase request" → PRQ-xxxxxx (category Office Supplies) → existing purchase flow → GRN posts back into store</div></div>
       <div class="card"><h3>Stock · items at or below reorder level</h3><div class="tw"><table>
         <tr><th>Item (items master)</th><th class="num">On hand</th><th class="num">Reorder</th><th class="num">Reorder qty</th><th class="num">Pending PRQ</th></tr>
@@ -302,7 +302,7 @@ stock ≤ reorder level → "Raise purchase request" → PRQ-xxxxxx (category Of
   <section class="screen" id="s-sim">
     <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › SIMs</div><h2>SIM Register &amp; Monthly Bills</h2></div><div class="row"><button class="btn ghost sm">Add SIM</button><button class="btn sm">Enter Oct bill</button></div></div>
     <div class="tabs"><span class="on">Register</span><span>Bills · Sep 2026</span><span>Movements</span></div>
-    <div class="tiles"><div class="tile"><div class="k">Total SIMs</div><div class="v">38</div><div class="s">Jazz 22 · Zong 11 · Ufone 5</div></div><div class="tile"><div class="k">Issued</div><div class="v">33</div><div class="s">5 in stock</div></div><div class="tile warn"><div class="k">Over limit · Sep</div><div class="v">3</div><div class="s">PKR 4,860</div></div><div class="tile"><div class="k">Monthly package cost</div><div class="v">46,500</div><div class="s">PKR · Expenses › Utility bills</div></div></div>
+    <div class="tiles"><div class="tile"><div class="k">Total SIMs</div><div class="v">38</div><div class="s">Jazz 22 · Zong 11 · Ufone 5</div></div><div class="tile"><div class="k">Issued</div><div class="v">33</div><div class="s">5 in stock</div></div><div class="tile warn"><div class="k">Over limit · Sep</div><div class="v">3</div><div class="s">PKR 4,860 · borne by company</div></div><div class="tile"><div class="k">Monthly package cost</div><div class="v">46,500</div><div class="s">PKR · Expenses › Utility bills</div></div></div>
     <div class="grid2">
       <div class="card"><h3>Register</h3><div class="tw"><table>
         <tr><th>Number</th><th>Network</th><th>Package</th><th class="num">Limit</th><th>Holder</th><th>Handset</th><th>Status</th></tr>
@@ -312,13 +312,13 @@ stock ≤ reorder level → "Raise purchase request" → PRQ-xxxxxx (category Of
         <tr><td class="mono">0333-4455667</td><td>Ufone</td><td>Postpaid 1000</td><td class="num">1,200</td><td>—</td><td>—</td><td><span class="pill p-mut">in stock</span></td></tr>
         <tr><td class="mono">0302-1122334</td><td>Jazz</td><td>Business 1500</td><td class="num">2,000</td><td>Kamran (ex-employee)</td><td>—</td><td><span class="pill p-bad">lost · blocked</span></td></tr>
       </table></div></div>
-      <div class="card"><h3>Bill · Jazz · Sep 2026 · over-limit lines</h3><div class="tw"><table>
-        <tr><th>Number</th><th>Holder</th><th class="num">Bill</th><th class="num">Limit</th><th class="num">Over</th><th>Decision</th></tr>
-        <tr><td class="mono">0301-7654321</td><td>Usman Tariq</td><td class="num">6,240</td><td class="num">3,500</td><td class="num">2,740</td><td><select id="d1" aria-label="Decision"><option>Deduct from salary</option><option>Company bears</option><option>Waived</option></select></td></tr>
-        <tr><td class="mono">0300-1234567</td><td>Bilal Ahmed</td><td class="num">3,420</td><td class="num">2,000</td><td class="num">1,420</td><td><select id="d2" aria-label="Decision"><option>Deduct from salary</option><option>Company bears</option><option>Waived</option></select></td></tr>
-        <tr><td class="mono">0305-5566778</td><td>Farah Noor</td><td class="num">2,700</td><td class="num">2,000</td><td class="num">700</td><td><select id="d3" aria-label="Decision"><option>Company bears</option><option>Deduct from salary</option><option>Waived</option></select></td></tr>
+      <div class="card"><h3>Bill · Jazz · Sep 2026 · over-limit lines (company bears; shown for information)</h3><div class="tw"><table>
+        <tr><th>Number</th><th>Holder</th><th class="num">Bill</th><th class="num">Limit</th><th class="num">Over</th><th>Note to manager</th></tr>
+        <tr><td class="mono">0301-7654321</td><td>Usman Tariq</td><td class="num">6,240</td><td class="num">3,500</td><td class="num">2,740</td><td><input id="d1" aria-label="Note" value="Customer calls, export season" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
+        <tr><td class="mono">0300-1234567</td><td>Bilal Ahmed</td><td class="num">3,420</td><td class="num">2,000</td><td class="num">1,420</td><td><input id="d2" aria-label="Note" value="" placeholder="optional" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
+        <tr><td class="mono">0305-5566778</td><td>Farah Noor</td><td class="num">2,700</td><td class="num">2,000</td><td class="num">700</td><td><input id="d3" aria-label="Note" value="" placeholder="optional" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
       </table></div>
-      <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted" style="font-size:13px">Total bill PKR 51,360 · posts to Expenses › Utility Bills</span><button class="btn sm">Post bill &amp; send deductions to HR</button></div></div>
+      <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted" style="font-size:13px">Total bill PKR 51,360 · posts to Expenses › Utility Bills</span><button class="btn sm">Post bill to Expenses</button></div></div>
     </div>
   </section>
 
@@ -369,10 +369,10 @@ stock ≤ reorder level → "Raise purchase request" → PRQ-xxxxxx (category Of
         <tr><td class="mono">SR-000541</td><td>Toner HP 85A ×1, A4 ×2</td><td><span class="pill p-warn">with dept head</span></td></tr>
         <tr><td class="mono">SR-000512</td><td>Notebook ×2</td><td><span class="pill p-ok">issued · acknowledged</span></td></tr></table></div>
         <div class="row" style="margin-top:10px"><button class="btn sm">New supply request</button></div>
-        <p class="muted" style="font-size:12px;margin:8px 0 0">Items come from the Office Supplies item master. Below the free quantity no approval is needed.</p></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Items come from the Office Supplies item master. Every request goes to your department head first.</p></div>
       <div class="card"><h3>My Assets &amp; SIM</h3><div class="tw"><table><tr><th>Item</th><th>Since</th><th>Condition</th></tr>
         <tr><td>FA-00213 Dell Latitude 5420 + charger, bag</td><td>03 Mar 2025</td><td>good</td></tr>
-        <tr><td>SIM 0300-1234567 · Jazz Business 1500 · limit 2,000</td><td>03 Mar 2025</td><td>Sep bill 3,420 · <span class="pill p-warn">over by 1,420</span></td></tr></table></div>
+        <tr><td>SIM 0300-1234567 · Jazz Business 1500 · limit 2,000</td><td>03 Mar 2025</td><td>Sep bill 3,420 · <span class="pill p-warn">over limit by 1,420</span></td></tr></table></div>
         <p class="muted" style="font-size:12px;margin:8px 0 0">Pending acknowledgement: none. Sign on phone when admin issues or takes back an item.</p></div>
       <div class="card"><h3>Report a Fault</h3><div class="form">
         <div class="field"><label for="rf-eq">Equipment / location</label><select id="rf-eq"><option>AC · Accounts office (EQ-008)</option><option>Printer · Reception</option><option>Water dispenser · Floor A</option><option>Other (describe)</option></select></div>
@@ -396,13 +396,12 @@ Camera daily check ──(line not ok)──► Equipment ticket EQT ──► c
 Cleaning inspection ──(not ok)──► Action item (cleaning supervisor) · equipment faults ──► EQT
 Equipment intervals / AMC ──► Service calendar ──► preventive EQT ──► alerts (System Notifications)
 
-SIM register ──► monthly bill ──► Expenses › Utility bills
-                      └─► over-limit ──► HR salary deduction (phase 3)</div>
+SIM register ──► monthly bill ──► Expenses › Utility bills (over-limit borne by company, flagged to manager)</div>
     <h3 style="margin-top:14px">Delivery</h3>
     <div class="tw"><table><tr><th>Step</th><th>Contains</th><th>Touches</th></tr>
       <tr><td>1</td><td>Module + roles, dashboard, camera daily check, cleaning inspections and action items, masters, alerts</td><td>Nothing else</td></tr>
       <tr><td>2</td><td>Asset custody, admin store, supply requests, reorder → purchase request</td><td>Fixed Assets (read), Purchase (creates PRQ)</td></tr>
-      <tr><td>3</td><td>SIM register and bills, deduction export, HR clearance banner</td><td>Expenses, HR</td></tr>
+      <tr><td>3</td><td>SIM register and bills, over-limit report, HR clearance banner</td><td>Expenses, HR</td></tr>
       <tr><td>4</td><td>Equipment register, tickets, service calendar, AMC alerts, camera fault → ticket</td><td>Expenses (petty cash)</td></tr></table></div>
     </div>
   </section>
