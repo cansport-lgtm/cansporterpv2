@@ -374,6 +374,7 @@ const navigationItems: NavItem[] = [
       { title: "Sales Orders", href: "/sales/orders" },
       { title: "Dispatch", href: "/sales/dispatch" },
       { title: "Visit Reports", href: "/sales/visit-dashboard" },
+      { title: "Salesman Activity", href: "/sales/salesman-activity" },
       { title: "Dashboard", href: "/sales/dashboard" },
       { title: "Fuel Trips", href: "/sales/fuel/trips" },
       { title: "Fuel Weekly Payouts", href: "/sales/fuel/payouts" },
