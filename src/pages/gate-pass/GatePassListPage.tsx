@@ -24,18 +24,19 @@ import { cn } from "@/lib/utils";
 import {
   PASS_TYPES, STATUS_META, fmtQty, gpDb, passTypeMeta, statusMeta, type GatePass,
 } from "@/lib/gatePass";
+import { useDispatchStorePasses, type DispatchStorePass } from "@/lib/storePass";
 
 const LIST_SELECT =
   "id, pass_number, pass_type, status, pass_date, party_name, vehicle_number, created_at, gate_out_at, held_at, hold_note, is_backfill, expected_return_date," +
   "gate_pass_items(quantity, uom)," +
-  "gate_pass_dispatches(sales_dispatches(dispatch_number))," +
+  "gate_pass_dispatches(dispatch_id, sales_dispatches(dispatch_number))," +
   "purchase_returns(return_number)";
 
 type ListRow = Pick<GatePass,
   "id" | "pass_number" | "pass_type" | "status" | "pass_date" | "party_name" | "vehicle_number" |
   "created_at" | "gate_out_at" | "held_at" | "hold_note" | "is_backfill" | "expected_return_date"> & {
   gate_pass_items: { quantity: number; uom: string }[];
-  gate_pass_dispatches: { sales_dispatches: { dispatch_number: string } | null }[];
+  gate_pass_dispatches: { dispatch_id: string; sales_dispatches: { dispatch_number: string } | null }[];
   purchase_returns: { return_number: string | null } | null;
 };
 
@@ -49,6 +50,16 @@ const reference = (r: ListRow) => {
   const d = r.gate_pass_dispatches.map((x) => x.sales_dispatches?.dispatch_number).filter(Boolean);
   if (d.length) return d.join(", ");
   return r.purchase_returns?.return_number ?? "";
+};
+
+// The store passes behind a sales gate pass (one per dispatch; a pass covers one
+// dispatch, older ones may cover several). Other pass types have none.
+const storePassesOf = (r: ListRow, map: Map<string, DispatchStorePass>) =>
+  r.pass_type === "sales" ? r.gate_pass_dispatches.flatMap((d) => map.get(d.dispatch_id) ?? []) : [];
+const storePassText = (r: ListRow, map: Map<string, DispatchStorePass>) => {
+  if (r.pass_type !== "sales") return "";
+  const sps = storePassesOf(r, map);
+  return sps.length ? sps.map((sp) => sp.pass_number + (sp.status === "issued" ? "" : ` (${sp.status})`)).join(", ") : "No store pass";
 };
 
 export default function GatePassListPage() {
@@ -76,6 +87,11 @@ export default function GatePassListPage() {
     },
   });
 
+  // Store pass of each dispatch on a sales pass in the list, keyed by dispatch id.
+  const storePasses = useDispatchStorePasses(
+    useMemo(() => rows.filter((r) => r.pass_type === "sales").flatMap((r) => r.gate_pass_dispatches.map((d) => d.dispatch_id)), [rows]),
+  );
+
   // Live counts regardless of the date range: what needs attention right now.
   const { data: live = [] } = useQuery<{ status: string; pass_date: string }[]>({
     queryKey: ["gate-passes-live"],
@@ -94,9 +110,9 @@ export default function GatePassListPage() {
     return rows.filter((r) =>
       (typeFilter === "all" || r.pass_type === typeFilter) &&
       (statusFilter === "all" || r.status === statusFilter) &&
-      (!q || [r.pass_number, r.party_name, r.vehicle_number ?? "", reference(r)].some((v) => v.toLowerCase().includes(q))),
+      (!q || [r.pass_number, r.party_name, r.vehicle_number ?? "", reference(r), storePassText(r, storePasses)].some((v) => v.toLowerCase().includes(q))),
     );
-  }, [rows, typeFilter, statusFilter, search]);
+  }, [rows, typeFilter, statusFilter, search, storePasses]);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -108,6 +124,7 @@ export default function GatePassListPage() {
       Type: passTypeMeta(r.pass_type).label,
       Party: r.party_name,
       Reference: reference(r),
+      "Store pass": storePassText(r, storePasses),
       Vehicle: r.vehicle_number ?? "",
       Qty: qtySummary(r),
       Status: statusMeta(r.status).label,
@@ -197,7 +214,7 @@ export default function GatePassListPage() {
               <Label className="text-xs" htmlFor="gp-search">Search</Label>
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-                <Input id="gp-search" className="pl-8" placeholder="GP no., party, vehicle, dispatch…"
+                <Input id="gp-search" className="pl-8" placeholder="GP no., party, vehicle, dispatch, store pass…"
                   value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
             </div>
@@ -206,7 +223,7 @@ export default function GatePassListPage() {
 
         <Card>
           <CardContent className="p-0 overflow-x-auto">
-            <Table className="min-w-[1000px]">
+            <Table className="min-w-[1120px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>GP no.</TableHead>
@@ -214,6 +231,7 @@ export default function GatePassListPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Party</TableHead>
                   <TableHead>Reference</TableHead>
+                  <TableHead>Store pass</TableHead>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Status</TableHead>
@@ -221,12 +239,13 @@ export default function GatePassListPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No gate passes in this range.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No gate passes in this range.</TableCell></TableRow>
                 ) : filtered.map((r) => {
                   const t = passTypeMeta(r.pass_type);
                   const s = statusMeta(r.status);
+                  const sps = storePassesOf(r, storePasses);
                   return (
                     <TableRow key={r.id} className="cursor-pointer" onClick={() => navigate(`/gate-pass/passes/${r.id}`)}>
                       <TableCell className="font-mono text-sm font-semibold">
@@ -241,6 +260,19 @@ export default function GatePassListPage() {
                       </TableCell>
                       <TableCell className="max-w-[240px] truncate" title={r.party_name}>{r.party_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate" title={reference(r)}>{reference(r) || "—"}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {r.pass_type !== "sales" ? <span className="text-muted-foreground">—</span>
+                          : sps.length === 0 ? <span className="text-amber-700 font-medium">No store pass</span>
+                          : sps.map((sp) => (
+                            <div key={sp.store_pass_id}>
+                              <Link to={`/store-pass/passes/${sp.store_pass_id}`} onClick={(e) => e.stopPropagation()}
+                                className={cn("font-mono hover:underline", sp.status === "issued" ? "text-emerald-700" : "text-muted-foreground")}>
+                                {sp.pass_number}
+                              </Link>
+                              {sp.status !== "issued" && <span className="ml-1 text-xs text-muted-foreground">{sp.status}</span>}
+                            </div>
+                          ))}
+                      </TableCell>
                       <TableCell className="text-sm">{r.vehicle_number || "—"}</TableCell>
                       <TableCell className="text-sm tabular-nums whitespace-nowrap">{qtySummary(r)}</TableCell>
                       <TableCell>
