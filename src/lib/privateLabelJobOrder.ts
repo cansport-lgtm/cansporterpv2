@@ -613,6 +613,14 @@ export interface FloorOrder {
   done_dozens: number;
   production_done_at: string | null;
   production_done_by_name: string | null;
+  last_progress_at: string | null;
+  last_progress_by: string | null;
+  /** Latest "no progress" check-in. */
+  last_checkin_at: string | null;
+  last_checkin_reason: string | null;
+  last_checkin_by: string | null;
+  /** Start of the 2-hour update clock: issue, progress, check-in or reopen. */
+  last_activity_at: string | null;
 }
 
 export interface FloorProgressLine {
@@ -705,6 +713,11 @@ export async function addFloorProgress(
 
 export async function setFloorDone(pin: string, id: string, done: boolean, by: string) {
   await floorRpc("pljo_floor_set_done", { p_pin: pin, p_job_order_id: id, p_done: done, p_by: by });
+}
+
+/** "No progress" check-in: restarts the 2-hour update clock. */
+export async function floorCheckin(pin: string, id: string, reason: string, by: string) {
+  await floorRpc("pljo_floor_checkin", { p_pin: pin, p_job_order_id: id, p_reason: reason, p_by: by });
 }
 
 export async function fetchFloorPinStatus(): Promise<{ is_set: boolean; changed_at?: string }> {

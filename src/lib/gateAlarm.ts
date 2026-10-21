@@ -16,6 +16,11 @@ export function primeGateAlarm() {
   }
 }
 
+/** True once a tap has unlocked sound on this page. */
+export function gateAlarmReady() {
+  return ctx?.state === "running";
+}
+
 export function startGateAlarm(seconds = 20) {
   stopGateAlarm();
   try {
