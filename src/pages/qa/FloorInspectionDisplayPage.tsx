@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Settings, CheckCircle, XCircle, AlertTriangle, Clock, Activity } from "lucide-react";
+import { Settings, CheckCircle, XCircle, AlertTriangle, Clock, Activity, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -62,6 +62,27 @@ export default function FloorInspectionDisplayPage() {
     refetchInterval: REFRESH_INTERVAL,
   });
 
+  // Targets: use today's target per process, else fall back to the latest recurring target
+  const { data: targetByProcess = {} } = useQuery({
+    queryKey: ["floor-display-targets", selectedIds, today],
+    queryFn: async () => {
+      if (!selectedIds.length) return {} as Record<string, number>;
+      const { data } = await supabase
+        .from("qa_inspection_targets")
+        .select("process_id, target_count, target_date")
+        .in("process_id", selectedIds)
+        .lte("target_date", today)
+        .order("target_date", { ascending: false });
+      const map: Record<string, number> = {};
+      (data || []).forEach((t: any) => {
+        if (map[t.process_id] === undefined) map[t.process_id] = t.target_count;
+      });
+      return map;
+    },
+    enabled: selectedIds.length > 0,
+    refetchInterval: REFRESH_INTERVAL,
+  });
+
   const toggleProcess = useCallback((id: string) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
@@ -86,6 +107,8 @@ export default function FloorInspectionDisplayPage() {
   const totalInspections = inspections.length;
   const totalPass = inspections.filter((i: any) => i.result === "pass").length;
   const totalFail = inspections.filter((i: any) => i.result === "fail").length;
+  const totalTarget = selectedIds.reduce((sum, id) => sum + ((targetByProcess as Record<string, number>)[id] || 0), 0);
+  const totalPct = totalTarget > 0 ? Math.round((totalInspections / totalTarget) * 100) : null;
 
   const thirtyMinsAgo = new Date(currentTime.getTime() - 30 * 60 * 1000);
 
@@ -162,11 +185,19 @@ export default function FloorInspectionDisplayPage() {
 
       {/* Summary Bar */}
       {selectedIds.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="rounded-xl border-2 border-primary bg-primary/10 p-4 flex flex-col items-center justify-center">
             <Activity className="h-8 w-8 text-primary mb-1" />
             <span className="text-5xl lg:text-6xl font-bold text-primary">{totalInspections}</span>
             <span className="text-lg font-semibold text-primary/80 mt-1">Total Inspections</span>
+            {totalPct !== null && (
+              <span className="text-sm font-medium text-primary/70">{totalPct}% of target</span>
+            )}
+          </div>
+          <div className="rounded-xl border-2 border-blue-600 bg-blue-600/10 p-4 flex flex-col items-center justify-center">
+            <Target className="h-8 w-8 text-blue-600 mb-1" />
+            <span className="text-5xl lg:text-6xl font-bold text-blue-600">{totalTarget}</span>
+            <span className="text-lg font-semibold text-blue-600/80 mt-1">Total Target</span>
           </div>
           <div className="rounded-xl border-2 border-green-600 bg-green-600/10 p-4 flex flex-col items-center justify-center">
             <CheckCircle className="h-8 w-8 text-green-600 mb-1" />
@@ -201,6 +232,10 @@ export default function FloorInspectionDisplayPage() {
           const hasRecent = hasRecentInspection(pInspections);
           const passCount = pInspections.filter((i: any) => i.result === "pass").length;
           const failCount = pInspections.filter((i: any) => i.result === "fail").length;
+          const target = (targetByProcess as Record<string, number>)[process.id] || 0;
+          const hasTarget = target > 0;
+          const pct = hasTarget ? Math.min(100, Math.round((pInspections.length / target) * 100)) : 0;
+          const remaining = hasTarget ? Math.max(0, target - pInspections.length) : 0;
 
           return (
             <div
@@ -213,10 +248,28 @@ export default function FloorInspectionDisplayPage() {
               </div>
               <p className="text-2xl lg:text-3xl font-bold mb-3 truncate">{process.name}</p>
 
-              {/* Big inspection count */}
+              {/* Big inspection count vs target */}
               <div className="text-center mb-3">
-                <span className="text-5xl lg:text-6xl font-bold">{pInspections.length}</span>
-                <p className="text-sm font-medium opacity-80 mt-1">Inspections Today</p>
+                <div className="flex items-end justify-center gap-2">
+                  <span className="text-5xl lg:text-6xl font-bold leading-none">{pInspections.length}</span>
+                  {hasTarget && (
+                    <span className="text-3xl lg:text-4xl font-bold opacity-80 leading-none pb-1">/ {target}</span>
+                  )}
+                </div>
+                <p className="text-sm font-medium opacity-80 mt-1 flex items-center justify-center gap-1">
+                  <Target className="h-4 w-4" />
+                  {hasTarget ? "Inspections Today vs Target" : "Inspections Today · No target set"}
+                </p>
+                {hasTarget && (
+                  <div className="mt-2">
+                    <div className="h-2.5 w-full rounded-full bg-black/25 overflow-hidden">
+                      <div className="h-full rounded-full bg-white/90 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-sm font-semibold mt-1">
+                      {remaining > 0 ? `${pct}% · ${remaining} remaining` : `Target met (${pct}%)`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Pass / Fail breakdown */}
