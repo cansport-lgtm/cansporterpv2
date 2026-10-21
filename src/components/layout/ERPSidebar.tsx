@@ -35,6 +35,7 @@ import {
   LifeBuoy,
   DoorOpen,
   CalendarRange,
+  Building2,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -487,6 +488,32 @@ const navigationItems: NavItem[] = [
     ],
   },
   {
+    // Office administration: daily camera check, cleaning inspections, office
+    // asset custody (on Fixed Assets), admin store & supply requests (raises
+    // purchase requests), employee SIMs, office equipment tickets.
+    // See docs/ADMIN_FACILITIES.md.
+    title: "Admin & Facilities",
+    icon: Building2,
+    color: "text-teal-400",
+    module: "facilities",
+    children: [
+      { title: "Dashboard", href: "/facilities/dashboard" },
+      { title: "Camera Daily Check", href: "/facilities/cameras/checks" },
+      { title: "Cameras & Recorders", href: "/facilities/cameras" },
+      { title: "Cleaning Inspections", href: "/facilities/cleaning" },
+      { title: "Cleaning Action Items", href: "/facilities/cleaning/actions" },
+      { title: "Areas & Checklists", href: "/facilities/cleaning/setup" },
+      { title: "Asset Custody", href: "/facilities/assets" },
+      { title: "Employee Clearance", href: "/facilities/clearance" },
+      { title: "Admin Store & Supplies", href: "/facilities/supplies" },
+      { title: "SIM Register", href: "/facilities/sims" },
+      { title: "SIM Bills", href: "/facilities/sims/bills" },
+      { title: "Equipment Register", href: "/facilities/equipment" },
+      { title: "Equipment Tickets", href: "/facilities/equipment/tickets" },
+      { title: "Settings", href: "/facilities/settings", superAdminOnly: true },
+    ],
+  },
+  {
     title: "Expenses",
     icon: Receipt,
     color: "text-yellow-400",
@@ -818,6 +845,9 @@ const navigationItems: NavItem[] = [
       { title: "My Gate Passes", href: "/my-gate-pass" },
       { title: "My Travel Vouchers", href: "/my-travel-vouchers", requiresTravelAllowance: true },
       { title: "My Purchase Requests", href: "/my-purchase-requests" },
+      { title: "My Supply Requests", href: "/my-supply-requests" },
+      { title: "My Assets & SIM", href: "/my-assets" },
+      { title: "Report a Fault", href: "/report-fault" },
     ],
   },
   {

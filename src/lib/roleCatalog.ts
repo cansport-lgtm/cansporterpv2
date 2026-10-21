@@ -37,6 +37,7 @@ export const ROLE_MODULES = [
   { key: "accounting", label: "Accounting" },
   { key: "expenses", label: "Expenses" },
   { key: "fixed_assets", label: "Fixed Assets" },
+  { key: "facilities", label: "Admin & Facilities" },
   { key: "master_data", label: "Master Data" },
   { key: "projects", label: "Project Management" },
   { key: "rd", label: "Product Dev & R&D" },
@@ -813,6 +814,43 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     tier: "viewer",
     description: "Store Pass – read-only access to passes, dispatch tracking and reconciliation",
     color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+  },
+
+  // facilities (Admin & Facilities)
+  facilities_manager: {
+    module: "facilities",
+    label: "Manager",
+    tier: "manager",
+    description: "Admin & Facilities – masters (cameras, areas, equipment, SIMs), reviews camera checks, closes tickets, stock adjustments, SIM bill notes; everything but Settings",
+    color: "bg-teal-700/10 text-teal-700 border-teal-700/20",
+  },
+  facilities_officer: {
+    module: "facilities",
+    label: "Officer (admin office)",
+    tier: "officer",
+    description: "Admin & Facilities – fills the daily camera check and cleaning inspections, issues / takes back office assets, SIMs and supplies, works equipment tickets, raises reorder purchase requests",
+    color: "bg-teal-600/10 text-teal-600 border-teal-600/20",
+  },
+  facilities_viewer: {
+    module: "facilities",
+    label: "Viewer",
+    tier: "viewer",
+    description: "Admin & Facilities – read-only access to every page of the module",
+    color: "bg-teal-500/10 text-teal-500 border-teal-500/20",
+  },
+  facilities_technician: {
+    module: "facilities",
+    label: "Technician (own tickets)",
+    tier: "special",
+    description: "Admin & Facilities – electrician / technician: sees and updates only the equipment tickets assigned to them (start, done with cost)",
+    color: "bg-teal-800/10 text-teal-800 border-teal-800/20",
+  },
+  cleaning_supervisor: {
+    module: "facilities",
+    label: "Cleaning Supervisor",
+    tier: "special",
+    description: "Admin & Facilities – closes the cleaning action items assigned to them (with an after photo); nothing else",
+    color: "bg-teal-900/10 text-teal-900 border-teal-900/20",
   },
 
   // accounting

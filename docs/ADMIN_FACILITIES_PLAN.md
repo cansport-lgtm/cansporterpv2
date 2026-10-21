@@ -1,4 +1,4 @@
-# Admin & Facilities — plan (decisions confirmed 21 Oct 2026, mockup only, nothing built yet)
+# Admin & Facilities — plan (decisions confirmed 21 Oct 2026; built, see `docs/ADMIN_FACILITIES.md` for what is live)
 
 A new sidebar group **Admin & Facilities** (module key `facilities`, routes
 `/facilities/...`) for the office administration work that today happens on

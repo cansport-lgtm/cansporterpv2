@@ -88,6 +88,8 @@ export function ProtectedRoute({
         return 'gate_pass';
       case 'store-pass':
         return 'store_pass';
+      case 'facilities':
+        return 'facilities';
       case 'dispatch-planner':
         return 'dispatch_planner';
       case 'crm':

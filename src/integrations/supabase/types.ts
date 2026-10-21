@@ -17571,6 +17571,11 @@ export type Database = {
         | "staff_gate_pass_approver"
         | "labour_attendance_delete_approver"
         | "production_coordinator"
+        | "facilities_manager"
+        | "facilities_officer"
+        | "facilities_viewer"
+        | "facilities_technician"
+        | "cleaning_supervisor"
         | "production_manager"
         | "production_officer"
         | "production_viewer"
@@ -17881,6 +17886,11 @@ export const Constants = {
         "labour_gate_pass_approver",
         "labour_attendance_delete_approver",
         "production_coordinator",
+        "facilities_manager",
+        "facilities_officer",
+        "facilities_viewer",
+        "facilities_technician",
+        "cleaning_supervisor",
         "production_manager",
         "production_officer",
         "production_viewer",
