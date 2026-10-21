@@ -1,0 +1,426 @@
+<title>Admin & Facilities Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ERP shell — slim dark sidebar (as in the live ERP), content column with page header, tabs per sub-module */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#2457a6; --accent-fg:#ffffff; --side:#0f172a; --side-fg:#cbd5e1; --side-active:#1e293b;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#b26a00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --info-bg:#e6eefb;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+.shell{display:flex;min-height:100vh}
+.side{background:var(--side);color:var(--side-fg);width:232px;flex:0 0 232px;padding-block:16px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:12px}
+.side h1{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#7c8aa0;margin:0 0 6px 8px;font-weight:600}
+.side .brand{font-size:15px;font-weight:600;color:#fff;margin:0 8px 18px}
+.side nav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:8px 10px;border-radius:6px;cursor:pointer}
+.side nav button:hover{background:var(--side-active)}
+.side nav button.on{background:var(--side-active);color:#fff;font-weight:500}
+.side nav button:focus-visible{outline:2px solid var(--accent)}
+.side .grp{margin-top:18px}
+.main{flex:1;min-width:0;padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.topbar h2{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.crumb{color:var(--muted);font-size:12px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:none}.screen.on{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .s{font-size:12px;color:var(--muted)}
+.tile.warn{border-left:4px solid var(--warn)}.tile.bad{border-left:4px solid var(--bad)}.tile.ok{border-left:4px solid var(--ok)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+.tabs span{padding:7px 12px;font-size:13px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs span.on{color:var(--fg);border-color:var(--accent);font-weight:500}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-bad{background:var(--bad-bg);color:var(--bad)}.p-info{background:var(--info-bg);color:var(--accent)}.p-mut{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.muted{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field select,.field textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:22px;background:var(--panel);padding:14px 14px 18px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.phone .ph{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+.camline{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+.camline .nm{display:flex;justify-content:space-between;align-items:baseline}
+.camline .nm b{font-weight:600}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:12.5px;background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 9px;cursor:pointer;flex:1 1 auto}
+.seg button.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent;font-weight:500}
+.seg button.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent;font-weight:500}
+.seg button.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent;font-weight:500}
+.seg button.na{background:var(--line);font-weight:500}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:12px}
+.cal div{aspect-ratio:1;max-width:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;background:var(--bg);font-variant-numeric:tabular-nums}
+.cal .g{background:var(--ok-bg);color:var(--ok)}.cal .a{background:var(--warn-bg);color:var(--warn)}.cal .r{background:var(--bad-bg);color:var(--bad)}.cal .h{color:var(--muted);font-size:10px;aspect-ratio:auto;padding:2px}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:grid;grid-template-columns:110px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.tl .t{color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.note{background:var(--info-bg);border-radius:6px;padding:8px 10px;font-size:13px}
+.flow{font-family:var(--mono);font-size:12.5px;background:var(--bg);border-radius:6px;padding:10px 12px;overflow-x:auto;white-space:pre}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.mobnav{display:none}
+@media (max-width:760px){
+  .shell{flex-direction:column}
+  .side{width:auto;flex:none;padding-block:10px;padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .side nav{display:flex;flex-wrap:wrap;gap:4px}
+  .side .grp{margin-top:0}
+  .side nav button{width:auto;padding:6px 9px;font-size:13px}
+  .side h1{display:none}
+  .kv{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){.screen.on{animation:fade .15s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">Cansport ERP</div>
+    <h1>Admin &amp; Facilities</h1>
+    <nav id="nav">
+      <button data-s="dash" class="on">Dashboard</button>
+      <button data-s="cam">Camera Daily Check</button>
+      <button data-s="clean">Cleaning Inspections</button>
+      <button data-s="assets">Asset Custody</button>
+      <button data-s="supply">Admin Store &amp; Supplies</button>
+      <button data-s="sim">SIM Register &amp; Bills</button>
+      <button data-s="equip">Equipment &amp; Tickets</button>
+      <div class="grp"><h1>Self Service</h1></div>
+      <button data-s="self">My Supplies / My Assets / Report a Fault</button>
+      <div class="grp"><h1>Reference</h1></div>
+      <button data-s="map">How it connects</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+  <!-- DASHBOARD -->
+  <section class="screen on" id="s-dash">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities</div><h2>Dashboard · Tue 21 Oct 2026</h2></div><div class="row"><button class="btn ghost sm">This week</button><button class="btn sm">Print day report</button></div></div>
+    <div class="tiles">
+      <div class="tile bad"><div class="k">Camera check</div><div class="v">Not done</div><div class="s">Alarm goes to manager at 11:00</div></div>
+      <div class="tile warn"><div class="k">Cleaning due today</div><div class="v">9 / 14</div><div class="s">2 overdue (Washroom F, Stairs)</div></div>
+      <div class="tile ok"><div class="k">Supply requests</div><div class="v">4</div><div class="s">2 to approve · 2 to issue</div></div>
+      <div class="tile warn"><div class="k">Equipment tickets</div><div class="v">6 open</div><div class="s">1 high &gt; 3 days (Generator)</div></div>
+      <div class="tile"><div class="k">AMC expiring</div><div class="v">2</div><div class="s">Lift (12 d), Fire ext. (28 d)</div></div>
+      <div class="tile"><div class="k">SIMs over limit</div><div class="v">3</div><div class="s">Sep bill · PKR 4,860</div></div>
+      <div class="tile"><div class="k">Store below reorder</div><div class="v">5 items</div><div class="s">Raise purchase request</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Camera checks · October</h3>
+        <div class="cal">
+          <div class="h">Mo</div><div class="h">Tu</div><div class="h">We</div><div class="h">Th</div><div class="h">Fr</div><div class="h">Sa</div><div class="h">Su</div>
+          <div></div><div></div><div></div><div class="g">1</div><div class="g">2</div><div class="g">3</div><div class="g">4</div>
+          <div class="g">5</div><div class="a">6</div><div class="g">7</div><div class="g">8</div><div class="g">9</div><div class="g">10</div><div class="r">11</div>
+          <div class="g">12</div><div class="g">13</div><div class="a">14</div><div class="g">15</div><div class="g">16</div><div class="g">17</div><div class="g">18</div>
+          <div class="g">19</div><div class="g">20</div><div class="r">21</div><div>22</div><div>23</div><div>24</div><div>25</div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Green all cameras ok · amber faults reported · red check missed</p>
+      </div>
+      <div class="card"><h3>Needs attention</h3>
+        <ul class="tl">
+          <li><span class="t">Camera</span><span>CAM-07 Store back door <span class="pill p-bad">offline</span> since 14 Oct · ticket EQT-000118 assigned to Vendor Secure-Eye</span></li>
+          <li><span class="t">Cleaning</span><span>Washroom F (ground) scored 60% on Mon · 2 action items open with Rashid (supervisor)</span></li>
+          <li><span class="t">Generator</span><span>EQT-000121 "not starting on load" · high · open 4 days</span></li>
+          <li><span class="t">Clearance</span><span>Bilal Ahmed (Accounts) leaving 31 Oct still holds laptop FA-00213 and SIM 0300-1234567</span></li>
+          <li><span class="t">Store</span><span>Toner HP 85A on hand 0, reorder 4 · A4 paper 3 reams, reorder 20</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAMERA CHECK -->
+  <section class="screen" id="s-cam">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › Cameras</div><h2>Camera Daily Check</h2></div><div class="row"><button class="btn ghost sm">Cameras &amp; recorders</button><button class="btn sm">Start today's check</button></div></div>
+    <div class="tabs"><span class="on">Checks</span><span>Fault history</span><span>By camera</span></div>
+    <div class="grid2">
+      <div>
+        <div class="card"><h3>Recent checks</h3><div class="tw"><table>
+          <tr><th>No.</th><th>Date</th><th>By</th><th class="num">Cameras</th><th class="num">Faults</th><th>NVR</th><th>Status</th></tr>
+          <tr><td class="mono">CCK-000204</td><td>20 Oct</td><td>Guard · Akram</td><td class="num">24</td><td class="num">1</td><td><span class="pill p-ok">ok · 28 d</span></td><td><span class="pill p-ok">reviewed</span></td></tr>
+          <tr><td class="mono">CCK-000203</td><td>19 Oct</td><td>Guard · Akram</td><td class="num">24</td><td class="num">1</td><td><span class="pill p-ok">ok · 28 d</span></td><td><span class="pill p-ok">reviewed</span></td></tr>
+          <tr><td class="mono">CCK-000202</td><td>18 Oct</td><td>Admin · Sana</td><td class="num">24</td><td class="num">2</td><td><span class="pill p-warn">clock off 6 min</span></td><td><span class="pill p-info">submitted</span></td></tr>
+          <tr><td class="mono">—</td><td>11 Oct</td><td colspan="4" class="muted">Missed · manager notified 11:00</td><td><span class="pill p-bad">missed</span></td></tr>
+        </table></div></div>
+        <div class="card"><h3>Flow</h3><div class="flow">draft (lines from all active cameras) → submitted (locked, counts) → reviewed (manager)
+any line ≠ ok  ───►  equipment ticket EQT for that camera (re-opens existing one)
+no check by 11:00  ►  notify facilities_manager + super_admin</div></div>
+      </div>
+      <div>
+        <p class="muted" style="margin:0 0 8px;font-size:12px">Phone view · guard or admin officer walks the NVR screens</p>
+        <div class="phone">
+          <div class="ph"><span>CCK-000205 · 21 Oct · once daily · draft</span><span>7 / 24 done</span></div>
+          <div class="bar"><i style="width:29%"></i></div>
+          <div class="camline"><div class="nm"><b>CAM-01 Main gate</b><span class="muted">NVR-1 ch 1</span></div><div class="seg"><button class="ok">OK</button><button>Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div></div>
+          <div class="camline"><div class="nm"><b>CAM-02 Gate inward</b><span class="muted">NVR-1 ch 2</span></div><div class="seg"><button class="ok">OK</button><button>Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div></div>
+          <div class="camline"><div class="nm"><b>CAM-07 Store back door</b><span class="muted">NVR-1 ch 7</span></div><div class="seg"><button>OK</button><button>Blurry</button><button class="bad">Offline</button><button>Damaged</button><button>No rec.</button></div><div class="row" style="font-size:12px"><span class="pill p-warn">open ticket EQT-000118</span><span class="muted">Add photo · remark</span></div></div>
+          <div class="camline"><div class="nm"><b>CAM-08 Cutting floor A</b><span class="muted">NVR-2 ch 1</span></div><div class="seg"><button>OK</button><button class="warn">Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div><div class="field"><input id="cam8-remark" value="Lens dusty, needs cleaning" aria-label="Remark"></div></div>
+          <div class="camline"><div class="nm"><b>CAM-09 Stitching hall</b><span class="muted">NVR-2 ch 2</span></div><div class="seg"><button>OK</button><button>Blurry</button><button>Offline</button><button>Damaged</button><button>No rec.</button></div></div>
+          <div style="padding:12px 0 4px"><b>Recorders</b></div>
+          <div class="kv"><dt>NVR-1 (16 ch)</dt><dd>Recording <span class="pill p-ok">yes</span> · 28 days available · HDD ok · clock ok</dd><dt>NVR-2 (8 ch)</dt><dd>Recording <span class="pill p-ok">yes</span> · 21 days · <span class="pill p-warn">HDD warning</span></dd></div>
+          <div class="row" style="margin-top:12px;justify-content:space-between"><button class="btn ghost sm">Save draft</button><button class="btn sm">Submit check</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLEANING -->
+  <section class="screen" id="s-clean">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › Cleaning</div><h2>Office Cleaning Inspections</h2></div><div class="row"><button class="btn ghost sm">Areas &amp; checklists</button><button class="btn sm">New inspection</button></div></div>
+    <div class="tabs"><span class="on">Due today</span><span>Inspections</span><span>Action items (5)</span><span>Trend</span></div>
+    <div class="grid2">
+      <div>
+        <div class="card"><h3>Areas · 21 Oct</h3><div class="tw"><table>
+          <tr><th>Area</th><th>Freq.</th><th>Last</th><th class="num">Score</th><th>Today</th></tr>
+          <tr><td>Reception</td><td>daily</td><td>21 Oct 08:40</td><td class="num">100%</td><td><span class="pill p-ok">done</span></td></tr>
+          <tr><td>Washroom M · ground</td><td>daily ×2</td><td>21 Oct 08:52</td><td class="num">90%</td><td><span class="pill p-ok">morning done</span></td></tr>
+          <tr><td>Washroom F · ground</td><td>daily ×2</td><td>20 Oct 17:10</td><td class="num">60%</td><td><span class="pill p-bad">overdue</span></td></tr>
+          <tr><td>Pantry</td><td>daily</td><td>21 Oct 09:05</td><td class="num">100%</td><td><span class="pill p-ok">done</span></td></tr>
+          <tr><td>MD office</td><td>daily</td><td>20 Oct</td><td class="num">100%</td><td><span class="pill p-warn">due</span></td></tr>
+          <tr><td>Meeting room</td><td>weekly · Tue</td><td>14 Oct</td><td class="num">80%</td><td><span class="pill p-warn">due</span></td></tr>
+          <tr><td>Stairs &amp; corridors</td><td>daily</td><td>19 Oct</td><td class="num">70%</td><td><span class="pill p-bad">overdue</span></td></tr>
+          <tr><td>Prayer area</td><td>daily</td><td>21 Oct 09:20</td><td class="num">100%</td><td><span class="pill p-ok">done</span></td></tr>
+          <tr><td>Parking</td><td>weekly · Fri</td><td>17 Oct</td><td class="num">100%</td><td><span class="pill p-mut">not due</span></td></tr>
+        </table></div></div>
+        <div class="card"><h3>Open action items</h3><div class="tw"><table>
+          <tr><th>From</th><th>Point</th><th>Assigned</th><th>Due</th><th></th></tr>
+          <tr><td class="mono">CLN-000312</td><td>Washroom F · soap dispenser empty, mirror stained</td><td>Rashid (cleaning sup.)</td><td>21 Oct</td><td><span class="pill p-warn">open</span></td></tr>
+          <tr><td class="mono">CLN-000312</td><td>Washroom F · exhaust fan not working → ticket EQT-000124</td><td>Admin</td><td>23 Oct</td><td><span class="pill p-info">ticket</span></td></tr>
+          <tr><td class="mono">CLN-000309</td><td>Stairs · dust on railings</td><td>Rashid</td><td>20 Oct</td><td><span class="pill p-bad">overdue</span></td></tr>
+        </table></div></div>
+      </div>
+      <div>
+        <p class="muted" style="margin:0 0 8px;font-size:12px">Phone view · inspector in the area</p>
+        <div class="phone">
+          <div class="ph"><span>CLN-000315 · Washroom F · ground</span><span>Evening</span></div>
+          <div class="camline"><div class="nm"><b>Floor swept &amp; mopped, dry</b></div><div class="seg"><button class="ok">OK</button><button>Not OK</button><button>N/A</button></div></div>
+          <div class="camline"><div class="nm"><b>Bins emptied, liner replaced</b></div><div class="seg"><button class="ok">OK</button><button>Not OK</button><button>N/A</button></div></div>
+          <div class="camline"><div class="nm"><b>Soap, tissue, hand towel stocked</b></div><div class="seg"><button>OK</button><button class="bad">Not OK</button><button>N/A</button></div><div class="row" style="font-size:12px"><span class="pill p-bad">photo required</span><input id="cln-rem" value="Soap dispenser empty again" aria-label="Remark" style="flex:1;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px"></div></div>
+          <div class="camline"><div class="nm"><b>Mirrors &amp; taps clean, no stains</b></div><div class="seg"><button class="ok">OK</button><button>Not OK</button><button>N/A</button></div></div>
+          <div class="camline"><div class="nm"><b>No odour · exhaust working</b></div><div class="seg"><button>OK</button><button class="bad">Not OK</button><button>N/A</button></div><div class="row" style="font-size:12px"><span class="pill p-info">equipment fault → create ticket</span></div></div>
+          <div class="camline"><div class="nm"><b>Flush &amp; drains working</b></div><div class="seg"><button class="ok">OK</button><button>Not OK</button><button>N/A</button></div></div>
+          <div class="row" style="margin-top:10px;justify-content:space-between"><span>Score <b>67%</b> · 2 action items</span><button class="btn sm">Submit</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASSETS -->
+  <section class="screen" id="s-assets">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › Office assets</div><h2>Asset Custody</h2></div><div class="row"><button class="btn ghost sm">Scan QR to verify</button><button class="btn sm">Issue / return / transfer</button></div></div>
+    <div class="note" style="margin-bottom:12px">Assets come from <b>Fixed Assets › Asset Register</b> (category Office Assets). This page only records who holds them. Values, depreciation and disposal stay in Fixed Assets.</div>
+    <div class="tabs"><span class="on">Custody register</span><span>In admin store (9)</span><span>By employee</span><span>Movements</span><span>Verification</span></div>
+    <div class="card"><div class="row" style="margin-bottom:10px"><div class="field"><label for="a-q">Search</label><input id="a-q" placeholder="asset, code, employee"></div><div class="field"><label for="a-dep">Department</label><select id="a-dep"><option>All</option><option>Accounts</option><option>Sales</option><option>HR</option></select></div><div class="field"><label for="a-cond">Condition</label><select id="a-cond"><option>Any</option><option>Damaged</option></select></div></div>
+    <div class="tw"><table>
+      <tr><th>Asset</th><th>Type</th><th>Holder</th><th>Location</th><th>Since</th><th>Condition</th><th>Last verified</th><th></th></tr>
+      <tr><td><span class="mono">FA-00213</span> Dell Latitude 5420</td><td>Laptop</td><td>Bilal Ahmed · Accounts <span class="pill p-bad">leaving 31 Oct</span></td><td>Accounts office</td><td>03 Mar 2025</td><td><span class="pill p-ok">good</span></td><td>Sep 2026</td><td><button class="btn ghost sm">Return</button></td></tr>
+      <tr><td><span class="mono">FA-00198</span> HP LaserJet M404</td><td>Printer</td><td>Admin store</td><td>Reception</td><td>—</td><td><span class="pill p-ok">good</span></td><td>Sep 2026</td><td><button class="btn ghost sm">Issue</button></td></tr>
+      <tr><td><span class="mono">FA-00231</span> Samsung A34</td><td>Mobile</td><td>Usman Tariq · Sales</td><td>Field</td><td>12 Jan 2026</td><td><span class="pill p-warn">fair · screen crack</span></td><td>Sep 2026</td><td><button class="btn ghost sm">Transfer</button></td></tr>
+      <tr><td><span class="mono">FA-00102</span> Executive chair</td><td>Furniture</td><td>MD office</td><td>MD office</td><td>2023</td><td><span class="pill p-ok">good</span></td><td><span class="pill p-warn">not verified</span></td><td><button class="btn ghost sm">Verify</button></td></tr>
+      <tr><td><span class="mono">FA-00240</span> Haier 1.5 ton AC</td><td>AC unit</td><td>Meeting room</td><td>Meeting room</td><td>2024</td><td><span class="pill p-ok">good</span></td><td>Sep 2026</td><td><span class="muted">equipment EQ-011</span></td></tr>
+    </table></div></div>
+    <div class="grid2">
+      <div class="card"><h3>Movement · AST-000087 (dialog)</h3><div class="form">
+        <div class="field"><label for="m-asset">Asset</label><input id="m-asset" value="FA-00213 Dell Latitude 5420"></div>
+        <div class="field"><label for="m-type">Movement</label><select id="m-type"><option>Return to admin store</option><option>Issue to employee</option><option>Transfer to employee</option></select></div>
+        <div class="field"><label for="m-from">From</label><input id="m-from" value="Bilal Ahmed (EMP-0142)"></div>
+        <div class="field"><label for="m-date">Date</label><input id="m-date" value="21 Oct 2026"></div>
+        <div class="field"><label for="m-cond">Condition on return</label><select id="m-cond"><option>Good</option><option>Fair</option><option>Damaged</option></select></div>
+        <div class="field"><label for="m-acc">Accessories</label><input id="m-acc" value="Charger, bag · mouse missing"></div>
+        <div class="field" style="grid-column:1/-1"><label for="m-ack">Acknowledgement</label><select id="m-ack"><option>Employee signs on phone</option><option>Signed on paper (attach scan)</option></select></div>
+      </div><div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn ghost sm">Cancel</button><button class="btn sm">Save movement</button></div></div>
+      <div class="card"><h3>Employee clearance · Bilal Ahmed</h3>
+        <p class="muted" style="margin:0 0 8px;font-size:13px">Shown to HR when an employee is marked as leaving. HR cannot finish clearance until all lines are returned or written off.</p>
+        <div class="tw"><table><tr><th>Item</th><th>Status</th></tr>
+        <tr><td>FA-00213 Dell Latitude 5420</td><td><span class="pill p-bad">with employee</span></td></tr>
+        <tr><td>SIM 0300-1234567 (Jazz)</td><td><span class="pill p-bad">with employee</span></td></tr>
+        <tr><td>Office keys · Accounts cabinet</td><td><span class="pill p-ok">returned 20 Oct</span></td></tr>
+        <tr><td>Supplies on loan · none</td><td><span class="pill p-ok">clear</span></td></tr></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SUPPLIES -->
+  <section class="screen" id="s-supply">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › Supplies</div><h2>Admin Store &amp; Supply Requests</h2></div><div class="row"><button class="btn ghost sm">Stock adjustment</button><button class="btn sm">Raise purchase request (5 items)</button></div></div>
+    <div class="tabs"><span class="on">To approve (2)</span><span>To issue (2)</span><span>All requests</span><span>Stock</span><span>Consumption by dept</span></div>
+    <div class="grid2">
+      <div class="card"><h3>Requests</h3><div class="tw"><table>
+        <tr><th>No.</th><th>Requester</th><th>Dept</th><th>Lines</th><th>Status</th></tr>
+        <tr><td class="mono">SR-000541</td><td>Ayesha Khan</td><td>Sales</td><td>Toner HP 85A ×1, A4 ×2 reams</td><td><span class="pill p-warn">with dept head</span></td></tr>
+        <tr><td class="mono">SR-000540</td><td>Imran Shah</td><td>Export</td><td>Box files ×6, markers ×4</td><td><span class="pill p-warn">with dept head</span></td></tr>
+        <tr><td class="mono">SR-000539</td><td>Rashid</td><td>Admin</td><td>Phenyl 5 L ×2, tissue ×10</td><td><span class="pill p-info">approved · to issue</span></td></tr>
+        <tr><td class="mono">SR-000538</td><td>Farah Noor</td><td>HR</td><td>Pens ×12, stapler ×1</td><td><span class="pill p-info">approved · to issue</span></td></tr>
+        <tr><td class="mono">SR-000537</td><td>Usman Tariq</td><td>Sales</td><td>Visiting cards ×1 box</td><td><span class="pill p-ok">issued 20 Oct</span></td></tr>
+      </table></div>
+      <div class="flow" style="margin-top:10px">employee raises SR → dept head approves (every request) → admin issues from store (stock reduced) → employee acknowledges
+stock ≤ reorder level → "Raise purchase request" → PRQ-xxxxxx (category Office Supplies) → existing purchase flow → GRN posts back into store</div></div>
+      <div class="card"><h3>Stock · items at or below reorder level</h3><div class="tw"><table>
+        <tr><th>Item (items master)</th><th class="num">On hand</th><th class="num">Reorder</th><th class="num">Reorder qty</th><th class="num">Pending PRQ</th></tr>
+        <tr><td>Toner HP 85A</td><td class="num"><span class="pill p-bad">0</span></td><td class="num">2</td><td class="num">4</td><td class="num">—</td></tr>
+        <tr><td>A4 paper (ream)</td><td class="num"><span class="pill p-bad">3</span></td><td class="num">10</td><td class="num">20</td><td class="num">—</td></tr>
+        <tr><td>Phenyl 5 L</td><td class="num"><span class="pill p-warn">4</span></td><td class="num">4</td><td class="num">12</td><td class="num">—</td></tr>
+        <tr><td>Tissue box</td><td class="num"><span class="pill p-warn">12</span></td><td class="num">12</td><td class="num">48</td><td class="num">—</td></tr>
+        <tr><td>Tea (kg)</td><td class="num"><span class="pill p-warn">2</span></td><td class="num">3</td><td class="num">10</td><td class="num">PRQ-000212</td></tr>
+        <tr><td>Ballpoint pen</td><td class="num">140</td><td class="num">50</td><td class="num">200</td><td class="num">—</td></tr>
+      </table></div>
+      <h3 style="margin-top:14px">Issue · SR-000539</h3>
+      <div class="tw"><table><tr><th>Item</th><th class="num">Req.</th><th class="num">Approved</th><th class="num">Issue now</th><th class="num">On hand</th></tr>
+      <tr><td>Phenyl 5 L</td><td class="num">2</td><td class="num">2</td><td class="num"><input id="iss1" value="2" style="width:56px;text-align:right;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px" aria-label="Issue quantity"></td><td class="num">4</td></tr>
+      <tr><td>Tissue box</td><td class="num">10</td><td class="num">10</td><td class="num"><input id="iss2" value="10" style="width:56px;text-align:right;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px" aria-label="Issue quantity"></td><td class="num">12</td></tr></table></div>
+      <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn sm">Issue &amp; ask Rashid to acknowledge</button></div></div>
+    </div>
+  </section>
+
+  <!-- SIM -->
+  <section class="screen" id="s-sim">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › SIMs</div><h2>SIM Register &amp; Monthly Bills</h2></div><div class="row"><button class="btn ghost sm">Add SIM</button><button class="btn sm">Enter Oct bill</button></div></div>
+    <div class="tabs"><span class="on">Register</span><span>Bills · Sep 2026</span><span>Movements</span></div>
+    <div class="tiles"><div class="tile"><div class="k">Total SIMs</div><div class="v">38</div><div class="s">Jazz 22 · Zong 11 · Ufone 5</div></div><div class="tile"><div class="k">Issued</div><div class="v">33</div><div class="s">5 in stock</div></div><div class="tile warn"><div class="k">Over limit · Sep</div><div class="v">3</div><div class="s">PKR 4,860 · borne by company</div></div><div class="tile"><div class="k">Monthly package cost</div><div class="v">46,500</div><div class="s">PKR · Expenses › Utility bills</div></div></div>
+    <div class="grid2">
+      <div class="card"><h3>Register</h3><div class="tw"><table>
+        <tr><th>Number</th><th>Network</th><th>Package</th><th class="num">Limit</th><th>Holder</th><th>Handset</th><th>Status</th></tr>
+        <tr><td class="mono">0300-1234567</td><td>Jazz</td><td>Business 1500</td><td class="num">2,000</td><td>Bilal Ahmed · Accounts</td><td>—</td><td><span class="pill p-ok">issued</span></td></tr>
+        <tr><td class="mono">0301-7654321</td><td>Jazz</td><td>Business 3000</td><td class="num">3,500</td><td>Usman Tariq · Sales</td><td>FA-00231</td><td><span class="pill p-ok">issued</span></td></tr>
+        <tr><td class="mono">0311-9988776</td><td>Zong</td><td>Data 50 GB</td><td class="num">1,800</td><td>Gate guard phone</td><td>FA-00190</td><td><span class="pill p-ok">issued</span></td></tr>
+        <tr><td class="mono">0333-4455667</td><td>Ufone</td><td>Postpaid 1000</td><td class="num">1,200</td><td>—</td><td>—</td><td><span class="pill p-mut">in stock</span></td></tr>
+        <tr><td class="mono">0302-1122334</td><td>Jazz</td><td>Business 1500</td><td class="num">2,000</td><td>Kamran (ex-employee)</td><td>—</td><td><span class="pill p-bad">lost · blocked</span></td></tr>
+      </table></div></div>
+      <div class="card"><h3>Bill · Jazz · Sep 2026 · over-limit lines (company bears; shown for information)</h3><div class="tw"><table>
+        <tr><th>Number</th><th>Holder</th><th class="num">Bill</th><th class="num">Limit</th><th class="num">Over</th><th>Note to manager</th></tr>
+        <tr><td class="mono">0301-7654321</td><td>Usman Tariq</td><td class="num">6,240</td><td class="num">3,500</td><td class="num">2,740</td><td><input id="d1" aria-label="Note" value="Customer calls, export season" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
+        <tr><td class="mono">0300-1234567</td><td>Bilal Ahmed</td><td class="num">3,420</td><td class="num">2,000</td><td class="num">1,420</td><td><input id="d2" aria-label="Note" value="" placeholder="optional" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
+        <tr><td class="mono">0305-5566778</td><td>Farah Noor</td><td class="num">2,700</td><td class="num">2,000</td><td class="num">700</td><td><input id="d3" aria-label="Note" value="" placeholder="optional" style="font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%"></td></tr>
+      </table></div>
+      <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted" style="font-size:13px">Total bill PKR 51,360 · posts to Expenses › Utility Bills</span><button class="btn sm">Post bill to Expenses</button></div></div>
+    </div>
+  </section>
+
+  <!-- EQUIPMENT -->
+  <section class="screen" id="s-equip">
+    <div class="topbar"><div><div class="crumb">Admin &amp; Facilities › Equipment</div><h2>Office Equipment &amp; Tickets</h2></div><div class="row"><button class="btn ghost sm">Equipment register</button><button class="btn ghost sm">Service calendar</button><button class="btn sm">New ticket</button></div></div>
+    <div class="tabs"><span class="on">Open tickets (6)</span><span>Service due (4)</span><span>AMC contracts</span><span>Cost by type</span></div>
+    <div class="grid2">
+      <div>
+        <div class="card"><h3>Tickets</h3><div class="tw"><table>
+          <tr><th>No.</th><th>Equipment</th><th>Fault</th><th>Pri.</th><th>Assigned</th><th>Age</th><th>Status</th></tr>
+          <tr><td class="mono">EQT-000121</td><td>Generator 100 kVA</td><td>Not starting on load</td><td><span class="pill p-bad">high</span></td><td>Vendor · PowerTech</td><td>4 d</td><td><span class="pill p-warn">in progress</span></td></tr>
+          <tr><td class="mono">EQT-000124</td><td>Exhaust fan · Washroom F</td><td>Not working (from CLN-000312)</td><td><span class="pill p-warn">medium</span></td><td>Electrician · Saleem</td><td>1 d</td><td><span class="pill p-info">assigned</span></td></tr>
+          <tr><td class="mono">EQT-000118</td><td>CAM-07 Store back door</td><td>Offline (from camera check)</td><td><span class="pill p-warn">medium</span></td><td>Vendor · Secure-Eye</td><td>7 d</td><td><span class="pill p-warn">in progress</span></td></tr>
+          <tr><td class="mono">EQT-000123</td><td>AC · Accounts (EQ-008)</td><td>Water dripping</td><td><span class="pill p-mut">low</span></td><td>—</td><td>2 d</td><td><span class="pill p-bad">open</span></td></tr>
+          <tr><td class="mono">EQT-000120</td><td>UPS · Server room</td><td>Preventive · battery test</td><td><span class="pill p-mut">low</span></td><td>Saleem</td><td>5 d</td><td><span class="pill p-info">assigned</span></td></tr>
+        </table></div></div>
+        <div class="card"><h3>Service due</h3><div class="tw"><table>
+          <tr><th>Equipment</th><th>Type</th><th>Interval</th><th>Last</th><th>Next</th><th></th></tr>
+          <tr><td>Fire extinguishers (12)</td><td>Extinguisher</td><td>12 months refill</td><td>Nov 2025</td><td><span class="pill p-warn">01 Nov</span></td><td><button class="btn ghost sm">Create service ticket</button></td></tr>
+          <tr><td>AC · MD office</td><td>AC</td><td>90 days</td><td>10 Jul</td><td><span class="pill p-bad">overdue 13 d</span></td><td><button class="btn ghost sm">Create service ticket</button></td></tr>
+          <tr><td>Generator 100 kVA</td><td>Generator</td><td>250 run hours</td><td>1,480 h</td><td>1,730 h (now 1,702)</td><td><button class="btn ghost sm">Create service ticket</button></td></tr>
+          <tr><td>Lift · AMC</td><td>Lift</td><td>AMC · Otis-Pak</td><td colspan="2"><span class="pill p-warn">AMC expires 02 Nov</span></td><td><button class="btn ghost sm">Renew</button></td></tr>
+        </table></div></div>
+      </div>
+      <div class="card"><h3>Ticket EQT-000121 · Generator 100 kVA</h3>
+        <dl class="kv"><dt>Equipment</dt><dd>EQ-002 Generator 100 kVA · fixed asset FA-00077 · AMC PowerTech (to Mar 2027)</dd><dt>Reported by</dt><dd>Akram (guard) · 17 Oct 06:40 · "stops after 2 min when factory load is on"</dd><dt>Priority</dt><dd><span class="pill p-bad">high</span> · open &gt; 3 days alert sent 20 Oct</dd><dt>Assigned to</dt><dd>Vendor · PowerTech · contact 0321-…</dd></dl>
+        <h3 style="margin-top:14px">Close ticket</h3>
+        <div class="form">
+          <div class="field" style="grid-column:1/-1"><label for="t-action">Action taken</label><textarea id="t-action" rows="2">Fuel filter and injector cleaned, AVR replaced. Load test 80 kW for 30 min ok.</textarea></div>
+          <div class="field"><label for="t-parts">Parts</label><input id="t-parts" value="AVR SX460, fuel filter"></div>
+          <div class="field"><label for="t-cost">Cost (PKR)</label><input id="t-cost" value="18,500"></div>
+          <div class="field"><label for="t-pay">Paid through</label><select id="t-pay"><option>Petty cash voucher</option><option>Supplier invoice (AMC)</option><option>General expense</option></select></div>
+          <div class="field"><label for="t-hours">Run hours now</label><input id="t-hours" value="1,702"></div>
+        </div>
+        <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn ghost sm">Add photo</button><button class="btn sm">Mark done</button></div>
+        <h3 style="margin-top:14px">Timeline</h3>
+        <ul class="tl"><li><span class="t">17 Oct 06:40</span><span>Opened by Akram (Report a Fault)</span></li><li><span class="t">17 Oct 09:10</span><span>Assigned to PowerTech by Sana</span></li><li><span class="t">18 Oct 15:00</span><span>In progress · "AVR ordered"</span></li><li><span class="t">20 Oct 09:00</span><span>System · high priority open &gt; 3 days → manager notified</span></li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- SELF SERVICE -->
+  <section class="screen" id="s-self">
+    <div class="topbar"><div><div class="crumb">Self Service</div><h2>What every employee sees</h2></div></div>
+    <div class="grid2">
+      <div class="card"><h3>My Supply Requests</h3><div class="tw"><table><tr><th>No.</th><th>Items</th><th>Status</th></tr>
+        <tr><td class="mono">SR-000541</td><td>Toner HP 85A ×1, A4 ×2</td><td><span class="pill p-warn">with dept head</span></td></tr>
+        <tr><td class="mono">SR-000512</td><td>Notebook ×2</td><td><span class="pill p-ok">issued · acknowledged</span></td></tr></table></div>
+        <div class="row" style="margin-top:10px"><button class="btn sm">New supply request</button></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Items come from the Office Supplies item master. Every request goes to your department head first.</p></div>
+      <div class="card"><h3>My Assets &amp; SIM</h3><div class="tw"><table><tr><th>Item</th><th>Since</th><th>Condition</th></tr>
+        <tr><td>FA-00213 Dell Latitude 5420 + charger, bag</td><td>03 Mar 2025</td><td>good</td></tr>
+        <tr><td>SIM 0300-1234567 · Jazz Business 1500 · limit 2,000</td><td>03 Mar 2025</td><td>Sep bill 3,420 · <span class="pill p-warn">over limit by 1,420</span></td></tr></table></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Pending acknowledgement: none. Sign on phone when admin issues or takes back an item.</p></div>
+      <div class="card"><h3>Report a Fault</h3><div class="form">
+        <div class="field"><label for="rf-eq">Equipment / location</label><select id="rf-eq"><option>AC · Accounts office (EQ-008)</option><option>Printer · Reception</option><option>Water dispenser · Floor A</option><option>Other (describe)</option></select></div>
+        <div class="field"><label for="rf-pri">How urgent</label><select id="rf-pri"><option>Normal</option><option>Urgent · work stopped</option></select></div>
+        <div class="field" style="grid-column:1/-1"><label for="rf-desc">What is wrong</label><textarea id="rf-desc" rows="2" placeholder="Water dripping from the indoor unit since morning"></textarea></div>
+      </div><div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn ghost sm">Add photo</button><button class="btn sm">Send to Admin</button></div></div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="screen" id="s-map">
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>How the module connects to the rest of the ERP</h2></div></div>
+    <div class="card"><div class="flow">Fixed Assets (office_assets) ──► Asset Custody (holder, condition, verification) ──► HR clearance on exit
+                          └─► Cameras / Equipment register (optional fixed_asset_id)
+
+Items master (office_supplies) ──► Admin store stock ◄── GRN (office supplies PO)
+Employee ──► Supply Request SR ──► dept head (above free qty) ──► issue from store
+Admin store below reorder ──► Purchase Request PRQ (existing flow) ──► PO ──► GRN
+
+Camera daily check ──(line not ok)──► Equipment ticket EQT ──► cost ──► Petty cash / General expense
+Cleaning inspection ──(not ok)──► Action item (cleaning supervisor) · equipment faults ──► EQT
+Equipment intervals / AMC ──► Service calendar ──► preventive EQT ──► alerts (System Notifications)
+
+SIM register ──► monthly bill ──► Expenses › Utility bills (over-limit borne by company, flagged to manager)</div>
+    <h3 style="margin-top:14px">Delivery</h3>
+    <div class="tw"><table><tr><th>Step</th><th>Contains</th><th>Touches</th></tr>
+      <tr><td>1</td><td>Module + roles, dashboard, camera daily check, cleaning inspections and action items, masters, alerts</td><td>Nothing else</td></tr>
+      <tr><td>2</td><td>Asset custody, admin store, supply requests, reorder → purchase request</td><td>Fixed Assets (read), Purchase (creates PRQ)</td></tr>
+      <tr><td>3</td><td>SIM register and bills, over-limit report, HR clearance banner</td><td>Expenses, HR</td></tr>
+      <tr><td>4</td><td>Equipment register, tickets, service calendar, AMC alerts, camera fault → ticket</td><td>Expenses (petty cash)</td></tr></table></div>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+  var nav=document.getElementById('nav');
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.toggle('on',s.id==='s-'+id);});
+    nav.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.s===id);});
+    try{localStorage.setItem('af-mock-tab',id);}catch(e){}
+  }
+  nav.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.s){show(b.dataset.s);window.scrollTo(0,0);}});
+  var start=null;
+  var h=(location.hash||'').replace('#','');
+  if(h&&document.getElementById('s-'+h))start=h;
+  if(!start){try{var t=localStorage.getItem('af-mock-tab');if(t&&document.getElementById('s-'+t))start=t;}catch(e){}}
+  if(start)show(start);
+})();
+</script>

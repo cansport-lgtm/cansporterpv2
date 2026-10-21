@@ -415,6 +415,29 @@ import StorePassDetailPage from "./pages/store-pass/StorePassDetailPage";
 import DispatchTrackingPage from "./pages/store-pass/DispatchTrackingPage";
 import StorePassDashboardPage from "./pages/store-pass/StorePassDashboardPage";
 import StoreGateReconciliationPage from "./pages/store-pass/StoreGateReconciliationPage";
+// Admin & Facilities (docs/ADMIN_FACILITIES.md)
+import FacilitiesDashboardPage from "./pages/facilities/FacilitiesDashboardPage";
+import FacilitiesSettingsPage from "./pages/facilities/FacilitiesSettingsPage";
+import CamerasPage from "./pages/facilities/cameras/CamerasPage";
+import CameraChecksPage from "./pages/facilities/cameras/CameraChecksPage";
+import CameraCheckPage from "./pages/facilities/cameras/CameraCheckPage";
+import CleaningInspectionsPage from "./pages/facilities/cleaning/CleaningInspectionsPage";
+import CleaningInspectionPage from "./pages/facilities/cleaning/CleaningInspectionPage";
+import CleaningActionItemsPage from "./pages/facilities/cleaning/CleaningActionItemsPage";
+import CleaningSetupPage from "./pages/facilities/cleaning/CleaningSetupPage";
+import AssetCustodyPage from "./pages/facilities/assets/AssetCustodyPage";
+import EmployeeClearancePage from "./pages/facilities/assets/EmployeeClearancePage";
+import MyAssetsPage from "./pages/facilities/assets/MyAssetsPage";
+import AdminStorePage from "./pages/facilities/supplies/AdminStorePage";
+import SupplyRequestPage from "./pages/facilities/supplies/SupplyRequestPage";
+import SupplyRequestFormPage from "./pages/facilities/supplies/SupplyRequestFormPage";
+import MySupplyRequestsPage from "./pages/facilities/supplies/MySupplyRequestsPage";
+import SimsPage from "./pages/facilities/sims/SimsPage";
+import SimBillsPage from "./pages/facilities/sims/SimBillsPage";
+import EquipmentPage from "./pages/facilities/equipment/EquipmentPage";
+import EquipmentTicketsPage from "./pages/facilities/equipment/EquipmentTicketsPage";
+import EquipmentTicketPage from "./pages/facilities/equipment/EquipmentTicketPage";
+import EquipmentTicketFormPage from "./pages/facilities/equipment/EquipmentTicketFormPage";
 import DispatchPlannerDashboardPage from "./pages/dispatch-planner/DispatchPlannerDashboardPage";
 import DispatchPlannerBoardPage from "./pages/dispatch-planner/DispatchPlannerBoardPage";
 import DispatchPlannerPendingPage from "./pages/dispatch-planner/DispatchPlannerPendingPage";
@@ -997,6 +1020,38 @@ const App = () => (
             <Route path="/store-pass/new" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
             <Route path="/store-pass/edit/:id" element={<ProtectedRoute><StorePassFormPage /></ProtectedRoute>} />
             <Route path="/store-pass/tracking" element={<ProtectedRoute><DispatchTrackingPage /></ProtectedRoute>} />
+
+            {/* Admin & Facilities — docs/ADMIN_FACILITIES.md */}
+            <Route path="/facilities" element={<Navigate to="/facilities/dashboard" replace />} />
+            <Route path="/facilities/dashboard" element={<ProtectedRoute><FacilitiesDashboardPage /></ProtectedRoute>} />
+            <Route path="/facilities/settings" element={<ProtectedRoute requiredRole="super_admin"><FacilitiesSettingsPage /></ProtectedRoute>} />
+            <Route path="/facilities/cameras" element={<ProtectedRoute><CamerasPage /></ProtectedRoute>} />
+            <Route path="/facilities/cameras/checks" element={<ProtectedRoute><CameraChecksPage /></ProtectedRoute>} />
+            <Route path="/facilities/cameras/checks/:id" element={<ProtectedRoute><CameraCheckPage /></ProtectedRoute>} />
+            <Route path="/facilities/cleaning" element={<ProtectedRoute><CleaningInspectionsPage /></ProtectedRoute>} />
+            <Route path="/facilities/cleaning/new" element={<ProtectedRoute><CleaningInspectionPage /></ProtectedRoute>} />
+            <Route path="/facilities/cleaning/actions" element={<ProtectedRoute><CleaningActionItemsPage /></ProtectedRoute>} />
+            <Route path="/facilities/cleaning/setup" element={<ProtectedRoute><CleaningSetupPage /></ProtectedRoute>} />
+            <Route path="/facilities/cleaning/:id" element={<ProtectedRoute><CleaningInspectionPage /></ProtectedRoute>} />
+            <Route path="/facilities/assets" element={<ProtectedRoute><AssetCustodyPage /></ProtectedRoute>} />
+            <Route path="/facilities/clearance" element={<ProtectedRoute><EmployeeClearancePage /></ProtectedRoute>} />
+            <Route path="/facilities/clearance/:employeeId" element={<ProtectedRoute><EmployeeClearancePage /></ProtectedRoute>} />
+            <Route path="/facilities/supplies" element={<ProtectedRoute><AdminStorePage /></ProtectedRoute>} />
+            <Route path="/facilities/supplies/:id" element={<ProtectedRoute><SupplyRequestPage /></ProtectedRoute>} />
+            <Route path="/facilities/sims" element={<ProtectedRoute><SimsPage /></ProtectedRoute>} />
+            <Route path="/facilities/sims/bills" element={<ProtectedRoute><SimBillsPage /></ProtectedRoute>} />
+            <Route path="/facilities/equipment" element={<ProtectedRoute><EquipmentPage /></ProtectedRoute>} />
+            <Route path="/facilities/equipment/tickets" element={<ProtectedRoute><EquipmentTicketsPage /></ProtectedRoute>} />
+            <Route path="/facilities/equipment/tickets/new" element={<ProtectedRoute><EquipmentTicketFormPage /></ProtectedRoute>} />
+            <Route path="/facilities/equipment/tickets/:id" element={<ProtectedRoute><EquipmentTicketPage /></ProtectedRoute>} />
+            <Route path="/facilities/*" element={<ProtectedRoute><ComingSoon title="Admin & Facilities" /></ProtectedRoute>} />
+            {/* Self service (every logged-in user; the database checks who may do what) */}
+            <Route path="/my-supply-requests" element={<ProtectedRoute><MySupplyRequestsPage /></ProtectedRoute>} />
+            <Route path="/my-supply-requests/new" element={<ProtectedRoute><SupplyRequestFormPage /></ProtectedRoute>} />
+            <Route path="/my-supply-requests/:id/edit" element={<ProtectedRoute><SupplyRequestFormPage /></ProtectedRoute>} />
+            <Route path="/my-supply-requests/:id" element={<ProtectedRoute><SupplyRequestPage /></ProtectedRoute>} />
+            <Route path="/my-assets" element={<ProtectedRoute><MyAssetsPage /></ProtectedRoute>} />
+            <Route path="/report-fault" element={<ProtectedRoute><EquipmentTicketFormPage /></ProtectedRoute>} />
 
             {/* Dispatch Planner — read-only suggestions; see docs/DISPATCH_PLANNER.md */}
             <Route path="/dispatch-planner" element={<Navigate to="/dispatch-planner/dashboard" replace />} />

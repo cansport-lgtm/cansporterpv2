@@ -16,7 +16,7 @@ interface AppUser {
 }
 
 interface UserRole {
-  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'qa_super_manager' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'labour_attendance_delete_approver' | 'production_manager' | 'production_officer' | 'production_viewer' | 'store_pass_manager' | 'store_pass_officer' | 'store_pass_viewer' | 'dispatch_planner_manager' | 'dispatch_planner_officer' | 'dispatch_planner_viewer' | 'pr_office_officer' | 'pr_office_approver' | 'pr_raw_material_officer' | 'pr_raw_material_approver' | 'pr_production_officer' | 'pr_production_approver' | 'pr_spares_officer' | 'pr_spares_approver' | 'production_coordinator';
+  role: 'super_admin' | 'admin' | 'manager' | 'supervisor' | 'operator' | 'viewer' | 'operational_manager' | 'qa_manager' | 'maintenance_manager' | 'sales_executive' | 'order_management' | 'floor_incharge' | 'private_label_distributor' | 'private_label_manager' | 'private_label_officer' | 'private_label_viewer' | 'pettycash_handler' | 'store_operator' | 'project_manager' | 'online_sales_packing' | 'online_sales_admin' | 'online_sales_manager' | 'online_sales_agent' | 'accounting_poster' | 'accounting_officer' | 'accounting_manager' | 'billing_officer' | 'purchase_officer' | 'purchase_manager' | 'purchase_qc_inspector' | 'dispatch_operator' | 'sales_order_manager' | 'production_operator' | 'closing_data_poster' | 'distributor_sales' | 'distributor_manager' | 'distributor_admin' | 'labour_productivity_approver' | 'labour_productivity_poster' | 'labour_productivity_viewer' | 'export_manager' | 'export_officer' | 'export_viewer' | 'master_data_manager' | 'master_data_officer' | 'master_data_viewer' | 'hr_manager' | 'hr_officer' | 'hr_viewer' | 'wip_manager' | 'wip_officer' | 'wip_viewer' | 'rejections_manager' | 'rejections_officer' | 'rejections_viewer' | 'quality_score_manager' | 'quality_score_officer' | 'quality_score_viewer' |'performance_manager' | 'performance_officer' | 'performance_viewer' | 'floor_inventory_manager' | 'floor_inventory_officer' | 'floor_inventory_viewer' | 'fixed_assets_manager' | 'fixed_assets_officer' | 'fixed_assets_viewer' | 'five_s_manager' | 'five_s_officer' | 'five_s_viewer' | 'hourly_production_manager' | 'hourly_production_officer' | 'hourly_production_viewer' | 'rd_manager' | 'rd_officer' | 'rd_viewer' | 'crm_manager' | 'crm_officer' | 'crm_viewer' | 'marketing_manager' | 'marketing_officer' | 'marketing_viewer' | 'projects_officer' | 'projects_viewer' | 'qa_officer' | 'qa_viewer' | 'maintenance_officer' | 'maintenance_viewer' | 'expenses_manager' | 'expenses_officer' | 'expenses_viewer' | 'material_consumption_manager' | 'material_consumption_officer' | 'material_consumption_viewer' | 'machine_monitor_manager' | 'machine_monitor_officer' | 'machine_monitor_viewer' | 'qa_inspector' | 'qa_super_manager' | 'helpdesk_manager' | 'projects_super_manager' | 'gate_pass_manager' | 'gate_pass_officer' | 'gate_pass_viewer' | 'gate_security' | 'gate_pass_sample_manager' | 'gate_pass_returnable_manager' | 'gate_pass_jobwork_manager' | 'gate_pass_scrap_manager' | 'labour_gate_pass_approver' | 'staff_gate_pass_approver' | 'labour_attendance_delete_approver' | 'production_manager' | 'production_officer' | 'production_viewer' | 'store_pass_manager' | 'store_pass_officer' | 'store_pass_viewer' | 'dispatch_planner_manager' | 'dispatch_planner_officer' | 'dispatch_planner_viewer' | 'pr_office_officer' | 'pr_office_approver' | 'pr_raw_material_officer' | 'pr_raw_material_approver' | 'pr_production_officer' | 'pr_production_approver' | 'pr_spares_officer' | 'pr_spares_approver' | 'production_coordinator' | 'facilities_manager' | 'facilities_officer' | 'facilities_viewer' | 'facilities_technician' | 'cleaning_supervisor';
 }
 
 // Per-module access tiers. Every module that had no dedicated role of its own gets the
@@ -62,6 +62,8 @@ const MODULE_TIER_DEFINITIONS: {
   { rolePrefix: 'gate_pass', module: 'gate_pass', routePrefix: '/gate-pass' },
   { rolePrefix: 'store_pass', module: 'store_pass', routePrefix: '/store-pass' },
   { rolePrefix: 'dispatch_planner', module: 'dispatch_planner', routePrefix: '/dispatch-planner' },
+  // Admin & Facilities: camera checks, cleaning inspections, asset custody, admin store, SIMs, equipment tickets.
+  { rolePrefix: 'facilities', module: 'facilities', routePrefix: '/facilities' },
 ];
 
 const MODULE_TIERS: ModuleTier[] = ['manager', 'officer', 'viewer'];
@@ -193,6 +195,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Production Coordinator: gives the reasons for MPH losses once production is
   // posted. Confined to MPH Loss Reasons + MPH Analysis.
   production_coordinator: ['labour', 'dashboard'],
+  // Admin & Facilities special roles: the technician works only the equipment tickets
+  // assigned to them; the cleaning supervisor only closes their cleaning action items.
+  facilities_technician: ['facilities', 'dashboard'],
+  cleaning_supervisor: ['facilities', 'dashboard'],
   // Staff Gate Pass Approver: approves staff gate passes (half day / short leave).
   // Confined to the staff gate pass pages of the HR module.
   staff_gate_pass_approver: ['hr', 'dashboard'],
@@ -359,6 +365,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   labour_attendance_delete_approver: ['/labour/attendance-delete-requests', '/dashboard'],
   // Production Coordinator: MPH loss reasons (entry + print), their analysis and MPH Analysis only.
   production_coordinator: ['/labour/mph-loss-reasons', '/labour/mph-loss-analysis', '/labour/mph-analysis', '/dashboard'],
+  facilities_technician: ['/facilities/equipment/tickets', '/dashboard'],
+  cleaning_supervisor: ['/facilities/cleaning/actions', '/dashboard'],
   // Staff Gate Pass Approver: the staff gate pass register, approvals and pass pages only.
   staff_gate_pass_approver: ['/hr/gate-pass', '/dashboard'],
   // Help Desk Manager: manages all tickets (view/assign/comment/resolve) on the
@@ -474,6 +482,8 @@ const HARD_RESTRICTED_MODULE_ROLES = new Set([
   'production_coordinator',
   'staff_gate_pass_approver',
   'helpdesk_manager',
+  'facilities_technician',
+  'cleaning_supervisor',
 ]);
 
 // Strict single-purpose roles whose lockdown must ALWAYS be enforced, even when the user
@@ -1242,6 +1252,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // them; department heads approve their department's here. The pages only act
     // through the purchase_request_* database functions, which check who may do what.
     if (route === '/my-purchase-requests' || route.startsWith('/my-purchase-requests/')) return true;
+
+    // Admin & Facilities self service: anyone raises supply requests from the admin
+    // store, sees the office assets and SIM they hold, and reports an equipment fault.
+    // The pages only act through facilities_* database functions, which check who may do what.
+    if (route === '/my-supply-requests' || route.startsWith('/my-supply-requests/')) return true;
+    if (route === '/my-assets' || route === '/report-fault') return true;
 
     // Explicit per-role route denials take precedence (e.g. hide P&L / Balance Sheet from a tier)
     if (
