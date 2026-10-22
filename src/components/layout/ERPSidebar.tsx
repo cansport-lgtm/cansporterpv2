@@ -554,6 +554,7 @@ const navigationItems: NavItem[] = [
       { title: "Monthly Receipt View", href: "/consumption/monthly-receipts" },
       { title: "Production Entry", href: "/consumption/production-entry" },
       { title: "Analysis", href: "/consumption/analysis" },
+      { title: "Key Raw Materials", href: "/consumption/key-raw-materials" },
       { title: "Usage Report", href: "/consumption/usage-report" },
       { title: "Value Tier Usage Report", href: "/consumption/value-tier-report" },
       { title: "Reorder Requirement", href: "/consumption/reorder-requirement" },

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ExternalLink, Info, Search } from "lucide-react";
+import { ExternalLink, Info, Search, Star } from "lucide-react";
+import { useKeyRawMaterials } from "@/hooks/useKeyRawMaterials";
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,8 @@ interface RawMaterial {
  */
 export default function RawMaterialsPage() {
   const navigate = useNavigate();
+  const { keyIds } = useKeyRawMaterials();
+  const keyIdSet = useMemo(() => new Set(keyIds), [keyIds]);
   const [searchTerm, setSearchTerm] = useState("");
   const [valueCategoryFilter, setValueCategoryFilter] = useState<MaterialValueCategory | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -250,7 +253,12 @@ export default function RawMaterialsPage() {
                     filteredMaterials?.map((material) => (
                       <TableRow key={material.id}>
                         <TableCell className="font-mono">{material.code}</TableCell>
-                        <TableCell className="font-medium">{material.name}</TableCell>
+                        <TableCell className="font-medium">
+                        {material.name}
+                        {keyIdSet.has(material.id) && (
+                          <Star className="inline h-3.5 w-3.5 ml-1 fill-amber-400 text-amber-500 align-[-2px]" aria-label="Key raw material" />
+                        )}
+                      </TableCell>
                         <TableCell>{material.unit}</TableCell>
                         <TableCell>{material.category || "-"}</TableCell>
                         <TableCell>{material.subcategory || "-"}</TableCell>
@@ -304,6 +312,9 @@ export default function RawMaterialsPage() {
                   <div key={material.id} className="p-3 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{material.name}</span>
+                      {keyIdSet.has(material.id) && (
+                        <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Key raw material" />
+                      )}
                       <Badge variant={material.is_active ? "default" : "secondary"} className="text-xs shrink-0">
                         {material.is_active ? "Active" : "Inactive"}
                       </Badge>

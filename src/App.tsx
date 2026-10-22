@@ -254,6 +254,7 @@ import MonthlyReceiptViewPage from "./pages/consumption/MonthlyReceiptViewPage";
 import ConsumptionCategoriesPage from "./pages/consumption/ConsumptionCategoriesPage";
 import ConsumptionSubcategoriesPage from "./pages/consumption/ConsumptionSubcategoriesPage";
 import ConsumptionUsageReportPage from "./pages/consumption/ConsumptionUsageReportPage";
+import KeyRawMaterialsPage from "./pages/consumption/KeyRawMaterialsPage";
 import ValueTierUsageReportPage from "./pages/consumption/ValueTierUsageReportPage";
 import ReorderRequirementPage from "./pages/consumption/ReorderRequirementPage";
 import MaterialShortagesPage from "./pages/purchase/MaterialShortagesPage";
@@ -904,6 +905,7 @@ const App = () => (
             <Route path="/consumption/categories" element={<ProtectedRoute><ConsumptionCategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/subcategories" element={<ProtectedRoute><ConsumptionSubcategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/usage-report" element={<ProtectedRoute><ConsumptionUsageReportPage /></ProtectedRoute>} />
+            <Route path="/consumption/key-raw-materials" element={<ProtectedRoute><KeyRawMaterialsPage /></ProtectedRoute>} />
             <Route path="/consumption/value-tier-report" element={<ProtectedRoute><ValueTierUsageReportPage /></ProtectedRoute>} />
             <Route path="/consumption/reorder-requirement" element={<ProtectedRoute><ReorderRequirementPage /></ProtectedRoute>} />
             <Route path="/consumption/*" element={<ProtectedRoute><ComingSoon title="Material Consumption" /></ProtectedRoute>} />

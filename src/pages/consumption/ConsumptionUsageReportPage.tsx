@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarIcon, BarChart3, TrendingUp, Printer } from "lucide-react";
+import { CalendarIcon, BarChart3, TrendingUp, Printer, Star } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -23,6 +24,7 @@ import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { buildMaterialUsageReportPdf } from "@/lib/materialUsageReportPdf";
 import { MATERIAL_VALUE_CATEGORIES, type MaterialValueCategory } from "@/lib/materialValueCategory";
 import { MultiSearchableSelect } from "@/components/shared/MultiSearchableSelect";
+import { useKeyRawMaterials } from "@/hooks/useKeyRawMaterials";
 import {
   MultiMaterialSingleDayView,
   buildMultiMaterialPdf,
@@ -53,7 +55,11 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 export default function ConsumptionUsageReportPage() {
-  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "single">("daily");
+  // ?view=single&key=1 (from the Key Raw Materials portal) opens Single Day with the key list loaded.
+  const [searchParams] = useSearchParams();
+  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "single">(
+    searchParams.get("view") === "single" ? "single" : "daily"
+  );
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -63,6 +69,34 @@ export default function ConsumptionUsageReportPage() {
   const [hideInactive, setHideInactive] = useState(false);
   const [includeBomInPrint, setIncludeBomInPrint] = useState(true);
   const isMulti = viewMode === "single";
+
+  const { keyIds, canEdit: canEditKeyList, saveKeyIds, isSaving: savingKeyList } = useKeyRawMaterials();
+
+  const loadKeyMaterials = () => {
+    if (keyIds.length === 0) return;
+    if (selectedValueCategory !== "all") setSelectedValueCategory("all");
+    setSelectedMaterialIds(keyIds);
+  };
+
+  // Single Day starts from the key list when nothing is ticked yet (or when the
+  // portal asked for it); after that the selection is left alone, so Clear sticks.
+  const autoLoadedKeyList = useRef(false);
+  useEffect(() => {
+    if (autoLoadedKeyList.current || !isMulti || keyIds.length === 0) return;
+    autoLoadedKeyList.current = true;
+    if (searchParams.get("key") === "1" || selectedMaterialIds.length === 0) loadKeyMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMulti, keyIds]);
+
+  const handleSaveAsKeyList = async () => {
+    if (!window.confirm(`Replace the shared key raw materials list with these ${selectedMaterialIds.length} materials?`)) return;
+    try {
+      await saveKeyIds(selectedMaterialIds);
+      toast.success(`Key raw materials list saved (${selectedMaterialIds.length})`);
+    } catch (e) {
+      toast.error((e as { message?: string })?.message || "Failed to save key raw materials");
+    }
+  };
 
   useEffect(() => {
     try {
@@ -691,9 +725,38 @@ export default function ConsumptionUsageReportPage() {
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-4 items-end">
               <div className="flex-1 min-w-[250px]">
-                <label className="text-sm font-medium mb-1.5 block">
-                  {isMulti ? "Select Materials" : "Select Material"}
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <label className="text-sm font-medium block">
+                    {isMulti ? "Select Materials" : "Select Material"}
+                  </label>
+                  {isMulti && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={keyIds.length === 0}
+                        onClick={loadKeyMaterials}
+                      >
+                        <Star className="mr-1 h-3.5 w-3.5 text-amber-500" />
+                        Load key materials ({keyIds.length})
+                      </Button>
+                      {canEditKeyList && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={selectedMaterialIds.length === 0 || savingKeyList}
+                          onClick={handleSaveAsKeyList}
+                        >
+                          {savingKeyList ? "Saving…" : "Save as key list"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {isMulti ? (
                   <MultiSearchableSelect
                     values={selectedMaterialIds}
