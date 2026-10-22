@@ -52,6 +52,7 @@ const UNIT_OPTIONS = [
   { value: "dzns", label: "Dzns" },
   { value: "bags", label: "Bags" },
   { value: "ctns", label: "Ctns" },
+  { value: "kg", label: "Kg" },
 ];
 
 interface PlanningItem {
