@@ -1461,18 +1461,21 @@ export type Database = {
           added_by: string | null
           created_at: string
           raw_material_id: string
+          removed_at: string | null
           sort_order: number
         }
         Insert: {
           added_by?: string | null
           created_at?: string
           raw_material_id: string
+          removed_at?: string | null
           sort_order?: number
         }
         Update: {
           added_by?: string | null
           created_at?: string
           raw_material_id?: string
+          removed_at?: string | null
           sort_order?: number
         }
         Relationships: [
