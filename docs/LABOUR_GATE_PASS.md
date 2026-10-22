@@ -69,12 +69,15 @@ check these roles; the tables are read-only to the app.
 
 | Page | Route | What it shows |
 |---|---|---|
-| Worker Gate Passes | `/labour/gate-pass` | Register (today by default), the four cards, **Outside now** (overdue in red), red **Old worker passes scanned again** card |
+| Worker Gate Passes | `/labour/gate-pass` | Register (today by default; **Today** / **This month** buttons), the four cards, **Outside now** (overdue in red), red **Old worker passes scanned again** card |
 | New Worker Gate Pass | `/labour/gate-pass/new` | Worker picker with photo, kind, date, leaving time, expected minutes, reason |
 | Pass page | `/labour/gate-pass/:id` | QR, printable slip, worker photo, timeline, approve / reject / cancel / convert |
-| Gate Pass Approvals | `/labour/gate-pass/approvals` | Queue for the approver, plus short leaves overdue at the gate |
+| Gate Pass Approvals | `/labour/gate-pass/approvals` | **Queue** tab for the approver, plus short leaves overdue at the gate; **Decided** tab with every approve / reject of the last 30 days (who, when, remarks) |
+| Gate Pass Log | `/labour/gate-pass/log` | Every event on every worker pass, newest first: applied, approved, rejected, cancelled, gate out / in, late back, time-outside limits, half day / absent marked or removed, not returned, expired, old pass scanned again. Filters: dates (this month by default), event or event group (decisions, gate scans, exceptions), kind, done by, search; Excel export; Load more for older events. Open to `super_admin`, `labour_gate_pass_approver`, `labour_productivity_approver` only |
 | Gate Check | `/gate-pass/check` | **Goods / vehicle** and **Worker** modes on the guard's existing page |
 | Labour Dashboard | `/labour/dashboard` | The four cards at the top |
+
+The log and the Decided tab read the events table by time; `20261112120000_person_gate_pass_events_log_idx.sql` adds the `created_at` index for both events tables (rollback in `supabase/rollbacks/`).
 
 ## At the gate
 

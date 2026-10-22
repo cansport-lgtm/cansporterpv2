@@ -78,15 +78,18 @@ check these roles; the tables are read-only to the app.
 
 | Page | Route | What it shows |
 |---|---|---|
-| Staff Gate Passes | `/hr/gate-pass` | Register (today by default), the four cards, **Outside now** (overdue in red), red **Old staff passes scanned again** card |
+| Staff Gate Passes | `/hr/gate-pass` | Register (today by default; **Today** / **This month** buttons), the four cards, **Outside now** (overdue in red), red **Old staff passes scanned again** card |
 | New Staff Gate Pass | `/hr/gate-pass/new` | Staff picker with photo, kind, date, leaving time, expected minutes, reason, destination (official duty) |
 | My Gate Passes | `/my-gate-pass`, `/my-gate-pass/new`, `/my-gate-pass/:id` | Self-service for the linked staff member: own passes, raise an official duty pass, pass page with QR |
 | Pass page | `/hr/gate-pass/:id` | QR, printable slip, photo, timeline, approve / reject / cancel / convert |
-| Gate Pass Approvals | `/hr/gate-pass/approvals` | Queue for the approver, plus short leaves overdue at the gate |
+| Gate Pass Approvals | `/hr/gate-pass/approvals` | **Queue** tab for the approver, plus short leaves overdue at the gate; **Decided** tab with every approve / reject of the last 30 days (who, when, remarks) |
+| Gate Pass Log | `/hr/gate-pass/log` | Every event on every staff pass, newest first: applied, approved, rejected, cancelled, gate out / in, late back, time-outside limits, half day / absent marked or removed, not returned, expired, old pass scanned again. Filters: dates (this month by default), event or event group (decisions, gate scans, exceptions), kind, done by, search; Excel export; Load more for older events. Open to `super_admin`, `staff_gate_pass_approver` only |
 | Gate Check | `/gate-pass/check` | **Goods / vehicle**, **Worker** and **Staff** modes on the guard's existing page |
 | HR Dashboard | `/hr/dashboard` | The four cards at the top and the rescan alerts |
 | Employees | `/hr/employees` | Photo upload (`employees.photo_url`, bucket `staff-photos`) so the guard can match the person; **Login user** link, **Field duty allowed** and **Travel allowance** switches |
 | My Travel Vouchers | `/my-travel-vouchers` | Self-service for staff with travel allowance: own trip fuel vouchers, print two to a page, trips still to claim |
+
+The log and the Decided tab read the events table by time; `20261112120000_person_gate_pass_events_log_idx.sql` adds the `created_at` index for both events tables (rollback in `supabase/rollbacks/`).
 
 ### Company work report
 

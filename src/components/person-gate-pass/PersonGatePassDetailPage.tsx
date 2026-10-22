@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  errorMessage, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, marksAbsent, marksHalfDay, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
+  errorMessage, eventLabel, fmtDT, hasAnyRole, invalidatePassQueries, isOfficialDuty, marksAbsent, marksHalfDay, overdueMinutes, passKeys, passKindMeta, passSelect, ppDb,
   printPersonGatePass, statusMeta, type PersonGatePass, type PersonPassVariant,
 } from "@/lib/personGatePass";
 
@@ -29,21 +29,6 @@ type EventRow = {
   message: string | null;
   created_at: string;
   actor: { full_name: string | null } | null;
-};
-
-const EVENT_LABEL: Record<string, string> = {
-  applied: "Applied",
-  approved: "Approved",
-  rejected: "Rejected",
-  cancelled: "Cancelled",
-  out: "Out at gate",
-  in: "Back at gate",
-  half_day_marked: "Half day marked",
-  half_day_removed: "Half day removed",
-  overdue: "Late back",
-  not_returned: "Not returned",
-  expired: "Expired",
-  rescan_attempt: "Old pass scanned again at gate",
 };
 
 type DialogKind = null | "approve" | "reject" | "cancel" | "convert" | "removeHalfDay";
@@ -249,7 +234,7 @@ export function PersonGatePassDetailPage({ variant }: { variant: PersonPassVaria
               {events.map((ev) => (
                 <li key={ev.id} className={cn("flex flex-wrap gap-x-3 gap-y-0.5", ev.event === "rescan_attempt" && "text-red-800")}>
                   <span className="text-xs text-muted-foreground whitespace-nowrap w-28">{format(new Date(ev.created_at), "dd MMM HH:mm")}</span>
-                  <span className="font-semibold">{EVENT_LABEL[ev.event] ?? ev.event}</span>
+                  <span className="font-semibold">{eventLabel(ev.event)}</span>
                   {ev.message && <span className="text-muted-foreground">{ev.message}</span>}
                   {ev.actor?.full_name && <span className="text-xs text-muted-foreground">by {ev.actor.full_name}</span>}
                 </li>

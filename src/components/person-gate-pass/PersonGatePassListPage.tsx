@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { format, startOfMonth } from "date-fns";
-import { Briefcase, DoorOpen, Download, Plus, Search } from "lucide-react";
+import { format } from "date-fns";
+import { Briefcase, DoorOpen, Download, History, Plus, Search } from "lucide-react";
 import * as XLSX from "xlsx";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -57,7 +57,9 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
   const { data: me, isLoading: meLoading } = useMyEmployee(self ? user?.id : null);
   const canApply = self ? Boolean(me) : hasAnyRole(roles, variant.applyRoles);
   const today = todayPk();
-  const [fromDate, setFromDate] = useState(params.get("from") ?? (self ? format(startOfMonth(new Date()), "yyyy-MM-dd") : today));
+  const monthStart = `${today.slice(0, 8)}01`;
+  const canSeeLog = hasAnyRole(roles, variant.logRoles);
+  const [fromDate, setFromDate] = useState(params.get("from") ?? (self ? monthStart : today));
   const [toDate, setToDate] = useState(params.get("to") ?? today);
   const [kindFilter, setKindFilter] = useState(params.get("kind") ?? "all");
   const [statusFilter, setStatusFilter] = useState(params.get("status") ?? "all");
@@ -229,6 +231,15 @@ export function PersonGatePassListPage({ variant }: { variant: PersonPassVariant
                 <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
                 <Input id={`${idp}search`} className="pl-8" placeholder={self ? "Pass no., destination, purpose" : `Pass no., ${variant.noun} code, name, reason${hasOfficial ? ", destination" : ""}`} value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
+            </div>
+            <div className="col-span-2 md:col-span-6 flex flex-wrap items-center gap-2">
+              <Button variant={fromDate === today && toDate === today ? "secondary" : "outline"} size="sm" onClick={() => { setFromDate(today); setToDate(today); }}>Today</Button>
+              <Button variant={fromDate === monthStart && toDate === today ? "secondary" : "outline"} size="sm" onClick={() => { setFromDate(monthStart); setToDate(today); }}>This month</Button>
+              {!self && canSeeLog && (
+                <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                  <Link to={`${variant.basePath}/log`}><History className="h-4 w-4 mr-1" /> Gate pass log</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

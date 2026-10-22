@@ -105,6 +105,7 @@ import StaffGatePassListPage from "./pages/hr/StaffGatePassListPage";
 import StaffGatePassFormPage from "./pages/hr/StaffGatePassFormPage";
 import StaffGatePassDetailPage from "./pages/hr/StaffGatePassDetailPage";
 import StaffGatePassApprovalsPage from "./pages/hr/StaffGatePassApprovalsPage";
+import StaffGatePassLogPage from "./pages/hr/StaffGatePassLogPage";
 import MyGatePassListPage from "./pages/hr/MyGatePassListPage";
 import MyGatePassFormPage from "./pages/hr/MyGatePassFormPage";
 import MyGatePassDetailPage from "./pages/hr/MyGatePassDetailPage";
@@ -214,6 +215,7 @@ import LabourGatePassListPage from "./pages/labour/LabourGatePassListPage";
 import LabourGatePassFormPage from "./pages/labour/LabourGatePassFormPage";
 import LabourGatePassDetailPage from "./pages/labour/LabourGatePassDetailPage";
 import LabourGatePassApprovalsPage from "./pages/labour/LabourGatePassApprovalsPage";
+import LabourGatePassLogPage from "./pages/labour/LabourGatePassLogPage";
 import LabourAttendanceDeleteRequestsPage from "./pages/labour/LabourAttendanceDeleteRequestsPage";
 
 // Fixed Assets pages
@@ -683,6 +685,7 @@ const App = () => (
             <Route path="/hr/trip-fuel-analysis" element={<ProtectedRoute requiredRoles={["super_admin", "hr_manager", "hr_officer"]}><HrTripFuelAnalysisPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/new" element={<ProtectedRoute><StaffGatePassFormPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/approvals" element={<ProtectedRoute><StaffGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/hr/gate-pass/log" element={<ProtectedRoute requiredRoles={["super_admin", "staff_gate_pass_approver"]}><StaffGatePassLogPage /></ProtectedRoute>} />
             <Route path="/hr/gate-pass/:id" element={<ProtectedRoute><StaffGatePassDetailPage /></ProtectedRoute>} />
             {/* Self-service: any logged-in staff member raises and follows their own company work passes */}
             <Route path="/my-gate-pass" element={<ProtectedRoute><MyGatePassListPage /></ProtectedRoute>} />
@@ -844,6 +847,7 @@ const App = () => (
             <Route path="/labour/gate-pass" element={<ProtectedRoute><LabourGatePassListPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/new" element={<ProtectedRoute><LabourGatePassFormPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/approvals" element={<ProtectedRoute><LabourGatePassApprovalsPage /></ProtectedRoute>} />
+            <Route path="/labour/gate-pass/log" element={<ProtectedRoute requiredRoles={["super_admin", "labour_gate_pass_approver", "labour_productivity_approver"]}><LabourGatePassLogPage /></ProtectedRoute>} />
             <Route path="/labour/gate-pass/:id" element={<ProtectedRoute><LabourGatePassDetailPage /></ProtectedRoute>} />
             <Route path="/labour/attendance-delete-requests" element={<ProtectedRoute requiredRoles={["super_admin", "admin", "manager", "supervisor", "operational_manager", "floor_incharge", "labour_productivity_approver", "labour_productivity_poster", "labour_attendance_delete_approver"]}><LabourAttendanceDeleteRequestsPage /></ProtectedRoute>} />
             <Route path="/labour/*" element={<ProtectedRoute><ComingSoon title="Labour Productivity" /></ProtectedRoute>} />

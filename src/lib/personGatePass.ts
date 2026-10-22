@@ -52,6 +52,8 @@ export type PersonPassVariant = {
   applyRoles: string[];
   approveRoles: string[];
   gateRoles: string[];
+  /** Who may open the log of every event on every pass (the people with approval rights). */
+  logRoles: string[];
   /** "supervisors (labour productivity posters / approvers, floor incharge)" */
   applyRolesText: string;
   /** "the labour gate pass approver" */
@@ -116,6 +118,7 @@ export const WORKER_PASS: PersonPassVariant = {
   applyRoles: ["super_admin", "labour_gate_pass_approver", "labour_productivity_approver", "labour_productivity_poster", "floor_incharge"],
   approveRoles: ["super_admin", "labour_gate_pass_approver"],
   gateRoles: ["super_admin", "gate_pass_manager", "gate_security"],
+  logRoles: ["super_admin", "labour_gate_pass_approver", "labour_productivity_approver"],
   applyRolesText: "supervisors (labour productivity posters / approvers, floor incharge)",
   approverText: "the labour gate pass approver",
   applicantLabel: "Supervisor",
@@ -156,6 +159,7 @@ export const STAFF_PASS: PersonPassVariant = {
   applyRoles: ["super_admin", "staff_gate_pass_approver", "hr_manager", "hr_officer"],
   approveRoles: ["super_admin", "staff_gate_pass_approver"],
   gateRoles: ["super_admin", "gate_pass_manager", "gate_security"],
+  logRoles: ["super_admin", "staff_gate_pass_approver"],
   applyRolesText: "HR (HR manager / officer)",
   approverText: "the staff gate pass approver",
   applicantLabel: "HR",
@@ -246,6 +250,26 @@ export const statusMeta = (s: string, kind?: string | null) =>
     ? { label: "Not scanned in", variant: "warning" as const }
     : STATUS_META[s] ?? { label: s, variant: "secondary" as const };
 
+/** What each pass history event means, as the <prefix>_log database function writes it. */
+export const EVENT_LABEL: Record<string, string> = {
+  applied: "Applied",
+  approved: "Approved",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
+  out: "Out at gate",
+  in: "Back at gate",
+  overdue: "Late back",
+  threshold: "Time outside over the limit",
+  half_day_marked: "Half day marked",
+  absent_marked: "Absent marked",
+  half_day_removed: "Half day removed",
+  not_returned: "Not returned",
+  expired: "Expired",
+  rescan_attempt: "Old pass scanned again at gate",
+};
+
+export const eventLabel = (e: string) => EVENT_LABEL[e] ?? e;
+
 export const hasAnyRole = (roles: { role: string }[], allowed: string[]) => roles.some((r) => allowed.includes(r.role));
 
 export type PersonGatePass = {
@@ -319,12 +343,14 @@ export const passKeys = (v: PersonPassVariant) => ({
   picker: `${v.queryPrefix}-picker`,
   gateCheck: `gate-check-${v.key}-pass`,
   myEmployee: `${v.queryPrefix}-my-employee`,
+  log: `${v.queryPrefix}-log`,
+  decided: `${v.queryPrefix}-decided`,
 });
 
 /** Refresh everything that shows passes of this kind after a write. */
 export function invalidatePassQueries(queryClient: QueryClient, v: PersonPassVariant) {
   const k = passKeys(v);
-  [k.list, k.live, k.approvals, k.halfDays, k.halfDaysCount, k.rescans, k.rescansCount].forEach((key) =>
+  [k.list, k.live, k.approvals, k.decided, k.log, k.halfDays, k.halfDaysCount, k.rescans, k.rescansCount].forEach((key) =>
     queryClient.invalidateQueries({ queryKey: [key] }));
 }
 
