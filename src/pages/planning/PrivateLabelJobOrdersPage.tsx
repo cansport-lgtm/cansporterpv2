@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { PrivateLabelJobOrderDialog } from "@/components/planning/PrivateLabelJobOrderDialog";
 import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizesDialog";
@@ -55,6 +56,7 @@ export default function PrivateLabelJobOrdersPage() {
   const today = new Date();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [gradeId, setGradeId] = useState("all");
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
@@ -67,15 +69,25 @@ export default function PrivateLabelJobOrdersPage() {
     queryFn: () => fetchOrders({ type: "private_label", status, from: fromDate, to: toDate }),
   });
 
+  const { data: grades = [] } = useQuery({
+    queryKey: ["pljo-grades"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("grades").select("id, name, code").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter((o) =>
+    const byGrade = gradeId === "all" ? orders : orders.filter((o) => o.grade_id === gradeId);
+    if (!q) return byGrade;
+    return byGrade.filter((o) =>
       [o.pl_job_order_number, o.customers?.name, o.billing_customer?.name, o.brand_name, o.customer_po_ref, o.grades?.name, o.remarks]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [orders, search]);
+  }, [orders, search, gradeId]);
 
   return (
     <ERPLayout>
@@ -124,6 +136,19 @@ export default function PrivateLabelJobOrdersPage() {
                 <SelectItem value="Issued">Issued</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={gradeId} onValueChange={setGradeId}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Grades</SelectItem>
+                {grades.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <div className="flex flex-col gap-1">
