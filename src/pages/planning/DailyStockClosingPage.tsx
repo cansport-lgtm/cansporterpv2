@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StockCategoryFilter } from "@/components/shared/StockCategoryFilter";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchesStockCategory, type StockCategoryFilterValue } from "@/lib/stockCategories";
 
 interface StockEntry {
@@ -40,6 +41,7 @@ export default function DailyStockClosingPage() {
   const [stockEntries, setStockEntries] = useState<Record<string, StockEntry>>({});
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [stockCategory, setStockCategory] = useState<StockCategoryFilterValue>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
   // Fetch planning items with department info
   const { data: planningItems } = useQuery({
@@ -109,12 +111,22 @@ export default function DailyStockClosingPage() {
     setStockEntries(entries);
   }, [planningItems, existingData]);
 
+  // Departments that actually have planning items, for the department filter
+  const departmentOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    Object.values(stockEntries).forEach((entry) => {
+      if (!seen.has(entry.department_id)) seen.set(entry.department_id, entry.department_name);
+    });
+    return Array.from(seen, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [stockEntries]);
+
   // Group items by department
   const itemsByDepartment = useMemo(() => {
     const grouped: Record<string, { departmentName: string; items: StockEntry[] }> = {};
 
-    // The filter only narrows what is shown; "Save All" still saves every item.
+    // The filters only narrow what is shown; "Save All" still saves every item.
     Object.values(stockEntries).forEach((entry) => {
+      if (departmentFilter !== "all" && entry.department_id !== departmentFilter) return;
       if (!matchesStockCategory(entry.stock_category, stockCategory)) return;
       if (!grouped[entry.department_id]) {
         grouped[entry.department_id] = {
@@ -126,7 +138,7 @@ export default function DailyStockClosingPage() {
     });
 
     return grouped;
-  }, [stockEntries, stockCategory]);
+  }, [stockEntries, stockCategory, departmentFilter]);
 
   // Update entry
   const handleEntryChange = (
@@ -236,6 +248,20 @@ export default function DailyStockClosingPage() {
                     />
                   </PopoverContent>
                 </Popover>
+                <Label className="whitespace-nowrap">Department:</Label>
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departmentOptions.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Label className="whitespace-nowrap">Stock Category:</Label>
                 <StockCategoryFilter value={stockCategory} onChange={setStockCategory} />
               </div>
@@ -271,9 +297,9 @@ export default function DailyStockClosingPage() {
             <CardContent className="py-8 text-center text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>
-                {stockCategory === "all"
+                {stockCategory === "all" && departmentFilter === "all"
                   ? "No planning items found. Add items in the Item Master first."
-                  : "No planning items in this stock category."}
+                  : "No planning items match the selected department / stock category."}
               </p>
             </CardContent>
           </Card>
