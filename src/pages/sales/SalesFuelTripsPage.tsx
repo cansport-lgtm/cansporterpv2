@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,9 +15,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, CheckCircle2, XCircle, Trash2, Fuel, Printer, Camera, Loader2, ImageIcon } from "lucide-react";
+import { Plus, CheckCircle2, XCircle, Trash2, Fuel, Printer } from "lucide-react";
 import {
-  SALES_FUEL_KEYS, computeTrip, factorForDate, fmtMoney, printSalesFuelVouchers, uploadMeterPhoto,
+  SALES_FUEL_KEYS, computeTrip, factorForDate, fmtMoney, printSalesFuelVouchers,
   useDefaultPetrolPrice, useEmployeeCodes, useLastEndOdometer, useRateFactors, type SalesFuelTrip,
 } from "@/lib/salesFuel";
 
@@ -34,36 +34,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 /** Roles that may post a trip for another salesman and approve trips. */
 const MANAGER_ROLES = ["super_admin", "admin", "manager", "private_label_manager"];
-
-function PhotoField({ label, url, uploading, onPick, onClear }: { label: string; url: string; uploading: boolean; onPick: (f: File) => void; onClear: () => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  return (
-    <div className="space-y-2">
-      <Label>{label} *</Label>
-      <input ref={ref} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); if (ref.current) ref.current.value = ""; }} />
-      {url ? (
-        <div className="rounded-md border overflow-hidden">
-          <img src={url} alt={label} className="h-32 w-full object-cover" />
-          <div className="flex items-center justify-between px-2 py-1 text-xs">
-            <span className="text-emerald-700 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Uploaded</span>
-            <div className="flex gap-1">
-              <Button type="button" size="sm" variant="ghost" onClick={() => ref.current?.click()} disabled={uploading}>Retake</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={onClear} disabled={uploading}>Remove</Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
-          className="w-full rounded-md border-2 border-dashed p-4 text-sm text-muted-foreground hover:bg-muted/50 flex flex-col items-center gap-1">
-          {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-          <span className="font-medium text-foreground">{uploading ? "Uploading…" : "Take photo / upload"}</span>
-          <span className="text-xs">JPG · PNG · max 5 MB</span>
-        </button>
-      )}
-    </div>
-  );
-}
 
 export default function SalesFuelTripsPage() {
   const qc = useQueryClient();
@@ -85,9 +55,6 @@ export default function SalesFuelTripsPage() {
   const [endOdo, setEndOdo] = useState("");
   const [price, setPrice] = useState("");
   const [priceTouched, setPriceTouched] = useState(false);
-  const [startPhoto, setStartPhoto] = useState("");
-  const [endPhoto, setEndPhoto] = useState("");
-  const [uploading, setUploading] = useState<"start" | "end" | null>(null);
   const [customerId, setCustomerId] = useState<string>("none");
   const [remarks, setRemarks] = useState("");
 
@@ -159,7 +126,7 @@ export default function SalesFuelTripsPage() {
     setDate(new Date().toISOString().slice(0, 10));
     setUserId(user?.id || ""); setVehicleId("none"); setFrom(""); setTo(""); setPurpose("");
     setStartOdo(""); setEndOdo(""); setPrice(""); setPriceTouched(false);
-    setStartPhoto(""); setEndPhoto(""); setCustomerId("none"); setRemarks("");
+    setCustomerId("none"); setRemarks("");
   };
   const close = () => { setOpen(false); reset(); };
 
@@ -168,18 +135,6 @@ export default function SalesFuelTripsPage() {
     () => computeTrip(parseFloat(startOdo) || 0, parseFloat(endOdo) || 0, parseFloat(price) || 0, factor ? Number(factor.factor) : null),
     [startOdo, endOdo, price, factor],
   );
-
-  const pickPhoto = async (which: "start" | "end", file: File) => {
-    try {
-      setUploading(which);
-      const url = await uploadMeterPhoto(file, `${userId || "u"}-${date}-${which}`);
-      if (which === "start") setStartPhoto(url); else setEndPhoto(url);
-    } catch (e) {
-      toast.error((e as Error).message || "Photo upload failed");
-    } finally {
-      setUploading(null);
-    }
-  };
 
   const voucherCtx = {
     userName: (id: string) => userMap[id] || "",
@@ -196,14 +151,12 @@ export default function SalesFuelTripsPage() {
       const p = parseFloat(price);
       if (!p || p <= 0) throw new Error("Enter today's petrol price (Rs per litre)");
       if (!factor) throw new Error("No multiplying factor is set for this date. Ask the super admin to set it under Fuel Prices & Factor.");
-      if (!startPhoto || !endPhoto) throw new Error("Upload both vehicle meter photos (start and end)");
       const payload: any = {
         trip_date: date, user_id: userId,
         vehicle_id: vehicleId === "none" ? null : vehicleId,
         from_location: from.trim() || null, to_location: to.trim() || null, purpose: purpose.trim() || null,
         start_odometer: parseFloat(startOdo), end_odometer: parseFloat(endOdo),
         fuel_price_entered: p,
-        odo_start_photo_url: startPhoto, odo_end_photo_url: endPhoto,
         customer_id: customerId === "none" ? null : customerId,
         status: "Submitted", created_by: user?.id || null, remarks: remarks.trim() || null,
       };
@@ -381,23 +334,17 @@ export default function SalesFuelTripsPage() {
                     </div>
                     {!factor && <p className="text-sm text-amber-700">No multiplying factor is set for {date}. The super admin sets it under Fuel Prices &amp; Factor.</p>}
 
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">Vehicle meter photos</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <PhotoField label="Start meter" url={startPhoto} uploading={uploading === "start"} onPick={(f) => pickPhoto("start", f)} onClear={() => setStartPhoto("")} />
-                      <PhotoField label="End meter" url={endPhoto} uploading={uploading === "end"} onPick={(f) => pickPhoto("end", f)} onClear={() => setEndPhoto("")} />
-                    </div>
-
                     <div className="space-y-2">
                       <Label>Remarks</Label>
                       <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={2} />
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-                      <Button type="submit" disabled={create.isPending || uploading != null}>
+                      <Button type="submit" disabled={create.isPending}>
                         <Printer className="h-4 w-4 mr-2" />Post trip &amp; print voucher
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">Posting needs both meter photos and End Odo above Start Odo. The voucher prints twice on one A4 page (Accounts copy + Salesman copy).</p>
+                    <p className="text-xs text-muted-foreground">Posting needs End Odo above Start Odo. The voucher prints twice on one A4 page (Accounts copy + Salesman copy).</p>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -417,16 +364,15 @@ export default function SalesFuelTripsPage() {
                     <TableHead className="text-right">Factor</TableHead>
                     <TableHead className="text-right">Rate/km</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Photos</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={14} className="text-center">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={13} className="text-center">Loading...</TableCell></TableRow>
                   ) : !filtered.length ? (
-                    <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground">No trips</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground">No trips</TableCell></TableRow>
                   ) : filtered.map((t) => (
                     <TableRow key={t.id} data-state={selected.has(t.id) ? "selected" : undefined}>
                       <TableCell><Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} aria-label="Select trip" /></TableCell>
@@ -443,11 +389,6 @@ export default function SalesFuelTripsPage() {
                       <TableCell className="text-right">{t.rate_factor_snapshot != null ? Number(t.rate_factor_snapshot).toFixed(4) : "—"}</TableCell>
                       <TableCell className="text-right">{t.rate_per_km != null ? Number(t.rate_per_km).toFixed(2) : "—"}</TableCell>
                       <TableCell className="text-right font-semibold">{t.amount != null ? `Rs. ${fmtMoney(t.amount)}` : "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {t.odo_start_photo_url ? <a href={t.odo_start_photo_url} target="_blank" rel="noreferrer" title="Start meter" className="inline-flex text-primary"><ImageIcon className="h-4 w-4" /></a> : <span className="text-muted-foreground">·</span>}
-                        {" "}
-                        {t.odo_end_photo_url ? <a href={t.odo_end_photo_url} target="_blank" rel="noreferrer" title="End meter" className="inline-flex text-primary"><ImageIcon className="h-4 w-4" /></a> : <span className="text-muted-foreground">·</span>}
-                      </TableCell>
                       <TableCell><Badge className={STATUS_COLORS[t.status] || ""} variant="outline">{t.status}</Badge></TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <Button variant="ghost" size="icon" title="Print voucher" onClick={() => printSalesFuelVouchers([t], voucherCtx)}>
