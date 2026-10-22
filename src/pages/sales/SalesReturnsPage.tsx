@@ -49,6 +49,9 @@ export default function SalesReturnsPage() {
 
   // Create form
   const [dispatchId, setDispatchId] = useState("");
+  // For a dispatch that carries goods for several customers (each billed on
+  // its own invoice), the return is made per customer: pick one here.
+  const [pickedCustomerId, setPickedCustomerId] = useState("");
   const [returnDate, setReturnDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [reason, setReason] = useState("Damaged");
   const [notes, setNotes] = useState("");
@@ -111,13 +114,20 @@ export default function SalesReturnsPage() {
       return;
     }
     (async () => {
-      const { data } = await sb
+      const { data: allItems } = await sb
         .from("sales_dispatch_items")
         .select(`
           id, quantity_dozens,
-          order_item:sales_order_items(price_per_dozen, product:products(id, code, name, standard_cost))
+          order_item:sales_order_items(price_per_dozen, product:products(id, code, name, standard_cost), order:sales_orders(customer_id))
         `)
         .eq("dispatch_id", dispatchId);
+
+      // Multi-customer dispatch: only the picked customer's lines can be
+      // returned; show none until a customer is picked.
+      const itemCustomers = new Set((allItems || []).map((it: any) => it.order_item?.order?.customer_id).filter(Boolean));
+      const data = itemCustomers.size > 1
+        ? (allItems || []).filter((it: any) => pickedCustomerId && it.order_item?.order?.customer_id === pickedCustomerId)
+        : allItems;
 
       // The return rate must follow the INVOICE for this dispatch, not the
       // original order price. Invoice line prices are editable (see
@@ -147,13 +157,15 @@ export default function SalesReturnsPage() {
       }));
       setLines(next);
     })();
-  }, [dispatchId]);
+  }, [dispatchId, pickedCustomerId]);
 
   const selectedDispatch = dispatches?.find((d: any) => d.id === dispatchId);
   const dispatchCustomers = selectedDispatch?.customers as { id: string; name: string }[] | undefined;
-  const customerId = dispatchCustomers?.length === 1 ? dispatchCustomers[0].id : undefined;
-  const customerName = dispatchCustomers?.[0]?.name;
   const multiCustomer = (dispatchCustomers?.length || 0) > 1;
+  const customerId = multiCustomer
+    ? (dispatchCustomers!.some((c) => c.id === pickedCustomerId) ? pickedCustomerId : undefined)
+    : dispatchCustomers?.[0]?.id;
+  const customerName = dispatchCustomers?.find((c) => c.id === customerId)?.name;
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
   const cogsTotal = lines.reduce((s, l) => s + l.qty * l.standard_cost, 0);
@@ -192,8 +204,7 @@ export default function SalesReturnsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!dispatchId) throw new Error("Pick a dispatch");
-      if (multiCustomer) throw new Error(`Dispatch spans ${dispatchCustomers!.length} customers — split into separate returns first.`);
-      if (!customerId) throw new Error("Dispatch has no items linked to a customer");
+      if (!customerId) throw new Error(multiCustomer ? "Pick the customer returning the goods" : "Dispatch has no items linked to a customer");
       if (!hasAnyQty) throw new Error("Enter at least one return quantity");
       if (overQty) throw new Error("Return quantity cannot exceed original dispatch quantity");
 
@@ -247,6 +258,7 @@ export default function SalesReturnsPage() {
       });
       setCreateOpen(false);
       setDispatchId("");
+      setPickedCustomerId("");
       setReason("Damaged");
       setNotes("");
       setLines([]);
@@ -339,7 +351,7 @@ export default function SalesReturnsPage() {
           <div className="space-y-3">
             <div>
               <Label>Original Dispatch *</Label>
-              <Select value={dispatchId} onValueChange={setDispatchId}>
+              <Select value={dispatchId} onValueChange={(v) => { setDispatchId(v); setPickedCustomerId(""); }}>
                 <SelectTrigger><SelectValue placeholder="Pick a dispatch to return from" /></SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {dispatches?.map((d: any) => {
@@ -354,10 +366,23 @@ export default function SalesReturnsPage() {
                   })}
                 </SelectContent>
               </Select>
+              {selectedDispatch && multiCustomer && (
+                <div className="mt-2">
+                  <Label>Customer *</Label>
+                  <Select value={pickedCustomerId} onValueChange={setPickedCustomerId}>
+                    <SelectTrigger><SelectValue placeholder="Pick the customer returning the goods" /></SelectTrigger>
+                    <SelectContent>
+                      {dispatchCustomers!.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs mt-1 text-muted-foreground">
+                    This dispatch carries goods for {dispatchCustomers!.length} customers — the return covers only the picked customer's lines.
+                  </div>
+                </div>
+              )}
               {selectedDispatch && (
                 <div className="text-xs mt-1">
                   <span className="text-muted-foreground">Customer:</span> {customerName || "—"}
-                  {multiCustomer && <span className="text-red-600 ml-2">⚠ Dispatch spans {dispatchCustomers!.length} customers — split into separate returns, one per customer.</span>}
                   <span className="text-muted-foreground"> · {lines.length} line item(s)</span>
                 </div>
               )}
