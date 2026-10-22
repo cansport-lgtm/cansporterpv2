@@ -23,6 +23,7 @@ export function useKeyRawMaterials() {
       const { data, error } = await supabase
         .from("consumption_key_raw_materials")
         .select("raw_material_id, sort_order")
+        .is("removed_at", null)
         .order("sort_order");
       if (error) throw error;
       return (data || []).map((r) => r.raw_material_id);
