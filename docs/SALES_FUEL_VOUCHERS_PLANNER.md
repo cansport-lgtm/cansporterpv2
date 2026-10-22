@@ -9,11 +9,11 @@ Migration: `supabase/migrations/20261112120000_sales_fuel_rate_factor_planner.sq
 ## Fuel trip voucher
 
 **Private Label Sales → Fuel Trips** (`/sales/fuel/trips`). The salesman posts a
-trip with the start and end odometer, **today's petrol price** (Rs per litre,
-pre-filled with the price they typed last time, else the super admin's price
-list) and **two photos of the vehicle meter** (start, end; camera opens on the
-phone; bucket `trip-odometer-photos`). Posting is refused without both photos,
-without a price, or when no factor is set for the trip date.
+trip with the start and end odometer and **today's petrol price** (Rs per
+litre, pre-filled with the price they typed last time, else the super admin's
+price list). Posting is refused without a price or when no factor is set for
+the trip date. (Meter photo upload was built and then removed at the user's
+request; the `odo_start_photo_url` / `odo_end_photo_url` columns stay unused.)
 
 ```
 rate per km = petrol price (salesman) × multiplying factor (super admin)

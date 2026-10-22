@@ -1,4 +1,4 @@
-// Private Label Sales fuel trips: price × factor pricing, meter photos and the
+// Private Label Sales fuel trips: price × factor pricing and the
 // printed voucher. Rules live in the database:
 // supabase/migrations/20261112120000_sales_fuel_rate_factor_planner.sql.
 //
@@ -12,8 +12,6 @@ import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { esc, printDocument } from "@/lib/printDocument";
-
-export const METER_PHOTO_BUCKET = "trip-odometer-photos";
 
 export interface SalesFuelTrip {
   id: string; trip_date: string; user_id: string; vehicle_id: string | null;
@@ -138,17 +136,6 @@ export function computeTrip(startOdo: number, endOdo: number, price: number, fac
 export const fmtMoney = (n: number | null | undefined, digits = 2) =>
   n == null ? "—" : Number(n).toLocaleString("en-PK", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-/** Upload one vehicle-meter photo; returns its public URL. */
-export async function uploadMeterPhoto(file: File, prefix: string): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Please choose an image");
-  if (file.size > 5 * 1024 * 1024) throw new Error("Image must be smaller than 5 MB");
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `sales/${prefix}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from(METER_PHOTO_BUCKET).upload(path, file, { cacheControl: "3600", upsert: true });
-  if (error) throw error;
-  return supabase.storage.from(METER_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
-}
-
 // ---------------------------------------------------------------------------
 // Amount in words (Pakistani style: lakh / crore)
 // ---------------------------------------------------------------------------
@@ -215,7 +202,7 @@ const SFV_PRINT_CSS = `
   .sfv tr.tot td { border-top: 1.5px solid #222; font-weight: 700; font-size: 13px; }
   .sfv tr.tot td small { font-weight: 400; font-size: 10px; color: #555; }
   .sfv .warn { font-weight: 700; color: #b45309; font-size: 10px; margin-top: 4px; }
-  .sfv .photos { font-size: 10px; color: #555; margin-top: 6px; }
+  .sfv .notes { font-size: 10px; color: #555; margin-top: 6px; }
   .sfv .sign { display: flex; gap: 16px; margin-top: auto; padding-top: 18px; }
   .sfv .sign div { flex: 1; border-top: 1px solid #222; padding-top: 3px; font-size: 9.5px; text-align: center; color: #444; }
 `;
@@ -254,7 +241,7 @@ function voucherHtml(t: SalesFuelTrip, ctx: VoucherContext, copy: string) {
       </tbody>
     </table>
     ${notPayable ? `<div class="warn">${esc(notPayable)}</div>` : ""}
-    <div class="photos">Meter photos on file: ${t.odo_start_photo_url ? "start ✓" : "start ✗"} · ${t.odo_end_photo_url ? "end ✓" : "end ✗"}${t.remarks ? ` · ${esc(t.remarks)}` : ""}</div>
+    ${t.remarks ? `<div class="notes">${esc(t.remarks)}</div>` : ""}
     <div class="sign"><div>Salesman</div><div>Approved by (Sales Manager)</div><div>Paid by (Accounts)</div><div>Received by</div></div>
   </div>`;
 }
