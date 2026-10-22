@@ -15,9 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { fmtMph, round1 } from "@/lib/mphLoss";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // One hue for "MPH lost" everywhere on this page (single-series charts + matrix shading).
 const LOSS_COLOR = "#dc2626";
+
+// Phone-only: the horizontal bar chart has far less room for category labels,
+// so long reason names are shortened on the axis (the tooltip shows the full name).
+const shortLabel = (name: string) => (name.length > 18 ? `${name.slice(0, 17)}…` : name);
 
 interface ReportRow {
   id: string;
@@ -33,6 +38,7 @@ export default function MPHLossReasonAnalysisPage() {
   const [customEnd, setCustomEnd] = useState(format(today, "yyyy-MM-dd"));
   const [department, setDepartment] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const isMobile = useIsMobile();
 
   const { start, end } = useMemo(() => {
     switch (range) {
@@ -151,7 +157,7 @@ export default function MPHLossReasonAnalysisPage() {
 
   return (
     <ERPLayout>
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6">
         <PageHeader
           title="MPH Loss Reason Analysis"
           description="Where MPH is lost and why — from the reasons the Production Coordinator gives"
@@ -159,11 +165,11 @@ export default function MPHLossReasonAnalysisPage() {
           iconColor="bg-red-600 text-white"
         />
 
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end sm:gap-4">
+          <div className="col-span-2 min-w-0 sm:col-auto">
             <Label className="text-xs text-muted-foreground">Date range</Label>
             <Select value={range} onValueChange={setRange}>
-              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="week">Last 7 Days</SelectItem>
                 <SelectItem value="month">This Month</SelectItem>
@@ -174,20 +180,20 @@ export default function MPHLossReasonAnalysisPage() {
           </div>
           {range === "custom" && (
             <>
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor="mla-from" className="text-xs text-muted-foreground">From</Label>
-                <Input id="mla-from" type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[160px]" />
+                <Input id="mla-from" type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-full sm:w-[160px]" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor="mla-to" className="text-xs text-muted-foreground">To</Label>
-                <Input id="mla-to" type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[160px]" />
+                <Input id="mla-to" type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-full sm:w-[160px]" />
               </div>
             </>
           )}
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Department</Label>
             <Select value={department} onValueChange={setDepartment}>
-              <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[200px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
                 {departmentOptions.map(([id, name]) => (
@@ -196,10 +202,10 @@ export default function MPHLossReasonAnalysisPage() {
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Report status</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="submitted">Submitted</SelectItem>
@@ -209,7 +215,7 @@ export default function MPHLossReasonAnalysisPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <MetricCard
             title="MPH lost"
             value={fmtMph(analysis.totalLoss)}
@@ -225,12 +231,14 @@ export default function MPHLossReasonAnalysisPage() {
             description={`${fmtMph(analysis.explained)} MPH with a reason · ${fmtMph(analysis.unexplained)} without`}
           />
           <MetricCard
+            className="col-span-2 sm:col-span-1"
             title="Top reason"
             value={top ? top.name : "—"}
             icon={ListChecks}
             description={top ? `${fmtMph(top.mph)} MPH · ${top.share.toFixed(0)}% of explained loss` : "No reasons yet"}
           />
           <MetricCard
+            className="col-span-2 sm:col-span-1"
             title="Reports not submitted"
             value={String(analysis.draftCount)}
             icon={AlertTriangle}
@@ -239,7 +247,7 @@ export default function MPHLossReasonAnalysisPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">MPH lost by reason</CardTitle>
@@ -249,10 +257,16 @@ export default function MPHLossReasonAnalysisPage() {
                 <p className="text-sm text-muted-foreground text-center py-10">No reasons recorded for this period</p>
               ) : (
                 <ResponsiveContainer width="100%" height={Math.max(220, chartReasons.length * 40 + 40)}>
-                  <BarChart data={chartReasons} layout="vertical" margin={{ left: 8, right: 48 }}>
+                  <BarChart data={chartReasons} layout="vertical" margin={{ left: isMobile ? 0 : 8, right: isMobile ? 36 : 48 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                     <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="name" width={190} tick={{ fontSize: 11 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={isMobile ? 112 : 190}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={isMobile ? shortLabel : undefined}
+                    />
                     <Tooltip
                       cursor={{ fill: "rgba(0,0,0,0.04)" }}
                       formatter={(v: number, _n, item: any) => [`${fmtMph(v)} MPH (${item.payload.share})`, "Lost"]}
@@ -274,11 +288,11 @@ export default function MPHLossReasonAnalysisPage() {
               {analysis.trend.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-10">No MPH loss reports for this period</p>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={isMobile ? 240 : 300}>
                   <BarChart data={analysis.trend}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={isMobile ? 40 : 60} />
                     <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)" }} formatter={(v: number) => [`${fmtMph(v)} MPH`, "Lost"]} />
                     <Bar dataKey="mph" fill={LOSS_COLOR} radius={[4, 4, 0, 0]} maxBarSize={28} />
                   </BarChart>
@@ -297,7 +311,7 @@ export default function MPHLossReasonAnalysisPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="text-xs font-semibold">Department</TableHead>
+                    <TableHead className="text-xs font-semibold sticky left-0 z-10 bg-muted border-r md:static md:bg-transparent md:border-r-0">Department</TableHead>
                     <TableHead className="text-xs font-semibold text-right">Total loss</TableHead>
                     {analysis.reasonRows.map((r) => (
                       <TableHead key={r.id} className="text-xs font-semibold text-right min-w-[110px]">{r.name}</TableHead>
@@ -318,7 +332,7 @@ export default function MPHLossReasonAnalysisPage() {
                       const unexplained = round1(Math.max(row.loss - explained, 0));
                       return (
                         <TableRow key={row.id}>
-                          <TableCell className="font-medium text-sm">{row.name}</TableCell>
+                          <TableCell className="font-medium text-sm sticky left-0 z-10 bg-card border-r md:static md:bg-transparent md:border-r-0">{row.name}</TableCell>
                           <TableCell className="text-right text-sm font-semibold text-red-600">{fmtMph(row.loss)}</TableCell>
                           {analysis.reasonRows.map((r) => {
                             const v = row.cells[r.id] ?? 0;
@@ -352,50 +366,85 @@ export default function MPHLossReasonAnalysisPage() {
             <CardTitle className="text-base">Reason log</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-auto max-h-[480px]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="text-xs font-semibold">Date</TableHead>
-                    <TableHead className="text-xs font-semibold">Department</TableHead>
-                    <TableHead className="text-xs font-semibold">Reason</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">MPH lost</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Workers</TableHead>
-                    <TableHead className="text-xs font-semibold">Remarks</TableHead>
-                    <TableHead className="text-xs font-semibold">Report</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Loading...</TableCell></TableRow>
-                  ) : analysis.lineLog.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">No reasons recorded for this period</TableCell></TableRow>
-                  ) : (
-                    analysis.lineLog.map((l: any) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="text-sm whitespace-nowrap">{format(parseISO(l.report.report_date), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="text-sm">{l.department_name}</TableCell>
-                        <TableCell className="text-sm">
-                          {l.reason_name}
-                          {l.reason_category && <span className="ml-2 text-xs text-muted-foreground">{l.reason_category}</span>}
-                        </TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{fmtMph(Number(l.mph_lost))}</TableCell>
-                        <TableCell className="text-right text-sm">{l.workers_affected ?? "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{l.remarks || "—"}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
-                          <Link to={`/labour/mph-loss-reasons?date=${l.report.report_date}`} className="text-primary hover:underline">
-                            {l.report.report_number}
-                          </Link>
-                          <Badge variant="outline" className="ml-2 text-[10px]">
-                            {l.report.status === "submitted" ? "Submitted" : "Draft"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            {isMobile ? (
+              <div className="max-h-[480px] overflow-y-auto divide-y">
+                {isLoading ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">Loading...</p>
+                ) : analysis.lineLog.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">No reasons recorded for this period</p>
+                ) : (
+                  analysis.lineLog.map((l) => (
+                    <div key={l.id} className="px-4 py-3 space-y-1.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium leading-snug">{l.reason_name}</p>
+                          {l.reason_category && <p className="text-xs text-muted-foreground">{l.reason_category}</p>}
+                        </div>
+                        <p className="text-sm font-semibold tabular-nums text-red-600 whitespace-nowrap">{fmtMph(Number(l.mph_lost))} MPH</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(l.report.report_date), "dd MMM yyyy")} · {l.department_name}
+                        {l.workers_affected != null && ` · ${l.workers_affected} workers`}
+                      </p>
+                      {l.remarks && <p className="text-xs text-muted-foreground">{l.remarks}</p>}
+                      <div className="flex items-center gap-2 text-xs">
+                        <Link to={`/labour/mph-loss-reasons?date=${l.report.report_date}`} className="text-primary hover:underline">
+                          {l.report.report_number}
+                        </Link>
+                        <Badge variant="outline" className="text-[10px]">
+                          {l.report.status === "submitted" ? "Submitted" : "Draft"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="overflow-auto max-h-[480px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="text-xs font-semibold">Date</TableHead>
+                      <TableHead className="text-xs font-semibold">Department</TableHead>
+                      <TableHead className="text-xs font-semibold">Reason</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">MPH lost</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">Workers</TableHead>
+                      <TableHead className="text-xs font-semibold">Remarks</TableHead>
+                      <TableHead className="text-xs font-semibold">Report</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Loading...</TableCell></TableRow>
+                    ) : analysis.lineLog.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">No reasons recorded for this period</TableCell></TableRow>
+                    ) : (
+                      analysis.lineLog.map((l: any) => (
+                        <TableRow key={l.id}>
+                          <TableCell className="text-sm whitespace-nowrap">{format(parseISO(l.report.report_date), "dd MMM yyyy")}</TableCell>
+                          <TableCell className="text-sm">{l.department_name}</TableCell>
+                          <TableCell className="text-sm">
+                            {l.reason_name}
+                            {l.reason_category && <span className="ml-2 text-xs text-muted-foreground">{l.reason_category}</span>}
+                          </TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">{fmtMph(Number(l.mph_lost))}</TableCell>
+                          <TableCell className="text-right text-sm">{l.workers_affected ?? "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{l.remarks || "—"}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            <Link to={`/labour/mph-loss-reasons?date=${l.report.report_date}`} className="text-primary hover:underline">
+                              {l.report.report_number}
+                            </Link>
+                            <Badge variant="outline" className="ml-2 text-[10px]">
+                              {l.report.status === "submitted" ? "Submitted" : "Draft"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
