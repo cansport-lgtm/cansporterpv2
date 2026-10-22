@@ -476,6 +476,7 @@ import SalesFuelVehiclesPage from "./pages/sales/SalesFuelVehiclesPage";
 import SalesFuelTripsPage from "./pages/sales/SalesFuelTripsPage";
 import SalesFuelPricesPage from "./pages/sales/SalesFuelPricesPage";
 import SalesFuelPayoutsPage from "./pages/sales/SalesFuelPayoutsPage";
+import SalesmanPlannerPage from "./pages/sales/SalesmanPlannerPage";
 import AreasMasterPage from "./pages/sales/AreasMasterPage";
 import CitiesMasterPage from "./pages/sales/CitiesMasterPage";
 import CustomerCategoriesMasterPage from "./pages/sales/CustomerCategoriesMasterPage";
@@ -738,6 +739,7 @@ const App = () => (
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/salesman-activity" element={<ProtectedRoute><SalesmanActivityReportPage /></ProtectedRoute>} />
+            <Route path="/sales/planner" element={<ProtectedRoute><SalesmanPlannerPage /></ProtectedRoute>} />
             {/* Sales geo masters + fuel (v1 top-ups) */}
             <Route path="/sales/cities" element={<ProtectedRoute><CitiesMasterPage /></ProtectedRoute>} />
             <Route path="/sales/areas" element={<ProtectedRoute><AreasMasterPage /></ProtectedRoute>} />
@@ -745,7 +747,7 @@ const App = () => (
             <Route path="/sales/fuel/trips" element={<ProtectedRoute><SalesFuelTripsPage /></ProtectedRoute>} />
             <Route path="/sales/fuel/payouts" element={<ProtectedRoute><SalesFuelPayoutsPage /></ProtectedRoute>} />
             <Route path="/sales/fuel/vehicles" element={<ProtectedRoute><SalesFuelVehiclesPage /></ProtectedRoute>} />
-            <Route path="/sales/fuel/prices" element={<ProtectedRoute><SalesFuelPricesPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/prices" element={<ProtectedRoute requiredRoles={["super_admin"]}><SalesFuelPricesPage /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
             {/* Domestic Sales Routes */}
