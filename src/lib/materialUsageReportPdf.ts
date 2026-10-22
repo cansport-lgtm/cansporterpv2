@@ -192,3 +192,165 @@ export function buildMaterialUsageReportPdf(o: MaterialUsageReportPdfOptions): B
 
   return renderTextPdf(pages, PAGE_OPTS);
 }
+
+// ---------------------------------------------------------------------------
+// Multi-material Single Day report: one comparison row per material for one
+// date. Units can differ between materials (kg / ltr / pcs), so totals are
+// grouped per unit rather than summed across units.
+
+const M_CODE_W = 9;
+const M_NAME_W = 22;
+const M_UNIT_W = 5;
+const M_NUM_W = 10;
+const M_PCT_W = 8;
+const MULTI_RULE_W = M_CODE_W + M_NAME_W + M_UNIT_W + M_NUM_W * 6 + M_PCT_W;
+
+export interface MultiMaterialRowPdf {
+  code: string;
+  name: string;
+  unit: string;
+  opening: number;
+  receipts: number;
+  actual: number;
+  standard: number;
+  variance: number;
+  closing: number;
+  bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number; departmentName: string }[];
+}
+
+export interface UnitTotalPdf {
+  unit: string;
+  count: number;
+  actual: number;
+  standard: number;
+  variance: number;
+  variancePct: number;
+}
+
+export interface MultiDepartmentUsagePdf extends DepartmentUsagePdf {
+  unit: string;
+}
+
+export interface MultiMaterialUsageReportPdfOptions {
+  dateLabel: string;
+  tierLabel: string;
+  generatedOn: string;
+  rows: MultiMaterialRowPdf[];
+  unitTotals: UnitTotalPdf[];
+  overCount: number;
+  underCount: number;
+  avgVariancePct: number;
+  departmentUsage: MultiDepartmentUsagePdf[];
+  includeBomBreakdown: boolean;
+}
+
+function variancePctOf(actual: number, standard: number): number {
+  return standard > 0 ? ((actual - standard) / standard) * 100 : actual > 0 ? 100 : 0;
+}
+
+function multiRow(
+  code: string, name: string, unit: string,
+  opening: string, receipts: string, actual: string, standard: string, variance: string, pct: string, closing: string,
+  bold = false
+): PdfToken {
+  return line(
+    padRight(code, M_CODE_W - 1) + " " +
+    padRight(name, M_NAME_W - 1) + " " +
+    padRight(unit, M_UNIT_W) +
+    padLeft(opening, M_NUM_W) +
+    padLeft(receipts, M_NUM_W) +
+    padLeft(actual, M_NUM_W) +
+    padLeft(standard, M_NUM_W) +
+    padLeft(variance, M_NUM_W) +
+    padLeft(pct, M_PCT_W) +
+    padLeft(closing, M_NUM_W),
+    bold,
+    8
+  );
+}
+
+export function buildMultiMaterialUsageReportPdf(o: MultiMaterialUsageReportPdfOptions): Blob {
+  const tokens: PdfToken[] = [];
+
+  tokens.push(line("MATERIAL USAGE REPORT - SINGLE DAY", true, 14));
+  tokens.push(line(`${o.rows.length} material${o.rows.length === 1 ? "" : "s"} | ${o.dateLabel} | ${o.tierLabel}`, true, 11));
+  tokens.push(line(`Generated ${o.generatedOn}`));
+
+  tokens.push(BLANK, line("SUMMARY", true, 10));
+  tokens.push(line(`Over standard: ${o.overCount}   Under standard: ${o.underCount}   Avg variance (per material): ${signed(o.avgVariancePct)}%`));
+  o.unitTotals.forEach((t) => {
+    tokens.push(line(
+      `[${t.unit}] ${t.count} item${t.count === 1 ? "" : "s"} - Actual ${num(t.actual)}, Standard ${num(t.standard)}, ` +
+      `Variance ${signed(t.variance)} (${signed(t.variancePct)}%)`
+    ));
+  });
+
+  tokens.push(BLANK, line("MATERIAL COMPARISON", true, 10));
+  tokens.push(multiRow("Code", "Material", "Unit", "Opening", "Receipts", "Actual", "Standard", "Variance", "Var %", "Closing", true));
+  tokens.push(line("-".repeat(MULTI_RULE_W), false, 8));
+  if (o.rows.length === 0) {
+    tokens.push(line("  No consumption data found for this date"));
+  } else {
+    o.rows.forEach((r) => {
+      tokens.push(multiRow(
+        r.code, r.name, r.unit,
+        num(r.opening), num(r.receipts), num(r.actual), num(r.standard), signed(r.variance),
+        signed(variancePctOf(r.actual, r.standard)) + "%", num(r.closing)
+      ));
+    });
+    tokens.push(line("-".repeat(MULTI_RULE_W), false, 8));
+    o.unitTotals.forEach((t) => {
+      tokens.push(multiRow(
+        "Total", `${t.count} item${t.count === 1 ? "" : "s"}`, t.unit,
+        "", "", num(t.actual), num(t.standard), signed(t.variance), signed(t.variancePct) + "%", "",
+        true
+      ));
+    });
+  }
+
+  if (o.includeBomBreakdown) {
+    const withBreakdown = o.rows.filter((r) => r.bomBreakdown.length > 0);
+    tokens.push(BLANK, line("STANDARD (BOM) BREAKDOWN", true, 10));
+    if (withBreakdown.length === 0) {
+      tokens.push(line("  No BOM-linked production on this date"));
+    } else {
+      withBreakdown.forEach((r) => {
+        tokens.push(line(`${r.code} - ${r.name} (${r.unit}): standard ${num(r.standard)}`, true));
+        r.bomBreakdown.forEach((b) => {
+          tokens.push(line(`    ${b.productName} (${b.departmentName}): ${b.produced} x ${b.bomRate} = ${b.subtotal.toFixed(2)}`, false, 7));
+        });
+      });
+    }
+  }
+
+  tokens.push(BLANK, line("DEPARTMENT-WISE USAGE BREAKDOWN", true, 10));
+  tokens.push(line(padRight("Unit", M_UNIT_W) + padRight("Department", DEPT_W - M_UNIT_W) +
+    padLeft("Produced", DNUM_W) + padLeft("Standard", DNUM_W) + padLeft("Actual Est.", DNUM_W) + padLeft("% Unit", DPCT_W), true));
+  tokens.push(line("-".repeat(DEPT_RULE_W)));
+  if (o.departmentUsage.length === 0) {
+    tokens.push(line("  No department-linked production on this date"));
+  } else {
+    o.departmentUsage.forEach((d) => {
+      tokens.push(line(padRight(d.unit, M_UNIT_W - 1) + " " + padRight(d.departmentName, DEPT_W - M_UNIT_W) +
+        padLeft(num(d.produced), DNUM_W) + padLeft(num(d.standard), DNUM_W) + padLeft(num(d.actualEst), DNUM_W) +
+        padLeft(d.pctOfTotal.toFixed(1) + "%", DPCT_W)));
+    });
+    tokens.push(
+      line("Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual", false, 7),
+      line("consumption by each department's share of its standard usage. % is of the unit's standard total.", false, 7)
+    );
+  }
+
+  const pages: PdfToken[][] = [];
+  let page: PdfToken[] = [];
+  tokens.forEach((t) => {
+    if (page.length >= MAX_LINES_PER_PAGE) {
+      pages.push(page);
+      page = [line(`Material Usage Report - ${o.dateLabel} (continued)`, true, 10), BLANK];
+    }
+    page.push(t);
+  });
+  if (page.length) pages.push(page);
+
+  return renderTextPdf(pages, PAGE_OPTS);
+}
