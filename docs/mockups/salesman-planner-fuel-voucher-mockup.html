@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Planner &amp; Fuel Voucher Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ERP shell as in the live Private Label Sales module — slim dark sidebar, content column, one screen per sidebar entry.
+   Screens: Salesman Planner (list + editor + print), Fuel Trip entry (price × factor formula, meter photo), Super Admin factor
+   setting, and the voucher print sheet (2 vouchers per A4 page). */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#2457a6; --accent-fg:#ffffff; --side:#0f172a; --side-fg:#cbd5e1; --side-active:#1e293b;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#b26a00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --info-bg:#e6eefb;
+  --paper:#ffffff; --paper-fg:#111;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+.shell{display:flex;min-height:100vh}
+.side{background:var(--side);color:var(--side-fg);width:232px;flex:0 0 232px;padding-block:16px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:12px}
+.side h1{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#7c8aa0;margin:0 0 6px 8px;font-weight:600}
+.side .brand{font-size:15px;font-weight:600;color:#fff;margin:0 8px 18px}
+.side nav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:8px 10px;border-radius:6px;cursor:pointer}
+.side nav button:hover{background:var(--side-active)}
+.side nav button.on{background:var(--side-active);color:#fff;font-weight:500}
+.side nav button:focus-visible{outline:2px solid var(--accent)}
+.side nav button.dim{color:#64748b;cursor:default}
+.side nav button.dim:hover{background:none}
+.side .grp{margin-top:18px}
+.tag{font-size:10px;background:var(--accent);color:var(--accent-fg);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;font-weight:600}
+.main{flex:1;min-width:0;padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.topbar h2{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.crumb{color:var(--muted);font-size:12px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:none}.screen.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.card h3 small{color:var(--muted);font-weight:400;font-size:12px;margin-left:8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-bad{background:var(--bad-bg);color:var(--bad)}.p-info{background:var(--info-bg);color:var(--accent)}.p-mut{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.muted{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+.field label b{color:var(--bad);font-weight:500}
+.field input,.field select,.field textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+.field input[readonly]{background:var(--line);color:var(--muted)}
+.field .hint{font-size:11.5px;color:var(--muted)}
+.field.lock input{background:var(--line);font-weight:500;color:var(--fg)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.form .span2{grid-column:span 2}
+.form .span3{grid-column:1/-1}
+.note{background:var(--info-bg);border-radius:6px;padding:8px 10px;font-size:13px}
+.note.warn{background:var(--warn-bg)}
+.flow{font-family:var(--mono);font-size:12.5px;background:var(--bg);border-radius:6px;padding:10px 12px;overflow-x:auto;white-space:pre}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.sect{margin:18px 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+/* formula strip in the fuel form */
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:stretch}
+.calc .c{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.calc .c .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.calc .c .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.calc .c .s{font-size:11.5px;color:var(--muted)}
+.calc .c.total{background:var(--ok-bg);border-color:transparent}
+.calc .c.total .v{color:var(--ok)}
+.calc .c.lock .k::after{content:" · super admin";color:var(--accent)}
+/* upload box */
+.drop{border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:13px;background:var(--bg)}
+.drop b{display:block;color:var(--fg);font-weight:500;margin-bottom:2px}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:10px}
+.thumb{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel);font-size:11.5px}
+.thumb .img{height:84px;background:
+  radial-gradient(circle at 50% 55%, #2b2b2b 0 40%, #111 41% 100%);display:flex;align-items:center;justify-content:center;color:#e8e8e8;font-family:var(--mono);font-size:14px;letter-spacing:.12em}
+.thumb .cap{padding:5px 7px;display:flex;justify-content:space-between;gap:6px;color:var(--muted)}
+/* planner editor */
+.editor{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.editor textarea{min-height:260px;font-family:var(--mono);font-size:13px;line-height:1.6;resize:vertical}
+.preview{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--panel)}
+.preview h4{margin:0 0 4px;font-size:15px}
+.preview ul{margin:8px 0 0;padding-left:20px}
+.preview li{margin:3px 0}
+.preview li.h{list-style:none;margin-left:-20px;font-weight:600;margin-top:10px}
+/* phone frame */
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:22px;background:var(--panel);padding:14px 14px 18px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.phone .ph{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+.phone .form{grid-template-columns:1fr 1fr}
+.phone .btn{width:100%;margin-top:10px}
+/* ===== print sheet: 2 vouchers per A4 page ===== */
+.sheet{background:var(--paper);color:var(--paper-fg);width:min(100%,794px);margin:0 auto;padding:28px 32px;border:1px solid var(--line);box-shadow:0 2px 12px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:0}
+.voucher{border:1.5px solid #222;padding:14px 16px;min-height:0;position:relative;break-inside:avoid;page-break-inside:avoid}
+.voucher + .voucher{margin-top:0}
+.cutline{border-top:1px dashed #999;margin:14px 0;text-align:center;font-size:10px;color:#777;line-height:0}
+.cutline span{background:var(--paper);padding:0 8px;position:relative;top:-1px}
+.vh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1.5px solid #222;padding-bottom:8px;margin-bottom:10px}
+.vh .co{font-weight:600;font-size:15px}
+.vh .co small{display:block;font-weight:400;font-size:11px;color:#555}
+.vh .ti{text-align:right}
+.vh .ti b{display:block;letter-spacing:.1em;font-size:13px}
+.vh .ti span{font-family:var(--mono);font-size:12px}
+.vkv{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;font-size:12.5px}
+.vkv div{display:grid;grid-template-columns:110px 1fr;gap:6px;padding:3px 0;border-bottom:1px dotted #bbb}
+.vkv dt{color:#555}.vkv dd{margin:0;font-weight:500}
+.vcalc{margin-top:10px;border:1px solid #222}
+.vcalc table{font-size:12.5px}
+.vcalc th{color:#333;border-bottom:1px solid #222;background:#f1f1f1;padding:5px 8px}
+.vcalc td{padding:5px 8px;border-bottom:0}
+.vcalc tr.tot td{border-top:1.5px solid #222;font-weight:600;font-size:14px}
+.vfoot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:22px;font-size:11.5px;color:#444}
+.vfoot div{border-top:1px solid #222;padding-top:4px;text-align:center}
+.vcopy{display:block;font-size:10px;letter-spacing:.1em;color:#777;font-weight:500;margin-bottom:2px}
+.vphoto{display:inline-block;margin-top:8px;font-size:11px;color:#555;border:1px solid #bbb;border-radius:4px;padding:2px 8px;background:#fafafa}
+.printbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+@media print{
+  body{background:#fff}
+  .side,.topbar,.printbar,.screen:not(#print),.card.nop{display:none!important}
+  .main{padding:0}
+  .screen#print{display:block!important}
+  @page{size:A4;margin:12mm}
+  .sheet{width:auto;padding:0;border:0;box-shadow:none;margin:0}
+  .voucher{height:calc((297mm - 24mm - 14mm) / 2);}
+  .cutline{margin:6mm 0}
+}
+@media (max-width:760px){
+  .shell{flex-direction:column}
+  .side{width:auto;flex:none;padding-block:10px;padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .side nav{display:flex;flex-wrap:wrap;gap:4px}
+  .side .grp{margin-top:0}
+  .side nav button{width:auto;padding:6px 9px;font-size:13px}
+  .side h1{display:none}
+  .kv{grid-template-columns:1fr}
+  .editor{grid-template-columns:1fr}
+  .form .span2{grid-column:auto}
+  .vkv{grid-template-columns:1fr}
+  .vfoot{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .sheet{padding:14px}
+}
+@media (prefers-reduced-motion:no-preference){.screen.on{animation:fade .15s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">Cansport ERP</div>
+    <h1>Private Label Sales</h1>
+    <nav id="nav">
+      <button class="dim">Customers</button>
+      <button class="dim">Sales Orders</button>
+      <button class="dim">Visit Reports</button>
+      <button class="dim">Salesman Activity</button>
+      <button data-s="planner" class="on">Salesman Planner <span class="tag">NEW</span></button>
+      <button data-s="trips">Fuel Trips <span class="tag">CHANGED</span></button>
+      <button data-s="print">Fuel Vouchers · Print <span class="tag">NEW</span></button>
+      <button class="dim">Fuel Weekly Payouts</button>
+      <div class="grp"><h1>Super Admin</h1></div>
+      <button data-s="admin">Fuel Rate Setting <span class="tag">CHANGED</span></button>
+      <div class="grp"><h1>Reference</h1></div>
+      <button data-s="map">How it connects</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ================= SALESMAN PLANNER ================= -->
+    <section class="screen on" id="planner">
+      <div class="topbar">
+        <div><div class="crumb">Private Label Sales › Salesman Planner</div><h2>Salesman Planner</h2></div>
+        <div class="row"><button class="btn ghost sm">My plans</button><button class="btn sm" onclick="show('plan-edit')">+ New plan</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Plans <small>each salesman sees their own; super admin and sales manager see all</small></h3>
+        <div class="row" style="margin-bottom:10px">
+          <div class="field" style="width:160px"><label>Week</label><input type="week" value="2026-W43"></div>
+          <div class="field" style="width:180px"><label>Salesman</label><select><option>All</option><option selected>Ahmed Raza</option><option>Bilal Khan</option></select></div>
+          <div class="field" style="width:150px"><label>Status</label><select><option>All</option><option>Draft</option><option>Submitted</option></select></div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Plan #</th><th>Salesman</th><th>Plan for</th><th>Title</th><th class="num">Points</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">PLN-0012</td><td>Ahmed Raza</td><td>Mon 20 Oct – Sat 25 Oct 2026</td><td>Week 43 · Sialkot &amp; Gujranwala visits</td><td class="num">9</td><td><span class="pill p-ok">Submitted</span></td><td><button class="btn ghost sm" onclick="show('plan-edit')">Open</button> <button class="btn ghost sm" onclick="show('plan-print')">Print</button></td></tr>
+            <tr><td class="mono">PLN-0011</td><td>Ahmed Raza</td><td>Mon 13 Oct – Sat 18 Oct 2026</td><td>Week 42 · Lahore follow-ups</td><td class="num">7</td><td><span class="pill p-ok">Submitted</span></td><td><button class="btn ghost sm">Open</button> <button class="btn ghost sm">Print</button></td></tr>
+            <tr><td class="mono">PLN-0013</td><td>Bilal Khan</td><td>Tue 21 Oct 2026</td><td>Daily · Faisalabad trip</td><td class="num">4</td><td><span class="pill p-warn">Draft</span></td><td><button class="btn ghost sm">Open</button> <button class="btn ghost sm">Print</button></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="card" id="plan-edit">
+        <h3>New plan <small>free text — one line per bullet point</small></h3>
+        <div class="form" style="margin-bottom:12px">
+          <div class="field"><label>Salesman <b>*</b></label><input value="Ahmed Raza" readonly><span class="hint">Locked to the signed-in salesman; super admin may pick anyone.</span></div>
+          <div class="field"><label>Plan for <b>*</b></label><select><option>Week (Mon–Sat)</option><option>Single day</option><option>Custom dates</option></select></div>
+          <div class="field"><label>From</label><input type="date" value="2026-10-20"></div>
+          <div class="field"><label>To</label><input type="date" value="2026-10-25"></div>
+          <div class="field span2"><label>Title</label><input value="Week 43 · Sialkot &amp; Gujranwala visits"></div>
+        </div>
+        <div class="editor">
+          <div class="field">
+            <label>Plan points <b>*</b></label>
+            <textarea id="plan-text" oninput="renderPlan()">Monday 20 Oct
+- Visit Al-Noor Sports, Sialkot — collect PO for 300 dz footballs
+- Deliver samples (size 5 PU) to Khawaja Exports
+Tuesday 21 Oct
+- Gujranwala: Hassan Traders payment follow-up (Rs 1,250,000 overdue)
+- New lead: Rehman Sports — show private label catalogue
+Wednesday 22 Oct
+- Office: update visit reports, submit fuel vouchers
+Thursday 23 Oct – Friday 24 Oct
+- Lahore round: Ali Sports, Punjab Sports House, Decathlon buyer meeting
+- Collect customer logo files for Nov job orders
+Saturday 25 Oct
+- Weekly review with Sales Manager</textarea>
+            <span class="hint">Lines starting with “-” or “•” become bullets. A line without a dash becomes a heading (e.g. a day). Numbering is kept as typed.</span>
+          </div>
+          <div>
+            <label class="muted" style="font-size:12px">Preview (this is what prints)</label>
+            <div class="preview" id="plan-preview"></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;justify-content:flex-end">
+          <button class="btn ghost">Save draft</button>
+          <button class="btn ghost" onclick="show('plan-print')">Print</button>
+          <button class="btn">Submit plan</button>
+        </div>
+      </div>
+
+      <div class="card" id="plan-print">
+        <h3>Print layout <small>A4 portrait · one plan per page · browser print dialog</small></h3>
+        <div class="sheet" style="padding:24px 28px">
+          <div class="vh">
+            <div class="co">Cansport (Pvt) Ltd<small>Private Label Sales · Salesman Plan</small></div>
+            <div class="ti"><b>SALESMAN PLAN</b><span>PLN-0012</span></div>
+          </div>
+          <div class="vkv" style="margin-bottom:12px">
+            <div><dt>Salesman</dt><dd>Ahmed Raza (SE04)</dd></div>
+            <div><dt>Plan period</dt><dd>Mon 20 Oct – Sat 25 Oct 2026</dd></div>
+            <div><dt>Title</dt><dd>Week 43 · Sialkot &amp; Gujranwala visits</dd></div>
+            <div><dt>Submitted</dt><dd>18 Oct 2026, 17:40</dd></div>
+          </div>
+          <div class="preview" id="plan-preview-print" style="border:0;padding:0;color:inherit;background:transparent"></div>
+          <div class="vfoot" style="margin-top:40px"><div>Salesman</div><div>Sales Manager</div><div>Super Admin</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FUEL TRIP ENTRY ================= -->
+    <section class="screen" id="trips">
+      <div class="topbar">
+        <div><div class="crumb">Private Label Sales › Fuel Trips</div><h2>Fuel Trips · New trip entry</h2></div>
+        <div class="row"><button class="btn ghost sm">Trip list</button><button class="btn sm">+ New trip</button></div>
+      </div>
+
+      <div class="note" style="margin-bottom:14px">
+        <b>Formula:</b> Petrol price (entered by salesman, Rs/litre) × Multiplying factor (set by super admin) = <b>Rate per km</b>.&nbsp;
+        Rate per km × Km = <b>Voucher amount</b>. The factor and price are snapshotted on the trip so old vouchers never change.
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>Trip details</h3>
+          <div class="form">
+            <div class="field"><label>Date <b>*</b></label><input type="date" value="2026-10-21"></div>
+            <div class="field"><label>Salesman <b>*</b></label><input value="Ahmed Raza (SE04)" readonly></div>
+            <div class="field span2"><label>Vehicle</label><select><option>Honda CD-70 · LEB-4521 (active)</option><option>Auto (active vehicle)</option></select></div>
+            <div class="field"><label>From</label><input value="Office, Sialkot"></div>
+            <div class="field"><label>To</label><input value="Gujranwala"></div>
+            <div class="field span2"><label>Purpose</label><input value="Customer visit — Hassan Traders payment follow-up"></div>
+            <div class="field span2"><label>Customer (optional)</label><select><option>Hassan Traders</option><option>No customer</option></select></div>
+          </div>
+
+          <div class="sect">Distance</div>
+          <div class="form">
+            <div class="field"><label>Start Odo (km) <b>*</b></label><input type="number" id="f-start" value="48210" oninput="calc()"><span class="hint">Pre-filled from last trip's End Odo</span></div>
+            <div class="field"><label>End Odo (km) <b>*</b></label><input type="number" id="f-end" value="48296" oninput="calc()"></div>
+            <div class="field"><label>Km (auto)</label><input id="f-km" readonly value="86.0"></div>
+          </div>
+
+          <div class="sect">Amount</div>
+          <div class="form">
+            <div class="field"><label>Petrol price today (Rs / litre) <b>*</b></label><input type="number" step="0.01" id="f-price" value="272.50" oninput="calc()"><span class="hint">Salesman enters the pump price on the day. Last entered: Rs 270.00 (18 Oct).</span></div>
+            <div class="field lock"><label>Multiplying factor</label><input id="f-factor" value="0.1000" readonly><span class="hint">Set by super admin · effective 01 Oct 2026 · not editable here</span></div>
+            <div class="field lock"><label>Rate per km (Rs)</label><input id="f-rate" readonly value="27.25"><span class="hint">= price × factor</span></div>
+            <div class="field lock"><label>Voucher amount (Rs)</label><input id="f-amt" readonly value="2,343.50" style="font-size:16px"><span class="hint">= rate × km</span></div>
+          </div>
+
+          <div class="sect">Vehicle meter photo <b style="color:var(--bad)">*</b></div>
+          <div class="form">
+            <div class="field">
+              <label>Start meter</label>
+              <div class="drop"><b>📷 Take photo / upload</b>JPG · PNG · HEIC · max 5 MB<br>Camera opens directly on phone</div>
+            </div>
+            <div class="field">
+              <label>End meter</label>
+              <div class="drop"><b>📷 Take photo / upload</b>JPG · PNG · HEIC · max 5 MB<br>Camera opens directly on phone</div>
+            </div>
+          </div>
+          <div class="thumbs">
+            <div class="thumb"><div class="img">048210</div><div class="cap"><span>start · 08:12</span><span>✕</span></div></div>
+            <div class="thumb"><div class="img">048296</div><div class="cap"><span>end · 17:48</span><span>✕</span></div></div>
+          </div>
+          <div class="field" style="margin-top:12px"><label>Remarks</label><input placeholder="Optional"></div>
+
+          <div class="row" style="margin-top:14px;justify-content:flex-end">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn">Post trip &amp; print voucher</button>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:6px">Post is blocked until both meter photos are attached and End Odo &gt; Start Odo. After posting the voucher opens in the print sheet (2 per page).</div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h3>Live calculation</h3>
+            <div class="calc">
+              <div class="c"><div class="k">Km</div><div class="v" id="c-km">86.0</div><div class="s">End − Start odo</div></div>
+              <div class="c"><div class="k">Petrol Rs/L</div><div class="v" id="c-price">272.50</div><div class="s">entered by salesman</div></div>
+              <div class="c lock"><div class="k">Factor</div><div class="v" id="c-factor">0.1000</div><div class="s">fixed</div></div>
+              <div class="c"><div class="k">Rate / km</div><div class="v" id="c-rate">27.25</div><div class="s">price × factor</div></div>
+              <div class="c total"><div class="k">Amount</div><div class="v" id="c-amt">2,343.50</div><div class="s">rate × km</div></div>
+            </div>
+            <div class="flow" style="margin-top:10px" id="c-flow">272.50 × 0.1000 = 27.25 Rs/km
+27.25 × 86.0 km = Rs 2,343.50</div>
+          </div>
+
+          <div class="card">
+            <h3>Phone view <small>the salesman posts from the road</small></h3>
+            <div class="phone">
+              <div class="ph"><span>9:41</span><span>New trip</span><span>●●●</span></div>
+              <div class="form">
+                <div class="field"><label>Date</label><input value="21 Oct"></div>
+                <div class="field"><label>Vehicle</label><input value="LEB-4521"></div>
+                <div class="field"><label>Start Odo</label><input value="48210"></div>
+                <div class="field"><label>End Odo</label><input value="48296"></div>
+                <div class="field"><label>Petrol Rs/L</label><input value="272.50"></div>
+                <div class="field lock"><label>Rate/km</label><input value="27.25" readonly></div>
+              </div>
+              <div class="drop" style="margin-top:10px"><b>📷 Start meter photo</b>tap to open camera</div>
+              <div class="drop" style="margin-top:8px"><b>📷 End meter photo</b>tap to open camera</div>
+              <div class="calc" style="margin-top:10px;grid-template-columns:1fr 1fr"><div class="c"><div class="k">Km</div><div class="v">86.0</div></div><div class="c total"><div class="k">Amount</div><div class="v">2,343.50</div></div></div>
+              <button class="btn">Post trip</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Trip list <small>new columns: Petrol Rs/L, Factor, Rate/km, Photos, Print</small></h3>
+        <div class="tw"><table>
+          <thead><tr><th>Voucher #</th><th>Date</th><th>Salesman</th><th>Route</th><th class="num">Km</th><th class="num">Petrol Rs/L</th><th class="num">Factor</th><th class="num">Rate/km</th><th class="num">Amount</th><th>Photos</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">FV-00231</td><td>21 Oct</td><td>Ahmed Raza</td><td>Sialkot → Gujranwala</td><td class="num">86.0</td><td class="num">272.50</td><td class="num">0.1000</td><td class="num">27.25</td><td class="num"><b>2,343.50</b></td><td>📷 2</td><td><span class="pill p-warn">Submitted</span></td><td><button class="btn ghost sm" onclick="show('print')">Print</button></td></tr>
+            <tr><td class="mono">FV-00230</td><td>20 Oct</td><td>Ahmed Raza</td><td>Sialkot → Daska → Sialkot</td><td class="num">42.0</td><td class="num">270.00</td><td class="num">0.1000</td><td class="num">27.00</td><td class="num"><b>1,134.00</b></td><td>📷 2</td><td><span class="pill p-ok">Approved</span></td><td><button class="btn ghost sm" onclick="show('print')">Print</button></td></tr>
+            <tr><td class="mono">FV-00229</td><td>18 Oct</td><td>Bilal Khan</td><td>Lahore round</td><td class="num">118.5</td><td class="num">270.00</td><td class="num">0.1000</td><td class="num">27.00</td><td class="num"><b>3,199.50</b></td><td><span class="pill p-bad">missing</span></td><td><span class="pill p-bad">Rejected</span></td><td><button class="btn ghost sm" disabled>Print</button></td></tr>
+          </tbody>
+        </table></div>
+        <div class="row" style="margin-top:10px"><button class="btn ghost sm" onclick="show('print')">Print selected vouchers (2 per page)</button><span class="muted" style="font-size:12px">Select rows with checkboxes → one print job, two vouchers per A4 sheet.</span></div>
+      </div>
+    </section>
+
+    <!-- ================= VOUCHER PRINT ================= -->
+    <section class="screen" id="print">
+      <div class="topbar">
+        <div><div class="crumb">Private Label Sales › Fuel Trips › Print</div><h2>Fuel Vouchers · Print sheet</h2></div>
+      </div>
+      <div class="printbar card nop" style="margin-bottom:12px">
+        <div class="row"><span><b>2 vouchers selected</b> · 1 page</span><span class="muted">A4 portrait · 2 vouchers per page · cut along the dashed line</span></div>
+        <div class="row"><button class="btn ghost sm">Copy: Salesman</button><button class="btn ghost sm">Copy: Accounts</button><button class="btn sm" onclick="window.print()">🖨 Print</button></div>
+      </div>
+
+      <div class="sheet">
+        <div class="voucher">
+          <div class="vh">
+            <div class="co">Cansport (Pvt) Ltd<small>Private Label Sales · Fuel Trip Voucher</small></div>
+            <div class="ti"><span class="vcopy">ACCOUNTS COPY</span><b>FUEL VOUCHER</b><span>FV-00231</span></div>
+          </div>
+          <div class="vkv">
+            <div><dt>Salesman</dt><dd>Ahmed Raza (SE04)</dd></div>
+            <div><dt>Trip date</dt><dd>Tue 21 Oct 2026</dd></div>
+            <div><dt>Vehicle</dt><dd>Honda CD-70 · LEB-4521</dd></div>
+            <div><dt>Customer</dt><dd>Hassan Traders</dd></div>
+            <div><dt>Route</dt><dd>Office, Sialkot → Gujranwala</dd></div>
+            <div><dt>Purpose</dt><dd>Payment follow-up</dd></div>
+            <div><dt>Start / End odo</dt><dd>48,210 → 48,296 km</dd></div>
+            <div><dt>Posted</dt><dd>21 Oct 2026 17:52</dd></div>
+          </div>
+          <div class="vcalc"><table>
+            <thead><tr><th>Km</th><th class="num">Petrol price (Rs/L)</th><th class="num">× Factor</th><th class="num">= Rate / km</th><th class="num">Amount (Rs)</th></tr></thead>
+            <tbody>
+              <tr><td class="num" style="text-align:left">86.0</td><td class="num">272.50</td><td class="num">0.1000</td><td class="num">27.25</td><td class="num">2,343.50</td></tr>
+              <tr class="tot"><td colspan="4">Total payable &nbsp;<span style="font-weight:400;font-size:12px;color:#555">Rupees two thousand three hundred forty-three and fifty paisa only</span></td><td class="num">Rs 2,343.50</td></tr>
+            </tbody>
+          </table></div>
+          <div class="vphoto">📷 Meter photos on file: start 48,210 · end 48,296 (view in ERP)</div>
+          <div class="vfoot"><div>Salesman</div><div>Approved by (Sales Manager)</div><div>Paid by (Accounts)</div></div>
+        </div>
+
+        <div class="cutline"><span>✂ cut here</span></div>
+
+        <div class="voucher">
+          <div class="vh">
+            <div class="co">Cansport (Pvt) Ltd<small>Private Label Sales · Fuel Trip Voucher</small></div>
+            <div class="ti"><span class="vcopy">SALESMAN COPY</span><b>FUEL VOUCHER</b><span>FV-00230</span></div>
+          </div>
+          <div class="vkv">
+            <div><dt>Salesman</dt><dd>Ahmed Raza (SE04)</dd></div>
+            <div><dt>Trip date</dt><dd>Mon 20 Oct 2026</dd></div>
+            <div><dt>Vehicle</dt><dd>Honda CD-70 · LEB-4521</dd></div>
+            <div><dt>Customer</dt><dd>Al-Noor Sports</dd></div>
+            <div><dt>Route</dt><dd>Sialkot → Daska → Sialkot</dd></div>
+            <div><dt>Purpose</dt><dd>Sample delivery</dd></div>
+            <div><dt>Start / End odo</dt><dd>48,168 → 48,210 km</dd></div>
+            <div><dt>Posted</dt><dd>20 Oct 2026 18:05</dd></div>
+          </div>
+          <div class="vcalc"><table>
+            <thead><tr><th>Km</th><th class="num">Petrol price (Rs/L)</th><th class="num">× Factor</th><th class="num">= Rate / km</th><th class="num">Amount (Rs)</th></tr></thead>
+            <tbody>
+              <tr><td class="num" style="text-align:left">42.0</td><td class="num">270.00</td><td class="num">0.1000</td><td class="num">27.00</td><td class="num">1,134.00</td></tr>
+              <tr class="tot"><td colspan="4">Total payable &nbsp;<span style="font-weight:400;font-size:12px;color:#555">Rupees one thousand one hundred thirty-four only</span></td><td class="num">Rs 1,134.00</td></tr>
+            </tbody>
+          </table></div>
+          <div class="vphoto">📷 Meter photos on file: start 48,168 · end 48,210 (view in ERP)</div>
+          <div class="vfoot"><div>Salesman</div><div>Approved by (Sales Manager)</div><div>Paid by (Accounts)</div></div>
+        </div>
+      </div>
+      <p class="muted nop card" style="font-size:12.5px">When a salesman posts one trip, the sheet prints that voucher twice (Accounts copy + Salesman copy) so one A4 page is used. When several vouchers are selected from the list they pair up two per page, each as the Accounts copy, with a cut line between them.</p>
+    </section>
+
+    <!-- ================= SUPER ADMIN SETTING ================= -->
+    <section class="screen" id="admin">
+      <div class="topbar">
+        <div><div class="crumb">Private Label Sales › Super Admin › Fuel Rate Setting</div><h2>Fuel Rate Setting</h2></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Multiplying factor <small>super admin only</small></h3>
+          <div class="form">
+            <div class="field"><label>Current factor</label><input value="0.1000" style="font-size:18px;font-weight:600"><span class="hint">Rate per km = petrol price × this factor. Four decimals.</span></div>
+            <div class="field"><label>Effective from</label><input type="date" value="2026-10-01"></div>
+            <div class="field span2"><label>Reason / note</label><input value="Approved by MD — bikes avg 10 km/L"></div>
+          </div>
+          <div class="note warn" style="margin:12px 0">Changing the factor affects only trips posted after the effective date. Vouchers already posted keep their snapshotted factor.</div>
+          <div class="row" style="justify-content:flex-end"><button class="btn ghost">Cancel</button><button class="btn">Save new factor</button></div>
+
+          <div class="sect">Example at today's price</div>
+          <div class="calc">
+            <div class="c"><div class="k">Petrol Rs/L</div><div class="v">272.50</div><div class="s">last entered by a salesman</div></div>
+            <div class="c lock"><div class="k">Factor</div><div class="v">0.1000</div></div>
+            <div class="c total"><div class="k">Rate / km</div><div class="v">27.25</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Factor history</h3>
+          <div class="tw"><table>
+            <thead><tr><th>Effective</th><th class="num">Factor</th><th>Changed by</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>01 Oct 2026</td><td class="num"><b>0.1000</b> <span class="pill p-ok">current</span></td><td>Super Admin</td><td>Approved by MD — bikes avg 10 km/L</td></tr>
+              <tr><td>01 Jul 2026</td><td class="num">0.0909</td><td>Super Admin</td><td>11 km/L assumption</td></tr>
+              <tr><td>01 Jan 2026</td><td class="num">0.0833</td><td>Super Admin</td><td>Initial (12 km/L)</td></tr>
+            </tbody>
+          </table></div>
+          <div class="sect">Optional guards</div>
+          <dl class="kv">
+            <dt>Max km per trip</dt><dd>250 km (warn above, block above 400)</dd>
+            <dt>Petrol price band</dt><dd>Rs 200 – 350 /L · entries outside need super admin approval</dd>
+            <dt>Meter photo</dt><dd>Required (start + end) · cannot post without</dd>
+            <dt>Who can edit factor</dt><dd>super_admin only</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Who enters what</h3>
+        <div class="tw"><table>
+          <thead><tr><th>Field</th><th>Entered by</th><th>When</th><th>Stored on trip as</th></tr></thead>
+          <tbody>
+            <tr><td>Petrol price (Rs/L)</td><td>Salesman</td><td>Every trip</td><td class="mono">fuel_price_snapshot</td></tr>
+            <tr><td>Multiplying factor</td><td>Super admin</td><td>When prices / policy change</td><td class="mono">rate_factor_snapshot</td></tr>
+            <tr><td>Rate per km</td><td>— (computed)</td><td>On post</td><td class="mono">rate_per_km</td></tr>
+            <tr><td>Start / End odo, km</td><td>Salesman</td><td>Every trip</td><td class="mono">start_odo, end_odo, km</td></tr>
+            <tr><td>Meter photos</td><td>Salesman (camera)</td><td>Every trip, 2 photos</td><td class="mono">odo_start_photo_url, odo_end_photo_url</td></tr>
+            <tr><td>Amount</td><td>— (computed)</td><td>On post</td><td class="mono">amount</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- ================= MAP ================= -->
+    <section class="screen" id="map">
+      <div class="topbar"><div><div class="crumb">Reference</div><h2>How it connects</h2></div></div>
+      <div class="card">
+        <h3>Fuel trip flow</h3>
+<div class="flow">Super admin sets FACTOR (0.1000, effective 01 Oct) ─────────────┐
+                                                                  ▼
+Salesman: date · vehicle · start/end odo · PETROL PRICE · 2 meter photos
+                                                                  │
+   km = end − start            rate/km = price × factor           │
+   amount = km × rate/km   ──► trip posted (snapshots price, factor, rate)
+                                                                  │
+                        ┌─────────────────────────────────────────┘
+                        ▼
+              Print sheet: 2 vouchers / A4 (Accounts + Salesman copy)
+                        ▼
+      Sales Manager approves ──► Fuel Weekly Payouts (existing) ──► Paid</div>
+      </div>
+      <div class="card">
+        <h3>Salesman planner flow</h3>
+<div class="flow">Salesman writes plan as free text (one line = one bullet; plain line = day heading)
+      ▼
+Save draft ──► Submit ──► visible to Sales Manager / Super Admin
+      ▼
+Print (A4, one plan per page) · later: link each plan line to a Visit Report</div>
+      </div>
+      <div class="card">
+        <h3>Open questions for you</h3>
+        <ul style="margin:0;padding-left:18px">
+          <li>Should the petrol price be free for each trip, or default to the last entered price and only change when the salesman edits it?</li>
+          <li>Two meter photos (start + end) or one photo of the end reading only?</li>
+          <li>When one voucher is printed alone: two copies on the page (as mocked), or the second half left blank?</li>
+          <li>Planner: weekly plan per salesman, daily plan, or both (as mocked)?</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+function show(id){
+  const scr = ['planner','trips','print','admin','map'];
+  const target = scr.includes(id) ? id : (id.startsWith('plan') ? 'planner' : id);
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id===target));
+  document.querySelectorAll('#nav button[data-s]').forEach(b=>b.classList.toggle('on', b.dataset.s===target));
+  if(!scr.includes(id)){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
+  else window.scrollTo({top:0});
+}
+document.getElementById('nav').addEventListener('click', e=>{ const b=e.target.closest('button[data-s]'); if(b) show(b.dataset.s); });
+
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function renderPlan(){
+  const lines = document.getElementById('plan-text').value.split('\n');
+  let html = '<h4>Week 43 · Sialkot &amp; Gujranwala visits</h4><div class="muted" style="font-size:12px">Ahmed Raza (SE04) · Mon 20 Oct – Sat 25 Oct 2026</div><ul>';
+  for (const raw of lines){
+    const l = raw.trim(); if(!l) continue;
+    const m = l.match(/^[-•*]\s*(.*)$/);
+    html += m ? `<li>${esc(m[1])}</li>` : `<li class="h">${esc(l)}</li>`;
+  }
+  html += '</ul>';
+  document.getElementById('plan-preview').innerHTML = html;
+  document.getElementById('plan-preview-print').innerHTML = html;
+}
+function fmt(n,d=2){return n.toLocaleString('en-PK',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function calc(){
+  const s=+document.getElementById('f-start').value||0, e=+document.getElementById('f-end').value||0;
+  const p=+document.getElementById('f-price').value||0, f=+document.getElementById('f-factor').value||0;
+  const km=Math.max(0,e-s), rate=p*f, amt=rate*km;
+  document.getElementById('f-km').value=fmt(km,1);
+  document.getElementById('f-rate').value=fmt(rate);
+  document.getElementById('f-amt').value=fmt(amt);
+  document.getElementById('c-km').textContent=fmt(km,1);
+  document.getElementById('c-price').textContent=fmt(p);
+  document.getElementById('c-rate').textContent=fmt(rate);
+  document.getElementById('c-amt').textContent=fmt(amt);
+  document.getElementById('c-flow').textContent=`${fmt(p)} × ${f.toFixed(4)} = ${fmt(rate)} Rs/km\n${fmt(rate)} × ${fmt(km,1)} km = Rs ${fmt(amt)}`;
+}
+renderPlan(); calc();
+</script>
+</html>
