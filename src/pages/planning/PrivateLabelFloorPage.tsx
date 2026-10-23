@@ -182,6 +182,8 @@ function PinScreen({ message, onUnlock }: { message: string | null; onUnlock: (p
 interface OrderCardProps {
   order: FloorOrder;
   update: UpdateStatus;
+  /** First order in the queue that is not production-done. */
+  isNext: boolean;
   printing: boolean;
   onPrint: () => void;
   onUpdate: () => void;
@@ -226,7 +228,7 @@ function UpdateClock({ order, update }: { order: FloorOrder; update: UpdateStatu
   );
 }
 
-function OrderCard({ order, update, printing, onPrint, onUpdate, onCheckin, onDone }: OrderCardProps) {
+function OrderCard({ order, update, isNext, printing, onPrint, onUpdate, onCheckin, onDone }: OrderCardProps) {
   const overdue = order.required_by_date && order.required_by_date < format(new Date(), "yyyy-MM-dd");
   const total = Number(order.total_dozens);
   const done = Number(order.done_dozens);
@@ -238,23 +240,37 @@ function OrderCard({ order, update, printing, onPrint, onUpdate, onCheckin, onDo
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border-2 bg-card p-4",
+        "relative flex flex-col gap-3 rounded-xl border-2 bg-card p-4",
         isCompany && "border-sky-200",
+        isNext && "border-primary ring-4 ring-primary/30",
         isDone && "border-green-500 bg-green-50/40",
         update.state === "due_soon" && "border-amber-400",
         update.state === "overdue" && "border-red-600 bg-red-50/60 ring-4 ring-red-500/40",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-mono text-sm font-semibold">{order.pl_job_order_number}</div>
-          <div className="text-lg font-bold leading-tight">
-            {isCompany ? "Company products" : order.customer_name}
+        <div className="flex items-start gap-3">
+          {/* Floor sequence: the queue position set in Planning. */}
+          <div
+            className={cn(
+              "flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl font-extrabold leading-none",
+              isNext ? "bg-primary text-primary-foreground" : isDone ? "bg-green-600 text-white" : "bg-muted text-foreground",
+            )}
+            title="Floor sequence"
+          >
+            <span className="text-2xl">{order.floor_sequence ?? "—"}</span>
+            {isNext && <span className="text-[10px] tracking-widest">NEXT</span>}
           </div>
+          <div>
+            <div className="font-mono text-sm font-semibold">{order.pl_job_order_number}</div>
+            <div className="text-lg font-bold leading-tight">
+              {isCompany ? "Company products" : order.customer_name}
+            </div>
           {order.billing_customer_name && (
             <div className="text-sm text-muted-foreground">Bill to: {order.billing_customer_name}</div>
           )}
-          {order.brand_name && <div className="text-sm text-muted-foreground">Brand: {order.brand_name}</div>}
+            {order.brand_name && <div className="text-sm text-muted-foreground">Brand: {order.brand_name}</div>}
+          </div>
         </div>
         {order.last_printed_at ? (
           <Badge variant="outline" className="shrink-0 border-green-300 bg-green-50 text-green-700">
@@ -527,7 +543,6 @@ export default function PrivateLabelFloorPage() {
     return m;
   }, [orders, now]);
   const stateOf = (o: FloorOrder) => updates.get(o.id)?.state ?? "done";
-  const STATE_RANK = { overdue: 0, due_soon: 1, ok: 2, done: 3 } as const;
   // Every overdue order, whatever the tab: the alarm is for the whole floor.
   const overdueOrders = orders
     .filter((o) => stateOf(o) === "overdue")
@@ -563,10 +578,12 @@ export default function PrivateLabelFloorPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // Overdue orders first, then due soon; done orders are hidden unless
-    // asked for, then listed after the rest.
+    // Tiles keep the floor sequence set in Planning (the database already
+    // returns them in that order). An overdue update only colours the tile
+    // and sounds the alarm; it does not move the tile. Done orders are
+    // hidden unless asked for, then listed after the rest.
     const sorted = (showDone ? [...typeOrders] : typeOrders.filter((o) => !o.production_done_at)).sort(
-      (a, b) => STATE_RANK[stateOf(a)] - STATE_RANK[stateOf(b)],
+      (a, b) => Number(!!a.production_done_at) - Number(!!b.production_done_at),
     );
     if (!q) return sorted;
     return sorted.filter((o) =>
@@ -583,8 +600,11 @@ export default function PrivateLabelFloorPage() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeOrders, search, showDone, updates]);
+  }, [typeOrders, search, showDone]);
+
+  // The first live order of the whole queue (not just this tab): one "next"
+  // for the whole floor.
+  const nextId = orders.find((o) => !o.production_done_at)?.id ?? null;
 
   if (!pin) return <PinScreen message={pinMessage} onUnlock={unlock} />;
 
@@ -606,7 +626,8 @@ export default function PrivateLabelFloorPage() {
             <h1 className="text-2xl font-bold">Private Label &amp; Company Job Orders</h1>
             <p className="text-sm text-muted-foreground">{format(now, "EEEE, d MMM yyyy — hh:mm:ss a")}</p>
             <p className="text-xs text-muted-foreground">
-              Update every order at least every 2 hours · shift {String(SHIFT_START_HOUR).padStart(2, "0")}:00–{SHIFT_END_HOUR}:00
+              Tiles are in floor sequence (1 = next) · update every order at least every 2 hours · shift{" "}
+              {String(SHIFT_START_HOUR).padStart(2, "0")}:00–{SHIFT_END_HOUR}:00
               {!inShift && " · outside shift: clock paused"}
             </p>
           </div>
@@ -737,6 +758,7 @@ export default function PrivateLabelFloorPage() {
               key={o.id}
               order={o}
               update={updates.get(o.id) ?? updateStatus(null, true, now)}
+              isNext={o.id === nextId}
               printing={printingId === o.id}
               onPrint={() => print(o)}
               onUpdate={() => setProgressOrder(o)}

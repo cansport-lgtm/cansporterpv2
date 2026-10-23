@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Eye, KeyRound, Palette, Plus, Ruler, Tag } from "lucide-react";
+import { Eye, KeyRound, ListOrdered, Palette, Plus, Ruler, Tag } from "lucide-react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { PrivateLabelJobOrderDialog } from "@/components/planning/PrivateLabelJo
 import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizesDialog";
 import { PrivateLabelColorsDialog } from "@/components/planning/PrivateLabelColorsDialog";
 import { PrivateLabelFloorPinDialog } from "@/components/planning/PrivateLabelFloorPinDialog";
+import { PrivateLabelFloorSequenceDialog } from "@/components/planning/PrivateLabelFloorSequenceDialog";
 import {
   fetchOrders,
   isImage,
@@ -44,8 +45,10 @@ const priorityColor = (p: string) => {
 };
 
 export default function PrivateLabelJobOrdersPage() {
-  const { hasRole, roles } = useAuth();
+  const { hasRole, roles, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // Floor sequence: the same people who can issue (the database checks the role too).
+  const canSequence = hasModulePermission("planning", "edit");
   // Same rule as Job Orders: a production_operator may edit within 48h of creation.
   const isProductionOperator = roles.some((r) => r.role === "production_operator") && !isSuperAdmin;
   const canEdit = (o: Pick<PljoOrder, "created_at"> | null) => {
@@ -63,6 +66,7 @@ export default function PrivateLabelJobOrdersPage() {
   const [sizesOpen, setSizesOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
   const [floorPinOpen, setFloorPinOpen] = useState(false);
+  const [sequenceOpen, setSequenceOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["pljo-list", "private_label", status, fromDate, toDate],
@@ -102,6 +106,12 @@ export default function PrivateLabelJobOrdersPage() {
             <Button variant="outline" onClick={() => setFloorPinOpen(true)}>
               <KeyRound className="mr-2 h-4 w-4" />
               Floor PIN
+            </Button>
+          )}
+          {canSequence && (
+            <Button variant="outline" onClick={() => setSequenceOpen(true)}>
+              <ListOrdered className="mr-2 h-4 w-4" />
+              Floor sequence
             </Button>
           )}
           <Button variant="outline" onClick={() => setSizesOpen(true)}>
@@ -167,6 +177,7 @@ export default function PrivateLabelJobOrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="text-center" title="Floor sequence">Seq</TableHead>
                   <TableHead>PLJO #</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Required By</TableHead>
@@ -184,13 +195,13 @@ export default function PrivateLabelJobOrdersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground">
+                    <TableCell colSpan={13} className="text-center text-muted-foreground">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={13} className="py-8 text-center text-muted-foreground">
                       No private label job orders
                     </TableCell>
                   </TableRow>
@@ -203,6 +214,15 @@ export default function PrivateLabelJobOrdersPage() {
                     const logo = o.private_label_job_order_attachments?.find((a) => a.kind === "logo");
                     return (
                       <TableRow key={o.id} className="cursor-pointer" onClick={() => setDialog({ id: o.id })}>
+                        <TableCell className="text-center">
+                          {o.status === "Issued" && o.private_label_floor_sequence ? (
+                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-muted px-1.5 font-bold">
+                              {o.private_label_floor_sequence.seq}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono font-medium">{o.pl_job_order_number}</TableCell>
                         <TableCell>{o.order_date}</TableCell>
                         <TableCell>{o.required_by_date ?? "—"}</TableCell>
@@ -288,6 +308,7 @@ export default function PrivateLabelJobOrdersPage() {
       <PrivateLabelSizesDialog open={sizesOpen} onOpenChange={setSizesOpen} />
       <PrivateLabelColorsDialog open={colorsOpen} onOpenChange={setColorsOpen} />
       {isSuperAdmin && <PrivateLabelFloorPinDialog open={floorPinOpen} onOpenChange={setFloorPinOpen} />}
+      {canSequence && <PrivateLabelFloorSequenceDialog open={sequenceOpen} onOpenChange={setSequenceOpen} />}
     </ERPLayout>
   );
 }

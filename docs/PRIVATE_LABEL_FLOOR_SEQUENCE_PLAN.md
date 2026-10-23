@@ -1,6 +1,6 @@
 # Private Label Job Orders — Floor Priority Sequence (Plan)
 
-Status: **proposed, not built.**
+Status: **built.** See `docs/PRIVATE_LABEL_JOB_ORDERS.md` → "Floor sequence" for how it works now. Decisions taken: one shared queue; sequence is the primary floor order with overdue-update tiles only highlighted; `priority` stays; the planning roles that can issue may reorder. One change from the plan below: the number is stored in a side table `private_label_floor_sequence` instead of a column on the header, so a reorder never touches the header's `updated_at` (the floor's 2-hour update clock reads it) and never fires the header's guard / log / audit triggers.
 
 ## Goal
 

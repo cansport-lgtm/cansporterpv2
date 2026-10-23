@@ -359,6 +359,11 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
             <DialogTitle className="flex flex-wrap items-center gap-2">
               {title}
               {order && <Badge variant={statusVariant(status)}>{status}</Badge>}
+              {order && status === "Issued" && order.private_label_floor_sequence && (
+                <Badge variant="outline" title="Floor sequence">
+                  Floor #{order.private_label_floor_sequence.seq}
+                </Badge>
+              )}
               {order && !inWindow && (
                 <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
                   <Lock className="h-3 w-3" /> Edit window passed
