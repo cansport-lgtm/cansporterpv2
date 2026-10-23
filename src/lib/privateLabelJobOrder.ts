@@ -108,6 +108,8 @@ export interface PljoOrder {
   private_label_job_order_progress?: { dozens: number }[];
   production_done_at?: string | null;
   production_done_by_name?: string | null;
+  /** Position on the floor queue while Issued (list and detail queries). */
+  private_label_floor_sequence?: { seq: number } | null;
 }
 
 /** A saved line, with names for display and printing. */
@@ -250,7 +252,7 @@ export async function fetchOrders(filters: {
   let q = db
     .from("private_label_job_orders")
     .select(
-      `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity, products(code, name, grades(name))), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens)`,
+      `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity, products(code, name, grades(name))), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens), private_label_floor_sequence(seq)`,
     )
     .eq("order_type", filters.type)
     .order("order_date", { ascending: false })
@@ -268,7 +270,7 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
     db
       .from("private_label_job_orders")
       .select(
-        `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type)`,
+        `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_floor_sequence(seq)`,
       )
       .eq("id", id)
       .single(),
@@ -597,6 +599,8 @@ export interface FloorOrder {
   priority: PljoPriority;
   remarks: string | null;
   issued_at: string | null;
+  /** Position on the floor queue (1 = next). Null only before the backfill ran. */
+  floor_sequence: number | null;
   /** Null on company orders. */
   customer_name: string | null;
   billing_customer_name: string | null;
@@ -729,4 +733,62 @@ export async function fetchFloorPinStatus(): Promise<{ is_set: boolean; changed_
 export async function setFloorPin(pin: string) {
   const { error } = await db.rpc("pljo_floor_set_pin", { p_pin: pin });
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Floor sequence (supabase/migrations/20261114120000_private_label_floor_sequence.sql)
+// ---------------------------------------------------------------------------
+
+/** One Issued order as listed in the Floor Sequence dialog. */
+export interface FloorSequenceOrder {
+  id: string;
+  pl_job_order_number: string;
+  order_type: PljoOrderType;
+  required_by_date: string | null;
+  priority: PljoPriority;
+  issued_at: string | null;
+  updated_at: string;
+  brand_name: string | null;
+  production_done_at: string | null;
+  customers: { name: string } | null;
+  grades: { name: string } | null;
+  private_label_job_order_items: { quantity: number; products?: { name: string; grades: { name: string } | null } | null }[];
+  private_label_job_order_progress: { dozens: number; created_at: string }[];
+  private_label_job_order_floor_checkins: { created_at: string }[];
+  private_label_floor_sequence: { seq: number } | null;
+}
+
+/** Every Issued order (both types), in floor sequence. */
+export async function fetchFloorSequence(): Promise<FloorSequenceOrder[]> {
+  const { data, error } = await db
+    .from("private_label_job_orders")
+    .select(
+      "id, pl_job_order_number, order_type, required_by_date, priority, issued_at, updated_at, brand_name, production_done_at, customers!private_label_job_orders_customer_id_fkey(name), grades(name), private_label_job_order_items(quantity, products(name, grades(name))), private_label_job_order_progress(dozens, created_at), private_label_job_order_floor_checkins(created_at), private_label_floor_sequence(seq)",
+    )
+    .eq("status", "Issued");
+  if (error) throw error;
+  const rows = (data ?? []) as FloorSequenceOrder[];
+  const rank = (p: PljoPriority) => ({ critical: 0, high: 1, medium: 2, low: 3 })[p] ?? 3;
+  // Same order as the floor page: sequence, then the old priority fallback.
+  return rows.sort((a, b) => {
+    const sa = a.private_label_floor_sequence?.seq ?? Number.MAX_SAFE_INTEGER;
+    const sb = b.private_label_floor_sequence?.seq ?? Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    if (rank(a.priority) !== rank(b.priority)) return rank(a.priority) - rank(b.priority);
+    const da = a.required_by_date ?? "9999";
+    const db_ = b.required_by_date ?? "9999";
+    if (da !== db_) return da < db_ ? -1 : 1;
+    return a.pl_job_order_number.localeCompare(b.pl_job_order_number);
+  });
+}
+
+/**
+ * Save the whole queue: ids of every Issued order in the wanted order. The
+ * database refuses if the set of Issued orders changed since the list was
+ * loaded (someone issued or closed one), so the caller should reload then.
+ */
+export async function setFloorSequence(orderIds: string[]): Promise<{ changed: number }> {
+  const { data, error } = await db.rpc("pljo_set_floor_sequence", { p_order_ids: orderIds });
+  if (error) throw error;
+  return { changed: Number(data?.changed ?? 0) };
 }

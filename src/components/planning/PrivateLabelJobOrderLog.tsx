@@ -16,6 +16,7 @@ const ACTION_LABEL: Record<string, string> = {
   logo_removed: "Logo removed",
   artwork_added: "Artwork uploaded",
   artwork_removed: "Artwork removed",
+  sequenced: "Floor sequence set",
 };
 
 const FIELD_LABEL: Record<string, string> = {
@@ -39,6 +40,7 @@ const FIELD_LABEL: Record<string, string> = {
   packs_per_master: "Packs / master",
   file_name: "File",
   number: "Number",
+  floor_sequence: "Floor sequence",
 };
 
 const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
