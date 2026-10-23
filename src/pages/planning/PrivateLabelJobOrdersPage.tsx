@@ -45,6 +45,16 @@ const priorityColor = (p: string) => {
   }
 };
 
+/** Figures every row shows (desktop table and phone card alike). */
+const rowData = (o: PljoOrder) => {
+  const lines = o.private_label_job_order_items ?? [];
+  const total = lines.reduce((s, l) => s + Number(l.quantity || 0), 0);
+  const produced = (o.private_label_job_order_progress ?? []).reduce((s, p) => s + Number(p.dozens), 0);
+  const pctDone = producedPct(produced, total);
+  const logo = o.private_label_job_order_attachments?.find((a) => a.kind === "logo");
+  return { lines, total, produced, pctDone, logo };
+};
+
 export default function PrivateLabelJobOrdersPage() {
   const { hasRole, roles, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
@@ -131,15 +141,15 @@ export default function PrivateLabelJobOrdersPage() {
         </PageHeader>
 
         <Card>
-          <CardContent className="flex flex-wrap items-end gap-3 py-4">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:flex-wrap sm:items-end">
             <Input
               placeholder="Search number, customer, brand, PO, grade…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-72"
+              className="w-full sm:w-72"
             />
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -152,7 +162,7 @@ export default function PrivateLabelJobOrdersPage() {
               </SelectContent>
             </Select>
             <Select value={gradeId} onValueChange={setGradeId}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -164,19 +174,177 @@ export default function PrivateLabelJobOrdersPage() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">From Date</Label>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">To Date</Label>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" />
+            {/* Phones: the two dates share one row. sm+: `contents` dissolves the
+                wrapper so both fields sit in the flex row exactly as before. */}
+            <div className="grid grid-cols-2 gap-3 sm:contents">
+              <div className="flex min-w-0 flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">From Date</Label>
+                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full min-w-0 sm:w-40" />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">To Date</Label>
+                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full min-w-0 sm:w-40" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="overflow-x-auto p-0">
+          {/* Phones (< md): one card per job order. */}
+          <CardContent className="space-y-2 p-3 md:hidden">
+            {isLoading ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
+            ) : filtered.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No private label job orders</div>
+            ) : (
+              filtered.map((o) => {
+                const { lines, total, produced, pctDone, logo } = rowData(o);
+                const seq = o.status === "Issued" ? o.private_label_floor_sequence?.seq : undefined;
+                return (
+                  <div
+                    key={o.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setDialog({ id: o.id })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setDialog({ id: o.id });
+                      }
+                    }}
+                    className="cursor-pointer space-y-2 rounded-lg border bg-card p-3 text-sm active:bg-muted/50"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {seq != null && (
+                          <span
+                            className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md bg-muted px-1.5 font-bold"
+                            title="Floor sequence"
+                          >
+                            {seq}
+                          </span>
+                        )}
+                        <span className="truncate font-mono font-medium">{o.pl_job_order_number}</span>
+                      </div>
+                      <Badge variant={statusVariant(o.status)} className="shrink-0">
+                        {o.status}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{o.customers?.name}</div>
+                        {o.brand_name && <div className="truncate text-xs text-muted-foreground">{o.brand_name}</div>}
+                        {o.billing_customer_id !== o.customer_id && o.billing_customer?.name && (
+                          <div className="truncate text-xs text-muted-foreground">Bill to: {o.billing_customer.name}</div>
+                        )}
+                      </div>
+                      <div className="shrink-0">
+                        {logo ? (
+                          isImage(logo.mime_type) ? (
+                            <img
+                              src={publicUrl(logo.file_path)}
+                              alt="logo"
+                              className="h-8 w-12 rounded border bg-white object-contain"
+                            />
+                          ) : (
+                            <span className="text-xs">Logo: File</span>
+                          )
+                        ) : (
+                          <span className="text-xs text-amber-600">Logo missing</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Date</dt>
+                        <dd>{o.order_date}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Required by</dt>
+                        <dd>{o.required_by_date ?? "—"}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Grade</dt>
+                        <dd className="truncate">{o.grades?.name ?? "—"}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Priority</dt>
+                        <dd>
+                          <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", priorityColor(o.priority))}>
+                            {o.priority}
+                          </Badge>
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Sizes</dt>
+                        <dd>{lines.length}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Total Dz</dt>
+                        <dd className="font-medium">{total.toLocaleString()}</dd>
+                      </div>
+                    </dl>
+
+                    {o.status !== "Draft" && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Produced</span>
+                          <span>
+                            {produced.toLocaleString()} Dz · {pctDone}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={pctDone}
+                          className={cn("h-2", o.production_done_at && "[&>div]:bg-green-600")}
+                        />
+                        {o.production_done_at && (
+                          <div className="text-xs font-medium text-green-700" title={o.production_done_by_name ?? undefined}>
+                            Production done
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 border-t pt-2">
+                      {canSequence && o.status === "Issued" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={cn(
+                            "h-8",
+                            o.production_done_at && "border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800",
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDispatchTarget({
+                              id: o.id,
+                              number: o.pl_job_order_number,
+                              label: [o.customers?.name, o.brand_name].filter(Boolean).join(" · "),
+                              orderedDz: total,
+                              producedDz: produced,
+                              productionDone: !!o.production_done_at,
+                            });
+                          }}
+                        >
+                          <Truck className="mr-1.5 h-4 w-4" />
+                          Dispatch
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-8">
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        Open
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+
+          {/* md+: the table, unchanged. */}
+          <CardContent className="hidden overflow-x-auto p-0 md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -210,11 +378,7 @@ export default function PrivateLabelJobOrdersPage() {
                   </TableRow>
                 ) : (
                   filtered.map((o) => {
-                    const lines = o.private_label_job_order_items ?? [];
-                    const total = lines.reduce((s, l) => s + Number(l.quantity || 0), 0);
-                    const produced = (o.private_label_job_order_progress ?? []).reduce((s, p) => s + Number(p.dozens), 0);
-                    const pctDone = producedPct(produced, total);
-                    const logo = o.private_label_job_order_attachments?.find((a) => a.kind === "logo");
+                    const { lines, total, produced, pctDone, logo } = rowData(o);
                     return (
                       <TableRow key={o.id} className="cursor-pointer" onClick={() => setDialog({ id: o.id })}>
                         <TableCell className="text-center">
