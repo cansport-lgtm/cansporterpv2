@@ -217,10 +217,7 @@ export interface MultiMaterialRowPdf {
   variancePct: number;
   closing: number;
   bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number; departmentName: string }[];
-}
-
-export interface MultiDepartmentUsagePdf extends DepartmentUsagePdf {
-  unit: string;
+  departments: { departmentName: string; produced: number; standard: number; actualEst: number; pctOfMaterial: number }[];
 }
 
 export interface MultiMaterialUsageReportPdfOptions {
@@ -229,7 +226,6 @@ export interface MultiMaterialUsageReportPdfOptions {
   generatedOn: string;
   statusLine: string;
   rows: MultiMaterialRowPdf[];
-  departmentUsage: MultiDepartmentUsagePdf[];
   includeBomBreakdown: boolean;
 }
 
@@ -275,6 +271,16 @@ export function buildMultiMaterialUsageReportPdf(o: MultiMaterialUsageReportPdfO
         hasVariance ? signed(r.variance) : "-", num(r.closing),
       ]),
     ];
+    if (r.departments.length > 0) {
+      block.push(line(padRight("  Department", I_NUM_W * 2) + ["Produced", "Standard", "Actual Est.", "% item"].map((c) => padLeft(c, I_NUM_W)).join(""), true, 7.5));
+      r.departments.forEach((d) => {
+        block.push(line(
+          padRight("  " + d.departmentName, I_NUM_W * 2) +
+          [num(d.produced), num(d.standard), num(d.actualEst), d.pctOfMaterial.toFixed(1) + "%"].map((c) => padLeft(c, I_NUM_W)).join(""),
+          false, 7.5
+        ));
+      });
+    }
     if (o.includeBomBreakdown) {
       if (r.bomBreakdown.length > 0) {
         r.bomBreakdown.forEach((b) => {
@@ -288,25 +294,12 @@ export function buildMultiMaterialUsageReportPdf(o: MultiMaterialUsageReportPdfO
     blocks.push(block);
   });
 
-  const dept: PdfToken[] = [BLANK, line("DEPARTMENT-WISE USAGE BREAKDOWN", true, 10)];
-  dept.push(line(padRight("Unit", M_UNIT_W) + padRight("Department", DEPT_W - M_UNIT_W) +
-    padLeft("Produced", DNUM_W) + padLeft("Standard", DNUM_W) + padLeft("Actual Est.", DNUM_W) + padLeft("% Unit", DPCT_W), true));
-  dept.push(line("-".repeat(DEPT_RULE_W)));
-  if (o.departmentUsage.length === 0) {
-    dept.push(line("  No department-linked production on this date"));
-  } else {
-    o.departmentUsage.forEach((d) => {
-      dept.push(line(padRight(d.unit, M_UNIT_W - 1) + " " + padRight(d.departmentName, DEPT_W - M_UNIT_W) +
-        padLeft(num(d.produced), DNUM_W) + padLeft(num(d.standard), DNUM_W) + padLeft(num(d.actualEst), DNUM_W) +
-        padLeft(d.pctOfTotal.toFixed(1) + "%", DPCT_W)));
-    });
-    dept.push(
-      line("Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual", false, 7),
-      line("consumption by each department's share of its standard usage. % is of the unit's standard total.", false, 7)
-    );
+  if (o.rows.some((r) => r.departments.length > 0)) {
+    blocks.push([
+      line("Department split: standard is exact (from BOM); Actual Est. prorates the item's actual", false, 7),
+      line("consumption by each department's share of its standard.", false, 7),
+    ]);
   }
-  // The department table may split across pages, one row at a time.
-  dept.forEach((t) => blocks.push([t]));
 
   const continued = () => [line(`Material Usage Report - Item-wise - ${o.dateLabel} (continued)`, true, 10), BLANK];
   const pages: PdfToken[][] = [];

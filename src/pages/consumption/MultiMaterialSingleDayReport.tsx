@@ -55,6 +55,18 @@ export interface MultiMaterialRow {
   variancePct: number;
   closing: number;
   bomBreakdown: BomBreakdownItem[];
+  /** This material's usage split by production department, in its own unit. */
+  departments: MaterialDepartmentUsage[];
+}
+
+export interface MaterialDepartmentUsage {
+  departmentName: string;
+  produced: number;
+  standard: number;
+  /** Material's actual prorated by this department's share of its standard. */
+  actualEst: number;
+  /** Share of this material's standard. */
+  pctOfMaterial: number;
 }
 
 export interface UnitTotal {
@@ -66,19 +78,9 @@ export interface UnitTotal {
   variancePct: number;
 }
 
-export interface MultiDepartmentUsage {
-  unit: string;
-  departmentName: string;
-  produced: number;
-  standard: number;
-  actualEst: number;
-  pctOfTotal: number;
-}
-
 export interface MultiMaterialReport {
   rows: MultiMaterialRow[];
   unitTotals: UnitTotal[];
-  departmentUsage: MultiDepartmentUsage[];
   overCount: number;
   underCount: number;
   onCount: number;
@@ -89,6 +91,21 @@ export interface MultiMaterialReport {
 
 function pctOf(actual: number, standard: number): number {
   return standard > 0 ? ((actual - standard) / standard) * 100 : actual > 0 ? 100 : 0;
+}
+
+function departmentSplit(bomBreakdown: BomBreakdownItem[], actual: number, standard: number): MaterialDepartmentUsage[] {
+  const ratio = standard > 0 ? actual / standard : 0;
+  const map = new Map<string, MaterialDepartmentUsage>();
+  bomBreakdown.forEach((b) => {
+    const d = map.get(b.departmentName) || { departmentName: b.departmentName, produced: 0, standard: 0, actualEst: 0, pctOfMaterial: 0 };
+    d.produced += b.produced;
+    d.standard += b.subtotal;
+    d.actualEst += b.subtotal * ratio;
+    map.set(b.departmentName, d);
+  });
+  return Array.from(map.values())
+    .map((d) => ({ ...d, pctOfMaterial: standard > 0 ? (d.standard / standard) * 100 : 0 }))
+    .sort((a, b) => b.standard - a.standard);
 }
 
 function statusOf(actual: number, standard: number): MaterialStatus {
@@ -191,7 +208,7 @@ export function useMultiMaterialSingleDayReport({
 
   return useMemo(() => {
     const empty: MultiMaterialReport = {
-      rows: [], unitTotals: [], departmentUsage: [], overCount: 0, underCount: 0, onCount: 0, noStandardCount: 0, avgVariancePct: 0,
+      rows: [], unitTotals: [], overCount: 0, underCount: 0, onCount: 0, noStandardCount: 0, avgVariancePct: 0,
       isLoading: enabled && (closingsLoading || bomLoading || productionLoading),
     };
     if (!enabled || !materials || !closings || !bom || !production) return empty;
@@ -246,6 +263,7 @@ export function useMultiMaterialSingleDayReport({
           status: statusOf(actual, standard),
           closing: Number(closing?.closing_quantity || 0),
           bomBreakdown,
+          departments: departmentSplit(bomBreakdown, actual, standard),
         };
       })
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
@@ -264,40 +282,10 @@ export function useMultiMaterialSingleDayReport({
       .map((t) => ({ ...t, variance: t.actual - t.standard, variancePct: pctOf(t.actual, t.standard) }))
       .sort((a, b) => a.unit.localeCompare(b.unit));
 
-    // Department split: each material's actual is prorated by the department's
-    // share of that material's standard, then summed within the unit.
-    const deptMap = new Map<string, { unit: string; departmentName: string; products: Map<string, number>; standard: number; actualEst: number }>();
-    rows.forEach((r) => {
-      const ratio = r.standard > 0 ? r.actual / r.standard : 0;
-      r.bomBreakdown.forEach((b) => {
-        const key = `${r.unit}|${b.departmentName}`;
-        const d = deptMap.get(key) || { unit: r.unit, departmentName: b.departmentName, products: new Map(), standard: 0, actualEst: 0 };
-        d.products.set(b.productId, b.produced);
-        d.standard += b.subtotal;
-        d.actualEst += b.subtotal * ratio;
-        deptMap.set(key, d);
-      });
-    });
-    const departmentUsage = Array.from(deptMap.values())
-      .map((d) => {
-        const unitStandard = unitMap.get(d.unit)?.standard || 0;
-        return {
-          unit: d.unit,
-          departmentName: d.departmentName,
-          // A product consuming several selected materials is counted once.
-          produced: Array.from(d.products.values()).reduce((s, n) => s + n, 0),
-          standard: d.standard,
-          actualEst: d.actualEst,
-          pctOfTotal: unitStandard > 0 ? (d.standard / unitStandard) * 100 : 0,
-        };
-      })
-      .sort((a, b) => a.unit.localeCompare(b.unit) || b.standard - a.standard);
-
     const withStandard = rows.filter((r) => r.standard > 0);
     return {
       rows,
       unitTotals,
-      departmentUsage,
       overCount: rows.filter((r) => r.status === "over").length,
       underCount: rows.filter((r) => r.status === "under").length,
       onCount: rows.filter((r) => r.status === "on").length,
@@ -318,7 +306,6 @@ export function buildMultiMaterialPdf(report: MultiMaterialReport, date: Date, t
     generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
     statusLine: statusSummary(report),
     rows: report.rows,
-    departmentUsage: report.departmentUsage,
     includeBomBreakdown,
   });
   const fileName = `Material-Usage-Report-Itemwise-${report.rows.length}items-${format(date, "yyyyMMdd")}`
@@ -378,20 +365,16 @@ export function printMultiMaterialReport(report: MultiMaterialReport, date: Date
         <tr><td>${r.opening.toFixed(2)}</td><td>${r.receipts.toFixed(2)}</td><td>${r.actual.toFixed(2)}</td><td>${r.standard.toFixed(2)}</td>
           <td style="color:${st.color}">${variance}</td><td>${r.closing.toFixed(2)}</td></tr>
       </table>
+      ${r.departments.length > 0 ? `<table class="dt">
+        <tr><th style="text-align:left">Department</th><th>Produced</th><th>Standard</th><th>Actual — Est.</th><th>% of item</th></tr>
+        ${r.departments.map((d) => `<tr><td style="text-align:left">${escapeHtml(d.departmentName)}</td><td>${d.produced.toFixed(2)}</td>
+          <td>${d.standard.toFixed(2)}</td><td>${d.actualEst.toFixed(2)}</td><td>${d.pctOfMaterial.toFixed(1)}%</td></tr>`).join("")}
+      </table>` : ""}
       ${includeBomBreakdown && bom ? `<div class="b">${bom}</div>` : ""}
     </div>`;
   }).join("") || `<div style="color:#888">No consumption data found for this date</div>`;
 
-  const deptHtml = report.departmentUsage.length > 0
-    ? `<h3>Department-wise Usage Breakdown</h3>
-      <table class="dept">
-        <tr><th style="text-align:left">Unit</th><th style="text-align:left">Department</th><th>Produced</th><th>Standard</th><th>Actual — Est.</th><th>% of Unit</th></tr>
-        ${report.departmentUsage.map((d) => `<tr>
-          <td style="text-align:left">${escapeHtml(d.unit)}</td><td style="text-align:left">${escapeHtml(d.departmentName)}</td>
-          <td>${d.produced.toFixed(2)}</td><td>${d.standard.toFixed(2)}</td><td>${d.actualEst.toFixed(2)}</td><td>${d.pctOfTotal.toFixed(1)}%</td>
-        </tr>`).join("")}
-      </table>`
-    : "";
+  const hasDepartments = report.rows.some((r) => r.departments.length > 0);
 
   printWindow.document.write(`<!DOCTYPE html><html><head><title>Material Usage Report - Item-wise - ${dateLabel}</title>
     <style>
@@ -407,16 +390,14 @@ export function printMultiMaterialReport(report: MultiMaterialReport, date: Date
       th, td { border: 1px solid #e5e7eb; padding: 2px 5px; text-align: right; font-size: 11px; }
       th { background: #f3f4f6; font-weight: 600; }
       .b { margin-top: 3px; color: #555; font-size: 10px; }
-      .dept { break-inside: auto; }
-      .dept tr { break-inside: avoid; }
+      .dt th, .dt td { font-size: 10px; color: #333; }
       .foot { margin-top: 10px; font-size: 10px; color: #888; }
     </style>
   </head><body>
     <h2>Material Usage Report — Item-wise, ${dateLabel}</h2>
     <div class="meta">${report.rows.length} material${report.rows.length === 1 ? "" : "s"} · ${escapeHtml(statusSummary(report))} · ${escapeHtml(tierLabel)} · each box in its own unit</div>
     <div class="grid">${boxes}</div>
-    ${deptHtml}
-    ${deptHtml ? `<div class="foot">Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual consumption by each department's share of its standard usage.</div>` : ""}
+    ${hasDepartments ? `<div class="foot">Department split: standard is exact (from BOM); Actual — Est. prorates the item's actual consumption by each department's share of its standard.</div>` : ""}
     <div class="foot">Printed on ${format(new Date(), "dd MMM yyyy, hh:mm a")}</div>
     <script>window.onload=function(){window.print();}</script>
   </body></html>`);
@@ -506,6 +487,33 @@ function MaterialCard({ r, index }: { r: MultiMaterialRow; index: number }) {
           <span>Used <b className="text-foreground font-medium">{r.actual.toFixed(2)}</b></span>
           <span>Closing <b className="text-foreground font-medium">{r.closing.toFixed(2)}</b></span>
         </div>
+
+        {r.departments.length > 0 && (
+          <div className="rounded-md border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium">Department</th>
+                  <th className="px-2 py-1 text-right font-medium">Produced</th>
+                  <th className="px-2 py-1 text-right font-medium">Standard</th>
+                  <th className="px-2 py-1 text-right font-medium">Actual — Est.</th>
+                  <th className="px-2 py-1 text-right font-medium">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.departments.map((d) => (
+                  <tr key={d.departmentName} className="border-t">
+                    <td className="px-2 py-1">{d.departmentName}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{d.produced.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{d.standard.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{d.actualEst.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{d.pctOfMaterial.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {(r.bomBreakdown.length > 0 || r.status === "nostd") && (
           <details className="text-xs">
@@ -755,51 +763,58 @@ export function MultiMaterialSingleDayView({
         </>
       )}
 
-      {/* Department-wise Usage Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Department-wise Usage Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Unit</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead className="text-right">Produced (units)</TableHead>
-                <TableHead className="text-right">Standard Usage</TableHead>
-                <TableHead className="text-right">Actual Usage — Est.</TableHead>
-                <TableHead className="text-right">% of Unit Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.departmentUsage.length === 0 ? (
+      {/* Item-wise department breakdown (the cards already show it per material) */}
+      {layout === "table" && !report.isLoading && report.rows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Item-wise Department Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No department-linked production on this date
-                  </TableCell>
+                  <TableHead>Department</TableHead>
+                  <TableHead className="text-right">Produced (units)</TableHead>
+                  <TableHead className="text-right">Standard</TableHead>
+                  <TableHead className="text-right">Actual — Est.</TableHead>
+                  <TableHead className="text-right">% of Item</TableHead>
                 </TableRow>
-              ) : (
-                report.departmentUsage.map((d) => (
-                  <TableRow key={`${d.unit}|${d.departmentName}`}>
-                    <TableCell className="text-muted-foreground">{d.unit}</TableCell>
-                    <TableCell className="font-medium">{d.departmentName}</TableCell>
-                    <TableCell className="text-right">{d.produced.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{d.standard.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{d.actualEst.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{d.pctOfTotal.toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          {report.departmentUsage.length > 0 && (
+              </TableHeader>
+              <TableBody>
+                {report.rows.map((r) => (
+                  <Fragment key={r.id}>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableCell colSpan={5} className="py-1.5 font-semibold">
+                        {r.code} — {r.name} <span className="font-normal text-muted-foreground">({r.unit})</span>
+                      </TableCell>
+                    </TableRow>
+                    {r.departments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-xs text-muted-foreground">
+                          No department-linked production on this date
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      r.departments.map((d) => (
+                        <TableRow key={d.departmentName}>
+                          <TableCell className="pl-6">{d.departmentName}</TableCell>
+                          <TableCell className="text-right">{d.produced.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.standard.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.actualEst.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{d.pctOfMaterial.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
             <p className="text-xs text-muted-foreground mt-2">
-              Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual consumption by each department's share of its standard usage.
+              Standard is exact (from BOM); Actual — Est. prorates each item's actual consumption by each department's share of that item's standard.
             </p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
