@@ -50,17 +50,19 @@ Lines saved before colors existed have no color.
 ## Status
 
 ```
-Draft ──Save & Issue──▶ Issued ──Close──▶ Closed
+Draft ──Save & Issue──▶ Issued ──Dispatch──▶ Dispatched
   │                       │
-  └──────Cancel (reason)──┴──────────────▶ Cancelled
+  │                       ├──Close─────────▶ Closed
+  │                       │
+  └──────Cancel (reason)──┴────────────────▶ Cancelled
 ```
 
 The database enforces these rules, so no screen can get around them:
 
 - **Draft:** everything can be edited. A Draft can be deleted; its number is not reused.
 - **Issue:** needs at least one line and a logo.
-- **Issued:** only remarks can change. It can be closed or cancelled.
-- **Closed and Cancelled:** final, nothing can change.
+- **Issued:** only remarks can change. It can be dispatched, closed or cancelled.
+- **Dispatched, Closed and Cancelled:** final, nothing can change. See "Dispatch" below.
 - **Who can act:** the same people as Job Orders (the `planning` module). A production operator who is not a super admin can edit only within 48 hours of creating the order.
 
 ## Log
@@ -71,7 +73,7 @@ Each order has a **Log** tab with the time, the user and what changed. Every ent
 |---|---|
 | Created | The order is first saved (records the full header) |
 | Edited | Header fields change (old → new) |
-| Issued, Closed, Cancelled | The status changes |
+| Issued, Dispatched, Closed, Cancelled | The status changes (Dispatched carries the dispatch note) |
 | Line added / changed / removed | A line changes (with size, color, qty and packing) |
 | Logo uploaded / removed, Artwork uploaded / removed | A file is added or removed |
 | Printed | The form is printed (via `pljo_log_printed`) |
@@ -114,3 +116,13 @@ The floor display lists issued orders in an explicit **floor sequence** (1 = nex
 - **Lists and the order dialog.** The job order lists have a **Seq** column for Issued rows, and the order dialog shows "Floor #n" next to the status. Each change is in the **Log** as "Floor sequence set".
 - **Priority stays.** The low / medium / high / critical field is still on the form and the print, and it is the fallback order for an order with no number (only possible before the migration's backfill ran). It no longer decides tile order on its own.
 - **Storage.** The number lives in `private_label_floor_sequence` (one row per Issued order), not on the order itself, so a reorder never touches the order's `updated_at` (which drives the floor's 2-hour update clock) and never writes an "Edited" log entry.
+
+## Dispatch
+
+When a private label or company product job order is completed, or goes out, the people who can issue orders take it off the floor with one click. (`supabase/migrations/20261115120000_private_label_dispatch.sql`)
+
+- **Where.** A truck button on every Issued row of the job order lists (green when the floor has marked production done), a **Dispatch** button beside Close in the order dialog, and a truck button on every row of the **Floor sequence** dialog (save or reset any pending moves first).
+- **Who.** The same roles as Floor sequence: `super_admin`, `admin`, `manager`, `production_operator`, `closing_data_poster`. The database checks the role in `pljo_dispatch`.
+- **What happens.** The status becomes **Dispatched** (final, like Closed): the order leaves the floor display on its next refresh and leaves the floor queue, and the numbers below it shift up. `dispatched_at` / `dispatched_by` are stamped; the Log shows "Dispatched" with the note; the print shows the dispatched date.
+- **Below 100 % produced.** The confirmation shows produced vs ordered. If the order is not fully produced a note is required (e.g. partial dispatch, balance cancelled); at 100 % the note is optional.
+- **Close stays.** Close is still there for an order that ends without a dispatch. Cancel still needs a reason.

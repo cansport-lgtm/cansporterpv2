@@ -56,6 +56,7 @@ export function printPrivateLabelJobOrder(detail: PljoDetail) {
           <div>Required by: ${esc(fmtDate(order.required_by_date))}</div>
           <div>Priority: ${esc(order.priority)}</div>
           <div class="status">${esc(order.status)}</div>
+          ${order.dispatched_at ? `<div>Dispatched: ${esc(fmtDate(order.dispatched_at.slice(0, 10)))}</div>` : ""}
         </div>
       </div>
 
@@ -129,6 +130,7 @@ function printCompanyJobOrder(detail: PljoDetail) {
           <div>Required by: ${esc(fmtDate(order.required_by_date))}</div>
           <div>Priority: ${esc(order.priority)}</div>
           <div class="status">${esc(order.status)}</div>
+          ${order.dispatched_at ? `<div>Dispatched: ${esc(fmtDate(order.dispatched_at.slice(0, 10)))}</div>` : ""}
         </div>
       </div>
 

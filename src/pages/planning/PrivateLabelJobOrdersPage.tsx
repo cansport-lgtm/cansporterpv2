@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Eye, KeyRound, ListOrdered, Palette, Plus, Ruler, Tag } from "lucide-react";
+import { Eye, KeyRound, ListOrdered, Palette, Plus, Ruler, Tag, Truck } from "lucide-react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { PrivateLabelSizesDialog } from "@/components/planning/PrivateLabelSizes
 import { PrivateLabelColorsDialog } from "@/components/planning/PrivateLabelColorsDialog";
 import { PrivateLabelFloorPinDialog } from "@/components/planning/PrivateLabelFloorPinDialog";
 import { PrivateLabelFloorSequenceDialog } from "@/components/planning/PrivateLabelFloorSequenceDialog";
+import { PrivateLabelDispatchDialog, type DispatchTarget } from "@/components/planning/PrivateLabelDispatchDialog";
 import {
   fetchOrders,
   isImage,
@@ -67,6 +68,7 @@ export default function PrivateLabelJobOrdersPage() {
   const [colorsOpen, setColorsOpen] = useState(false);
   const [floorPinOpen, setFloorPinOpen] = useState(false);
   const [sequenceOpen, setSequenceOpen] = useState(false);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["pljo-list", "private_label", status, fromDate, toDate],
@@ -144,6 +146,7 @@ export default function PrivateLabelJobOrdersPage() {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="Draft">Draft</SelectItem>
                 <SelectItem value="Issued">Issued</SelectItem>
+                <SelectItem value="Dispatched">Dispatched</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
               </SelectContent>
@@ -283,9 +286,32 @@ export default function PrivateLabelJobOrdersPage() {
                           <Badge variant={statusVariant(o.status)}>{o.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" className="h-8 w-8">
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            {canSequence && o.status === "Issued" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={cn("h-8 w-8", o.production_done_at && "text-green-700 hover:bg-green-50 hover:text-green-800")}
+                                title="Dispatch"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDispatchTarget({
+                                    id: o.id,
+                                    number: o.pl_job_order_number,
+                                    label: [o.customers?.name, o.brand_name].filter(Boolean).join(" · "),
+                                    orderedDz: total,
+                                    producedDz: produced,
+                                    productionDone: !!o.production_done_at,
+                                  });
+                                }}
+                              >
+                                <Truck className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-8 w-8">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -309,6 +335,7 @@ export default function PrivateLabelJobOrdersPage() {
       <PrivateLabelColorsDialog open={colorsOpen} onOpenChange={setColorsOpen} />
       {isSuperAdmin && <PrivateLabelFloorPinDialog open={floorPinOpen} onOpenChange={setFloorPinOpen} />}
       {canSequence && <PrivateLabelFloorSequenceDialog open={sequenceOpen} onOpenChange={setSequenceOpen} />}
+      <PrivateLabelDispatchDialog target={dispatchTarget} onClose={() => setDispatchTarget(null)} />
     </ERPLayout>
   );
 }
