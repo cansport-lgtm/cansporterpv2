@@ -6,7 +6,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { BarChart3, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, LayoutGrid, Table as TableIcon, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
@@ -33,8 +33,17 @@ interface BomBreakdownItem {
   departmentName: string;
 }
 
+/**
+ * over / under / on: compared against a BOM standard for the day.
+ * nostd: consumption recorded but no BOM-linked production, so there is no
+ * standard to compare with (shown as a flag instead of a misleading +100%).
+ * idle: nothing used and nothing expected.
+ */
+export type MaterialStatus = "over" | "under" | "on" | "nostd" | "idle";
+
 export interface MultiMaterialRow {
   id: string;
+  status: MaterialStatus;
   code: string;
   name: string;
   unit: string;
@@ -72,12 +81,34 @@ export interface MultiMaterialReport {
   departmentUsage: MultiDepartmentUsage[];
   overCount: number;
   underCount: number;
+  onCount: number;
+  noStandardCount: number;
   avgVariancePct: number;
   isLoading: boolean;
 }
 
 function pctOf(actual: number, standard: number): number {
   return standard > 0 ? ((actual - standard) / standard) * 100 : actual > 0 ? 100 : 0;
+}
+
+function statusOf(actual: number, standard: number): MaterialStatus {
+  if (standard <= 0) return actual > 0 ? "nostd" : "idle";
+  const variance = actual - standard;
+  // Round to the 2 decimals the report shows, so "+0.00" never reads as over.
+  if (Math.round(variance * 100) > 0) return "over";
+  if (Math.round(variance * 100) < 0) return "under";
+  return "on";
+}
+
+/** Counts line used in the header, share text, print and PDF. */
+export function statusSummary(report: Pick<MultiMaterialReport, "overCount" | "underCount" | "onCount" | "noStandardCount">): string {
+  const parts = [
+    report.overCount && `${report.overCount} over standard`,
+    report.underCount && `${report.underCount} under`,
+    report.onCount && `${report.onCount} on standard`,
+    report.noStandardCount && `${report.noStandardCount} no standard`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "no consumption on this date";
 }
 
 function signed(n: number, digits = 2): string {
@@ -160,7 +191,7 @@ export function useMultiMaterialSingleDayReport({
 
   return useMemo(() => {
     const empty: MultiMaterialReport = {
-      rows: [], unitTotals: [], departmentUsage: [], overCount: 0, underCount: 0, avgVariancePct: 0,
+      rows: [], unitTotals: [], departmentUsage: [], overCount: 0, underCount: 0, onCount: 0, noStandardCount: 0, avgVariancePct: 0,
       isLoading: enabled && (closingsLoading || bomLoading || productionLoading),
     };
     if (!enabled || !materials || !closings || !bom || !production) return empty;
@@ -212,6 +243,7 @@ export function useMultiMaterialSingleDayReport({
           standard,
           variance: actual - standard,
           variancePct: pctOf(actual, standard),
+          status: statusOf(actual, standard),
           closing: Number(closing?.closing_quantity || 0),
           bomBreakdown,
         };
@@ -266,8 +298,10 @@ export function useMultiMaterialSingleDayReport({
       rows,
       unitTotals,
       departmentUsage,
-      overCount: rows.filter((r) => r.variance > 0).length,
-      underCount: rows.filter((r) => r.variance < 0).length,
+      overCount: rows.filter((r) => r.status === "over").length,
+      underCount: rows.filter((r) => r.status === "under").length,
+      onCount: rows.filter((r) => r.status === "on").length,
+      noStandardCount: rows.filter((r) => r.status === "nostd").length,
       avgVariancePct: withStandard.length > 0
         ? withStandard.reduce((s, r) => s + r.variancePct, 0) / withStandard.length
         : 0,
@@ -282,26 +316,34 @@ export function buildMultiMaterialPdf(report: MultiMaterialReport, date: Date, t
     dateLabel: format(date, "dd MMM yyyy"),
     tierLabel,
     generatedOn: format(new Date(), "dd MMM yyyy, hh:mm a"),
+    statusLine: statusSummary(report),
     rows: report.rows,
-    unitTotals: report.unitTotals,
-    overCount: report.overCount,
-    underCount: report.underCount,
-    avgVariancePct: report.avgVariancePct,
     departmentUsage: report.departmentUsage,
     includeBomBreakdown,
   });
-  const fileName = `Material-Usage-Report-Multi-${report.rows.length}items-${format(date, "yyyyMMdd")}`
+  const fileName = `Material-Usage-Report-Itemwise-${report.rows.length}items-${format(date, "yyyyMMdd")}`
     .replace(/[^\w-]+/g, "_") + ".pdf";
   return { blob, fileName };
 }
 
+function statusText(r: MultiMaterialRow, unitSuffix = true): string {
+  const unit = unitSuffix ? ` ${r.unit}` : "";
+  switch (r.status) {
+    case "over": return `${signed(r.variancePct, 1)}% (${signed(r.variance)}${unit} over)`;
+    case "under": return `${signed(r.variancePct, 1)}% (${signed(r.variance)}${unit} under)`;
+    case "on": return "On standard";
+    case "nostd": return "No standard";
+    default: return "No activity";
+  }
+}
+
 export function multiMaterialShareSummary(report: MultiMaterialReport, date: Date): string {
   return (
-    `*Material Usage Report — Single Day*\n` +
+    `*Material Usage Report — Item-wise*\n` +
     `${format(date, "dd MMM yyyy")} · ${report.rows.length} materials\n` +
-    `Over standard: ${report.overCount} · Under: ${report.underCount}\n\n` +
-    report.unitTotals
-      .map((t) => `[${t.unit}] Actual ${t.actual.toFixed(2)} · Std ${t.standard.toFixed(2)} · Var ${signed(t.variance)} (${signed(t.variancePct, 1)}%)`)
+    `${statusSummary(report)}\n\n` +
+    report.rows
+      .map((r) => `${r.code} ${r.name}: ${r.actual.toFixed(2)} / ${r.standard.toFixed(2)} ${r.unit} — ${statusText(r)}`)
       .join("\n")
   );
 }
@@ -310,105 +352,72 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
+const PRINT_STATUS: Record<MaterialStatus, { color: string; label: (r: MultiMaterialRow) => string }> = {
+  over: { color: "#dc2626", label: (r) => `${signed(r.variancePct, 1)}% OVER` },
+  under: { color: "#16a34a", label: (r) => `${signed(r.variancePct, 1)}% UNDER` },
+  on: { color: "#374151", label: () => "ON STANDARD" },
+  nostd: { color: "#d97706", label: () => "NO STANDARD" },
+  idle: { color: "#9ca3af", label: () => "NO ACTIVITY" },
+};
+
 export function printMultiMaterialReport(report: MultiMaterialReport, date: Date, tierLabel: string, includeBomBreakdown: boolean) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return;
-  const varColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#16a34a" : "inherit");
   const dateLabel = format(date, "dd MMM yyyy");
 
-  const rowsHtml = report.rows.map((r) => {
-    const breakdown = includeBomBreakdown && r.bomBreakdown.length > 0
-      ? `<div class="breakdown">${r.bomBreakdown.map((b) => `${escapeHtml(b.productName)} (${escapeHtml(b.departmentName)}): ${b.produced} × ${b.bomRate} = ${b.subtotal.toFixed(2)}`).join("<br/>")}</div>`
-      : "";
-    return `<tr>
-      <td>${escapeHtml(r.code)}</td>
-      <td>${escapeHtml(r.name)}</td>
-      <td>${escapeHtml(r.unit)}</td>
-      <td class="n">${r.opening.toFixed(2)}</td>
-      <td class="n">${r.receipts.toFixed(2)}</td>
-      <td class="n">${r.actual.toFixed(2)}</td>
-      <td class="n">${r.standard.toFixed(2)}${breakdown}</td>
-      <td class="n" style="color:${varColor(r.variance)}">${signed(r.variance)}</td>
-      <td class="n" style="${Math.abs(r.variancePct) > 10 ? "color:#dc2626;font-weight:bold" : ""}">${signed(r.variancePct, 1)}%</td>
-      <td class="n">${r.closing.toFixed(2)}</td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="10" style="text-align:center;color:#888">No consumption data found for this date</td></tr>`;
-
-  const totalsHtml = report.unitTotals.map((t) => `<tr class="total-row">
-      <td colspan="2">Total — ${t.count} item${t.count === 1 ? "" : "s"}</td>
-      <td>${escapeHtml(t.unit)}</td>
-      <td></td><td></td>
-      <td class="n">${t.actual.toFixed(2)}</td>
-      <td class="n">${t.standard.toFixed(2)}</td>
-      <td class="n" style="color:${varColor(t.variance)}">${signed(t.variance)}</td>
-      <td class="n">${signed(t.variancePct, 1)}%</td>
-      <td></td>
-    </tr>`).join("");
+  const boxes = report.rows.map((r, i) => {
+    const st = PRINT_STATUS[r.status];
+    const variance = r.status === "nostd" || r.status === "idle" ? "—" : signed(r.variance);
+    const bom = r.bomBreakdown.length > 0
+      ? `Std: ${r.bomBreakdown.map((b) => `${escapeHtml(b.productName)} ${b.produced} × ${b.bomRate} = ${b.subtotal.toFixed(2)}`).join(" · ")}`
+      : r.status === "nostd" ? "No BOM-linked production recorded for this date." : "";
+    return `<div class="box" style="border-left-color:${st.color}">
+      <div class="t"><span>${i + 1}. ${escapeHtml(r.code)} ${escapeHtml(r.name)} (${escapeHtml(r.unit)})</span><span style="color:${st.color}">${st.label(r)}</span></div>
+      <table>
+        <tr><th>Opening</th><th>Receipts</th><th>Actual</th><th>Standard</th><th>Variance</th><th>Closing</th></tr>
+        <tr><td>${r.opening.toFixed(2)}</td><td>${r.receipts.toFixed(2)}</td><td>${r.actual.toFixed(2)}</td><td>${r.standard.toFixed(2)}</td>
+          <td style="color:${st.color}">${variance}</td><td>${r.closing.toFixed(2)}</td></tr>
+      </table>
+      ${includeBomBreakdown && bom ? `<div class="b">${bom}</div>` : ""}
+    </div>`;
+  }).join("") || `<div style="color:#888">No consumption data found for this date</div>`;
 
   const deptHtml = report.departmentUsage.length > 0
-    ? report.departmentUsage.map((d) => `<tr>
-        <td>${escapeHtml(d.unit)}</td>
-        <td>${escapeHtml(d.departmentName)}</td>
-        <td class="n">${d.produced.toFixed(2)}</td>
-        <td class="n">${d.standard.toFixed(2)}</td>
-        <td class="n">${d.actualEst.toFixed(2)}</td>
-        <td class="n">${d.pctOfTotal.toFixed(1)}%</td>
-      </tr>`).join("")
-    : `<tr><td colspan="6" style="text-align:center;color:#888">No department-linked production on this date</td></tr>`;
+    ? `<h3>Department-wise Usage Breakdown</h3>
+      <table class="dept">
+        <tr><th style="text-align:left">Unit</th><th style="text-align:left">Department</th><th>Produced</th><th>Standard</th><th>Actual — Est.</th><th>% of Unit</th></tr>
+        ${report.departmentUsage.map((d) => `<tr>
+          <td style="text-align:left">${escapeHtml(d.unit)}</td><td style="text-align:left">${escapeHtml(d.departmentName)}</td>
+          <td>${d.produced.toFixed(2)}</td><td>${d.standard.toFixed(2)}</td><td>${d.actualEst.toFixed(2)}</td><td>${d.pctOfTotal.toFixed(1)}%</td>
+        </tr>`).join("")}
+      </table>`
+    : "";
 
-  const unitCards = report.unitTotals.map((t) => `<div>
-      <div class="label">${escapeHtml(t.unit)} — ${t.count} item${t.count === 1 ? "" : "s"}</div>
-      <div class="value">${t.actual.toFixed(2)} / ${t.standard.toFixed(2)}</div>
-      <div class="label" style="color:${varColor(t.variance)}">Var ${signed(t.variance)} (${signed(t.variancePct, 1)}%)</div>
-    </div>`).join("");
-
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>Material Usage Report - ${dateLabel}</title>
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>Material Usage Report - Item-wise - ${dateLabel}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
-      h1 { font-size: 18px; margin-bottom: 4px; }
-      h2 { font-size: 14px; margin: 24px 0 8px; }
-      .meta { font-size: 13px; color: #555; margin-bottom: 16px; }
-      .summary { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-      .summary > div { border: 1px solid #ddd; border-radius: 6px; padding: 10px 16px; }
-      .summary .label { font-size: 12px; color: #666; }
-      .summary .value { font-size: 18px; font-weight: bold; }
-      table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th, td { border: 1px solid #ddd; padding: 5px 8px; vertical-align: top; }
-      th { background: #f3f4f6; text-align: left; font-weight: 600; }
-      .n { text-align: right; }
-      .total-row { font-weight: bold; border-top: 2px solid #333; }
-      .breakdown { margin-top: 4px; font-size: 10px; color: #666; text-align: left; }
-      @media print { body { padding: 0; } tr { break-inside: avoid; } }
+      @page { size: A4 landscape; margin: 10mm; }
+      body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 12px; }
+      h2 { font-size: 17px; margin: 0; }
+      h3 { font-size: 13px; margin: 14px 0 6px; }
+      .meta { font-size: 12px; color: #555; margin: 3px 0 10px; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .box { border: 1px solid #d1d5db; border-left: 4px solid #d1d5db; border-radius: 5px; padding: 6px 8px; font-size: 11px; break-inside: avoid; page-break-inside: avoid; }
+      .box .t { display: flex; justify-content: space-between; gap: 8px; font-weight: bold; font-size: 12px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+      th, td { border: 1px solid #e5e7eb; padding: 2px 5px; text-align: right; font-size: 11px; }
+      th { background: #f3f4f6; font-weight: 600; }
+      .b { margin-top: 3px; color: #555; font-size: 10px; }
+      .dept { break-inside: auto; }
+      .dept tr { break-inside: avoid; }
+      .foot { margin-top: 10px; font-size: 10px; color: #888; }
     </style>
   </head><body>
-    <h1>Material Usage Report — Single Day</h1>
-    <div class="meta">${dateLabel} | ${report.rows.length} material${report.rows.length === 1 ? "" : "s"} | ${escapeHtml(tierLabel)}</div>
-    <div class="summary">
-      <div><div class="label">Over / Under standard</div><div class="value">${report.overCount} / ${report.underCount}</div><div class="label">Avg variance ${signed(report.avgVariancePct, 1)}%</div></div>
-      ${unitCards}
-    </div>
-
-    <h2>Material Comparison</h2>
-    <table>
-      <thead><tr>
-        <th>Code</th><th>Material</th><th>Unit</th>
-        <th class="n">Opening</th><th class="n">Receipts</th><th class="n">Actual</th><th class="n">Standard</th>
-        <th class="n">Variance</th><th class="n">Var %</th><th class="n">Closing</th>
-      </tr></thead>
-      <tbody>${rowsHtml}${totalsHtml}</tbody>
-    </table>
-
-    <h2>Department-wise Usage Breakdown</h2>
-    <table>
-      <thead><tr>
-        <th>Unit</th><th>Department</th><th class="n">Produced (units)</th><th class="n">Standard Usage</th>
-        <th class="n">Actual Usage — Est.</th><th class="n">% of Unit Total</th>
-      </tr></thead>
-      <tbody>${deptHtml}</tbody>
-    </table>
-    ${report.departmentUsage.length > 0 ? `<div style="margin-top:6px;font-size:11px;color:#888;">Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual consumption by each department's share of its standard usage.</div>` : ""}
-
-    <div style="margin-top:12px;font-size:11px;color:#888;">Printed on ${format(new Date(), "dd MMM yyyy, hh:mm a")}</div>
+    <h2>Material Usage Report — Item-wise, ${dateLabel}</h2>
+    <div class="meta">${report.rows.length} material${report.rows.length === 1 ? "" : "s"} · ${escapeHtml(statusSummary(report))} · ${escapeHtml(tierLabel)} · each box in its own unit</div>
+    <div class="grid">${boxes}</div>
+    ${deptHtml}
+    ${deptHtml ? `<div class="foot">Standard usage is exact (from BOM); Actual Usage is estimated per material by prorating its actual consumption by each department's share of its standard usage.</div>` : ""}
+    <div class="foot">Printed on ${format(new Date(), "dd MMM yyyy, hh:mm a")}</div>
     <script>window.onload=function(){window.print();}</script>
   </body></html>`);
   printWindow.document.close();
@@ -422,6 +431,104 @@ const usageChartConfig = {
 const varianceChartConfig = {
   variancePct: { label: "Variance %", color: "hsl(var(--destructive))" },
 };
+
+const STATUS_STYLE: Record<MaterialStatus, { border: string; text: string; pill: string }> = {
+  over: { border: "border-l-destructive", text: "text-destructive", pill: "bg-destructive/10 text-destructive" },
+  under: { border: "border-l-green-600", text: "text-green-600", pill: "bg-green-600/10 text-green-600" },
+  on: { border: "border-l-muted-foreground", text: "", pill: "bg-muted text-foreground" },
+  nostd: { border: "border-l-amber-500", text: "text-amber-600", pill: "bg-amber-500/10 text-amber-600" },
+  idle: { border: "border-l-border", text: "text-muted-foreground", pill: "bg-muted text-muted-foreground" },
+};
+
+function MaterialCard({ r, index }: { r: MultiMaterialRow; index: number }) {
+  const style = STATUS_STYLE[r.status];
+  const max = Math.max(r.actual, r.standard, 0.0001);
+  const hasVariance = r.status === "over" || r.status === "under" || r.status === "on";
+  return (
+    <Card className={cn("border-l-4", style.border)}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-semibold truncate">
+              {index + 1} · {r.name}
+            </div>
+            <div className="text-xs text-muted-foreground">{r.code} · unit: {r.unit}</div>
+          </div>
+          <div className="text-right shrink-0">
+            {hasVariance ? (
+              <>
+                <div className={cn("text-xl font-bold", style.text)}>{signed(r.variancePct, 1)}%</div>
+                <div className={cn("text-xs", style.text)}>
+                  {r.status === "on" ? "on standard" : `${signed(r.variance)} ${r.unit} ${r.status}`}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={cn("text-base font-bold", style.text)}>{r.status === "nostd" ? "No standard" : "No activity"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {r.status === "nostd" ? "no BOM-linked production" : "nothing used or expected"}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["Actual", r.actual.toFixed(2), ""],
+            ["Standard", r.standard.toFixed(2), ""],
+            ["Variance", hasVariance ? signed(r.variance) : "—", style.text],
+          ].map(([label, value, color]) => (
+            <div key={label} className="rounded-md bg-muted/50 px-2.5 py-1.5">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+              <div className={cn("font-semibold tabular-nums", color)}>
+                {value} {value !== "—" && <span className="text-xs font-normal text-muted-foreground">{r.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          {([["Actual", r.actual, "bg-primary"], ["Standard", r.standard, "bg-muted-foreground/60"]] as const).map(([label, value, color]) => (
+            <div key={label} className="grid grid-cols-[64px_1fr_72px] items-center gap-2 text-xs">
+              <span className="text-muted-foreground">{label}</span>
+              <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                <div className={cn("h-full rounded-full", color)} style={{ width: `${(value / max) * 100}%` }} />
+              </div>
+              <span className="text-right tabular-nums">{value.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t border-dashed pt-2 text-xs text-muted-foreground">
+          <span>Opening <b className="text-foreground font-medium">{r.opening.toFixed(2)}</b></span>
+          <span>Receipts <b className="text-foreground font-medium">{r.receipts.toFixed(2)}</b></span>
+          <span>Used <b className="text-foreground font-medium">{r.actual.toFixed(2)}</b></span>
+          <span>Closing <b className="text-foreground font-medium">{r.closing.toFixed(2)}</b></span>
+        </div>
+
+        {(r.bomBreakdown.length > 0 || r.status === "nostd") && (
+          <details className="text-xs">
+            <summary className="cursor-pointer font-medium text-primary">
+              {r.bomBreakdown.length > 0
+                ? `Standard breakdown (${r.bomBreakdown.length} product${r.bomBreakdown.length === 1 ? "" : "s"})`
+                : "Why no standard?"}
+            </summary>
+            <div className="mt-1.5 space-y-0.5 text-muted-foreground">
+              {r.bomBreakdown.length > 0
+                ? r.bomBreakdown.map((b) => (
+                    <div key={b.productId}>
+                      {b.productName} ({b.departmentName}): {b.produced} × {b.bomRate} = {b.subtotal.toFixed(2)}
+                    </div>
+                  ))
+                : "Consumption was entered, but no production using this material (per BOM) was recorded for this date. Check Production Entry or the BOM."}
+            </div>
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function MultiMaterialSingleDayView({
   report,
@@ -438,6 +545,7 @@ export function MultiMaterialSingleDayView({
   includeBomInPrint: boolean;
   onIncludeBomInPrintChange: (v: boolean) => void;
 }) {
+  const [layout, setLayout] = useState<"cards" | "table">("cards");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
@@ -454,107 +562,45 @@ export function MultiMaterialSingleDayView({
   }));
   const dateLabel = format(date, "dd MMM yyyy");
 
+  const statusPills: [number, string, MaterialStatus][] = [
+    [report.overCount, "over standard", "over"],
+    [report.underCount, "under", "under"],
+    [report.onCount, "on standard", "on"],
+    [report.noStandardCount, "no standard", "nostd"],
+  ];
+
   return (
     <>
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Materials</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{report.rows.length}</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-destructive">{report.overCount} over</span> ·{" "}
-              <span className="text-green-600">{report.underCount} under</span> standard
-            </p>
-          </CardContent>
-        </Card>
-        {([
-          ["Total Actual", (t: UnitTotal) => t.actual.toFixed(2), () => ""],
-          ["Total Standard", (t: UnitTotal) => t.standard.toFixed(2), () => ""],
-          ["Total Variance", (t: UnitTotal) => `${signed(t.variance)} (${signed(t.variancePct, 1)}%)`,
-            (t: UnitTotal) => (t.variance > 0 ? "text-destructive" : t.variance < 0 ? "text-green-600" : "")],
-        ] as const).map(([title, value, color]) => (
-          <Card key={title}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {report.unitTotals.length === 0 ? (
-                <div className="text-2xl font-bold">—</div>
-              ) : (
-                report.unitTotals.map((t) => (
-                  <div key={t.unit} className="flex items-baseline gap-2">
-                    <span className={cn(report.unitTotals.length === 1 ? "text-2xl" : "text-lg", "font-bold", color(t))}>
-                      {value(t)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{t.unit}</span>
-                  </div>
-                ))
-              )}
-              {title === "Total Variance" && (
-                <p className="text-xs text-muted-foreground">Avg per material: {signed(report.avgVariancePct, 1)}%</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Actual vs Standard — {dateLabel}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={usageChartConfig} className="h-[300px] w-full">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" fontSize={11} interval={0} angle={chartData.length > 8 ? -40 : 0} textAnchor={chartData.length > 8 ? "end" : "middle"} height={chartData.length > 8 ? 60 : 30} />
-                <YAxis fontSize={12} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend />
-                <Bar dataKey="actual" fill="var(--color-actual)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="standard" fill="var(--color-standard)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-            {report.unitTotals.length > 1 && (
-              <p className="text-xs text-muted-foreground mt-2">Materials use different units — compare bars within the same unit.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Variance % by Material — {dateLabel}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={varianceChartConfig} className="h-[300px] w-full">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" fontSize={11} interval={0} angle={chartData.length > 8 ? -40 : 0} textAnchor={chartData.length > 8 ? "end" : "middle"} height={chartData.length > 8 ? 60 : 30} />
-                <YAxis fontSize={12} unit="%" />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                <Bar dataKey="variancePct" fill="var(--color-variancePct)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Comparison Table */}
+      {/* Layout switch + status strip (no cross-material totals: units differ) */}
       <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">
-          <CardTitle>Material Comparison — {dateLabel}</CardTitle>
-          <div className="flex flex-wrap gap-4 text-sm">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-md border p-0.5">
+              {(["cards", "table"] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLayout(l)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-3 py-1.5 text-sm",
+                    layout === l ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {l === "cards" ? <LayoutGrid className="h-4 w-4" /> : <TableIcon className="h-4 w-4" />}
+                  {l === "cards" ? "Item-wise cards" : "Table"}
+                </button>
+              ))}
+            </div>
+            <span className="text-sm text-muted-foreground">{report.rows.length} material{report.rows.length === 1 ? "" : "s"} · {dateLabel}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {statusPills.filter(([n]) => n > 0).map(([n, label, st]) => (
+              <span key={st} className={cn("rounded-full px-3 py-1 text-xs font-semibold", STATUS_STYLE[st].pill)}>
+                {n} {label}
+              </span>
+            ))}
+          </div>
+          <div className="flex w-full flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox checked={hideInactive} onCheckedChange={(v) => onHideInactiveChange(v === true)} />
               Hide materials with no activity
@@ -564,107 +610,150 @@ export function MultiMaterialSingleDayView({
               Include BOM breakdown in print / PDF
             </label>
           </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8" />
-                <TableHead>Code</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Opening</TableHead>
-                <TableHead className="text-right">Receipts</TableHead>
-                <TableHead className="text-right">Actual</TableHead>
-                <TableHead className="text-right">Standard</TableHead>
-                <TableHead className="text-right">Variance</TableHead>
-                <TableHead className="text-right">Var %</TableHead>
-                <TableHead className="text-right">Closing</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">Loading…</TableCell>
-                </TableRow>
-              ) : report.rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
-                    No consumption data found for this date
-                  </TableCell>
-                </TableRow>
-              ) : (
-                report.rows.map((r) => {
-                  const isOpen = expanded.has(r.id);
-                  const canExpand = r.bomBreakdown.length > 0;
-                  return (
-                    <Fragment key={r.id}>
-                      <TableRow
-                        className={cn(canExpand && "cursor-pointer")}
-                        onClick={() => canExpand && toggleExpanded(r.id)}
-                      >
-                        <TableCell className="px-2">
-                          {canExpand && (isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)}
-                        </TableCell>
-                        <TableCell className="font-medium">{r.code}</TableCell>
-                        <TableCell>{r.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{r.unit}</TableCell>
-                        <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{r.receipts.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{r.actual.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{r.standard.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={r.variance > 0 ? "text-destructive" : r.variance < 0 ? "text-green-600" : ""}>
-                            {signed(r.variance)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={Math.abs(r.variancePct) > 10 ? "text-destructive font-semibold" : ""}>
-                            {signed(r.variancePct, 1)}%
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">{r.closing.toFixed(2)}</TableCell>
-                      </TableRow>
-                      {isOpen && (
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell />
-                          <TableCell colSpan={10} className="py-2">
-                            <div className="space-y-0.5">
-                              {r.bomBreakdown.map((b) => (
-                                <div key={b.productId} className="text-xs text-muted-foreground">
-                                  {b.productName} ({b.departmentName}): {b.produced} × {b.bomRate} = {b.subtotal.toFixed(2)} {r.unit}
-                                </div>
-                              ))}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Fragment>
-                  );
-                })
-              )}
-              {!report.isLoading && report.unitTotals.map((t) => (
-                <TableRow key={t.unit} className="font-bold border-t-2">
-                  <TableCell />
-                  <TableCell colSpan={2}>Total — {t.count} item{t.count === 1 ? "" : "s"}</TableCell>
-                  <TableCell>{t.unit}</TableCell>
-                  <TableCell />
-                  <TableCell />
-                  <TableCell className="text-right">{t.actual.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{t.standard.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">
-                    <span className={t.variance > 0 ? "text-destructive" : t.variance < 0 ? "text-green-600" : ""}>
-                      {signed(t.variance)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">{signed(t.variancePct, 1)}%</TableCell>
-                  <TableCell />
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </CardContent>
       </Card>
+
+      {report.isLoading ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">Loading…</CardContent></Card>
+      ) : report.rows.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">No consumption data found for this date</CardContent></Card>
+      ) : layout === "cards" ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {report.rows.map((r, i) => <MaterialCard key={r.id} r={r} index={i} />)}
+        </div>
+      ) : (
+        <>
+          {/* Charts */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Actual vs Standard — {dateLabel}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={usageChartConfig} className="h-[300px] w-full">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" fontSize={11} interval={0} angle={chartData.length > 8 ? -40 : 0} textAnchor={chartData.length > 8 ? "end" : "middle"} height={chartData.length > 8 ? 60 : 30} />
+                    <YAxis fontSize={12} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend />
+                    <Bar dataKey="actual" fill="var(--color-actual)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="standard" fill="var(--color-standard)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+                {report.unitTotals.length > 1 && (
+                  <p className="text-xs text-muted-foreground mt-2">Materials use different units — compare bars within the same unit.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Variance % by Material — {dateLabel}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={varianceChartConfig} className="h-[300px] w-full">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" fontSize={11} interval={0} angle={chartData.length > 8 ? -40 : 0} textAnchor={chartData.length > 8 ? "end" : "middle"} height={chartData.length > 8 ? 60 : 30} />
+                    <YAxis fontSize={12} unit="%" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                    <Bar dataKey="variancePct" fill="var(--color-variancePct)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Comparison Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Material Comparison — {dateLabel}</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8" />
+                    <TableHead>Code</TableHead>
+                    <TableHead>Material</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Opening</TableHead>
+                    <TableHead className="text-right">Receipts</TableHead>
+                    <TableHead className="text-right">Actual</TableHead>
+                    <TableHead className="text-right">Standard</TableHead>
+                    <TableHead className="text-right">Variance</TableHead>
+                    <TableHead className="text-right">Var %</TableHead>
+                    <TableHead className="text-right">Closing</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.rows.map((r) => {
+                    const isOpen = expanded.has(r.id);
+                    const canExpand = r.bomBreakdown.length > 0;
+                    const hasVariance = r.status === "over" || r.status === "under" || r.status === "on";
+                    return (
+                      <Fragment key={r.id}>
+                        <TableRow
+                          className={cn(canExpand && "cursor-pointer")}
+                          onClick={() => canExpand && toggleExpanded(r.id)}
+                        >
+                          <TableCell className="px-2">
+                            {canExpand && (isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)}
+                          </TableCell>
+                          <TableCell className="font-medium">{r.code}</TableCell>
+                          <TableCell>{r.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{r.unit}</TableCell>
+                          <TableCell className="text-right">{r.opening.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{r.receipts.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{r.actual.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{r.standard.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            <span className={STATUS_STYLE[r.status].text}>{hasVariance ? signed(r.variance) : "—"}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {hasVariance ? (
+                              <span className={Math.abs(r.variancePct) > 10 ? "text-destructive font-semibold" : ""}>
+                                {signed(r.variancePct, 1)}%
+                              </span>
+                            ) : (
+                              <span className={cn("text-xs font-medium", STATUS_STYLE[r.status].text)}>
+                                {r.status === "nostd" ? "No standard" : "—"}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">{r.closing.toFixed(2)}</TableCell>
+                        </TableRow>
+                        {isOpen && (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell />
+                            <TableCell colSpan={10} className="py-2">
+                              <div className="space-y-0.5">
+                                {r.bomBreakdown.map((b) => (
+                                  <div key={b.productId} className="text-xs text-muted-foreground">
+                                    {b.productName} ({b.departmentName}): {b.produced} × {b.bomRate} = {b.subtotal.toFixed(2)} {r.unit}
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Department-wise Usage Breakdown */}
       <Card>
