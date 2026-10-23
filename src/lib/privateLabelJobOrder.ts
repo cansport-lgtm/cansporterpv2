@@ -20,7 +20,7 @@ export const PLJO_BUCKET = "private-label-logos";
 export const PLJO_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const PLJO_LOGO_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp", "application/pdf"];
 
-export type PljoStatus = "Draft" | "Issued" | "Closed" | "Cancelled";
+export type PljoStatus = "Draft" | "Issued" | "Dispatched" | "Closed" | "Cancelled";
 export type PljoOrderType = "private_label" | "company";
 export type PljoPriority = "low" | "medium" | "high" | "critical";
 export type PljoAttachmentKind = "logo" | "artwork";
@@ -94,6 +94,8 @@ export interface PljoOrder {
   closed_at: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
+  dispatched_at?: string | null;
+  dispatch_note?: string | null;
   created_at: string;
   billing_customer_id: string | null;
   customers: { name: string } | null;
@@ -165,6 +167,7 @@ export const blankForm = (): PljoForm => ({
 export const statusVariant = (s: string) => {
   if (s === "Draft") return "secondary" as const;
   if (s === "Issued") return "default" as const;
+  if (s === "Dispatched") return "secondary" as const;
   if (s === "Cancelled") return "destructive" as const;
   return "outline" as const;
 };
@@ -270,7 +273,7 @@ export async function fetchOrderDetail(id: string): Promise<PljoDetail> {
     db
       .from("private_label_job_orders")
       .select(
-        `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_floor_sequence(seq)`,
+        `*, ${CUSTOMER_EMBEDS}, grades(name), private_label_job_order_items(quantity), private_label_job_order_attachments(kind, file_path, mime_type), private_label_job_order_progress(dozens), private_label_floor_sequence(seq)`,
       )
       .eq("id", id)
       .single(),
@@ -780,6 +783,16 @@ export async function fetchFloorSequence(): Promise<FloorSequenceOrder[]> {
     if (da !== db_) return da < db_ ? -1 : 1;
     return a.pl_job_order_number.localeCompare(b.pl_job_order_number);
   });
+}
+
+/**
+ * Dispatch an Issued order (final). Below 100% produced the database insists
+ * on a note. The order leaves the floor display and the floor queue.
+ */
+export async function dispatchOrder(id: string, note: string): Promise<{ produced: number; ordered: number }> {
+  const { data, error } = await db.rpc("pljo_dispatch", { p_job_order_id: id, p_note: note.trim() || null });
+  if (error) throw error;
+  return { produced: Number(data?.produced ?? 0), ordered: Number(data?.ordered ?? 0) };
 }
 
 /**

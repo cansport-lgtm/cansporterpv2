@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Factory, Loader2, RefreshCw, Tag } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Factory, Loader2, RefreshCw, Tag, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import { updateStatus } from "@/lib/floorUpdateClock";
 import { fetchFloorSequence, producedPct, setFloorSequence, type FloorSequenceOrder } from "@/lib/privateLabelJobOrder";
+import { PrivateLabelDispatchDialog, type DispatchTarget } from "@/components/planning/PrivateLabelDispatchDialog";
 
 interface Props {
   open: boolean;
@@ -56,6 +57,7 @@ export function PrivateLabelFloorSequenceDialog({ open, onOpenChange }: Props) {
   }, [orders]);
 
   const byId = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null);
   const original = useMemo(() => orders.map((o) => o.id).join(","), [orders]);
   const dirty = ids.join(",") !== original;
   const now = new Date();
@@ -114,6 +116,7 @@ export function PrivateLabelFloorSequenceDialog({ open, onOpenChange }: Props) {
           <span>
             {orders.length} issued {orders.length === 1 ? "order" : "orders"}
             {dataUpdatedAt ? ` · loaded ${format(dataUpdatedAt, "HH:mm:ss")}` : ""}
+            {dirty && " · unsaved moves"}
           </span>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={cn("mr-1 h-3.5 w-3.5", isFetching && "animate-spin")} />
@@ -201,6 +204,27 @@ export function PrivateLabelFloorSequenceDialog({ open, onOpenChange }: Props) {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className={cn("mr-2 h-9 w-9", o.production_done_at && "border-green-500 text-green-700 hover:bg-green-50")}
+                      title={dirty ? "Save or reset the sequence first" : "Dispatch: remove from the floor"}
+                      disabled={dirty || save.isPending}
+                      onClick={() =>
+                        setDispatchTarget({
+                          id: o.id,
+                          number: o.pl_job_order_number,
+                          label: isCompany
+                            ? o.private_label_job_order_items.map((l) => l.products?.name).filter(Boolean).join(", ") || "Company products"
+                            : [o.customers?.name, o.brand_name].filter(Boolean).join(" · "),
+                          orderedDz: total,
+                          producedDz: done,
+                          productionDone: !!o.production_done_at,
+                        })
+                      }
+                    >
+                      <Truck className="h-4 w-4" />
+                    </Button>
                     <Button variant="outline" size="icon" className="h-9 w-9" title="Move to top" disabled={i === 0} onClick={() => setIds(move(ids, i, 0))}>
                       <ArrowUpToLine className="h-4 w-4" />
                     </Button>
@@ -233,6 +257,13 @@ export function PrivateLabelFloorSequenceDialog({ open, onOpenChange }: Props) {
           </Button>
         </DialogFooter>
       </DialogContent>
+      <PrivateLabelDispatchDialog
+        target={dispatchTarget}
+        onClose={(dispatched) => {
+          setDispatchTarget(null);
+          if (dispatched) refetch();
+        }}
+      />
     </Dialog>
   );
 }

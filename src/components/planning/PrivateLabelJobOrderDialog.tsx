@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, ImagePlus, Lock, Plus, Printer, Send, Trash2, X, Ban, Paperclip } from "lucide-react";
+import { FileText, ImagePlus, Lock, Plus, Printer, Send, Trash2, Truck, X, Ban, Paperclip } from "lucide-react";
+import { PrivateLabelDispatchDialog, type DispatchTarget } from "@/components/planning/PrivateLabelDispatchDialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -111,6 +113,7 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [confirm, setConfirm] = useState<"close" | "delete" | null>(null);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null);
   const logoInput = useRef<HTMLInputElement>(null);
   const artworkInput = useRef<HTMLInputElement>(null);
 
@@ -783,6 +786,25 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
                 </Button>
               )}
               {order && status === "Issued" && inWindow && (
+                <Button
+                  variant="outline"
+                  className={cn(order.production_done_at && "border-green-500 text-green-700 hover:bg-green-50")}
+                  onClick={() =>
+                    setDispatchTarget({
+                      id: order.id,
+                      number: order.pl_job_order_number,
+                      label: [order.customers?.name, order.brand_name].filter(Boolean).join(" · "),
+                      orderedDz: (order.private_label_job_order_items ?? []).reduce((s, l) => s + Number(l.quantity || 0), 0),
+                      producedDz: (order.private_label_job_order_progress ?? []).reduce((s, p) => s + Number(p.dozens), 0),
+                      productionDone: !!order.production_done_at,
+                    })
+                  }
+                  disabled={busy}
+                >
+                  <Truck className="mr-1 h-4 w-4" /> Dispatch
+                </Button>
+              )}
+              {order && status === "Issued" && inWindow && (
                 <Button variant="outline" onClick={() => setConfirm("close")} disabled={busy}>
                   <Lock className="mr-1 h-4 w-4" /> Close
                 </Button>
@@ -854,6 +876,13 @@ export function PrivateLabelJobOrderDialog({ orderId, onOpenChange, canEdit }: P
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PrivateLabelDispatchDialog
+        target={dispatchTarget}
+        onClose={(dispatched) => {
+          setDispatchTarget(null);
+          if (dispatched) refresh();
+        }}
+      />
     </>
   );
 }
