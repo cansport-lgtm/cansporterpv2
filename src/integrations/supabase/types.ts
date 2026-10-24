@@ -8949,7 +8949,9 @@ export type Database = {
       mph_calculating_numbers: {
         Row: {
           created_at: string | null
+          daily_fixed_mph: number
           department_id: string
+          fixed_mph_effective_from: string | null
           id: string
           is_active: boolean | null
           mph_number: number
@@ -8958,7 +8960,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          daily_fixed_mph?: number
           department_id: string
+          fixed_mph_effective_from?: string | null
           id?: string
           is_active?: boolean | null
           mph_number?: number
@@ -8967,7 +8971,9 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          daily_fixed_mph?: number
           department_id?: string
+          fixed_mph_effective_from?: string | null
           id?: string
           is_active?: boolean | null
           mph_number?: number

@@ -3,6 +3,7 @@ import { format, differenceInCalendarDays } from "date-fns";
 import { CalendarIcon, FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
@@ -131,9 +132,10 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
             .lte("entry_date", toStr),
           supabase
             .from("mph_calculating_numbers")
-            .select("department_id, sub_department_id, mph_number")
+            .select(MPH_NUMBER_COLUMNS)
             .eq("is_active", true),
         ]);
+      const mphRows = (mphRes.data || []) as MphNumberRow[];
 
       if (targetsRes.error) throw targetsRes.error;
 
@@ -170,10 +172,7 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
       }
 
       // Target/Actual MPH per date+department from production entries
-      const mphNumMap = new Map<string, number>();
-      (mphRes.data || []).forEach((m: any) => {
-        mphNumMap.set(`${m.department_id || ""}-${m.sub_department_id || ""}`, m.mph_number || 0);
-      });
+      const rate = mphRateLookup(mphRows);
       const prodByDateDept: Record<
         string,
         { targetProd: number; produced: number; targetMPH: number; actualMPH: number }
@@ -183,11 +182,20 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
         const key = `${e.entry_date}|${deptId}`;
         if (!prodByDateDept[key])
           prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0 };
-        const mphNum = mphNumMap.get(`${deptId}-${e.sub_department_id || ""}`) || 0;
+        const mphNum = rate(deptId, e.sub_department_id);
         prodByDateDept[key].targetProd += e.target_production || 0;
         prodByDateDept[key].produced += e.quantity_produced || 0;
         prodByDateDept[key].targetMPH += (e.target_production || 0) * mphNum;
         prodByDateDept[key].actualMPH += (e.quantity_produced || 0) * mphNum;
+      });
+      // Fixed daily MPH: a department with anyone deployed that day earns it (src/lib/mphLoss.ts)
+      new Set(rows.filter((r) => r.department_id).map((r) => `${r.target_date}|${r.department_id}`)).forEach((key) => {
+        const [date, deptId] = key.split("|");
+        const fixed = fixedDailyMph(mphRows, deptId, date);
+        if (fixed <= 0) return;
+        if (!prodByDateDept[key]) prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0 };
+        prodByDateDept[key].targetMPH += fixed;
+        prodByDateDept[key].actualMPH += fixed;
       });
 
       const XLSX = await import("xlsx");

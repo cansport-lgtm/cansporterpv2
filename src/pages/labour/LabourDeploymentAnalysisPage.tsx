@@ -14,6 +14,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -95,9 +96,10 @@ const fetchDayData = async (dateStr: string): Promise<DaySnapshot> => {
         .eq("entry_date", dateStr),
       supabase
         .from("mph_calculating_numbers")
-        .select("department_id, sub_department_id, mph_number")
+        .select(MPH_NUMBER_COLUMNS)
         .eq("is_active", true),
     ]);
+  const mphRows = (mphRes.data || []) as MphNumberRow[];
 
   const empMap = new Map((employeesRes.data || []).map((e: any) => [e.id, e]));
   const deptMap = new Map((deptsRes.data || []).map((d: any) => [d.id, d.name]));
@@ -130,19 +132,21 @@ const fetchDayData = async (dateStr: string): Promise<DaySnapshot> => {
     prodData[deptId].produced += r.quantity_produced || 0;
   });
 
-  const mphMap = new Map<string, number>();
-  (mphRes.data || []).forEach((m: any) => {
-    const key = `${m.department_id || ""}-${m.sub_department_id || ""}`;
-    mphMap.set(key, m.mph_number || 0);
-  });
+  const rate = mphRateLookup(mphRows);
   const targetMPHByDept: Record<string, number> = {};
   const actualMPHByDept: Record<string, number> = {};
   (prodRes.data || []).forEach((e: any) => {
     const deptId = e.department_id || "";
-    const key = `${deptId}-${e.sub_department_id || ""}`;
-    const mphNum = mphMap.get(key) || 0;
+    const mphNum = rate(deptId, e.sub_department_id);
     targetMPHByDept[deptId] = (targetMPHByDept[deptId] || 0) + (e.target_production || 0) * mphNum;
     actualMPHByDept[deptId] = (actualMPHByDept[deptId] || 0) + (e.quantity_produced || 0) * mphNum;
+  });
+  // Fixed daily MPH: a department with anyone deployed earns it, in target and actual alike (src/lib/mphLoss.ts)
+  new Set(entries.map((e) => e.department_id).filter(Boolean)).forEach((deptId) => {
+    const fixed = fixedDailyMph(mphRows, deptId, dateStr);
+    if (fixed <= 0) return;
+    targetMPHByDept[deptId] = (targetMPHByDept[deptId] || 0) + fixed;
+    actualMPHByDept[deptId] = (actualMPHByDept[deptId] || 0) + fixed;
   });
 
   return { entries, prodData, targetMPHByDept, actualMPHByDept };

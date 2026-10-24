@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,9 +52,9 @@ export default function LabourMPHManagementPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("mph_calculating_numbers")
-        .select("department_id, sub_department_id, mph_number")
+        .select(MPH_NUMBER_COLUMNS)
         .eq("is_active", true);
-      return data || [];
+      return (data || []) as MphNumberRow[];
     },
   });
 
@@ -87,7 +88,7 @@ export default function LabourMPHManagementPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("labour_productivity_targets")
-        .select("department_id, mph")
+        .select("department_id, mph, target_date")
         .eq("target_date", dateStr);
       return data || [];
     },
@@ -122,29 +123,32 @@ export default function LabourMPHManagementPage() {
     },
   });
 
-  // Helper: compute authorized MPH from production entries + mph numbers
+  // Helper: authorized MPH per department = production × MPH number, plus the
+  // department's fixed daily MPH on each day it had anyone deployed (src/lib/mphLoss.ts)
   const computeAuthorizedByDept = (
-    prodEntries: { department_id: string | null; sub_department_id: string | null; quantity_produced: number }[]
+    prodEntries: { department_id: string | null; sub_department_id: string | null; quantity_produced: number }[],
+    usedEntries: { department_id: string | null; target_date: string }[]
   ) => {
     const map: Record<string, number> = {};
+    const rate = mphRateLookup(mphNumbers);
     prodEntries.forEach((entry) => {
       if (!entry.department_id) return;
-      const mphRow = mphNumbers.find(
-        (m) =>
-          m.department_id === entry.department_id &&
-          (m.sub_department_id || null) === (entry.sub_department_id || null)
-      );
-      if (!mphRow) return;
-      const mph = Number(entry.quantity_produced || 0) * Number(mphRow.mph_number || 0);
+      const mph = Number(entry.quantity_produced || 0) * rate(entry.department_id, entry.sub_department_id);
       map[entry.department_id] = (map[entry.department_id] || 0) + mph;
+    });
+    const deployedDays = new Set(usedEntries.filter((e) => e.department_id).map((e) => `${e.department_id}|${e.target_date}`));
+    deployedDays.forEach((key) => {
+      const [deptId, date] = key.split("|");
+      const fixed = fixedDailyMph(mphNumbers, deptId, date);
+      if (fixed > 0) map[deptId] = (map[deptId] || 0) + fixed;
     });
     return map;
   };
 
   // Daily tab calculations
   const authorizedByDeptComputed = useMemo(
-    () => computeAuthorizedByDept(dailyProduction as any),
-    [dailyProduction, mphNumbers]
+    () => computeAuthorizedByDept(dailyProduction as any, usedMphDaily as any),
+    [dailyProduction, usedMphDaily, mphNumbers]
   );
 
   const usedByDept = useMemo(() => {
@@ -227,7 +231,7 @@ export default function LabourMPHManagementPage() {
 
   // Monthly analysis data
   const monthlyAnalysis = useMemo(() => {
-    const authMap = computeAuthorizedByDept(monthlyProduction as any);
+    const authMap = computeAuthorizedByDept(monthlyProduction as any, monthlyUsed as any);
     const usedMap: Record<string, number> = {};
     monthlyUsed.forEach((item) => {
       if (item.department_id) usedMap[item.department_id] = (usedMap[item.department_id] || 0) + Number(item.mph || 0);

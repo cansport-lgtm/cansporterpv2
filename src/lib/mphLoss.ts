@@ -3,8 +3,16 @@
 // Authorized / Used MPH per department for a production date, computed the same
 // way as the MPH Analysis page (src/pages/labour/LabourMPHAnalysisPage.tsx):
 //   Authorized = Σ quantity_produced × MPH number (mph_calculating_numbers)
+//              + the department's fixed daily MPH (daily_fixed_mph), on a day
+//                it has anyone deployed
 //   Used       = Σ labour_productivity_targets.mph
 // Net < 0 is a loss that the Production Coordinator must explain.
+//
+// The fixed daily MPH is for departments with no countable output
+// (housekeeping): without it their whole deployment shows as a loss every
+// day. It is a flat figure per day, not per worker, so over-staffing still
+// shows. Every page that computes Authorized goes through the helpers below
+// (MPH_NUMBER_COLUMNS, mphRateLookup, fixedDailyMph) so the figures agree.
 //
 // fetchMphDay also returns the detail behind those totals — every posted item
 // (production entry) and every deployed worker — so the page can show the
@@ -57,6 +65,49 @@ export interface MphWorkerRow {
 export interface DepartmentMphDetail {
   items: MphItemRow[];
   workers: MphWorkerRow[];
+  // Fixed daily MPH counted for this department on this date (0 if none).
+  fixed_daily_mph: number;
+}
+
+// One MPH Master row, as every page should select it.
+export interface MphNumberRow {
+  department_id: string;
+  sub_department_id: string | null;
+  mph_number: number | null;
+  daily_fixed_mph?: number | null;
+  fixed_mph_effective_from?: string | null;
+}
+
+export const MPH_NUMBER_COLUMNS = "department_id, sub_department_id, mph_number, daily_fixed_mph, fixed_mph_effective_from";
+
+// (department, sub-department) → MPH number per unit of output.
+export function mphRateLookup(rows: MphNumberRow[]) {
+  const map = new Map<string, number>();
+  rows.forEach((m) => map.set(`${m.department_id}|${m.sub_department_id || ""}`, Number(m.mph_number || 0)));
+  return (departmentId: string | null, subDepartmentId: string | null) =>
+    departmentId ? map.get(`${departmentId}|${subDepartmentId || ""}`) ?? 0 : 0;
+}
+
+// Fixed MPH a department earns on `date` (yyyy-mm-dd). Only department-level
+// rows carry it (the database refuses it on sub-department rows), and it
+// applies from fixed_mph_effective_from. The caller adds it only on a day the
+// department has at least one deployed worker.
+export function fixedDailyMph(rows: MphNumberRow[], departmentId: string | null, date: string): number {
+  if (!departmentId) return 0;
+  return rows.reduce((sum, m) => {
+    if (m.department_id !== departmentId || m.sub_department_id) return sum;
+    const from = m.fixed_mph_effective_from;
+    if (from && from > date) return sum;
+    return sum + Number(m.daily_fixed_mph || 0);
+  }, 0);
+}
+
+// Fixed MPH over a range: one allowance per (department, date) in `deployedDays`,
+// the set of dates on which the department had anyone deployed.
+export function fixedMphForDays(rows: MphNumberRow[], departmentId: string, deployedDays: Iterable<string>): number {
+  let sum = 0;
+  for (const date of deployedDays) sum += fixedDailyMph(rows, departmentId, date);
+  return sum;
 }
 
 export interface MphDay {
@@ -95,7 +146,7 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
   const [deptRes, subRes, mphRes, prodRes, usedRes] = await Promise.all([
     supabase.from("production_departments").select("id, name").eq("is_active", true).order("name"),
     supabase.from("production_sub_departments").select("id, name"),
-    supabase.from("mph_calculating_numbers").select("department_id, sub_department_id, mph_number").eq("is_active", true),
+    supabase.from("mph_calculating_numbers").select(MPH_NUMBER_COLUMNS).eq("is_active", true),
     supabase
       .from("production_entries")
       .select("department_id, sub_department_id, grade_id, shift, quantity_produced, grades(name, code)")
@@ -112,17 +163,13 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
   }
 
   const subName = Object.fromEntries((subRes.data ?? []).map((s) => [s.id, s.name]));
-  const mphNumber = (departmentId: string | null, subDepartmentId: string | null) => {
-    const row = (mphRes.data ?? []).find(
-      (m) => m.department_id === departmentId && (m.sub_department_id || null) === (subDepartmentId || null)
-    );
-    return row ? Number(row.mph_number || 0) : 0;
-  };
+  const mphRows = (mphRes.data ?? []) as MphNumberRow[];
+  const mphNumber = mphRateLookup(mphRows);
 
   const byDept: Record<string, { output: number; authorized: number; used: number }> = {};
   const detail: Record<string, DepartmentMphDetail> = {};
   const bucket = (id: string) => (byDept[id] ??= { output: 0, authorized: 0, used: 0 });
-  const det = (id: string) => (detail[id] ??= { items: [], workers: [] });
+  const det = (id: string) => (detail[id] ??= { items: [], workers: [], fixed_daily_mph: 0 });
 
   (prodRes.data ?? []).forEach((e: any) => {
     if (!e.department_id) return;
@@ -153,6 +200,15 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
       hours: hoursBetween(e.check_in, e.check_out),
       mph,
     });
+  });
+
+  // Fixed daily MPH: counted once per department, only on a day it has anyone deployed.
+  Object.entries(detail).forEach(([id, d]) => {
+    if (d.workers.length === 0) return;
+    const fixed = fixedDailyMph(mphRows, id, date);
+    if (fixed <= 0) return;
+    d.fixed_daily_mph = round1(fixed);
+    bucket(id).authorized += fixed;
   });
 
   Object.values(detail).forEach((d) => {

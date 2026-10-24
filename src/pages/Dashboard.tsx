@@ -33,6 +33,7 @@ import {
   Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandGroup,
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -429,10 +430,10 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mph_calculating_numbers")
-        .select("department_id, sub_department_id, mph_number")
+        .select(MPH_NUMBER_COLUMNS)
         .eq("is_active", true);
       if (error) throw error;
-      return data || [];
+      return (data || []) as MphNumberRow[];
     },
   });
 
@@ -441,7 +442,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("labour_productivity_targets")
-        .select("department_id, mph, production_departments(name)")
+        .select("department_id, mph, target_date, production_departments(name)")
         .gte("target_date", dateRange.start)
         .lte("target_date", dateRange.end)
         .limit(5000);
@@ -925,30 +926,38 @@ export default function Dashboard() {
     return totalTarget > 0 ? ((totalActual / totalTarget) * 100).toFixed(0) : "0";
   }, [labourData]);
 
-  // MPH department-wise stats - computed from production × mph_calculating_numbers
+  // MPH department-wise stats - computed from production × mph_calculating_numbers,
+  // plus each department's fixed daily MPH on days it had anyone deployed (src/lib/mphLoss.ts)
   const mphStats = useMemo(() => {
     const deptMap = new Map<string, { name: string; authorized: number; used: number; targetQty: number; actualQty: number }>();
+    const mphRows = mphCalculatingNumbers || [];
+    const rate = mphRateLookup(mphRows);
     
     // Compute authorized MPH from production entries × mph calculating numbers
     (mphProductionEntries || []).forEach((entry: any) => {
-      const mphRow = (mphCalculatingNumbers || []).find((m: any) =>
-        m.department_id === entry.department_id &&
-        (m.sub_department_id || null) === (entry.sub_department_id || null)
-      );
-      if (mphRow) {
+      const mphNumber = rate(entry.department_id, entry.sub_department_id);
+      if (mphNumber > 0) {
         const deptId = entry.department_id || "unknown";
         const deptName = entry.production_departments?.name || "Unknown";
         if (!deptMap.has(deptId)) deptMap.set(deptId, { name: deptName, authorized: 0, used: 0, targetQty: 0, actualQty: 0 });
-        deptMap.get(deptId)!.authorized += Number(entry.quantity_produced || 0) * Number(mphRow.mph_number || 0);
+        deptMap.get(deptId)!.authorized += Number(entry.quantity_produced || 0) * mphNumber;
       }
     });
     
     // Add used MPH from productivity targets
+    const deployedDays = new Set<string>();
     (mphUsed || []).forEach(e => {
       const deptId = e.department_id || "unknown";
       const deptName = (e.production_departments as any)?.name || "Unknown";
       if (!deptMap.has(deptId)) deptMap.set(deptId, { name: deptName, authorized: 0, used: 0, targetQty: 0, actualQty: 0 });
       deptMap.get(deptId)!.used += (e.mph || 0);
+      if (e.department_id && e.target_date) deployedDays.add(`${e.department_id}|${e.target_date}`);
+    });
+
+    // Fixed daily MPH: once per department per deployed day
+    deployedDays.forEach((key) => {
+      const [deptId, date] = key.split("|");
+      deptMap.get(deptId)!.authorized += fixedDailyMph(mphRows, deptId, date);
     });
 
     // Add department efficiency from labour productivity targets

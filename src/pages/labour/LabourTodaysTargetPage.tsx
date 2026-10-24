@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, Target, Users, TrendingUp, ChevronDown, ChevronRight, Clock, Factory, ArrowUpDown, Printer, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Button } from "@/components/ui/button";
@@ -119,8 +120,8 @@ export default function LabourTodaysTargetPage() {
   const { data: mphNumbers = [] } = useQuery({
     queryKey: ["mph-calculating-numbers"],
     queryFn: async () => {
-      const res = await supabase.from("mph_calculating_numbers").select("department_id, sub_department_id, mph_number").eq("is_active", true);
-      return res.data || [];
+      const res = await supabase.from("mph_calculating_numbers").select(MPH_NUMBER_COLUMNS).eq("is_active", true);
+      return (res.data || []) as MphNumberRow[];
     },
   });
 
@@ -133,20 +134,19 @@ export default function LabourTodaysTargetPage() {
     },
   });
 
-  // Calculate Target MPH per department: sum(target_production × mph_number) grouped by dept
+  // Calculate Target MPH per department: sum(target_production × mph_number) grouped by dept,
+  // plus the department's fixed daily MPH when it has anyone deployed (src/lib/mphLoss.ts)
   const targetMPHByDept = (() => {
-    const mphMap = new Map<string, number>();
-    mphNumbers.forEach((m: any) => {
-      const key = `${m.department_id || ""}-${m.sub_department_id || ""}`;
-      mphMap.set(key, m.mph_number || 0);
-    });
+    const rate = mphRateLookup(mphNumbers);
     const deptMap: Record<string, number> = {};
     prodEntriesRaw.forEach((e: any) => {
       const deptId = e.department_id || "";
-      const key = `${deptId}-${e.sub_department_id || ""}`;
-      const mphNum = mphMap.get(key) || 0;
-      const val = (e.target_production || 0) * mphNum;
+      const val = (e.target_production || 0) * rate(deptId, e.sub_department_id);
       deptMap[deptId] = (deptMap[deptId] || 0) + val;
+    });
+    new Set((entries as TargetEntry[]).map((e) => e.department_id).filter(Boolean)).forEach((deptId) => {
+      const fixed = fixedDailyMph(mphNumbers, deptId, dateStr);
+      if (fixed > 0) deptMap[deptId] = (deptMap[deptId] || 0) + fixed;
     });
     return deptMap;
   })();

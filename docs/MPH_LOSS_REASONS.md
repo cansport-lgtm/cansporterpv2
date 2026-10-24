@@ -50,6 +50,40 @@ reason picker (search, category chips, "used today" first), a "Use remaining"
 shortcut, and sticky Save / Submit buttons. Desktop (≥768px) keeps the original
 layout.
 
+## Fixed daily MPH (departments with no output)
+
+Authorized MPH is earned from output, so a department that produces nothing
+countable — housekeeping, security, store — earned 0 and its whole deployment
+showed as a loss every day, explained with a made-up reason.
+
+MPH Master (`/production/mph-master`) now takes a **Fixed MPH per day** on the
+department-level row (sub-department "None"), with an optional **Applies from**
+date. Housekeeping: MPH number 0, fixed 12 per day.
+
+Rules (`src/lib/mphLoss.ts`, used by every page that computes Authorized —
+MPH Analysis, MPH Management, Loss Reasons, CEO Dashboard, Deployment Analysis,
+Today's Target and the deployment Excel export):
+
+- Authorized = Σ output × MPH number **+** fixed daily MPH.
+- The fixed MPH counts only on a date where the department has at least one
+  deployed worker. A day nobody is deployed earns nothing.
+- It is a flat figure per day, not per worker. One housekeeper (12 MPH used)
+  nets 0; two (24 used) net −12, which still has to be explained.
+- It applies from the "Applies from" date. Set that to the go-live date so
+  earlier days keep the figures their reports were saved with (the calculation
+  panel flags a saved report whose live figures differ).
+- Only department-level rows can carry it; the database refuses it on
+  sub-department rows.
+
+The entry page shows "(incl. 12.0 fixed daily)" next to Authorized and a
+"+ Fixed daily allowance" line under the item table.
+
+After go-live, deactivate any catch-all reason that was being used for this
+("mph set nahi hai …") on the reason master.
+
+Migration: `supabase/migrations/20261116120000_mph_fixed_daily_allowance.sql`
+(rollback in `supabase/rollbacks/`).
+
 ## Role
 
 `production_coordinator` (Labour module, special tier). Confined to the MPH loss
