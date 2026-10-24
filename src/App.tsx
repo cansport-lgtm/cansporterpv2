@@ -332,7 +332,7 @@ import DefaultAccountsPage from "./pages/accounting/DefaultAccountsPage";
 import SalesReconciliationPage from "./pages/accounting/SalesReconciliationPage";
 import AccountingSalesReportPage from "./pages/accounting/SalesReportPage";
 import AccountingSalesAnalysisPage from "./pages/accounting/SalesAnalysisPage";
-import AccountingPurchaseAnalysisPage from "./pages/accounting/PurchaseAnalysisPage";
+import PurchaseAnalysisPage from "./pages/purchase/PurchaseAnalysisPage";
 import AccountingExpensesAnalysisPage from "./pages/accounting/ExpensesAnalysisPage";
 import ProductionCostRecognitionPage from "./pages/accounting/ProductionCostRecognitionPage";
 import ProductionReconciliationPage from "./pages/accounting/ProductionReconciliationPage";
@@ -778,6 +778,7 @@ const App = () => (
 
             {/* Purchase Routes */}
             <Route path="/purchase/dashboard" element={<ProtectedRoute><PurchaseDashboard /></ProtectedRoute>} />
+            <Route path="/purchase/analysis" element={<ProtectedRoute><PurchaseAnalysisPage /></ProtectedRoute>} />
             <Route path="/purchase/suppliers" element={<ProtectedRoute><SuppliersPage /></ProtectedRoute>} />
             <Route path="/purchase/requests" element={<ProtectedRoute><PurchaseRequestsPage /></ProtectedRoute>} />
             <Route path="/purchase/requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
@@ -1083,7 +1084,7 @@ const App = () => (
             <Route path="/accounting/cash-flow-forecast" element={<ProtectedRoute><CashFlowForecastPage /></ProtectedRoute>} />
             <Route path="/accounting/sales-report" element={<ProtectedRoute><AccountingSalesReportPage /></ProtectedRoute>} />
             <Route path="/accounting/sales-analysis" element={<ProtectedRoute><AccountingSalesAnalysisPage /></ProtectedRoute>} />
-            <Route path="/accounting/purchase-analysis" element={<ProtectedRoute><AccountingPurchaseAnalysisPage /></ProtectedRoute>} />
+            <Route path="/accounting/purchase-analysis" element={<ProtectedRoute><PurchaseAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/expenses-analysis" element={<ProtectedRoute><AccountingExpensesAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/trip-fuel-analysis" element={<ProtectedRoute><AccountingTripFuelAnalysisPage /></ProtectedRoute>} />
             <Route path="/accounting/expense-links" element={<ProtectedRoute><ExpenseAccountLinksPage /></ProtectedRoute>} />

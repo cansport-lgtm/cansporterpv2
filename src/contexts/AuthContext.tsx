@@ -291,9 +291,11 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/gate-inward',
     '/purchase/material-shortages',
   ],
-  // Purchase Manager: full purchase operations incl. approvals, invoices and returns.
+  // Purchase Manager: full purchase operations incl. approvals, invoices, returns
+  // and the Purchase Analysis report (spend, supplier concentration, fulfilment).
   purchase_manager: [
     '/purchase/dashboard',
+    '/purchase/analysis',
     '/purchase/suppliers',
     '/purchase/requests',
     '/purchase/orders',

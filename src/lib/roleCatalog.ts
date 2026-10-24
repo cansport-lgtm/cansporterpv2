@@ -659,7 +659,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     module: "purchase",
     label: "Manager (approve POs)",
     tier: "manager",
-    description: "Approves purchase orders raised by Purchase Officers",
+    description: "Approves purchase orders raised by Purchase Officers; also sees the Purchase Analysis report",
     color: "bg-blue-700/10 text-blue-700 border-blue-700/20",
   },
   purchase_officer: {
