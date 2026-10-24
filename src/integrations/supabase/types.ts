@@ -1456,6 +1456,38 @@ export type Database = {
           },
         ]
       }
+      consumption_key_raw_materials: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          raw_material_id: string
+          removed_at: string | null
+          sort_order: number
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          raw_material_id: string
+          removed_at?: string | null
+          sort_order?: number
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          raw_material_id?: string
+          removed_at?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consumption_key_raw_materials_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: true
+            referencedRelation: "consumption_raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consumption_production_entry: {
         Row: {
           created_at: string | null
@@ -17252,6 +17284,10 @@ export type Database = {
       backup_schema_sql: { Args: never; Returns: string }
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       consumption_grn_cutover: { Args: never; Returns: string }
+      consumption_set_key_raw_materials: {
+        Args: { p_raw_material_ids: string[] }
+        Returns: undefined
+      }
       consumption_grn_receipt_qty: {
         Args: { p_date: string; p_material: string }
         Returns: number

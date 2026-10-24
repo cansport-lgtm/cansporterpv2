@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Eye, Factory, Plus } from "lucide-react";
+import { Eye, Factory, ListOrdered, Plus, Truck } from "lucide-react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { CompanyJobOrderDialog } from "@/components/planning/CompanyJobOrderDialog";
+import { PrivateLabelFloorSequenceDialog } from "@/components/planning/PrivateLabelFloorSequenceDialog";
+import { PrivateLabelDispatchDialog, type DispatchTarget } from "@/components/planning/PrivateLabelDispatchDialog";
 import { fetchOrders, producedPct, statusVariant, type PljoOrder } from "@/lib/privateLabelJobOrder";
 
 const PLANNING_EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -45,8 +47,12 @@ function summary(o: PljoOrder) {
 }
 
 export default function CompanyJobOrdersPage() {
-  const { hasRole, roles } = useAuth();
+  const { hasRole, roles, hasModulePermission } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // Floor sequence: one queue shared with private label orders.
+  const canSequence = hasModulePermission("planning", "edit");
+  const [sequenceOpen, setSequenceOpen] = useState(false);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null);
   // Same rule as Job Orders: a production_operator may edit within 48h of creation.
   const isProductionOperator = roles.some((r) => r.role === "production_operator") && !isSuperAdmin;
   const canEdit = (o: Pick<PljoOrder, "created_at"> | null) => {
@@ -86,6 +92,12 @@ export default function CompanyJobOrdersPage() {
           icon={Factory}
           iconColor="bg-sky-600 text-white"
         >
+          {canSequence && (
+            <Button variant="outline" onClick={() => setSequenceOpen(true)}>
+              <ListOrdered className="mr-2 h-4 w-4" />
+              Floor sequence
+            </Button>
+          )}
           <Button onClick={() => setDialog({ id: null })}>
             <Plus className="mr-2 h-4 w-4" />
             New Company JO
@@ -108,6 +120,7 @@ export default function CompanyJobOrdersPage() {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="Draft">Draft</SelectItem>
                 <SelectItem value="Issued">Issued</SelectItem>
+                <SelectItem value="Dispatched">Dispatched</SelectItem>
                 <SelectItem value="Closed">Closed</SelectItem>
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
               </SelectContent>
@@ -128,6 +141,7 @@ export default function CompanyJobOrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="text-center" title="Floor sequence">Seq</TableHead>
                   <TableHead>CJO #</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Required By</TableHead>
@@ -144,13 +158,13 @@ export default function CompanyJobOrdersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">
                       No company product job orders
                     </TableCell>
                   </TableRow>
@@ -163,6 +177,15 @@ export default function CompanyJobOrdersPage() {
                     const s = summary(o);
                     return (
                       <TableRow key={o.id} className="cursor-pointer" onClick={() => setDialog({ id: o.id })}>
+                        <TableCell className="text-center">
+                          {o.status === "Issued" && o.private_label_floor_sequence ? (
+                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-muted px-1.5 font-bold">
+                              {o.private_label_floor_sequence.seq}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono font-medium">{o.pl_job_order_number}</TableCell>
                         <TableCell>{o.order_date}</TableCell>
                         <TableCell>{o.required_by_date ?? "—"}</TableCell>
@@ -209,9 +232,32 @@ export default function CompanyJobOrdersPage() {
                           <Badge variant={statusVariant(o.status)}>{o.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" className="h-8 w-8">
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            {canSequence && o.status === "Issued" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={cn("h-8 w-8", o.production_done_at && "text-green-700 hover:bg-green-50 hover:text-green-800")}
+                                title="Dispatch"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDispatchTarget({
+                                    id: o.id,
+                                    number: o.pl_job_order_number,
+                                    label: s.names.join(", ") || "Company products",
+                                    orderedDz: total,
+                                    producedDz: produced,
+                                    productionDone: !!o.production_done_at,
+                                  });
+                                }}
+                              >
+                                <Truck className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-8 w-8">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -231,6 +277,8 @@ export default function CompanyJobOrdersPage() {
           canEdit={canEdit}
         />
       )}
+      {canSequence && <PrivateLabelFloorSequenceDialog open={sequenceOpen} onOpenChange={setSequenceOpen} />}
+      <PrivateLabelDispatchDialog target={dispatchTarget} onClose={() => setDispatchTarget(null)} />
     </ERPLayout>
   );
 }

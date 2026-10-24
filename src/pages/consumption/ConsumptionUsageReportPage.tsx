@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarIcon, BarChart3, TrendingUp, Printer } from "lucide-react";
+import { CalendarIcon, BarChart3, TrendingUp, Printer, Star } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -22,6 +23,27 @@ import { toast } from "sonner";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { buildMaterialUsageReportPdf } from "@/lib/materialUsageReportPdf";
 import { MATERIAL_VALUE_CATEGORIES, type MaterialValueCategory } from "@/lib/materialValueCategory";
+import { MultiSearchableSelect } from "@/components/shared/MultiSearchableSelect";
+import { useKeyRawMaterials } from "@/hooks/useKeyRawMaterials";
+import {
+  MultiMaterialSingleDayView,
+  buildMultiMaterialPdf,
+  multiMaterialShareSummary,
+  printMultiMaterialReport,
+  useMultiMaterialSingleDayReport,
+} from "./MultiMaterialSingleDayReport";
+
+const MULTI_SELECTION_STORAGE_KEY = "consumption-usage-report:single-day-materials";
+
+function loadStoredMaterialIds(): string[] {
+  try {
+    const raw = localStorage.getItem(MULTI_SELECTION_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -33,11 +55,69 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 export default function ConsumptionUsageReportPage() {
-  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "single">("daily");
+  // ?view=single&key=1 (from the Key Raw Materials portal) opens Single Day with the key list loaded.
+  const [searchParams] = useSearchParams();
+  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "single">(
+    searchParams.get("view") === "single" ? "single" : "daily"
+  );
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedValueCategory, setSelectedValueCategory] = useState<MaterialValueCategory | "all">("all");
+  // Single Day view compares several materials at once; Daily/Monthly stay single-material.
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>(loadStoredMaterialIds);
+  const [hideInactive, setHideInactive] = useState(false);
+  const [includeBomInPrint, setIncludeBomInPrint] = useState(true);
+  const isMulti = viewMode === "single";
+
+  const { keyIds, canEdit: canEditKeyList, saveKeyIds, isSaving: savingKeyList } = useKeyRawMaterials();
+
+  const loadKeyMaterials = () => {
+    if (keyIds.length === 0) return;
+    if (selectedValueCategory !== "all") setSelectedValueCategory("all");
+    setSelectedMaterialIds(keyIds);
+  };
+
+  // Single Day starts from the key list when nothing is ticked yet (or when the
+  // portal asked for it); after that the selection is left alone, so Clear sticks.
+  const autoLoadedKeyList = useRef(false);
+  useEffect(() => {
+    if (autoLoadedKeyList.current || !isMulti || keyIds.length === 0) return;
+    autoLoadedKeyList.current = true;
+    if (searchParams.get("key") === "1" || selectedMaterialIds.length === 0) loadKeyMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMulti, keyIds]);
+
+  const handleSaveAsKeyList = async () => {
+    if (!window.confirm(`Replace the shared key raw materials list with these ${selectedMaterialIds.length} materials?`)) return;
+    try {
+      await saveKeyIds(selectedMaterialIds);
+      toast.success(`Key raw materials list saved (${selectedMaterialIds.length})`);
+    } catch (e) {
+      toast.error((e as { message?: string })?.message || "Failed to save key raw materials");
+    }
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MULTI_SELECTION_STORAGE_KEY, JSON.stringify(selectedMaterialIds));
+    } catch {
+      // storage unavailable (private mode etc.) - selection just won't be remembered
+    }
+  }, [selectedMaterialIds]);
+
+  const handleViewModeChange = (next: "daily" | "monthly" | "single") => {
+    if (next === "single" && viewMode !== "single") {
+      if (selectedMaterialId && !selectedMaterialIds.includes(selectedMaterialId)) {
+        setSelectedMaterialIds([selectedMaterialId, ...selectedMaterialIds]);
+      }
+    } else if (next !== "single" && viewMode === "single") {
+      if (selectedMaterialIds.length > 0 && !selectedMaterialIds.includes(selectedMaterialId)) {
+        setSelectedMaterialId(selectedMaterialIds[0]);
+      }
+    }
+    setViewMode(next);
+  };
 
   // Fetch all active raw materials for dropdown
   const { data: materials } = useQuery({
@@ -72,6 +152,21 @@ export default function ConsumptionUsageReportPage() {
     }
   }, [selectedValueCategory, selectedMaterialId, materials]);
 
+  // Same for the multi-select: drop materials outside the chosen tier. Unknown ids
+  // (e.g. a remembered material that was deactivated) are dropped once materials load.
+  useEffect(() => {
+    if (!materials) return;
+    const allowed = new Set(
+      materials
+        .filter((m) => selectedValueCategory === "all" || m.value_category === selectedValueCategory)
+        .map((m) => m.id)
+    );
+    setSelectedMaterialIds((prev) => {
+      const next = prev.filter((id) => allowed.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [selectedValueCategory, materials]);
+
   // Date range based on view mode
   const dateRange = useMemo(() => {
     if (viewMode === "single") {
@@ -102,7 +197,7 @@ export default function ConsumptionUsageReportPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!selectedMaterialId,
+    enabled: !!selectedMaterialId && !isMulti,
   });
 
   // Fetch BOM standard for variance calculation
@@ -117,7 +212,7 @@ export default function ConsumptionUsageReportPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!selectedMaterialId,
+    enabled: !!selectedMaterialId && !isMulti,
   });
 
   // Fetch production data for standard calculation
@@ -132,7 +227,7 @@ export default function ConsumptionUsageReportPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!selectedMaterialId,
+    enabled: !!selectedMaterialId && !isMulti,
   });
 
   // Fetch product names (and their production department) for BOM breakdown display
@@ -179,6 +274,19 @@ export default function ConsumptionUsageReportPage() {
   }, [departmentsData]);
 
   const selectedMaterial = materials?.find((m) => m.id === selectedMaterialId);
+
+  const multiReport = useMultiMaterialSingleDayReport({
+    materialIds: isMulti ? selectedMaterialIds : [],
+    materials,
+    date: selectedDate,
+    productLookup,
+    productDepartmentLookup,
+    departmentNameLookup,
+    hideInactive,
+  });
+  const tierLabel = selectedValueCategory === "all"
+    ? "All value tiers"
+    : MATERIAL_VALUE_CATEGORIES.find((c) => c.value === selectedValueCategory)?.label || selectedValueCategory;
   const unit = selectedMaterial?.unit || "kg";
 
   // Build chart data
@@ -390,6 +498,29 @@ export default function ConsumptionUsageReportPage() {
   // Share the report as a PDF to WhatsApp (native share sheet on mobile, download
   // + wa.me summary fallback elsewhere).
   const handleShareWhatsApp = async () => {
+    if (isMulti) {
+      if (multiReport.rows.length === 0) return;
+      try {
+        setSharing(true);
+        const pdf = buildMultiMaterialPdf(multiReport, selectedDate, tierLabel, includeBomInPrint);
+        const result = await shareOrDownloadPdf({
+          blob: pdf.blob,
+          fileName: pdf.fileName,
+          title: `Material Usage Report - ${format(selectedDate, "dd MMM yyyy")}`,
+          text: multiMaterialShareSummary(multiReport, selectedDate),
+        });
+        if (result === "downloaded") {
+          toast.message("Report PDF downloaded", {
+            description: "Attach the downloaded PDF to your WhatsApp chat.",
+          });
+        }
+      } catch (e) {
+        toast.error((e as { message?: string })?.message || "Failed to share report");
+      } finally {
+        setSharing(false);
+      }
+      return;
+    }
     if (!selectedMaterial) return;
     try {
       setSharing(true);
@@ -421,6 +552,10 @@ export default function ConsumptionUsageReportPage() {
   };
 
   const handlePrint = () => {
+    if (isMulti) {
+      if (multiReport.rows.length > 0) printMultiMaterialReport(multiReport, selectedDate, tierLabel, includeBomInPrint);
+      return;
+    }
     if (!selectedMaterial || chartData.length === 0) return;
     const usageRows = printUsageRows;
     const summaryRows = printSummaryRows;
@@ -560,9 +695,13 @@ export default function ConsumptionUsageReportPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Material Usage Report</h1>
-            <p className="page-description">Daily/Monthly usage trends and variance analysis for selected material</p>
+            <p className="page-description">
+              {isMulti
+                ? "Single day usage and variance comparison across selected materials"
+                : "Daily/Monthly usage trends and variance analysis for selected material"}
+            </p>
           </div>
-          {selectedMaterialId && chartData.length > 0 && (
+          {(isMulti ? multiReport.rows.length > 0 : selectedMaterialId && chartData.length > 0) && (
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -586,17 +725,61 @@ export default function ConsumptionUsageReportPage() {
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-4 items-end">
               <div className="flex-1 min-w-[250px]">
-                <label className="text-sm font-medium mb-1.5 block">Select Material</label>
-                <SearchableSelect
-                  value={selectedMaterialId}
-                  onValueChange={setSelectedMaterialId}
-                  options={(filteredMaterials || []).map((m) => ({
-                    value: m.id,
-                    label: `${m.code} — ${m.name}`,
-                  }))}
-                  placeholder="Search a raw material…"
-                  emptyText="No materials match."
-                />
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <label className="text-sm font-medium block">
+                    {isMulti ? "Select Materials" : "Select Material"}
+                  </label>
+                  {isMulti && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={keyIds.length === 0}
+                        onClick={loadKeyMaterials}
+                      >
+                        <Star className="mr-1 h-3.5 w-3.5 text-amber-500" />
+                        Load key materials ({keyIds.length})
+                      </Button>
+                      {canEditKeyList && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={selectedMaterialIds.length === 0 || savingKeyList}
+                          onClick={handleSaveAsKeyList}
+                        >
+                          {savingKeyList ? "Saving…" : "Save as key list"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {isMulti ? (
+                  <MultiSearchableSelect
+                    values={selectedMaterialIds}
+                    onValuesChange={setSelectedMaterialIds}
+                    options={(filteredMaterials || []).map((m) => ({
+                      value: m.id,
+                      label: `${m.code} — ${m.name}`,
+                    }))}
+                    placeholder="Search and tick raw materials…"
+                    emptyText="No materials match."
+                  />
+                ) : (
+                  <SearchableSelect
+                    value={selectedMaterialId}
+                    onValueChange={setSelectedMaterialId}
+                    options={(filteredMaterials || []).map((m) => ({
+                      value: m.id,
+                      label: `${m.code} — ${m.name}`,
+                    }))}
+                    placeholder="Search a raw material…"
+                    emptyText="No materials match."
+                  />
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Value Tier</label>
@@ -617,7 +800,7 @@ export default function ConsumptionUsageReportPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">View</label>
-                <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                <Select value={viewMode} onValueChange={(v: "daily" | "monthly" | "single") => handleViewModeChange(v)}>
                   <SelectTrigger className="w-[130px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -661,7 +844,26 @@ export default function ConsumptionUsageReportPage() {
           </CardContent>
         </Card>
 
-        {!selectedMaterialId ? (
+        {isMulti ? (
+          selectedMaterialIds.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                <p className="text-lg font-medium">Select one or more materials to view the single day report</p>
+                <p className="text-sm mt-1">Tick materials in the dropdown above, or use "Select all" to pick every material in the value tier</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <MultiMaterialSingleDayView
+              report={multiReport}
+              date={selectedDate}
+              hideInactive={hideInactive}
+              onHideInactiveChange={setHideInactive}
+              includeBomInPrint={includeBomInPrint}
+              onIncludeBomInPrintChange={setIncludeBomInPrint}
+            />
+          )
+        ) : !selectedMaterialId ? (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">
               <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-40" />

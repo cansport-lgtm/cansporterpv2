@@ -192,3 +192,126 @@ export function buildMaterialUsageReportPdf(o: MaterialUsageReportPdfOptions): B
 
   return renderTextPdf(pages, PAGE_OPTS);
 }
+
+// ---------------------------------------------------------------------------
+// Item-wise Single Day report for several materials: one block per material,
+// each in its own unit (kg / ltr are never added together). A block is never
+// split across pages; later materials continue on page 2.
+
+const M_UNIT_W = 5;
+const I_NUM_W = 12;
+const ITEM_RULE_W = I_NUM_W * 6;
+
+export type MaterialStatusPdf = "over" | "under" | "on" | "nostd" | "idle";
+
+export interface MultiMaterialRowPdf {
+  code: string;
+  name: string;
+  unit: string;
+  status: MaterialStatusPdf;
+  opening: number;
+  receipts: number;
+  actual: number;
+  standard: number;
+  variance: number;
+  variancePct: number;
+  closing: number;
+  bomBreakdown: { productName: string; produced: number; bomRate: number; subtotal: number; departmentName: string }[];
+  departments: { departmentName: string; produced: number; standard: number; actualEst: number; pctOfMaterial: number }[];
+}
+
+export interface MultiMaterialUsageReportPdfOptions {
+  dateLabel: string;
+  tierLabel: string;
+  generatedOn: string;
+  statusLine: string;
+  rows: MultiMaterialRowPdf[];
+  includeBomBreakdown: boolean;
+}
+
+function statusLabel(r: MultiMaterialRowPdf): string {
+  switch (r.status) {
+    case "over": return `${signed(r.variancePct)}% OVER`;
+    case "under": return `${signed(r.variancePct)}% UNDER`;
+    case "on": return "ON STANDARD";
+    case "nostd": return "NO STANDARD";
+    default: return "NO ACTIVITY";
+  }
+}
+
+function itemRow(cells: string[], bold = false): PdfToken {
+  return line(cells.map((c) => padLeft(c, I_NUM_W)).join(""), bold);
+}
+
+export function buildMultiMaterialUsageReportPdf(o: MultiMaterialUsageReportPdfOptions): Blob {
+  // Groups of lines that must stay on one page.
+  const blocks: PdfToken[][] = [];
+
+  blocks.push([
+    line("MATERIAL USAGE REPORT - ITEM-WISE", true, 14),
+    line(`${o.dateLabel} | ${o.rows.length} material${o.rows.length === 1 ? "" : "s"} | ${o.tierLabel}`, true, 11),
+    line(o.statusLine.replace(/ · /g, ", ")),
+    line(`Generated ${o.generatedOn}  -  each material in its own unit`),
+    BLANK,
+  ]);
+
+  if (o.rows.length === 0) {
+    blocks.push([line("  No consumption data found for this date"), BLANK]);
+  }
+
+  o.rows.forEach((r, i) => {
+    const title = `${i + 1}. ${r.code} - ${r.name} (${r.unit})`;
+    const status = statusLabel(r);
+    const hasVariance = r.status === "over" || r.status === "under" || r.status === "on";
+    const block: PdfToken[] = [
+      line(padRight(title, ITEM_RULE_W - status.length - 1) + " " + status, true, 9.5),
+      itemRow(["Opening", "Receipts", "Actual", "Standard", "Variance", "Closing"], true),
+      itemRow([
+        num(r.opening), num(r.receipts), num(r.actual), num(r.standard),
+        hasVariance ? signed(r.variance) : "-", num(r.closing),
+      ]),
+    ];
+    if (r.departments.length > 0) {
+      block.push(line(padRight("  Department", I_NUM_W * 2) + ["Produced", "Standard", "Actual Est.", "% item"].map((c) => padLeft(c, I_NUM_W)).join(""), true, 7.5));
+      r.departments.forEach((d) => {
+        block.push(line(
+          padRight("  " + d.departmentName, I_NUM_W * 2) +
+          [num(d.produced), num(d.standard), num(d.actualEst), d.pctOfMaterial.toFixed(1) + "%"].map((c) => padLeft(c, I_NUM_W)).join(""),
+          false, 7.5
+        ));
+      });
+    }
+    if (o.includeBomBreakdown) {
+      if (r.bomBreakdown.length > 0) {
+        r.bomBreakdown.forEach((b) => {
+          block.push(line(`    ${b.productName} (${b.departmentName}): ${b.produced} x ${b.bomRate} = ${b.subtotal.toFixed(2)}`, false, 7));
+        });
+      } else if (r.status === "nostd") {
+        block.push(line("    No BOM-linked production recorded for this date.", false, 7));
+      }
+    }
+    block.push(line("-".repeat(ITEM_RULE_W)));
+    blocks.push(block);
+  });
+
+  if (o.rows.some((r) => r.departments.length > 0)) {
+    blocks.push([
+      line("Department split: standard is exact (from BOM); Actual Est. prorates the item's actual", false, 7),
+      line("consumption by each department's share of its standard.", false, 7),
+    ]);
+  }
+
+  const continued = () => [line(`Material Usage Report - Item-wise - ${o.dateLabel} (continued)`, true, 10), BLANK];
+  const pages: PdfToken[][] = [];
+  let page: PdfToken[] = [];
+  blocks.forEach((block) => {
+    if (page.length > 0 && page.length + block.length > MAX_LINES_PER_PAGE) {
+      pages.push(page);
+      page = continued();
+    }
+    page.push(...block);
+  });
+  if (page.length) pages.push(page);
+
+  return renderTextPdf(pages, PAGE_OPTS);
+}

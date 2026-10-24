@@ -254,6 +254,7 @@ import MonthlyReceiptViewPage from "./pages/consumption/MonthlyReceiptViewPage";
 import ConsumptionCategoriesPage from "./pages/consumption/ConsumptionCategoriesPage";
 import ConsumptionSubcategoriesPage from "./pages/consumption/ConsumptionSubcategoriesPage";
 import ConsumptionUsageReportPage from "./pages/consumption/ConsumptionUsageReportPage";
+import KeyRawMaterialsPage from "./pages/consumption/KeyRawMaterialsPage";
 import ValueTierUsageReportPage from "./pages/consumption/ValueTierUsageReportPage";
 import ReorderRequirementPage from "./pages/consumption/ReorderRequirementPage";
 import MaterialShortagesPage from "./pages/purchase/MaterialShortagesPage";
@@ -476,6 +477,7 @@ import SalesFuelVehiclesPage from "./pages/sales/SalesFuelVehiclesPage";
 import SalesFuelTripsPage from "./pages/sales/SalesFuelTripsPage";
 import SalesFuelPricesPage from "./pages/sales/SalesFuelPricesPage";
 import SalesFuelPayoutsPage from "./pages/sales/SalesFuelPayoutsPage";
+import SalesmanPlannerPage from "./pages/sales/SalesmanPlannerPage";
 import AreasMasterPage from "./pages/sales/AreasMasterPage";
 import CitiesMasterPage from "./pages/sales/CitiesMasterPage";
 import CustomerCategoriesMasterPage from "./pages/sales/CustomerCategoriesMasterPage";
@@ -738,6 +740,7 @@ const App = () => (
             <Route path="/sales/customer-pricing" element={<ProtectedRoute><CustomerPricingPage /></ProtectedRoute>} />
             <Route path="/sales/visit-dashboard" element={<ProtectedRoute><CustomerVisitDashboard /></ProtectedRoute>} />
             <Route path="/sales/salesman-activity" element={<ProtectedRoute><SalesmanActivityReportPage /></ProtectedRoute>} />
+            <Route path="/sales/planner" element={<ProtectedRoute><SalesmanPlannerPage /></ProtectedRoute>} />
             {/* Sales geo masters + fuel (v1 top-ups) */}
             <Route path="/sales/cities" element={<ProtectedRoute><CitiesMasterPage /></ProtectedRoute>} />
             <Route path="/sales/areas" element={<ProtectedRoute><AreasMasterPage /></ProtectedRoute>} />
@@ -745,7 +748,7 @@ const App = () => (
             <Route path="/sales/fuel/trips" element={<ProtectedRoute><SalesFuelTripsPage /></ProtectedRoute>} />
             <Route path="/sales/fuel/payouts" element={<ProtectedRoute><SalesFuelPayoutsPage /></ProtectedRoute>} />
             <Route path="/sales/fuel/vehicles" element={<ProtectedRoute><SalesFuelVehiclesPage /></ProtectedRoute>} />
-            <Route path="/sales/fuel/prices" element={<ProtectedRoute><SalesFuelPricesPage /></ProtectedRoute>} />
+            <Route path="/sales/fuel/prices" element={<ProtectedRoute requiredRoles={["super_admin"]}><SalesFuelPricesPage /></ProtectedRoute>} />
             <Route path="/sales/*" element={<ProtectedRoute><ComingSoon title="Sales Module" /></ProtectedRoute>} />
 
             {/* Domestic Sales Routes */}
@@ -902,6 +905,7 @@ const App = () => (
             <Route path="/consumption/categories" element={<ProtectedRoute><ConsumptionCategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/subcategories" element={<ProtectedRoute><ConsumptionSubcategoriesPage /></ProtectedRoute>} />
             <Route path="/consumption/usage-report" element={<ProtectedRoute><ConsumptionUsageReportPage /></ProtectedRoute>} />
+            <Route path="/consumption/key-raw-materials" element={<ProtectedRoute><KeyRawMaterialsPage /></ProtectedRoute>} />
             <Route path="/consumption/value-tier-report" element={<ProtectedRoute><ValueTierUsageReportPage /></ProtectedRoute>} />
             <Route path="/consumption/reorder-requirement" element={<ProtectedRoute><ReorderRequirementPage /></ProtectedRoute>} />
             <Route path="/consumption/*" element={<ProtectedRoute><ComingSoon title="Material Consumption" /></ProtectedRoute>} />
