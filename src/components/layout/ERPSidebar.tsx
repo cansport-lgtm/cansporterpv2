@@ -440,6 +440,9 @@ const navigationItems: NavItem[] = [
       { title: "Purchase Returns", href: "/purchase/returns" },
       { title: "Material Shortages", href: "/purchase/material-shortages" },
       { title: "Dashboard", href: "/purchase/dashboard" },
+      // Same page as Accounting → Reports → Purchase Analysis; exposes supplier spend
+      // and PO values, so manager-tier only (officers / QC inspectors stay off it).
+      { title: "Purchase Analysis", href: "/purchase/analysis", allowedRoles: ["purchase_manager", "super_admin"] },
     ],
   },
   // "Store & Inventory" and "Floor Inventory" modules removed from the sidebar —
