@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { Activity, Gauge, TrendingUp, TrendingDown, CalendarIcon, Factory, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -69,10 +70,10 @@ export default function LabourMPHAnalysisPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mph_calculating_numbers")
-        .select("department_id, sub_department_id, mph_number")
+        .select(MPH_NUMBER_COLUMNS)
         .eq("is_active", true);
       if (error) throw error;
-      return data;
+      return data as MphNumberRow[];
     },
   });
 
@@ -108,14 +109,11 @@ export default function LabourMPHAnalysisPage() {
 
   const isLoading = loadingProduction || loadingUsed;
 
-  // Aggregate authorized MPH + production output per department and per day
+  // Aggregate authorized MPH + production output per department and per day.
+  // Authorized = output × MPH number, plus the department's fixed daily MPH on
+  // each day it had anyone deployed (src/lib/mphLoss.ts).
   const analysis = useMemo(() => {
-    const findMphNumber = (departmentId: string | null, subDepartmentId: string | null) => {
-      const row = mphNumbers.find(
-        (m) => m.department_id === departmentId && (m.sub_department_id || null) === (subDepartmentId || null)
-      );
-      return row ? Number(row.mph_number || 0) : 0;
-    };
+    const findMphNumber = mphRateLookup(mphNumbers);
 
     const byDept: Record<string, { output: number; authorized: number; used: number; days: Set<string>; workers: Set<string> }> = {};
     const byDay: Record<string, { output: number; authorized: number; used: number }> = {};
@@ -142,6 +140,7 @@ export default function LabourMPHAnalysisPage() {
       day.authorized += authorized;
     });
 
+    const deployedDays = new Set<string>();
     usedMphEntries.forEach((entry) => {
       if (!entry.department_id) return;
       const mph = Number(entry.mph || 0);
@@ -149,6 +148,17 @@ export default function LabourMPHAnalysisPage() {
       dept.used += mph;
       if (entry.employee_id) dept.workers.add(entry.employee_id);
       dayBucket(entry.target_date).used += mph;
+      deployedDays.add(`${entry.department_id}|${entry.target_date}`);
+    });
+
+    deployedDays.forEach((key) => {
+      const [deptId, date] = key.split("|");
+      const fixed = fixedDailyMph(mphNumbers, deptId, date);
+      if (fixed <= 0) return;
+      const dept = deptBucket(deptId);
+      dept.authorized += fixed;
+      dept.days.add(date);
+      dayBucket(date).authorized += fixed;
     });
 
     return { byDept, byDay };

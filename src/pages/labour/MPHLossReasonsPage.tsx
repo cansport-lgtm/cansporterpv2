@@ -585,7 +585,12 @@ export default function MPHLossReasonsPage() {
                   <h2 className="flex-1 min-w-[140px] text-base font-semibold">{d.dept.department_name}</h2>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground tabular-nums">
                     <span>Output <b className="text-foreground">{fmtQty(d.dept.output)}</b></span>
-                    <span>Authorized <b className="text-foreground">{fmtMph(d.dept.authorized_mph)}</b></span>
+                    <span>
+                      Authorized <b className="text-foreground">{fmtMph(d.dept.authorized_mph)}</b>
+                      {(detail[d.dept.department_id]?.fixed_daily_mph ?? 0) > 0 && (
+                        <span className="ml-1 text-xs">(incl. {fmtMph(detail[d.dept.department_id].fixed_daily_mph)} fixed daily)</span>
+                      )}
+                    </span>
                     <span>Used <b className="text-foreground">{fmtMph(d.dept.used_mph)}</b></span>
                     <span>Net <b className="text-red-600">{fmtMph(d.dept.net_mph)}</b></span>
                     <span>MPH/unit <b className="text-foreground">{d.dept.output > 0 ? (d.dept.used_mph / d.dept.output).toFixed(3) : "—"}</b></span>
@@ -871,7 +876,9 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
   };
   const items = detail?.items ?? [];
   const workers = detail?.workers ?? [];
-  const authorized = round1(items.reduce((s, i) => s + i.authorized, 0));
+  const fixedDaily = detail?.fixed_daily_mph ?? 0;
+  const itemsAuthorized = round1(items.reduce((s, i) => s + i.authorized, 0));
+  const authorized = round1(itemsAuthorized + fixedDaily);
   const used = round1(workers.reduce((s, w) => s + w.mph, 0));
   // A submitted report keeps its own figures; the live detail may differ if production was posted later.
   const stale = Math.abs(authorized - d.authorized_mph) > 0.05 || Math.abs(used - d.used_mph) > 0.05;
@@ -928,8 +935,14 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
               <div className="text-xs text-muted-foreground">Each posted item: output × MPH number = MPH earned. The MPH number is set per sub-department in MPH Master.</div>
             </div>
           </div>
+          {fixedDaily > 0 && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 text-blue-900 px-3 py-2 mb-2 text-sm flex justify-between gap-3">
+              <span>Fixed daily allowance — set in MPH Master for departments with no countable output. Earned once per day the department has anyone deployed.</span>
+              <b className="tabular-nums whitespace-nowrap">{fmtMph(fixedDaily)}</b>
+            </div>
+          )}
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-3">No production posted for this department.</p>
+            <p className="text-sm text-muted-foreground py-3">{fixedDaily > 0 ? "No production posted for this department; only the fixed daily allowance counts." : "No production posted for this department."}</p>
           ) : (
             <div className="rounded-md border bg-background overflow-x-auto">
               <table className="w-full border-collapse">
@@ -941,7 +954,7 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
                       <tr key={`g-${sub}`} className="bg-indigo-50 text-indigo-900">
                         <td className={`${td} font-semibold text-xs`} colSpan={compact ? 3 : 4}>{sub} · MPH number {rows[0].mph_number.toFixed(3)}</td>
                         <td className={`${td} ${num} font-semibold text-xs`}>{fmtMph(subTotal)}</td>
-                        {!compact && <td className={`${td} ${num} text-xs`}>{authorized > 0 ? Math.round((subTotal / authorized) * 100) : 0}%</td>}
+                        {!compact && <td className={`${td} ${num} text-xs`}>{itemsAuthorized > 0 ? Math.round((subTotal / itemsAuthorized) * 100) : 0}%</td>}
                       </tr>,
                       ...rows.map((r, i) => (
                         <tr key={`${sub}-${i}`}>
@@ -950,7 +963,7 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
                           <td className={`${td} ${num}`}>{fmtQty(r.output)}</td>
                           <td className={`${td} ${num} text-muted-foreground`}>× {r.mph_number.toFixed(3)}</td>
                           <td className={`${td} ${num} font-semibold`}>{fmtMph(r.authorized)}</td>
-                          {!compact && <td className={`${td} ${num} text-muted-foreground`}>{authorized > 0 ? Math.round((r.authorized / authorized) * 100) : 0}%</td>}
+                          {!compact && <td className={`${td} ${num} text-muted-foreground`}>{itemsAuthorized > 0 ? Math.round((r.authorized / itemsAuthorized) * 100) : 0}%</td>}
                         </tr>
                       )),
                     ];
@@ -959,9 +972,16 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
                     <td className={`${td} border-t-2 border-t-foreground`} colSpan={compact ? 1 : 2}>Total · {items.length} item{items.length === 1 ? "" : "s"}</td>
                     <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtQty(d.output)}</td>
                     <td className={`${td} border-t-2 border-t-foreground`} />
-                    <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtMph(authorized)}</td>
+                    <td className={`${td} ${num} border-t-2 border-t-foreground`}>{fmtMph(itemsAuthorized)}</td>
                     {!compact && <td className={`${td} ${num} border-t-2 border-t-foreground`}>100%</td>}
                   </tr>
+                  {fixedDaily > 0 && (
+                    <tr className="font-semibold bg-muted/40">
+                      <td className={td} colSpan={compact ? 3 : 4}>+ Fixed daily allowance</td>
+                      <td className={`${td} ${num}`}>{fmtMph(fixedDaily)}</td>
+                      {!compact && <td className={td} />}
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1052,7 +1072,7 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
           <p dir="rtl" lang="ur" className="font-urdu text-right text-[16px] leading-[2.1] m-0">
             <bdi className="font-sans font-semibold">{d.department_name}</bdi> نے{" "}
             <N>{fmtQty(d.output)}</N> یونٹس{items.length > 0 ? <> (<N>{items.length}</N> آئٹمز)</> : null} کی <bdi className="font-sans font-semibold">Production</bdi> سے{" "}
-            <N>{fmtMph(d.authorized_mph)}</N> MPH کمائے، {net < 0 ? "لیکن" : "اور"}{" "}
+            <N>{fmtMph(d.authorized_mph)}</N> MPH کمائے{fixedDaily > 0 ? <> (جس میں <N>{fmtMph(fixedDaily)}</N> MPH روزانہ کا مقررہ الاؤنس شامل ہے)</> : null}، {net < 0 ? "لیکن" : "اور"}{" "}
             {workers.length > 0 ? <><N>{workers.length}</N> {workers.length === 1 ? "ورکر" : "ورکرز"} کی مزدوری میں </> : "مزدوری میں "}
             <N>{fmtMph(d.used_mph)}</N> MPH استعمال ہوئے۔{" "}
             {net < 0 ? (
@@ -1068,8 +1088,10 @@ function CalcPanel({ d, detail, compact = false, showLinks = false }: { d: Depar
           </p>
         ) : (
           <p className="m-0">
-            {d.department_name} earned <b className="tabular-nums">{fmtMph(d.authorized_mph)}</b> MPH from {fmtQty(d.output)} units
-            {items.length > 0 ? ` across ${items.length} item${items.length === 1 ? "" : "s"}` : ""}, but used{" "}
+            {d.department_name} earned <b className="tabular-nums">{fmtMph(d.authorized_mph)}</b> MPH
+            {fixedDaily > 0 && items.length === 0
+              ? " as its fixed daily allowance"
+              : <> from {fmtQty(d.output)} units{items.length > 0 ? ` across ${items.length} item${items.length === 1 ? "" : "s"}` : ""}{fixedDaily > 0 ? ` (incl. ${fmtMph(fixedDaily)} fixed daily)` : ""}</>}, but used{" "}
             <b className="tabular-nums">{fmtMph(d.used_mph)}</b> MPH of labour{workers.length > 0 ? ` from ${workers.length} workers` : ""}.
             {net < 0 ? (
               <> So <b className="tabular-nums">{fmtMph(-net)}</b> MPH is lost.</>

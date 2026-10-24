@@ -19,7 +19,8 @@ export default function MPHMasterPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ department_id: '', sub_department_id: '', mph_number: '' });
+  const emptyForm = { department_id: '', sub_department_id: '', mph_number: '', daily_fixed_mph: '', fixed_mph_effective_from: '' };
+  const [form, setForm] = useState(emptyForm);
 
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
@@ -44,7 +45,7 @@ export default function MPHMasterPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('mph_calculating_numbers')
-        .select('id, department_id, sub_department_id, mph_number, is_active, created_at')
+        .select('id, department_id, sub_department_id, mph_number, daily_fixed_mph, fixed_mph_effective_from, is_active, created_at')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -63,6 +64,9 @@ export default function MPHMasterPage() {
         department_id: form.department_id,
         sub_department_id: form.sub_department_id || null,
         mph_number: Number(form.mph_number) || 0,
+        // Fixed daily MPH only makes sense at department level; the database refuses it on sub-department rows.
+        daily_fixed_mph: form.sub_department_id ? 0 : Number(form.daily_fixed_mph) || 0,
+        fixed_mph_effective_from: form.sub_department_id || !form.daily_fixed_mph ? null : form.fixed_mph_effective_from || null,
       };
       if (editItem) {
         const { error } = await supabase.from('mph_calculating_numbers').update(payload).eq('id', editItem.id);
@@ -105,7 +109,7 @@ export default function MPHMasterPage() {
 
   const openAdd = () => {
     setEditItem(null);
-    setForm({ department_id: '', sub_department_id: '', mph_number: '' });
+    setForm(emptyForm);
     setDialogOpen(true);
   };
 
@@ -115,13 +119,15 @@ export default function MPHMasterPage() {
       department_id: item.department_id,
       sub_department_id: item.sub_department_id || '',
       mph_number: String(item.mph_number),
+      daily_fixed_mph: item.daily_fixed_mph ? String(item.daily_fixed_mph) : '',
+      fixed_mph_effective_from: item.fixed_mph_effective_from || '',
     });
     setDialogOpen(true);
   };
 
   return (
     <ERPLayout>
-      <PageHeader title="MPH Calculating Numbers" description="Manage MPH multiplier per department/sub-department">
+      <PageHeader title="MPH Calculating Numbers" description="MPH multiplier per department/sub-department, and a fixed MPH per day for departments with no countable output (housekeeping, security, store)">
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Add MPH Number</Button>
       </PageHeader>
 
@@ -140,20 +146,31 @@ export default function MPHMasterPage() {
                   <th className="text-left py-3 px-4 font-medium">Department</th>
                   <th className="text-left py-3 px-4 font-medium">Sub-Department</th>
                   <th className="text-right py-3 px-4 font-medium">MPH Number</th>
+                  <th className="text-right py-3 px-4 font-medium">Fixed MPH / day</th>
                   <th className="text-center py-3 px-4 font-medium">Active</th>
                   <th className="text-center py-3 px-4 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">Loading...</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Loading...</td></tr>
                 ) : mphEntries.length === 0 ? (
-                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">No MPH numbers configured</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No MPH numbers configured</td></tr>
                 ) : mphEntries.map((item: any) => (
                   <tr key={item.id} className="border-b hover:bg-muted/50">
                     <td className="py-3 px-4">{deptMap[item.department_id] || '-'}</td>
                     <td className="py-3 px-4">{item.sub_department_id ? (subDeptMap[item.sub_department_id] || '-') : '-'}</td>
                     <td className="py-3 px-4 text-right font-mono">{item.mph_number}</td>
+                    <td className="py-3 px-4 text-right font-mono">
+                      {Number(item.daily_fixed_mph) > 0 ? (
+                        <>
+                          {item.daily_fixed_mph}
+                          {item.fixed_mph_effective_from && (
+                            <div className="text-[11px] font-sans text-muted-foreground">from {item.fixed_mph_effective_from}</div>
+                          )}
+                        </>
+                      ) : '-'}
+                    </td>
                     <td className="py-3 px-4 text-center">
                       <Switch checked={item.is_active} onCheckedChange={(v) => toggleActive.mutate({ id: item.id, is_active: v })} />
                     </td>
@@ -197,11 +214,30 @@ export default function MPHMasterPage() {
             <div>
               <Label>MPH Calculating Number *</Label>
               <Input type="number" step="any" value={form.mph_number} onChange={e => setForm({ ...form, mph_number: e.target.value })} placeholder="e.g. 0.5" />
+              <p className="text-xs text-muted-foreground mt-1">Authorized MPH = output × this number. Enter 0 for a department with no countable output.</p>
             </div>
+            {!form.sub_department_id && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                <div>
+                  <Label>Fixed MPH per day (optional)</Label>
+                  <Input type="number" step="any" min="0" value={form.daily_fixed_mph} onChange={e => setForm({ ...form, daily_fixed_mph: e.target.value })} placeholder="e.g. 12" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use for departments with no countable output (housekeeping, security, store). The department earns this many MPH on every day it has anyone deployed, on top of output × MPH number. It is per day, not per worker, so extra workers still show as a loss.
+                  </p>
+                </div>
+                {form.daily_fixed_mph && (
+                  <div>
+                    <Label>Applies from (optional)</Label>
+                    <Input type="date" value={form.fixed_mph_effective_from} onChange={e => setForm({ ...form, fixed_mph_effective_from: e.target.value })} />
+                    <p className="text-xs text-muted-foreground mt-1">Set the go-live date so earlier days keep the figures they were saved with. Leave blank to apply to all dates.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={!form.department_id || !form.mph_number || saveMutation.isPending}>
+            <Button onClick={() => saveMutation.mutate()} disabled={!form.department_id || (form.mph_number === '' && !form.daily_fixed_mph) || saveMutation.isPending}>
               {saveMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
