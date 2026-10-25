@@ -589,6 +589,7 @@ const navigationItems: NavItem[] = [
       { title: "Public Holidays", href: "/labour/public-holidays" },
       { title: "MPH Management", href: "/labour/mph-management" },
       { title: "MPH Analysis", href: "/labour/mph-analysis" },
+      { title: "MPH Calculation Report", href: "/labour/mph-calculation-report" },
       { title: "MPH Loss Reasons", href: "/labour/mph-loss-reasons" },
       { title: "MPH Loss Reason Analysis", href: "/labour/mph-loss-analysis" },
       { title: "Edit Requests", href: "/labour/edit-requests", requiresApprove: "labour" },

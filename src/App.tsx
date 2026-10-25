@@ -204,6 +204,7 @@ import LabourProcessTargetsPage from "./pages/labour/LabourProcessTargetsPage";
 import IndividualPerformanceDashboard from "./pages/labour/IndividualPerformanceDashboard";
 import LabourMPHManagementPage from "./pages/labour/LabourMPHManagementPage";
 import LabourMPHAnalysisPage from "./pages/labour/LabourMPHAnalysisPage";
+import LabourMPHCalculationReportPage from "./pages/labour/LabourMPHCalculationReportPage";
 import MPHLossReasonsPage from "./pages/labour/MPHLossReasonsPage";
 import MPHLossReasonAnalysisPage from "./pages/labour/MPHLossReasonAnalysisPage";
 import MPHLossReasonsMasterPage from "./pages/master/MPHLossReasonsMasterPage";
@@ -840,6 +841,7 @@ const App = () => (
             <Route path="/labour/individual-performance" element={<ProtectedRoute><IndividualPerformanceDashboard /></ProtectedRoute>} />
             <Route path="/labour/mph-management" element={<ProtectedRoute><LabourMPHManagementPage /></ProtectedRoute>} />
             <Route path="/labour/mph-analysis" element={<ProtectedRoute><LabourMPHAnalysisPage /></ProtectedRoute>} />
+            <Route path="/labour/mph-calculation-report" element={<ProtectedRoute><LabourMPHCalculationReportPage /></ProtectedRoute>} />
             <Route path="/labour/mph-loss-reasons" element={<ProtectedRoute><MPHLossReasonsPage /></ProtectedRoute>} />
             <Route path="/labour/mph-loss-analysis" element={<ProtectedRoute><MPHLossReasonAnalysisPage /></ProtectedRoute>} />
             <Route path="/labour/edit-requests" element={<ProtectedRoute requiredRoles={["super_admin", "labour_productivity_approver"]}><LabourProductivityEditRequestsPage /></ProtectedRoute>} />
