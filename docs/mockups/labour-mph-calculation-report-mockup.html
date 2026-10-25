@@ -1,0 +1,496 @@
+<title>MPH Calculation Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ERP shell as in the live Labour Productivity module — slim dark sidebar, content column.
+   Screens: Day report (department-wise calculation), Range report (month to date), A4 print preview, Reference.
+   MOCKUP ONLY — sample figures for Sat 24 Oct 2026, nothing is wired to the database. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#2457a6; --accent-fg:#ffffff; --side:#0f172a; --side-fg:#cbd5e1; --side-active:#1e293b;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#b26a00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --info-bg:#e6eefb;
+  --sub:#f8f9fb; --paper:#ffffff; --paper-fg:#111111; --paper-line:#bbbbbb;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44;
+  --sub:#151a21; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44;
+  --sub:#151a21; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+.shell{display:flex;min-height:100vh}
+.side{background:var(--side);color:var(--side-fg);width:232px;flex:0 0 232px;padding-block:16px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:12px}
+.side h1{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#7c8aa0;margin:0 0 6px 8px;font-weight:600}
+.side .brand{font-size:15px;font-weight:600;color:#fff;margin:0 8px 18px}
+.side nav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:7px 10px;border-radius:6px;cursor:pointer}
+.side nav button:hover{background:var(--side-active)}
+.side nav button.on{background:var(--side-active);color:#fff;font-weight:500}
+.side nav button:focus-visible{outline:2px solid var(--accent)}
+.side nav button.dim{color:#7c8aa0;cursor:default;padding-block:5px;font-size:13px}
+.side nav button.dim:hover{background:none}
+.side nav button.new{color:#fff;font-weight:500;outline:1px dashed #6ea1f0;outline-offset:-1px}
+.side .grp{margin-top:18px}
+.main{flex:1;min-width:0;padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.topbar h2{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.crumb{color:var(--muted);font-size:12px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:none}.screen.on{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .s{font-size:12px;color:var(--muted)}
+.tile.warn{border-left:4px solid var(--warn)}.tile.bad{border-left:4px solid var(--bad)}.tile.ok{border-left:4px solid var(--ok)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.card h4{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.sub td{background:var(--sub);font-weight:500}
+tr.tot td{font-weight:600;border-top:2px solid var(--line);border-bottom:0}
+tr.grp td{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--sub);padding-block:5px}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-bad{background:var(--bad-bg);color:var(--bad)}.p-info{background:var(--info-bg);color:var(--accent)}.p-mut{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.muted{color:var(--muted)}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:14px}
+.note{background:var(--info-bg);border-radius:6px;padding:8px 10px;font-size:13px}
+.flow{font-family:var(--mono);font-size:12.5px;background:var(--bg);border-radius:6px;padding:10px 12px;overflow-x:auto;white-space:pre}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+/* department card */
+.dept{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:12px;min-width:0}
+.dept.loss{border-left:4px solid var(--bad)}.dept.saved{border-left:4px solid var(--ok)}
+.dhead{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:12px 16px;cursor:pointer}
+.dhead:hover{background:var(--sub)}
+.dhead .nm{font-size:15px;font-weight:600;min-width:140px}
+.dhead .st{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;color:var(--muted);flex:1}
+.dhead .st b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+.dhead .net{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;min-width:90px;text-align:right}
+.dhead .tog{font-size:12px;color:var(--accent);white-space:nowrap}
+.dbody{display:none;border-top:1px solid var(--line);padding:14px 16px}
+.dept.open .dbody{display:block}
+.dbody .wk{max-height:360px;overflow:auto}
+.result{margin-top:12px;background:var(--sub);border-radius:6px;padding:10px 12px;display:grid;gap:6px}
+.result .ln{font-family:var(--mono);font-size:12.5px;overflow-x:auto;white-space:nowrap}
+.result .ln b{font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin:6px 0 10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+/* matrix */
+.mx td,.mx th{padding:5px 7px;font-size:12px}
+.mx td.c{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:11.5px}
+.mx td.c.g{background:var(--ok-bg);color:var(--ok)}.mx td.c.r{background:var(--bad-bg);color:var(--bad)}.mx td.c.z{color:var(--muted)}
+.mx th.d{font-variant-numeric:tabular-nums}
+/* print sheet */
+.sheet{background:var(--paper);color:var(--paper-fg);max-width:820px;margin:0 auto;padding:28px 32px;border:1px solid var(--line);box-shadow:0 2px 12px rgba(0,0,0,.10);font-size:12px;color-scheme:light}
+.sheet h2{margin:0;font-size:17px;font-weight:600}
+.sheet .ph{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;border-bottom:2px solid var(--paper-fg);padding-bottom:8px;margin-bottom:10px}
+.sheet .ph .r{text-align:right;font-size:11px}
+.sheet table{font-size:11px;color:var(--paper-fg)}
+.sheet th{color:#333;border-bottom:1px solid var(--paper-fg);padding:4px 6px;font-size:10px}
+.sheet td{border-bottom:1px solid var(--paper-line);padding:3px 6px}
+.sheet tr.sub td{background:#f1f1f1}
+.sheet tr.tot td{border-top:1.5px solid var(--paper-fg);border-bottom:0}
+.sheet h3{font-size:13px;margin:14px 0 6px;font-weight:600;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-left:4px solid #111;padding-left:8px}
+.sheet h3 span{font-weight:500;font-family:var(--mono);font-size:11.5px}
+.sheet .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.sheet .res{font-family:var(--mono);font-size:11px;margin-top:6px;background:#f6f6f6;padding:6px 8px}
+.sheet .sum{width:100%;margin-top:4px}
+.sheet .sig{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:24px;margin-top:34px}
+.sheet .sig div{border-top:1px solid var(--paper-fg);padding-top:4px;font-size:11px;text-align:center}
+.sheet .foot{margin-top:18px;font-size:10px;color:#555;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.ol{margin:0;padding-left:20px}.ol li{margin-bottom:6px}
+.mobnav{display:none}
+@media (max-width:760px){
+  .shell{flex-direction:column}
+  .side{width:auto;flex:none;padding-block:10px;padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .side nav{display:flex;flex-wrap:wrap;gap:4px}
+  .side .grp{margin-top:0}
+  .side nav button{width:auto;padding:6px 9px;font-size:13px}
+  .side h1,.side nav button.dim{display:none}
+  .kv{grid-template-columns:1fr}
+  .dhead .net{min-width:0;text-align:left}
+  .sheet{padding:16px 14px}
+}
+@media (prefers-reduced-motion:no-preference){.screen.on{animation:fade .15s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">Cansport ERP</div>
+    <h1>Labour Productivity</h1>
+    <nav id="nav">
+      <button class="dim" tabindex="-1">Daily Entry</button>
+      <button class="dim" tabindex="-1">Todays Labour Deployment &amp; Targets</button>
+      <button class="dim" tabindex="-1">MPH Management</button>
+      <button class="dim" tabindex="-1">MPH Analysis</button>
+      <button data-s="day" class="on new">MPH Calculation Report</button>
+      <button class="dim" tabindex="-1">MPH Loss Reasons</button>
+      <button class="dim" tabindex="-1">MPH Loss Reason Analysis</button>
+      <div class="grp"><h1>Report screens</h1></div>
+      <button data-s="day">1 · Day report (department wise)</button>
+      <button data-s="range">2 · Range report (month to date)</button>
+      <button data-s="print">3 · A4 print preview</button>
+      <div class="grp"><h1>Reference</h1></div>
+      <button data-s="ref">How it is calculated · open questions</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+  <!-- 1 · DAY REPORT -->
+  <section class="screen on" id="s-day">
+    <div class="topbar">
+      <div><div class="crumb">Labour Productivity › MPH Calculation Report</div><h2>MPH Calculation Report · Sat 24 Oct 2026</h2></div>
+      <div class="row"><button class="btn ghost sm" type="button">Export Excel</button><button class="btn sm" type="button" data-go="print">Print A4</button></div>
+    </div>
+    <div class="note" style="margin-bottom:12px"><b>Mockup.</b> Sample figures only. The report shows, department by department, how the day's MPH was worked out: every posted production item × its MPH number (plus fixed daily MPH where set), against every deployed worker at 12 MPH (full day) or 6 MPH (half day).</div>
+
+    <div class="filters">
+      <div class="field"><label for="f-date">Production date</label><div class="row" style="gap:4px"><button class="btn ghost sm" type="button" title="Previous day">‹</button><input id="f-date" type="date" value="2026-10-24"><button class="btn ghost sm" type="button" title="Next day">›</button></div></div>
+      <div class="field"><label for="f-dept">Department</label><select id="f-dept"><option>All departments (7)</option><option>Press</option><option>Jorr</option><option>Local Final</option><option>Fancy Final</option><option>Packing</option><option>Quality</option><option>Housekeeping</option></select></div>
+      <div class="field"><label for="f-show">Show</label><select id="f-show"><option>Loss departments first</option><option>Factory sequence</option><option>Largest authorized first</option></select></div>
+      <div class="field"><label>&nbsp;</label><div class="row" style="gap:6px"><button class="btn ghost sm" type="button" id="b-expand">Expand all</button><button class="btn ghost sm" type="button" id="b-collapse">Collapse all</button></div></div>
+    </div>
+
+    <div class="tiles" id="day-tiles"></div>
+
+    <div class="legend"><span><i style="background:var(--ok)"></i>Saved: authorized ≥ used</span><span><i style="background:var(--bad)"></i>Loss: used &gt; authorized</span><span>Full day = 12 MPH · Half day = 6 MPH · figures rounded to 0.1 MPH</span></div>
+    <div id="day-list"></div>
+  </section>
+
+  <!-- 2 · RANGE REPORT -->
+  <section class="screen" id="s-range">
+    <div class="topbar">
+      <div><div class="crumb">Labour Productivity › MPH Calculation Report</div><h2>Range report · 1 – 24 Oct 2026</h2></div>
+      <div class="row"><button class="btn ghost sm" type="button">Export Excel</button><button class="btn ghost sm" type="button" data-go="day">Back to day report</button></div>
+    </div>
+    <div class="filters">
+      <div class="field"><label for="r-range">Date range</label><select id="r-range"><option>This month (to date)</option><option>Last 7 days</option><option>Last month</option><option>Custom</option></select></div>
+      <div class="field"><label for="r-from">From</label><input id="r-from" type="date" value="2026-10-01"></div>
+      <div class="field"><label for="r-to">To</label><input id="r-to" type="date" value="2026-10-24"></div>
+      <div class="field"><label for="r-dept">Drill into department</label><select id="r-dept"><option>Fancy Final</option><option>Press</option><option>Jorr</option><option>Local Final</option><option>Packing</option><option>Quality</option><option>Housekeeping</option></select></div>
+    </div>
+    <div class="tiles" id="range-tiles"></div>
+
+    <div class="card">
+      <h3>Net MPH by department and day <span class="muted" style="font-weight:400;font-size:13px">· click a day to open that day's report</span></h3>
+      <div class="legend"><span><i style="background:var(--ok-bg);border:1px solid var(--ok)"></i>saved</span><span><i style="background:var(--bad-bg);border:1px solid var(--bad)"></i>loss</span><span>— = no entries (Sunday / not posted)</span></div>
+      <div class="tw" id="range-matrix"></div>
+    </div>
+
+    <div class="card">
+      <h3>Fancy Final · day by day <span class="muted" style="font-weight:400;font-size:13px">· the same calculation, one row per production date</span></h3>
+      <div class="tw" id="range-drill"></div>
+    </div>
+  </section>
+
+  <!-- 3 · PRINT PREVIEW -->
+  <section class="screen" id="s-print">
+    <div class="topbar">
+      <div><div class="crumb">Labour Productivity › MPH Calculation Report › Print</div><h2>A4 print preview</h2></div>
+      <div class="row"><span class="pill p-mut">Portrait A4 · about 3 pages for 7 departments</span><button class="btn ghost sm" type="button" data-go="day">Back to report</button></div>
+    </div>
+    <div class="note" style="margin-bottom:12px">Print layout: workers are grouped by process to keep each department to a few lines; the full worker list stays on screen. Same signature block as the MPH Loss Reason Report.</div>
+    <div class="sheet" id="sheet"></div>
+  </section>
+
+  <!-- 4 · REFERENCE -->
+  <section class="screen" id="s-ref">
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>How the report is calculated</h2></div></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Formula (same as MPH Analysis and MPH Loss Reasons)</h3>
+<div class="flow">Authorized MPH (earned)
+  = Σ over posted production entries  quantity_produced × MPH number
+      (MPH number from MPH Master, per department + sub-department)
+  + fixed daily MPH of the department (MPH Master, department row),
+      counted once per day, only if anyone was deployed that day
+
+Used MPH (deployed)
+  = Σ over Today's Deployment entries  mph
+      full day = 12, half day = 6, max 12 per worker per day
+
+Net MPH      = Authorized − Used        (negative = loss)
+Efficiency   = Authorized ÷ Used × 100
+Used MPH/unit = Used ÷ Output           (vs standard = Authorized ÷ Output)</div>
+        <p class="muted" style="margin:10px 0 0;font-size:13px">Shared helper: <span class="mono">src/lib/mphLoss.ts</span> (fetchMphDay already returns items and workers per department for one date). Figures agree with the other MPH pages to 0.1 MPH.</p>
+      </div>
+      <div class="card">
+        <h3>Where each column comes from</h3>
+        <dl class="kv">
+          <dt>Item, sub-department, shift, output</dt><dd><span class="mono">production_entries</span> (grade, sub-department, shift, quantity_produced) for the date</dd>
+          <dt>MPH number</dt><dd><span class="mono">mph_calculating_numbers</span> · department + sub-department row</dd>
+          <dt>Fixed daily MPH</dt><dd>same table, department-level row, <span class="mono">daily_fixed_mph</span> from its effective date</dd>
+          <dt>Worker, process, shift, hours</dt><dd><span class="mono">labour_productivity_targets</span> (Today's Deployment) + <span class="mono">labour_employees</span>, <span class="mono">qa_processes</span></dd>
+          <dt>MPH per worker</dt><dd><span class="mono">labour_productivity_targets.mph</span> (12 / 6)</dd>
+          <dt>Loss reasons status</dt><dd><span class="mono">mph_loss_reports</span> for the date · explained MPH from report lines</dd>
+          <dt>Place in sidebar</dt><dd>Labour Productivity, under “MPH Analysis”, before “MPH Loss Reasons”; route <span class="mono">/labour/mph-calculation-report?date=YYYY-MM-DD</span></dd>
+          <dt>Who sees it</dt><dd>Same as MPH Analysis (labour module view). Read-only; nothing is saved from this page.</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>What is different from MPH Analysis</h3>
+        <ol class="ol">
+          <li><b>Calculation shown, not just totals.</b> MPH Analysis gives one line per department; this report shows each production item × MPH number and each deployed worker × 12 / 6 that make up those totals.</li>
+          <li><b>One production date at a time</b> (prev / next day), with a range view for the month and a drill into one department day by day.</li>
+          <li><b>Printable A4</b> for the daily production meeting, with signatures.</li>
+          <li><b>Links to Loss Reasons:</b> each department in loss shows whether the Production Coordinator has explained it (not started / partly / fully) and opens the entry page.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Open questions before building</h3>
+        <ol class="ol">
+          <li><b>Default date:</b> yesterday (the day whose production is fully posted) or today?</li>
+          <li><b>Worker detail on screen:</b> full list with hours (as mocked) or grouped by process like the print view?</li>
+          <li><b>Overtime:</b> MPH ignores overtime by design (12 max per worker per day). Show overtime hours as an information column, or leave it out?</li>
+          <li><b>Sub-department subtotals:</b> keep them (as mocked) or show items only?</li>
+          <li><b>Excel export:</b> needed? One sheet per department, or one flat sheet with department / item / worker rows?</li>
+          <li><b>Range matrix:</b> show Net MPH (as mocked), or Efficiency %?</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  // ---------- sample data for Sat 24 Oct 2026 (mockup only) ----------
+  var NAMES=["SAQIB YASEEN","MUHAMMAD ASIF","ALI RAZA","SHAHID MEHMOOD","IMRAN KHAN","WAQAS AHMED","NASIR IQBAL","TARIQ JAVED","ZAHID HUSSAIN","FAISAL SHAHZAD","ADNAN SAEED","BILAL AHMAD","UMAR FAROOQ","KASHIF ALI","RIZWAN BUTT","SAJID MAHMOOD","NAVEED ANJUM","ARSHAD ALI","JUNAID IQBAL","HAMZA SHEIKH","IRFAN ULLAH","SHOAIB AKHTAR","ASAD ABBAS","YASIR NAWAZ","DANISH ALI","FARHAN QADIR","MUBASHIR HASSAN","NOMAN SIDDIQUE","RASHID MINHAS","SHAKEEL AHMED","TANVEER ASLAM","WASEEM AKRAM","ABDUL REHMAN","GHULAM MUSTAFA","HAFIZ SALEEM","IJAZ AHMED","JAMSHED KHAN","KAMRAN AKMAL","LIAQAT ALI","MAZHAR IQBAL"];
+  // items: [grade, sub-department, shift, output, mph number]
+  var D=[
+    {name:"Press",seq:1,fixed:0,full:17,half:3,night:4,code:101,procs:["Hand Pressing","Machine Pressing","Helper"],
+      items:[["LB","Hand Press","Day",1850,0.040],["FB","Hand Press","Day",920,0.040],["KB","Machine Press","Day",2400,0.030],["T","Machine Press","Night",1100,0.030]],
+      reasons:[["Machine breakdown","Machine",4.0]],rstatus:"draft"},
+    {name:"Jorr",seq:2,fixed:0,full:11,half:1,night:0,code:141,procs:["Jorr Stitching","Helper"],
+      items:[["V","—","Day",4200,0.025],["VM","—","Day",1300,0.025]],reasons:[],rstatus:"draft"},
+    {name:"Local Final",seq:3,fixed:0,full:19,half:2,night:0,code:161,procs:["Final Stitching","Checking","Helper"],
+      items:[["LB","Stitching","Day",2100,0.055],["KB","Stitching","Day",1500,0.055],["T","Checking","Day",3600,0.015]],reasons:[],rstatus:"—"},
+    {name:"Fancy Final",seq:4,fixed:0,full:22,half:2,night:0,code:401,procs:["Fancy Stitching","Kapra Cutting","Checking","Helper"],
+      items:[["LB","Fancy Stitching","Day",1240,0.085],["FB","Fancy Stitching","Day",610,0.085],["VM","Fancy Kapra Cutting","Day",2900,0.020]],
+      reasons:[["Fabric shortage","Material",36.0],["Rework after inspection","Quality",24.7]],rstatus:"submitted"},
+    {name:"Packing",seq:5,fixed:0,full:10,half:2,night:0,code:201,procs:["Packing","Labelling"],
+      items:[["LB","—","Day",5200,0.012],["FB","—","Day",2850,0.012],["KB","—","Day",3100,0.012]],reasons:[],rstatus:"—"},
+    {name:"Quality",seq:6,fixed:0,full:7,half:2,night:0,code:301,procs:["Final Inspection"],
+      items:[["LB","—","Day",4000,0.010],["FB","—","Day",2300,0.010],["KB","—","Day",3500,0.010]],reasons:[],rstatus:"—"},
+    {name:"Housekeeping",seq:7,fixed:36,full:2,half:1,night:0,code:501,procs:["Housekeeping"],items:[],reasons:[],rstatus:"—"}
+  ];
+  var r1=function(n){return Math.round(n*10)/10;};
+  var f1=function(n){return n.toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});};
+  var fq=function(n){return n.toLocaleString(undefined,{maximumFractionDigits:0});};
+  var sgn=function(n){return (n>0?"+":"")+f1(n);};
+  var cls=function(n){return n<0?"neg":"pos";};
+  var ni=0;
+  D.forEach(function(d){
+    d.workers=[];
+    var total=d.full+d.half;
+    for(var i=0;i<total;i++){
+      var half=i>=d.full, night=!half&&i<d.night;
+      d.workers.push({code:d.code+i,name:NAMES[(ni++)%NAMES.length],proc:d.procs[i%d.procs.length],
+        shift:night?"Night":"Day",tm:half?"08:00–12:00":(night?"20:00–05:00":"08:00–17:00"),hrs:half?4:9,type:half?"Half day":"Full day",mph:half?6:12});
+    }
+    d.workers.sort(function(a,b){return a.proc.localeCompare(b.proc)||a.code-b.code;});
+    d.output=d.items.reduce(function(s,it){return s+it[3];},0);
+    d.itemsAuth=d.items.reduce(function(s,it){return s+it[3]*it[4];},0);
+    d.auth=r1(d.itemsAuth+d.fixed);
+    d.used=d.workers.reduce(function(s,w){return s+w.mph;},0);
+    d.net=r1(d.auth-d.used);
+    d.eff=d.used>0?d.auth/d.used*100:0;
+    d.explained=d.reasons.reduce(function(s,r){return s+r[2];},0);
+  });
+  var T={auth:0,used:0,output:0,workers:0,loss:0,lossMph:0};
+  D.forEach(function(d){T.auth+=d.auth;T.used+=d.used;T.output+=d.output;T.workers+=d.workers.length;if(d.net<0){T.loss++;T.lossMph+=d.net;}});
+  T.net=r1(T.auth-T.used);T.eff=T.auth/T.used*100;
+
+  function tile(k,v,s,c){return '<div class="tile '+(c||"")+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';}
+  function pillStatus(d){return d.net<0?'<span class="pill p-bad">Loss '+f1(d.net)+'</span>':'<span class="pill p-ok">Saved '+sgn(d.net)+'</span>';}
+  function pillReasons(d){
+    if(d.net>=0)return "";
+    var loss=-d.net;
+    if(d.explained<=0)return '<span class="pill p-warn">Loss reasons not started</span>';
+    if(d.explained<loss-0.05)return '<span class="pill p-warn">Partly explained · '+f1(d.explained)+' of '+f1(loss)+'</span>';
+    return '<span class="pill p-info">Reasons '+d.rstatus+' · '+f1(d.explained)+' MPH explained</span>';
+  }
+
+  // ---------- day tiles ----------
+  document.getElementById("day-tiles").innerHTML=
+    tile("Production output",fq(T.output),"pcs posted · 7 departments")+
+    tile("Authorized MPH",f1(T.auth),"Σ output × MPH number + fixed 36.0")+
+    tile("Used MPH",f1(T.used),T.workers+" workers deployed")+
+    tile("Net MPH",sgn(T.net),T.loss+" departments in loss ("+f1(T.lossMph)+")",T.net<0?"bad":"ok")+
+    tile("Efficiency",f1(T.eff)+"%","Authorized ÷ Used",T.eff>=100?"ok":"warn");
+
+  // ---------- department cards ----------
+  function itemsTable(d){
+    if(!d.items.length&&!d.fixed)return '<p class="muted">No production entries posted for this department.</p>';
+    var h='<div class="tw"><table><thead><tr><th>Item</th><th>Sub-department</th><th>Shift</th><th class="num">Output</th><th class="num">MPH no.</th><th class="num">Authorized</th></tr></thead><tbody>';
+    var bySub={},order=[];
+    d.items.forEach(function(it){if(!bySub[it[1]]){bySub[it[1]]=[];order.push(it[1]);}bySub[it[1]].push(it);});
+    order.forEach(function(sub){
+      var rows=bySub[sub],q=0,a=0;
+      rows.forEach(function(it){q+=it[3];a+=it[3]*it[4];
+        h+='<tr><td>'+it[0]+'</td><td>'+it[1]+'</td><td>'+it[2]+'</td><td class="num">'+fq(it[3])+'</td><td class="num mono" style="white-space:nowrap">× '+it[4].toFixed(3)+'</td><td class="num">'+f1(it[3]*it[4])+'</td></tr>';});
+      if(rows.length>1&&sub!=="—")h+='<tr class="sub"><td colspan="3">'+sub+' subtotal</td><td class="num">'+fq(q)+'</td><td></td><td class="num">'+f1(a)+'</td></tr>';
+    });
+    if(d.fixed)h+='<tr><td colspan="5">Fixed daily MPH (MPH Master · department row · counted because '+d.workers.length+' deployed)</td><td class="num">'+f1(d.fixed)+'</td></tr>';
+    h+='<tr class="tot"><td colspan="3">Authorized MPH</td><td class="num">'+(d.output?fq(d.output):"—")+'</td><td></td><td class="num">'+f1(d.auth)+'</td></tr></tbody></table></div>';
+    return h;
+  }
+  function workersTable(d){
+    var h='<div class="tw wk"><table><thead><tr><th>Code</th><th>Worker</th><th>Shift · time</th><th class="num">Hours</th><th>Work type</th><th class="num">MPH</th></tr></thead><tbody>';
+    var cur=null,pf=0,ph=0,pm=0;
+    function flush(){if(cur!==null){h+='<tr class="sub"><td colspan="4">'+cur+' · '+(pf+ph)+' workers ('+pf+' full, '+ph+' half)</td><td></td><td class="num">'+f1(pm)+'</td></tr>';}}
+    d.workers.forEach(function(w){
+      if(w.proc!==cur){flush();cur=w.proc;pf=ph=pm=0;h+='<tr class="grp"><td colspan="6">'+w.proc+'</td></tr>';}
+      if(w.mph===12)pf++;else ph++;pm+=w.mph;
+      h+='<tr><td class="mono">'+w.code+'</td><td>'+w.name+'</td><td>'+w.shift+' · <span class="mono">'+w.tm+'</span></td><td class="num">'+w.hrs.toFixed(1)+'</td><td>'+w.type+'</td><td class="num">'+w.mph.toFixed(1)+'</td></tr>';
+    });
+    flush();
+    var nf=d.workers.filter(function(w){return w.mph===12;}).length;
+    h+='<tr class="tot"><td colspan="4">Used MPH · '+d.workers.length+' workers</td><td>'+nf+' × 12 + '+(d.workers.length-nf)+' × 6</td><td class="num">'+f1(d.used)+'</td></tr></tbody></table></div>';
+    return h;
+  }
+  function resultBlock(d){
+    var h='<div class="result">';
+    h+='<div class="ln">Authorized <b>'+f1(d.auth)+'</b> − Used <b>'+f1(d.used)+'</b> = Net <b class="'+cls(d.net)+'">'+sgn(d.net)+' MPH</b>'+(d.net<0?' (loss)':' (saved)')+'</div>';
+    h+='<div class="ln">Efficiency '+f1(d.auth)+' ÷ '+f1(d.used)+' = <b class="'+(d.eff>=100?"pos":"neg")+'">'+f1(d.eff)+'%</b>';
+    if(d.output)h+=' · Used MPH per unit '+f1(d.used)+' ÷ '+fq(d.output)+' = <b>'+(d.used/d.output).toFixed(3)+'</b> (standard '+(d.itemsAuth/d.output).toFixed(3)+')';
+    h+='</div>';
+    if(d.net<0){
+      h+='<div class="row" style="gap:8px">'+pillReasons(d);
+      d.reasons.forEach(function(r){h+='<span class="pill p-mut">'+r[0]+' · '+r[1]+' · '+f1(r[2])+'</span>';});
+      h+='<a href="#" class="mono" style="color:var(--accent);font-size:12px" onclick="return false">Open MPH Loss Reasons ›</a></div>';
+    }
+    return h+'</div>';
+  }
+  var list=document.getElementById("day-list");
+  var sorted=D.slice().sort(function(a,b){return (a.net<0?0:1)-(b.net<0?0:1)||a.net-b.net;});
+  list.innerHTML=sorted.map(function(d,i){
+    return '<div class="dept '+(d.net<0?"loss":"saved")+(i<2?" open":"")+'" id="d-'+d.seq+'">'+
+      '<div class="dhead" data-tog="'+d.seq+'"><div class="nm">'+d.name+'</div>'+
+      '<div class="st"><span>Output <b>'+(d.output?fq(d.output):"—")+'</b></span><span>Authorized <b>'+f1(d.auth)+'</b></span><span>Used <b>'+f1(d.used)+'</b> · '+d.workers.length+' workers</span><span>Eff. <b>'+f1(d.eff)+'%</b></span></div>'+
+      '<div>'+pillStatus(d)+'</div><div class="net '+cls(d.net)+'">'+sgn(d.net)+'</div><div class="tog">'+(i<2?"Hide calculation ▴":"Show calculation ▾")+'</div></div>'+
+      '<div class="dbody"><div class="grid2"><div><h4>A · Authorized MPH — earned from production</h4>'+itemsTable(d)+'</div><div><h4>B · Used MPH — labour deployed</h4>'+workersTable(d)+'</div></div><h4 style="margin-top:12px">C · Result</h4>'+resultBlock(d)+'</div></div>';
+  }).join("");
+  list.addEventListener("click",function(e){
+    var h=e.target.closest(".dhead");if(!h)return;
+    var card=h.parentNode;card.classList.toggle("open");
+    h.querySelector(".tog").textContent=card.classList.contains("open")?"Hide calculation ▴":"Show calculation ▾";
+  });
+  function setAll(open){list.querySelectorAll(".dept").forEach(function(c){c.classList.toggle("open",open);c.querySelector(".tog").textContent=open?"Hide calculation ▴":"Show calculation ▾";});}
+  document.getElementById("b-expand").onclick=function(){setAll(true);};
+  document.getElementById("b-collapse").onclick=function(){setAll(false);};
+
+  // ---------- range report (deterministic sample series) ----------
+  var seed=7;function rnd(){seed=(seed*1103515245+12345)%2147483648;return seed/2147483648;}
+  var days=[];for(var dd=1;dd<=24;dd++){days.push(dd);}
+  var SUN=[4,11,18];
+  var R={};D.forEach(function(d){R[d.name]={a:0,u:0,o:0,cells:[],days:0};});
+  days.forEach(function(dd){
+    D.forEach(function(d){
+      var rec=R[d.name];
+      if(SUN.indexOf(dd)>=0){rec.cells.push(null);return;}
+      var a,u,o;
+      if(dd===24){a=d.auth;u=d.used;o=d.output;}
+      else{a=r1(d.auth*(0.86+rnd()*0.3));u=Math.round(d.used*(0.92+rnd()*0.16)/6)*6;o=Math.round(d.output*(a/(d.auth||1)));}
+      rec.a+=a;rec.u+=u;rec.o+=o;rec.days++;rec.cells.push({a:a,u:u,o:o,n:r1(a-u)});
+    });
+  });
+  var RT={a:0,u:0,o:0};D.forEach(function(d){RT.a+=R[d.name].a;RT.u+=R[d.name].u;RT.o+=R[d.name].o;});
+  var worst=D.slice().sort(function(x,y){return (R[x.name].a-R[x.name].u)-(R[y.name].a-R[y.name].u);})[0];
+  document.getElementById("range-tiles").innerHTML=
+    tile("Production days","21","1 – 24 Oct · 3 Sundays")+
+    tile("Authorized MPH",f1(RT.a),"Output "+fq(RT.o)+" pcs")+
+    tile("Used MPH",f1(RT.u),"all departments")+
+    tile("Net MPH",sgn(r1(RT.a-RT.u)),"Efficiency "+f1(RT.a/RT.u*100)+"%",RT.a-RT.u<0?"bad":"ok")+
+    tile("Biggest loss",worst.name,f1(R[worst.name].a-R[worst.name].u)+" MPH in the period","bad");
+  var m='<table class="mx"><thead><tr><th>Department</th>';
+  days.forEach(function(dd){m+='<th class="d num">'+dd+'</th>';});
+  m+='<th class="num">Authorized</th><th class="num">Used</th><th class="num">Net</th><th class="num">Eff.</th></tr></thead><tbody>';
+  D.forEach(function(d){
+    var rec=R[d.name];m+='<tr><td>'+d.name+'</td>';
+    rec.cells.forEach(function(c){m+=c?'<td class="c '+(c.n<0?"r":"g")+'" title="'+d.name+' · '+f1(c.a)+' − '+f1(c.u)+'">'+(c.n>0?"+":"")+c.n.toFixed(1)+'</td>':'<td class="c z">—</td>';});
+    var n=r1(rec.a-rec.u);
+    m+='<td class="num">'+f1(rec.a)+'</td><td class="num">'+f1(rec.u)+'</td><td class="num '+cls(n)+'"><b>'+sgn(n)+'</b></td><td class="num">'+f1(rec.a/rec.u*100)+'%</td></tr>';
+  });
+  var colTot=days.map(function(dd,i){if(SUN.indexOf(dd)>=0)return null;var s=0;D.forEach(function(d){s+=R[d.name].cells[i].n;});return r1(s);});
+  m+='<tr class="tot"><td>Total</td>';colTot.forEach(function(v){m+=v===null?'<td class="c z">—</td>':'<td class="c '+(v<0?"r":"g")+'">'+(v>0?"+":"")+v.toFixed(1)+'</td>';});
+  var tn=r1(RT.a-RT.u);
+  m+='<td class="num">'+f1(RT.a)+'</td><td class="num">'+f1(RT.u)+'</td><td class="num '+cls(tn)+'">'+sgn(tn)+'</td><td class="num">'+f1(RT.a/RT.u*100)+'%</td></tr></tbody></table>';
+  document.getElementById("range-matrix").innerHTML=m;
+  // drill: Fancy Final day by day
+  var ff=D[3],rec=R[ff.name];
+  var g='<table><thead><tr><th>Date</th><th class="num">Output</th><th class="num">Σ output × MPH no.</th><th class="num">Fixed MPH</th><th class="num">Authorized</th><th class="num">Workers</th><th>Full / half</th><th class="num">Used</th><th class="num">Net</th><th class="num">Eff.</th><th>Loss reasons</th></tr></thead><tbody>';
+  var DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  days.forEach(function(dd,i){
+    var c=rec.cells[i];var dow=DOW[(4+dd-1)%7];
+    if(!c){g+='<tr><td class="muted">'+dow+' '+dd+' Oct</td><td colspan="10" class="muted">Sunday · no entries</td></tr>';return;}
+    var nf=Math.round(c.u/12), nh=0; if(nf*12>c.u){nf--;nh=1;} if(nf*12+nh*6<c.u){nh=Math.round((c.u-nf*12)/6);}
+    var st=c.n<0?(dd%3===0?'<span class="pill p-warn">partly</span>':'<span class="pill p-info">submitted</span>'):'<span class="muted">—</span>';
+    g+='<tr><td>'+dow+' '+dd+' Oct</td><td class="num">'+fq(c.o)+'</td><td class="num">'+f1(c.a)+'</td><td class="num muted">0.0</td><td class="num">'+f1(c.a)+'</td><td class="num">'+(nf+nh)+'</td><td class="mono">'+nf+' × 12 + '+nh+' × 6</td><td class="num">'+f1(c.u)+'</td><td class="num '+cls(c.n)+'"><b>'+sgn(c.n)+'</b></td><td class="num">'+f1(c.a/c.u*100)+'%</td><td>'+st+'</td></tr>';
+  });
+  var fn=r1(rec.a-rec.u);
+  g+='<tr class="tot"><td>1 – 24 Oct · '+rec.days+' days</td><td class="num">'+fq(rec.o)+'</td><td class="num">'+f1(rec.a)+'</td><td class="num">0.0</td><td class="num">'+f1(rec.a)+'</td><td></td><td></td><td class="num">'+f1(rec.u)+'</td><td class="num '+cls(fn)+'">'+sgn(fn)+'</td><td class="num">'+f1(rec.a/rec.u*100)+'%</td><td></td></tr></tbody></table>';
+  document.getElementById("range-drill").innerHTML=g;
+
+  // ---------- A4 print sheet ----------
+  var s='<div class="ph"><div><h2>MPH Calculation Report — Department wise</h2><div>Cansport · Labour Productivity · Production date <b>Sat 24 Oct 2026</b></div></div><div class="r">Printed 25 Oct 2026 08:12 by Production Coordinator<br>Full day = 12 MPH · Half day = 6 MPH</div></div>';
+  s+='<table class="sum"><thead><tr><th>Department</th><th class="num">Output</th><th class="num">Σ output × MPH no.</th><th class="num">Fixed MPH</th><th class="num">Authorized</th><th class="num">Workers</th><th class="num">Used</th><th class="num">Net</th><th class="num">Eff.</th><th>Loss reasons</th></tr></thead><tbody>';
+  D.forEach(function(d){s+='<tr><td>'+d.name+'</td><td class="num">'+(d.output?fq(d.output):"—")+'</td><td class="num">'+f1(d.itemsAuth)+'</td><td class="num">'+(d.fixed?f1(d.fixed):"—")+'</td><td class="num">'+f1(d.auth)+'</td><td class="num">'+d.workers.length+'</td><td class="num">'+f1(d.used)+'</td><td class="num"><b>'+sgn(d.net)+'</b></td><td class="num">'+f1(d.eff)+'%</td><td>'+(d.net<0?(d.explained>=-d.net-0.05?"explained ("+d.rstatus+")":d.explained>0?"partly · "+f1(d.explained)+" of "+f1(-d.net):"not started"):"—")+'</td></tr>';});
+  s+='<tr class="tot"><td>Total</td><td class="num">'+fq(T.output)+'</td><td class="num">'+f1(T.auth-36)+'</td><td class="num">36.0</td><td class="num">'+f1(T.auth)+'</td><td class="num">'+T.workers+'</td><td class="num">'+f1(T.used)+'</td><td class="num"><b>'+sgn(T.net)+'</b></td><td class="num">'+f1(T.eff)+'%</td><td></td></tr></tbody></table>';
+  D.forEach(function(d){
+    s+='<h3>'+d.seq+'. '+d.name+'<span>Authorized '+f1(d.auth)+' − Used '+f1(d.used)+' = '+sgn(d.net)+' MPH · '+f1(d.eff)+'%</span></h3><div class="two"><div>';
+    s+='<table><thead><tr><th>Item</th><th>Sub-dept</th><th>Shift</th><th class="num">Output</th><th class="num">MPH no.</th><th class="num">Authorized</th></tr></thead><tbody>';
+    d.items.forEach(function(it){s+='<tr><td>'+it[0]+'</td><td>'+it[1]+'</td><td>'+it[2]+'</td><td class="num">'+fq(it[3])+'</td><td class="num">'+it[4].toFixed(3)+'</td><td class="num">'+f1(it[3]*it[4])+'</td></tr>';});
+    if(!d.items.length)s+='<tr><td colspan="6">No countable output</td></tr>';
+    if(d.fixed)s+='<tr><td colspan="5">Fixed daily MPH</td><td class="num">'+f1(d.fixed)+'</td></tr>';
+    s+='<tr class="tot"><td colspan="3">Authorized</td><td class="num">'+(d.output?fq(d.output):"—")+'</td><td></td><td class="num">'+f1(d.auth)+'</td></tr></tbody></table></div><div>';
+    s+='<table><thead><tr><th>Process</th><th class="num">Workers</th><th class="num">Full</th><th class="num">Half</th><th class="num">Hours</th><th class="num">Used MPH</th></tr></thead><tbody>';
+    var P={},po=[];d.workers.forEach(function(w){if(!P[w.proc]){P[w.proc]={n:0,f:0,h:0,hr:0,m:0};po.push(w.proc);}var p=P[w.proc];p.n++;if(w.mph===12)p.f++;else p.h++;p.hr+=w.hrs;p.m+=w.mph;});
+    po.forEach(function(k){var p=P[k];s+='<tr><td>'+k+'</td><td class="num">'+p.n+'</td><td class="num">'+p.f+'</td><td class="num">'+p.h+'</td><td class="num">'+p.hr.toFixed(1)+'</td><td class="num">'+f1(p.m)+'</td></tr>';});
+    var nf=d.workers.filter(function(w){return w.mph===12;}).length;
+    s+='<tr class="tot"><td>Used</td><td class="num">'+d.workers.length+'</td><td class="num">'+nf+'</td><td class="num">'+(d.workers.length-nf)+'</td><td></td><td class="num">'+f1(d.used)+'</td></tr></tbody></table></div></div>';
+    if(d.net<0){s+='<div class="res">Loss '+f1(-d.net)+' MPH · '+(d.reasons.length?d.reasons.map(function(r){return r[0]+' ('+r[1]+') '+f1(r[2]);}).join(' · ')+(d.explained<-d.net-0.05?' · '+f1(-d.net-d.explained)+' not yet explained':''):'no reasons entered yet')+'</div>';}
+  });
+  s+='<div class="sig"><div>Production Coordinator</div><div>Labour In-charge</div><div>Operations Manager</div></div>';
+  s+='<div class="foot"><span>MPH number = MPH Master (department + sub-department). Fixed daily MPH counted once per day when anyone is deployed. Rounded to 0.1 MPH.</span><span>Page 1 of 3</span></div>';
+  document.getElementById("sheet").innerHTML=s;
+
+  // ---------- navigation ----------
+  var nav=document.getElementById('nav');
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(x){x.classList.toggle('on',x.id==='s-'+id);});
+    nav.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.s===id);});
+    try{localStorage.setItem('mph-calc-mock-tab',id);}catch(e){}
+  }
+  nav.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.s){show(b.dataset.s);window.scrollTo(0,0);}});
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-go]');if(b){show(b.dataset.go);window.scrollTo(0,0);}});
+  var start=null,h=(location.hash||'').replace('#','');
+  if(h&&document.getElementById('s-'+h))start=h;
+  if(!start){try{var t=localStorage.getItem('mph-calc-mock-tab');if(t&&document.getElementById('s-'+t))start=t;}catch(e){}}
+  if(start)show(start);
+})();
+</script>
