@@ -12,7 +12,7 @@
 //
 // Figures come from the shared helpers in src/lib/mphLoss.ts, so they agree
 // with MPH Analysis and MPH Loss Reasons. Read-only; nothing is saved here.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, endOfMonth, format, isValid, parseISO, startOfMonth, subDays, subMonths } from "date-fns";
@@ -489,8 +489,8 @@ export default function LabourMPHCalculationReportPage() {
 
           {/* ---------------- DAY ---------------- */}
           <TabsContent value="day" className="space-y-6 mt-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div>
+            <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4 md:items-end">
+              <div className="col-span-2 md:col-auto">
                 <label className="text-xs text-muted-foreground mb-1 block">Production date</label>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => setDate(isoDate(subDays(parseISO(date), 1)))}>
@@ -498,7 +498,7 @@ export default function LabourMPHCalculationReportPage() {
                   </Button>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-[190px] justify-start">
+                      <Button variant="outline" className="flex-1 md:flex-none md:w-[190px] justify-start">
                         <CalendarIcon className="h-4 w-4 mr-2" />
                         {fmtDate(date)}
                       </Button>
@@ -512,10 +512,10 @@ export default function LabourMPHCalculationReportPage() {
                   </Button>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="text-xs text-muted-foreground mb-1 block">Department</label>
                 <Select value={dayDept} onValueChange={setDayDept}>
-                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[200px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All departments</SelectItem>
                     {departmentList.map((d) => (
@@ -524,10 +524,10 @@ export default function LabourMPHCalculationReportPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="text-xs text-muted-foreground mb-1 block">Order</label>
                 <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[200px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="loss">Loss departments first</SelectItem>
                     <SelectItem value="name">Department name</SelectItem>
@@ -535,13 +535,13 @@ export default function LabourMPHCalculationReportPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setAll(true)}>Expand all</Button>
-                <Button variant="outline" size="sm" onClick={() => setAll(false)}>Collapse all</Button>
+              <div className="col-span-2 flex gap-2 md:col-auto">
+                <Button variant="outline" size="sm" className="flex-1 md:flex-none" onClick={() => setAll(true)}>Expand all</Button>
+                <Button variant="outline" size="sm" className="flex-1 md:flex-none" onClick={() => setAll(false)}>Collapse all</Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-5">
               <MetricCard title="Production Output" value={fmtQty(dayTotals.output)} icon={Factory} description={`${day?.departments.length ?? 0} departments`} />
               <MetricCard title="Authorized MPH" value={fmtMph(dayTotals.authorized)} icon={Gauge} description="Σ output × MPH number + fixed daily MPH" />
               <MetricCard title="Used MPH" value={fmtMph(dayTotals.used)} icon={Users} description={`${dayTotals.workers} workers deployed`} />
@@ -553,6 +553,7 @@ export default function LabourMPHCalculationReportPage() {
                 description={dayTotals.lossCount ? `${dayTotals.lossCount} departments in loss (${fmtMph(dayTotals.lossMph)})` : "No department in loss"}
               />
               <MetricCard
+                className="col-span-2 lg:col-span-1"
                 title="MPH Efficiency"
                 value={dayTotals.used > 0 ? `${fmtMph(dayTotals.efficiency)}%` : "—"}
                 icon={Activity}
@@ -590,11 +591,11 @@ export default function LabourMPHCalculationReportPage() {
 
           {/* ---------------- RANGE ---------------- */}
           <TabsContent value="range" className="space-y-6 mt-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div>
+            <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4 md:items-end">
+              <div className="min-w-0">
                 <label className="text-xs text-muted-foreground mb-1 block">Date range</label>
                 <Select value={rangeMode} onValueChange={setRangeMode}>
-                  <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[170px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="month">This month (to date)</SelectItem>
                     <SelectItem value="week">Last 7 days</SelectItem>
@@ -605,11 +606,11 @@ export default function LabourMPHCalculationReportPage() {
               </div>
               {rangeMode === "custom" && (
                 <>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-xs text-muted-foreground mb-1 block">From</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-[150px] justify-start">
+                        <Button variant="outline" className="w-full md:w-[150px] justify-start">
                           <CalendarIcon className="h-4 w-4 mr-2" />
                           {customStart ? format(customStart, "dd MMM yyyy") : "Pick date"}
                         </Button>
@@ -619,11 +620,11 @@ export default function LabourMPHCalculationReportPage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-xs text-muted-foreground mb-1 block">To</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-[150px] justify-start">
+                        <Button variant="outline" className="w-full md:w-[150px] justify-start">
                           <CalendarIcon className="h-4 w-4 mr-2" />
                           {customEnd ? format(customEnd, "dd MMM yyyy") : "Pick date"}
                         </Button>
@@ -635,10 +636,10 @@ export default function LabourMPHCalculationReportPage() {
                   </div>
                 </>
               )}
-              <div>
+              <div className="min-w-0">
                 <label className="text-xs text-muted-foreground mb-1 block">Drill into department</label>
                 <Select value={drillDept} onValueChange={setDrillDept}>
-                  <SelectTrigger className="w-[200px]"><SelectValue placeholder="Department" /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[200px]"><SelectValue placeholder="Department" /></SelectTrigger>
                   <SelectContent>
                     {rangeRows.map((r) => (
                       <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
@@ -648,7 +649,7 @@ export default function LabourMPHCalculationReportPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-5">
               <MetricCard title="Production Days" value={rangeCalc.dates.length} icon={CalendarIcon} description={`${format(parseISO(range.start), "dd MMM")} – ${format(parseISO(range.end), "dd MMM yyyy")}`} />
               <MetricCard title="Authorized MPH" value={fmtMph(rangeTotals.authorized)} icon={Gauge} description={`Output ${fmtQty(rangeTotals.output)}`} />
               <MetricCard title="Used MPH" value={fmtMph(rangeTotals.used)} icon={Users} description="All departments" />
@@ -660,6 +661,7 @@ export default function LabourMPHCalculationReportPage() {
                 description={rangeTotals.used > 0 ? `Efficiency ${fmtMph(rangeTotals.efficiency)}%` : "—"}
               />
               <MetricCard
+                className="col-span-2 lg:col-span-1"
                 title="Biggest Loss"
                 value={rangeTotals.worst && rangeTotals.worst.net < 0 ? rangeTotals.worst.name : "None"}
                 icon={TrendingDown}
@@ -881,21 +883,21 @@ function DepartmentCard({
 
   return (
     <Card className={`border-l-4 ${loss ? "border-l-red-500" : "border-l-green-500"}`}>
-      <button type="button" className="w-full text-left px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-1 hover:bg-muted/40" onClick={onToggle}>
-        <span className="text-base font-semibold min-w-[140px]">{dept.department_name}</span>
-        <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground flex-1">
+      <button type="button" className="w-full text-left px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 md:gap-x-5 md:gap-y-1 hover:bg-muted/40" onClick={onToggle}>
+        <span className="order-1 md:order-none flex-1 md:flex-none min-w-0 md:min-w-[140px] text-base font-semibold truncate">{dept.department_name}</span>
+        <span className="order-3 md:order-none w-full md:w-auto md:flex-1 grid grid-cols-2 gap-x-4 gap-y-0.5 md:flex md:flex-wrap md:gap-y-1 text-sm text-muted-foreground">
           <span>Output <b className="text-foreground font-medium">{dept.output ? fmtQty(dept.output) : "—"}</b></span>
           <span>Authorized <b className="text-foreground font-medium">{fmtMph(dept.authorized_mph)}</b></span>
           <span>Used <b className="text-foreground font-medium">{fmtMph(dept.used_mph)}</b> · {workers.length} workers</span>
           <span>Eff. <b className="text-foreground font-medium">{pct(dept.authorized_mph, dept.used_mph)}</b></span>
         </span>
         {loss ? (
-          <Badge className="bg-red-100 text-red-700">Loss {fmtMph(dept.net_mph)}</Badge>
+          <Badge className="order-4 md:order-none bg-red-100 text-red-700">Loss {fmtMph(dept.net_mph)}</Badge>
         ) : (
-          <Badge className="bg-green-100 text-green-700">Saved {signed(dept.net_mph)}</Badge>
+          <Badge className="order-4 md:order-none bg-green-100 text-green-700">Saved {signed(dept.net_mph)}</Badge>
         )}
-        <span className={`text-lg font-semibold tabular-nums ${netClass(dept.net_mph)}`}>{signed(dept.net_mph)}</span>
-        <span className="text-xs text-primary inline-flex items-center gap-1">
+        <span className={`order-2 md:order-none text-lg font-semibold tabular-nums ${netClass(dept.net_mph)}`}>{signed(dept.net_mph)}</span>
+        <span className="order-5 md:order-none ml-auto md:ml-0 text-xs text-primary inline-flex items-center gap-1">
           {open ? <>Hide calculation <ChevronUp className="h-3 w-3" /></> : <>Show calculation <ChevronDown className="h-3 w-3" /></>}
         </span>
       </button>
@@ -909,7 +911,42 @@ function DepartmentCard({
               {items.length === 0 && !fixed ? (
                 <p className="text-sm text-muted-foreground">No production entries posted for this department.</p>
               ) : (
-                <div className="overflow-auto">
+                <>
+                <div className="md:hidden rounded-md border divide-y text-sm">
+                  {subGroups.map((g) => (
+                    <Fragment key={g.sub}>
+                      {g.rows.map((it, i) => (
+                        <div key={i} className="px-3 py-2">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-medium truncate">{it.item_name}</span>
+                            <span className="font-medium tabular-nums">{fmtMph(it.authorized)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{it.sub_department !== "—" ? `${it.sub_department} · ` : ""}{it.shift || "—"}</span>
+                            <span className="font-mono whitespace-nowrap">{fmtQty(it.output)} × {it.mph_number.toFixed(3)}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {g.rows.length > 1 && g.sub !== "—" && (
+                        <div className="flex justify-between gap-2 px-3 py-1.5 bg-muted/30 text-xs font-medium">
+                          <span className="truncate">{g.sub} subtotal · {fmtQty(g.rows.reduce((s, it) => s + it.output, 0))}</span>
+                          <span className="tabular-nums">{fmtMph(g.rows.reduce((s, it) => s + it.output * it.mph_number, 0))}</span>
+                        </div>
+                      )}
+                    </Fragment>
+                  ))}
+                  {fixed > 0 && (
+                    <div className="flex justify-between gap-2 px-3 py-2">
+                      <span className="text-xs">Fixed daily MPH ({workers.length} deployed)</span>
+                      <span className="tabular-nums">{fmtMph(fixed)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-2 px-3 py-2 bg-muted/30 font-semibold">
+                    <span>Authorized MPH{dept.output ? ` · ${fmtQty(dept.output)} pcs` : ""}</span>
+                    <span className="tabular-nums">{fmtMph(dept.authorized_mph)}</span>
+                  </div>
+                </div>
+                <div className="hidden md:block overflow-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -940,6 +977,7 @@ function DepartmentCard({
                     </TableBody>
                   </Table>
                 </div>
+                </>
               )}
             </div>
 
@@ -949,7 +987,31 @@ function DepartmentCard({
               {workers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nobody deployed in this department.</p>
               ) : (
-                <div className="overflow-auto max-h-[420px]">
+                <>
+                <div className="md:hidden rounded-md border text-sm max-h-[420px] overflow-auto">
+                  {groups.map((g) => (
+                    <Fragment key={g.process}>
+                      <div className="flex justify-between gap-2 px-3 py-1 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <span className="truncate">{g.process} · {g.workers.length} ({g.full} full, {g.half} half)</span>
+                        <span className="tabular-nums">{fmtMph(g.mph)}</span>
+                      </div>
+                      {g.workers.map((w, i) => (
+                        <div key={`${w.employee_code}-${i}`} className="flex items-center justify-between gap-2 px-3 py-1.5 border-t">
+                          <div className="min-w-0">
+                            <div className="truncate"><span className="font-mono text-xs text-muted-foreground mr-1.5">{w.employee_code}</span>{w.employee_name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{w.shift || "—"} · {w.hours != null ? `${w.hours.toFixed(1)} h` : "—"} · {workTypeLabel(w.mph)}</div>
+                          </div>
+                          <span className="tabular-nums font-medium">{fmtMph(w.mph)}</span>
+                        </div>
+                      ))}
+                    </Fragment>
+                  ))}
+                  <div className="flex justify-between gap-2 px-3 py-2 border-t bg-muted/30 font-semibold">
+                    <span className="truncate">Used MPH · {workers.length} workers · <span className="font-mono font-normal text-xs">{nFull} × 12 + {workers.length - nFull} × 6</span></span>
+                    <span className="tabular-nums">{fmtMph(dept.used_mph)}</span>
+                  </div>
+                </div>
+                <div className="hidden md:block overflow-auto max-h-[420px]">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -973,6 +1035,7 @@ function DepartmentCard({
                     </TableBody>
                   </Table>
                 </div>
+                </>
               )}
             </div>
           </div>
@@ -980,18 +1043,21 @@ function DepartmentCard({
           {/* C · Result */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">C · Result</h4>
-            <div className="rounded-md bg-muted/40 px-3 py-2 space-y-1 text-sm font-mono overflow-x-auto">
-              <div className="whitespace-nowrap">
+            <div className="rounded-md bg-muted/40 px-3 py-2 space-y-1 text-xs md:text-sm font-mono overflow-x-auto">
+              <div className="md:whitespace-nowrap">
                 Authorized <b>{fmtMph(dept.authorized_mph)}</b> − Used <b>{fmtMph(dept.used_mph)}</b> = Net{" "}
                 <b className={netClass(dept.net_mph)}>{signed(dept.net_mph)} MPH</b> {loss ? "(loss)" : "(saved)"}
               </div>
-              <div className="whitespace-nowrap">
+              <div className="md:whitespace-nowrap">
                 Efficiency {fmtMph(dept.authorized_mph)} ÷ {fmtMph(dept.used_mph)} ={" "}
                 <b className={dept.authorized_mph >= dept.used_mph ? "text-green-600" : "text-red-600"}>{pct(dept.authorized_mph, dept.used_mph)}</b>
                 {dept.output > 0 && (
                   <>
-                    {" "}· Used MPH per unit {fmtMph(dept.used_mph)} ÷ {fmtQty(dept.output)} = <b>{(dept.used_mph / dept.output).toFixed(3)}</b>{" "}
-                    (standard {(itemsAuth / dept.output).toFixed(3)})
+                    <span className="hidden md:inline"> · </span>
+                    <span className="block md:inline">
+                      Used MPH per unit {fmtMph(dept.used_mph)} ÷ {fmtQty(dept.output)} = <b>{(dept.used_mph / dept.output).toFixed(3)}</b>{" "}
+                      (standard {(itemsAuth / dept.output).toFixed(3)})
+                    </span>
                   </>
                 )}
               </div>
