@@ -356,7 +356,7 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/distributor/admin',
   ],
   // Labour Productivity Approver: full labour module access except admin pages
-  labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/attendance-delete-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries', '/labour/mph-analysis', '/labour/mph-loss-reasons', '/labour/mph-loss-analysis'],
+  labour_productivity_approver: ['/labour', '/labour/dashboard', '/labour/edit-requests', '/labour/attendance-delete-requests', '/labour/entry', '/labour/todays-target', '/labour/employees', '/labour/attendance', '/labour/salary', '/labour/timesheet', '/labour/categories', '/labour/process-targets', '/labour/deployment-analysis', '/labour/category-productivity', '/labour/process-productivity', '/labour/individual-performance', '/labour/missing-entries', '/labour/mph-analysis', '/labour/mph-calculation-report', '/labour/mph-loss-reasons', '/labour/mph-loss-analysis'],
   // Labour Productivity Poster: create and post entries only (no dashboard access)
   labour_productivity_poster: ['/labour/entry', '/labour/todays-target', '/labour/gate-pass', '/labour/attendance-delete-requests'],
   // Labour Productivity Viewer: read-only access
@@ -365,8 +365,8 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
   labour_gate_pass_approver: ['/labour/gate-pass', '/dashboard'],
   // Labour Attendance Delete Approver: the attendance delete requests page (approvals + log sheet) only.
   labour_attendance_delete_approver: ['/labour/attendance-delete-requests', '/dashboard'],
-  // Production Coordinator: MPH loss reasons (entry + print), their analysis and MPH Analysis only.
-  production_coordinator: ['/labour/mph-loss-reasons', '/labour/mph-loss-analysis', '/labour/mph-analysis', '/dashboard'],
+  // Production Coordinator: MPH loss reasons (entry + print), their analysis, MPH Analysis and the MPH Calculation Report only.
+  production_coordinator: ['/labour/mph-loss-reasons', '/labour/mph-loss-analysis', '/labour/mph-analysis', '/labour/mph-calculation-report', '/dashboard'],
   facilities_technician: ['/facilities/equipment/tickets', '/dashboard'],
   cleaning_supervisor: ['/facilities/cleaning/actions', '/dashboard'],
   // Staff Gate Pass Approver: the staff gate pass register, approvals and pass pages only.
