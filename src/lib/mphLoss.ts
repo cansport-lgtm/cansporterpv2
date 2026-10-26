@@ -120,6 +120,24 @@ export const MPH_LOSS_CATEGORIES = ["Labour", "Utilities", "Material", "Machine"
 // Reasons must add up to the loss within this many MPH (same as the database check).
 export const MPH_LOSS_TOLERANCE = 0.05;
 
+// A department's loss must be explained before submitting when it is at least
+// this percent of the department's total (authorized) MPH. A smaller loss can
+// be explained, but the report can be submitted without it. Mirrors the
+// database check in mph_loss_report_save.
+export const MPH_LOSS_REQUIRED_PCT = 10;
+
+// Loss as a percent of the department's total MPH. With no authorized MPH
+// any loss is 100% (the whole deployment is unexplained).
+export function mphLossPct(d: Pick<DepartmentMph, "authorized_mph" | "net_mph">): number {
+  if (d.net_mph >= 0) return 0;
+  if (d.authorized_mph <= 0) return 100;
+  return (-d.net_mph / d.authorized_mph) * 100;
+}
+
+export function mphLossReasonRequired(d: Pick<DepartmentMph, "authorized_mph" | "net_mph">): boolean {
+  return d.net_mph < 0 && mphLossPct(d) >= MPH_LOSS_REQUIRED_PCT;
+}
+
 // Edits go through the database functions, which check these roles again.
 export const MPH_LOSS_EDIT_ROLES = ["super_admin", "production_coordinator"];
 
