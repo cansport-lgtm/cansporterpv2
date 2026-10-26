@@ -99,7 +99,7 @@ export default function ProcessMasterPage() {
   });
 
   // Fetch parameters for a process
-  const { data: processParameters = [] } = useQuery({
+  const { data: processParameters = [], isLoading: parametersLoading } = useQuery({
     queryKey: ["qa-process-parameters", selectedProcess?.id],
     queryFn: async () => {
       if (!selectedProcess?.id) return [];
@@ -107,11 +107,14 @@ export default function ProcessMasterPage() {
         .from("qa_process_parameters")
         .select("*")
         .eq("process_id", selectedProcess.id)
+        .eq("is_active", true)
         .order("sequence_order");
       if (error) throw error;
       return data;
     },
     enabled: !!selectedProcess?.id,
+    // Avoid clobbering unsaved edits in the dialog on window focus
+    refetchOnWindowFocus: false,
   });
 
   // Create/Update process mutation
@@ -156,17 +159,43 @@ export default function ProcessMasterPage() {
     },
   });
 
-  // Save parameters mutation
+  // Save parameters mutation.
+  // Existing parameters are updated in place and removed ones are soft-deleted
+  // (is_active = false) so historical inspection readings keep their reference.
+  // A delete-and-reinsert approach fails on the readings FK and leaves duplicates.
   const parametersMutation = useMutation({
     mutationFn: async ({ processId, params }: { processId: string; params: ProcessParameter[] }) => {
-      // Delete existing parameters
-      await supabase.from("qa_process_parameters").delete().eq("process_id", processId);
-      
-      // Insert new parameters
-      if (params.length > 0) {
-        const { error } = await supabase.from("qa_process_parameters").insert(
-          params.map((p, idx) => ({
-            process_id: processId,
+      const cleaned = params
+        .map((p) => ({ ...p, parameter_name: p.parameter_name.trim() }))
+        .filter((p) => p.parameter_name.length > 0);
+
+      const names = cleaned.map((p) => p.parameter_name.toLowerCase());
+      const duplicate = names.find((n, i) => names.indexOf(n) !== i);
+      if (duplicate) {
+        throw new Error(`Duplicate parameter name: "${duplicate}". Each parameter name must be unique.`);
+      }
+
+      const keptIds = cleaned.filter((p) => p.id).map((p) => p.id as string);
+
+      // Soft-delete parameters that were removed from the list
+      let deactivate = supabase
+        .from("qa_process_parameters")
+        .update({ is_active: false })
+        .eq("process_id", processId)
+        .eq("is_active", true);
+      if (keptIds.length > 0) {
+        deactivate = deactivate.not("id", "in", `(${keptIds.join(",")})`);
+      }
+      const { error: deactivateError } = await deactivate;
+      if (deactivateError) throw deactivateError;
+
+      // Update existing parameters
+      for (let idx = 0; idx < cleaned.length; idx++) {
+        const p = cleaned[idx];
+        if (!p.id) continue;
+        const { error } = await supabase
+          .from("qa_process_parameters")
+          .update({
             parameter_name: p.parameter_name,
             parameter_type: p.parameter_type,
             unit: p.unit || null,
@@ -174,8 +203,29 @@ export default function ProcessMasterPage() {
             max_value: p.max_value,
             is_required: p.is_required,
             sequence_order: idx + 1,
-          }))
-        );
+            is_active: true,
+          })
+          .eq("id", p.id);
+        if (error) throw error;
+      }
+
+      // Insert new parameters
+      const toInsert = cleaned
+        .map((p, idx) => ({ p, idx }))
+        .filter(({ p }) => !p.id)
+        .map(({ p, idx }) => ({
+          process_id: processId,
+          parameter_name: p.parameter_name,
+          parameter_type: p.parameter_type,
+          unit: p.unit || null,
+          min_value: p.min_value,
+          max_value: p.max_value,
+          is_required: p.is_required,
+          sequence_order: idx + 1,
+          is_active: true,
+        }));
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("qa_process_parameters").insert(toInsert);
         if (error) throw error;
       }
     },
@@ -205,7 +255,8 @@ export default function ProcessMasterPage() {
       }
       
       // First delete associated parameters
-      await supabase.from("qa_process_parameters").delete().eq("process_id", processId);
+      const { error: paramError } = await supabase.from("qa_process_parameters").delete().eq("process_id", processId);
+      if (paramError) throw paramError;
       // Then delete the process
       const { error } = await supabase.from("qa_processes").delete().eq("id", processId);
       if (error) throw error;
@@ -307,12 +358,24 @@ export default function ProcessMasterPage() {
     setShowParametersDialog(true);
   };
 
-  // Load parameters when processParameters data changes and dialog is open
+  // Load parameters when processParameters data changes and dialog is open.
+  // Always sync (including the empty case) so a previous process's list never leaks in.
   useEffect(() => {
-    if (processParameters.length > 0 && showParametersDialog) {
-      setParameters(processParameters as ProcessParameter[]);
+    if (showParametersDialog && !parametersLoading) {
+      setParameters(
+        processParameters.map((p) => ({
+          id: p.id,
+          parameter_name: p.parameter_name ?? "",
+          parameter_type: p.parameter_type ?? "text",
+          unit: p.unit ?? "",
+          min_value: p.min_value ?? null,
+          max_value: p.max_value ?? null,
+          is_required: p.is_required ?? false,
+          sequence_order: p.sequence_order ?? 0,
+        }))
+      );
     }
-  }, [processParameters, showParametersDialog]);
+  }, [processParameters, parametersLoading, showParametersDialog]);
 
   // Toggle export allowed mutation
   const toggleExportMutation = useMutation({
@@ -524,9 +587,7 @@ export default function ProcessMasterPage() {
         {/* Parameters Dialog */}
         <Dialog open={showParametersDialog} onOpenChange={(open) => {
           setShowParametersDialog(open);
-          if (open && processParameters.length > 0) {
-            setParameters(processParameters as ProcessParameter[]);
-          } else if (!open) {
+          if (!open) {
             setParameters([]);
           }
         }}>
@@ -539,7 +600,7 @@ export default function ProcessMasterPage() {
             
             <div className="space-y-4">
               {parameters.map((param, index) => (
-                <div key={index} className="grid grid-cols-12 max-md:[&>*]:!col-span-full gap-2 p-3 bg-muted/50 rounded-lg items-end">
+                <div key={param.id ?? `new-${index}`} className="grid grid-cols-12 max-md:[&>*]:!col-span-full gap-2 p-3 bg-muted/50 rounded-lg items-end">
                   <div className="col-span-3 space-y-1">
                     <Label className="text-xs">Parameter Name</Label>
                     <Input
