@@ -157,8 +157,10 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   // Purchase roles operate the Purchase module (+ dashboard shell). Officer creates
   // purchase orders/requests and receives goods; Manager additionally approves and
   // handles purchase invoices/returns. Confined to purchase routes via ROLE_ROUTE_RESTRICTIONS.
+  // The Manager also reads the raw-material consumption reports (Material Consumption
+  // module) to plan purchases; the route whitelist keeps the rest of that module hidden.
   purchase_officer: ['purchase', 'dashboard'],
-  purchase_manager: ['purchase', 'dashboard'],
+  purchase_manager: ['purchase', 'dashboard', 'material_consumption'],
   // Purchase QC Inspector: a single-purpose quality role. 'purchase' keeps the
   // Purchase sidebar group visible and satisfies the /purchase/* module check;
   // route lockdown below confines it to just the Quality Inspection page, and it
@@ -292,7 +294,10 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/material-shortages',
   ],
   // Purchase Manager: full purchase operations incl. approvals, invoices, returns
-  // and the Purchase Analysis report (spend, supplier concentration, fulfilment).
+  // and the Purchase Analysis report (spend, supplier concentration, fulfilment),
+  // plus the raw-material consumption reports (Material Consumption module) that
+  // drive purchase planning: Key Raw Materials, Usage Report, Value Tier Usage
+  // Report and Reorder Requirement. No other Material Consumption page.
   purchase_manager: [
     '/purchase/dashboard',
     '/purchase/analysis',
@@ -305,6 +310,10 @@ const ROLE_ROUTE_RESTRICTIONS: Record<string, string[]> = {
     '/purchase/invoices',
     '/purchase/returns',
     '/purchase/material-shortages',
+    '/consumption/key-raw-materials',
+    '/consumption/usage-report',
+    '/consumption/value-tier-report',
+    '/consumption/reorder-requirement',
   ],
   // Purchase QC Inspector: ONLY the Quality Inspection page. No orders, goods
   // receipt, invoices, returns, suppliers or dashboard (all of which expose
@@ -896,9 +905,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Purchase officer / manager: the purchase-module grant is role-driven and additive,
     // so it applies even when the account also holds a flexible role (which would otherwise
     // route to per-user module permissions below and hide the Purchase module).
+    // Checked per role (not just the officer's list) so the manager's extra modules
+    // (e.g. material_consumption reports) are granted too.
     if (
-      roles.some((r) => r.role === 'purchase_officer' || r.role === 'purchase_manager') &&
-      ROLE_MODULE_ACCESS['purchase_officer']?.includes(mod)
+      roles.some(
+        (r) =>
+          (r.role === 'purchase_officer' || r.role === 'purchase_manager') &&
+          ROLE_MODULE_ACCESS[r.role]?.includes(mod)
+      )
     ) {
       return true;
     }
