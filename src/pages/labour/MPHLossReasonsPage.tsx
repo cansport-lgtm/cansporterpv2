@@ -23,6 +23,9 @@ import {
   type DepartmentMph,
   type DepartmentMphDetail,
   type MphLossReason,
+  MPH_LOSS_REQUIRED_PCT,
+  mphLossPct,
+  mphLossReasonRequired,
   MPH_LOSS_TOLERANCE,
   escapeHtml,
   fetchMphDay,
@@ -77,6 +80,11 @@ const STATUS_BADGE: Record<DeptStatus, { label: string; className: string; dot: 
 interface DeptState {
   dept: DepartmentMph;
   loss: number;
+  // Loss as % of the department's total (authorized) MPH.
+  lossPct: number;
+  // Loss ≥ MPH_LOSS_REQUIRED_PCT: reasons must be complete to submit.
+  // Below that they are optional.
+  required: boolean;
   lines: LineDraft[];
   explained: number;
   remaining: number;
@@ -198,6 +206,8 @@ export default function MPHLossReasonsPage() {
   const deptState: DeptState[] = useMemo(() => {
     return lossDepts.map((d) => {
       const loss = round1(-d.net_mph);
+      const lossPct = mphLossPct(d);
+      const required = mphLossReasonRequired(d);
       const deptLines = lines[d.department_id] ?? [];
       const explained = round1(deptLines.reduce((s, l) => s + (Number(l.mph_lost) || 0), 0));
       const remaining = round1(loss - explained);
@@ -205,17 +215,23 @@ export default function MPHLossReasonsPage() {
       if (Math.abs(remaining) <= MPH_LOSS_TOLERANCE) status = "complete";
       else if (remaining < 0) status = "over";
       else if (explained > 0) status = "partial";
-      return { dept: d, loss, lines: deptLines, explained, remaining, status };
+      return { dept: d, loss, lossPct, required, lines: deptLines, explained, remaining, status };
     });
   }, [lossDepts, lines]);
 
   const totals = useMemo(() => {
     const loss = round1(deptState.reduce((s, d) => s + d.loss, 0));
     const explained = round1(deptState.reduce((s, d) => s + Math.min(d.explained, d.loss), 0));
+    // Only departments at or above the threshold must be explained to submit.
+    const requiredDepts = deptState.filter((d) => d.required);
     return {
       loss,
       explained,
       remaining: round1(Math.max(loss - explained, 0)),
+      // What still blocks submission: unexplained loss of the required departments.
+      requiredRemaining: round1(requiredDepts.reduce((s, d) => s + Math.max(d.remaining, 0), 0)),
+      required: requiredDepts.length,
+      optional: deptState.length - requiredDepts.length,
       done: deptState.filter((d) => d.status === "complete").length,
       partial: deptState.filter((d) => d.status === "partial" || d.status === "over").length,
       authorized: round1(allDepts.reduce((s, d) => s + d.authorized_mph, 0)),
@@ -226,7 +242,12 @@ export default function MPHLossReasonsPage() {
   const invalidLine = deptState.some((d) =>
     d.lines.some((l) => !l.reason_id || !(Number(l.mph_lost) > 0))
   );
-  const allExplained = deptState.length > 0 && deptState.every((d) => d.status === "complete");
+  // Submit needs every required department (loss ≥ 10% of its total MPH) fully
+  // explained. An optional department may be left blank or partly explained,
+  // but its reasons must not exceed its loss.
+  const allExplained =
+    deptState.length > 0 &&
+    deptState.every((d) => (d.required ? d.status === "complete" : d.status !== "over"));
 
   // Reasons already used for this date, shown first in the phone picker.
   const usedReasonIds = useMemo(() => {
@@ -295,7 +316,12 @@ export default function MPHLossReasonsPage() {
       return;
     }
     if (submit && !allExplained) {
-      toast.error("Each department's reasons must add up to its loss before submitting");
+      const over = deptState.find((d) => !d.required && d.status === "over");
+      toast.error(
+        over
+          ? `${over.dept.department_name}: reasons are more than its loss`
+          : `Every department with a loss of ${MPH_LOSS_REQUIRED_PCT}% or more of its MPH must be fully explained before submitting`
+      );
       return;
     }
     saveMutation.mutate(submit);
@@ -530,7 +556,7 @@ export default function MPHLossReasonsPage() {
                 <Button
                   onClick={() => handleSave(true)}
                   disabled={saveMutation.isPending || isLoading || !allExplained}
-                  title={allExplained ? undefined : "Explain every department's loss fully to submit"}
+                  title={allExplained ? undefined : `Explain every department with a loss of ${MPH_LOSS_REQUIRED_PCT}% or more to submit`}
                 >
                   <Send className="h-4 w-4 mr-2" /> Submit Reasons
                 </Button>
@@ -555,11 +581,16 @@ export default function MPHLossReasonsPage() {
             sub={`${totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100}% of the loss`}
             className="text-green-700"
           />
-          <Kpi label="Still to explain" value={fmtMph(totals.remaining)} sub="must be 0 to submit" className="text-amber-700" />
+          <Kpi
+            label="Still to explain"
+            value={fmtMph(totals.requiredRemaining)}
+            sub={`must be 0 to submit · ${fmtMph(totals.remaining)} incl. optional`}
+            className="text-amber-700"
+          />
           <Kpi
             label="Departments done"
             value={`${totals.done} / ${deptState.length}`}
-            sub={`${totals.partial} partly · ${deptState.length - totals.done - totals.partial} pending`}
+            sub={`${totals.required} required (≥${MPH_LOSS_REQUIRED_PCT}% loss) · ${totals.optional} optional`}
           />
         </div>
 
@@ -617,6 +648,7 @@ export default function MPHLossReasonsPage() {
                     </div>
                   </div>
                   <Badge className={badge.className}>{badge.label}</Badge>
+                  <RequirementBadge d={d} />
                 </div>
 
                 {calcOpen && (
@@ -777,7 +809,7 @@ type Common = {
   canEditRole: boolean;
   isLoading: boolean;
   deptState: DeptState[];
-  totals: { loss: number; explained: number; remaining: number; done: number; partial: number; authorized: number; used: number };
+  totals: { loss: number; explained: number; remaining: number; requiredRemaining: number; required: number; optional: number; done: number; partial: number; authorized: number; used: number };
   allDepts: DepartmentMph[];
   lossDepts: DepartmentMph[];
   noLossCount: number;
@@ -796,14 +828,39 @@ type Common = {
 };
 
 function RemainingText({ d, className = "" }: { d: DeptState; className?: string }) {
+  const ok = d.status === "complete" || (!d.required && d.status !== "over");
   return (
-    <span className={`text-sm font-semibold ${d.status === "complete" ? "text-green-700" : "text-amber-700"} ${className}`}>
+    <span className={`text-sm font-semibold ${ok ? "text-green-700" : "text-amber-700"} ${className}`}>
       {d.status === "complete"
         ? "Fully explained"
         : d.status === "over"
         ? `${fmtMph(-d.remaining)} MPH more than the loss`
-        : `${fmtMph(d.remaining)} MPH still to explain`}
+        : d.required
+        ? `${fmtMph(d.remaining)} MPH still to explain`
+        : `${fmtMph(d.remaining)} MPH unexplained · optional`}
     </span>
+  );
+}
+
+// Whether the department's loss must be explained: ≥ 10% of its total MPH.
+function RequirementBadge({ d, className = "" }: { d: DeptState; className?: string }) {
+  const pct = d.lossPct >= 100 ? "100" : d.lossPct.toFixed(1);
+  return d.required ? (
+    <Badge
+      variant="outline"
+      className={`border-red-300 text-red-700 ${className}`}
+      title={`Loss is ${pct}% of the department's ${fmtMph(d.dept.authorized_mph)} authorized MPH — ${MPH_LOSS_REQUIRED_PCT}% or more must be explained`}
+    >
+      Required · {pct}% loss
+    </Badge>
+  ) : (
+    <Badge
+      variant="outline"
+      className={`border-muted-foreground/40 text-muted-foreground ${className}`}
+      title={`Loss is ${pct}% of the department's ${fmtMph(d.dept.authorized_mph)} authorized MPH — below ${MPH_LOSS_REQUIRED_PCT}%, reasons are optional`}
+    >
+      Optional · {pct}% loss
+    </Badge>
   );
 }
 
@@ -830,7 +887,10 @@ function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, l
                 {format(new Date(report.notified_at), "HH:mm")} —{" "}
               </>
             ) : null}
-            {lossDepts.length} of {allDepts.length} departments are in loss.
+            {lossDepts.length} of {allDepts.length} departments are in loss
+            {lossDepts.length > 0
+              ? ` — ${lossDepts.filter((d) => mphLossReasonRequired(d)).length} must be explained (loss ≥ ${MPH_LOSS_REQUIRED_PCT}% of the department's MPH); the rest are optional.`
+              : "."}
           </span>
           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Draft · not submitted</Badge>
         </div>
@@ -1153,7 +1213,8 @@ function MobileOverview(
   const { date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, isLoading, deptState, totals, allDepts, lossDepts, noLossCount,
     handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
   const pct = totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100;
-  const shown = filter === "pending" ? deptState.filter((d) => d.status !== "complete") : deptState;
+  const pendingDepts = deptState.filter((d) => d.required && d.status !== "complete");
+  const shown = filter === "pending" ? pendingDepts : deptState;
 
   return (
     <div className="pb-28">
@@ -1198,9 +1259,14 @@ function MobileOverview(
             <div className="flex justify-between items-end gap-2">
               <div>
                 <div className="text-xs text-muted-foreground">Still to explain</div>
-                <div className={`text-3xl font-semibold tabular-nums leading-tight ${totals.remaining > 0 ? "text-amber-700" : "text-green-700"}`}>
-                  {fmtMph(totals.remaining)} <span className="text-sm font-medium text-muted-foreground">MPH</span>
+                <div className={`text-3xl font-semibold tabular-nums leading-tight ${totals.requiredRemaining > 0 ? "text-amber-700" : "text-green-700"}`}>
+                  {fmtMph(totals.requiredRemaining)} <span className="text-sm font-medium text-muted-foreground">MPH</span>
                 </div>
+                {totals.optional > 0 && (
+                  <div className="text-[11px] text-muted-foreground">
+                    {totals.optional} department{totals.optional === 1 ? "" : "s"} under {MPH_LOSS_REQUIRED_PCT}% loss — optional
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Total loss</div>
@@ -1245,7 +1311,7 @@ function MobileOverview(
               onClick={() => setFilter("pending")}
               className={`h-8 px-3 rounded-full border text-xs font-semibold ${filter === "pending" ? "border-primary bg-blue-50 text-primary" : "bg-background"}`}
             >
-              Pending {deptState.length - totals.done}
+              Pending {pendingDepts.length}
             </button>
             <button
               type="button"
@@ -1266,7 +1332,7 @@ function MobileOverview(
                 ? allDepts.length === 0
                   ? "No production or labour MPH recorded for this date."
                   : "No department is in MPH loss — nothing to explain."
-                : "Every department is explained. Submit when ready."}
+                : "Every required department is explained. Submit when ready."}
             </p>
           ) : (
             shown.map((d) => {
@@ -1287,6 +1353,10 @@ function MobileOverview(
                         : d.status === "complete"
                         ? `Fully explained · ${d.lines.length} reason${d.lines.length === 1 ? "" : "s"}`
                         : `${fmtMph(d.explained)} of ${fmtMph(d.loss)} explained · ${d.lines.length} reason${d.lines.length === 1 ? "" : "s"}`}
+                      {" · "}
+                      <span className={d.required ? "text-red-700 font-semibold" : ""}>
+                        {d.required ? "Required" : "Optional"} ({d.lossPct >= 100 ? "100" : d.lossPct.toFixed(1)}%)
+                      </span>
                     </span>
                   </span>
                   <span className={`text-base font-semibold tabular-nums ${d.status === "complete" ? "text-muted-foreground" : "text-red-700"}`}>
@@ -1367,6 +1437,7 @@ function MobileDepartment(
               <span className="text-muted-foreground"><b className="text-foreground">{fmtMph(d.explained)}</b> of {fmtMph(d.loss)} explained</span>
               <RemainingText d={d} className="text-[13px]" />
             </div>
+            <RequirementBadge d={d} />
           </CardContent>
         </Card>
 
