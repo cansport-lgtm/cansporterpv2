@@ -171,6 +171,11 @@ export function RoleBasedRedirect() {
     return <Navigate to="/labour/mph-loss-reasons" replace />;
   }
 
+  // Labour Salary Viewer (labour cash handler) lands on the Labour Salary page
+  if (roles.some(r => (r.role as string) === 'labour_salary_viewer')) {
+    return <Navigate to="/labour/salary" replace />;
+  }
+
   // Staff Gate Pass Approver lands on the staff gate pass approvals
   if (roles.some(r => (r.role as string) === 'staff_gate_pass_approver')) {
     return <Navigate to="/hr/gate-pass/approvals" replace />;

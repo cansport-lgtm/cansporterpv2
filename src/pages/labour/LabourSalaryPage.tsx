@@ -59,8 +59,12 @@ interface ProductivityEntry {
 }
 
 const LabourSalaryPage = () => {
-  const { hasRole, user } = useAuth();
+  const { hasRole, hasModulePermission, user } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
+  // Row actions (overtime / advance / travel advance / attendance allowance) need
+  // labour edit rights. A labour_salary_viewer (the labour cash handler) only ever
+  // gets 'view' for the labour module, so the page is read-only for them.
+  const canEditSalary = isSuperAdmin || hasModulePermission("labour", "edit");
   const queryClient = useQueryClient();
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -948,7 +952,7 @@ const LabourSalaryPage = () => {
           <span className={item.totalOvertime > 0 ? "font-medium text-primary" : "text-muted-foreground"}>
             Rs. {item.totalOvertime.toLocaleString()}
           </span>
-          {(!isLocked || isSuperAdmin) && (
+          {canEditSalary && (!isLocked || isSuperAdmin) && (
             <Button 
               variant="ghost" 
               size="sm"
@@ -972,7 +976,7 @@ const LabourSalaryPage = () => {
           <span className={item.totalAdvance > 0 ? "text-destructive font-medium" : "text-muted-foreground"}>
             Rs. {item.totalAdvance.toLocaleString()}
           </span>
-          {(!isLocked || isSuperAdmin) && (
+          {canEditSalary && (!isLocked || isSuperAdmin) && (
             <Button 
               variant="ghost" 
               size="sm"
@@ -996,7 +1000,7 @@ const LabourSalaryPage = () => {
           <span className={item.totalTravelAdvance > 0 ? "text-destructive font-medium" : "text-muted-foreground"}>
             Rs. {item.totalTravelAdvance.toLocaleString()}
           </span>
-          {(!isLocked || isSuperAdmin) && (
+          {canEditSalary && (!isLocked || isSuperAdmin) && (
             <Button 
               variant="ghost" 
               size="sm"
@@ -1020,7 +1024,7 @@ const LabourSalaryPage = () => {
           <span className={item.totalAttAllowance > 0 ? "font-medium text-emerald-600" : "text-muted-foreground"}>
             Rs. {item.totalAttAllowance.toLocaleString()}
           </span>
-          {(!isLocked || isSuperAdmin) && (
+          {canEditSalary && (!isLocked || isSuperAdmin) && (
             <Button 
               variant="ghost" 
               size="sm"

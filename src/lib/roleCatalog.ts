@@ -328,6 +328,13 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     description: "Labour Productivity – when production is posted, gives the reason(s) for every department in MPH loss, submits and prints the MPH Loss Reason Report; sees MPH Analysis and the reason analysis",
     color: "bg-red-500/10 text-red-600 border-red-500/20",
   },
+  labour_salary_viewer: {
+    module: "labour",
+    label: "Salary Viewer (labour cash)",
+    tier: "special",
+    description: "Labour Productivity – read-only Labour Salary page for the person who handles labour cash: monthly salary sheet, payslips, salary list, payment vouchers and Excel export; cannot add overtime / advances / allowances or lock a month, and sees no other labour page",
+    color: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  },
 
   // qa
   qa_super_manager: {
