@@ -41,6 +41,8 @@ import { DailyEmployeeProgress } from "@/components/dashboard/DailyEmployeeProgr
 import { EmployeeComparisonChart } from "@/components/dashboard/EmployeeComparisonChart";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachDayOfInterval } from "date-fns";
 import {
   LineChart, Line, BarChart, Bar,
@@ -121,13 +123,16 @@ export default function Dashboard() {
 
   // ============ LIVE DATA QUERIES ============
 
+  // Refresh production figures when an entry is edited anywhere
+  useProductionEntriesLive(["ceo-production", "ceo-mph-production-entries", "ceo-production-trend"]);
+
   // Production entries for the period
   const { data: productionData } = useQuery({
     queryKey: ["ceo-production", dateRange],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_entries")
-        .select("entry_date, quantity_ok, quantity_rejected, department_id, production_departments(name)")
+        .select("entry_date, quantity_ok, quantity_rejected, department_id, edit_count, production_departments(name)")
         .gte("entry_date", dateRange.start)
         .lte("entry_date", dateRange.end)
         .limit(5000);
@@ -416,7 +421,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_entries")
-        .select("department_id, sub_department_id, quantity_produced, production_departments(name)")
+        .select("department_id, sub_department_id, quantity_produced, edit_count, production_departments(name)")
         .gte("entry_date", dateRange.start)
         .lte("entry_date", dateRange.end)
         .limit(5000);
@@ -762,7 +767,7 @@ export default function Dashboard() {
       const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
       const { data, error } = await supabase
         .from("production_entries")
-        .select("entry_date, quantity_ok")
+        .select("entry_date, quantity_ok, edit_count")
         .gte("entry_date", thirtyDaysAgo)
         .lte("entry_date", today)
         .limit(5000);
@@ -1548,13 +1553,17 @@ export default function Dashboard() {
 
         {/* KPI Cards Row 1 */}
         <div className="dashboard-grid">
-          <MetricCard
-            title="Production Output"
-            value={totalProduction.toLocaleString()}
-            icon={Factory}
-            description={`Local Final: ${localFinalOutput.toLocaleString()} | Fancy Final: ${fancyFinalOutput.toLocaleString()} | Rejected: ${totalRejected.toLocaleString()}`}
-            iconColor="bg-blue-100 text-blue-600"
-          />
+          <div className="flex flex-col gap-1">
+            <MetricCard
+              title="Production Output"
+              value={totalProduction.toLocaleString()}
+              icon={Factory}
+              description={`Local Final: ${localFinalOutput.toLocaleString()} | Fancy Final: ${fancyFinalOutput.toLocaleString()} | Rejected: ${totalRejected.toLocaleString()}`}
+              iconColor="bg-blue-100 text-blue-600"
+              className="flex-1"
+            />
+            <span className="self-end"><EditedEntriesNote entries={productionData as any} /></span>
+          </div>
           <MetricCard
             title="QA Pass Rate"
             value={`${qaPassRate}%`}
@@ -1643,7 +1652,10 @@ export default function Dashboard() {
           {/* Production Trend */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-display">Production Trend (30 Days)</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-lg font-display">Production Trend (30 Days)</CardTitle>
+                <EditedEntriesNote entries={productionTrend as any} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="h-[280px]">
@@ -2027,12 +2039,13 @@ export default function Dashboard() {
         {/* Department-wise MPH Status */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-display flex items-center gap-2">
+            <CardTitle className="text-lg font-display flex flex-wrap items-center gap-2">
               <Zap className="h-5 w-5 text-pink-600" />
               Department-wise MPH Status
               <Badge variant="outline" className="ml-2">
                 Net: {mphStats.totalNet >= 0 ? "+" : ""}{mphStats.totalNet.toFixed(1)} hrs
               </Badge>
+              <span className="ml-auto"><EditedEntriesNote entries={mphProductionEntries as any} /></span>
             </CardTitle>
             <div className="flex gap-4 text-sm mt-1">
               <span className="font-semibold">Authorized: {mphStats.totalAuth.toFixed(1)} hrs</span>

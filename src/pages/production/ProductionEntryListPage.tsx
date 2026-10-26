@@ -16,6 +16,10 @@ import { MetricCard } from "@/components/shared/MetricCard";
 import { FileDown, Factory, Target, CheckCircle, XCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedBadge } from "@/components/production/EditedBadge";
+import { EditedValue } from "@/components/production/EditedValue";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 
 export default function ProductionEntryListPage() {
   const today = new Date();
@@ -24,6 +28,8 @@ export default function ProductionEntryListPage() {
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [shiftFilter, setShiftFilter] = useState<string>("all");
+  const [editedOnly, setEditedOnly] = useState(false);
+  useProductionEntriesLive(['production-entry-list']);
 
   const { data: departments } = useQuery({
     queryKey: ['production-departments'],
@@ -43,12 +49,12 @@ export default function ProductionEntryListPage() {
     },
   });
 
-  const { data: entries } = useQuery({
+  const { data: allEntries } = useQuery({
     queryKey: ['production-entry-list', fromDate, toDate, departmentFilter, gradeFilter, shiftFilter],
     queryFn: async () => {
       let query = supabase
         .from('production_entries')
-        .select(`*, production_departments(name, code), production_sub_departments(name, code), grades(name, code), created_by_user:app_users!production_entries_created_by_fkey(full_name)`)
+        .select(`*, production_departments(name, code), production_sub_departments(name, code), grades(name, code), created_by_user:app_users!production_entries_created_by_fkey(full_name), last_edited_by_user:app_users!production_entries_last_edited_by_fkey(full_name)`)
         .gte('entry_date', fromDate)
         .lte('entry_date', toDate)
         .order('entry_date', { ascending: false })
@@ -63,6 +69,7 @@ export default function ProductionEntryListPage() {
       return data;
     },
   });
+  const entries = editedOnly ? allEntries?.filter((e) => Number(e.edit_count) > 0) : allEntries;
 
   const totalProduced = entries?.reduce((sum, e) => sum + (Number(e.quantity_produced) || 0), 0) || 0;
   const totalTarget = entries?.reduce((sum, e) => sum + (Number(e.target_production) || 0), 0) || 0;
@@ -86,6 +93,10 @@ export default function ProductionEntryListPage() {
       Status: e.status,
       'Created By': e.created_by_user?.full_name || '-',
       Remarks: e.remarks || '',
+      Edited: Number(e.edit_count) > 0 ? `Yes (${e.edit_count})` : '',
+      'Last Edited By': e.last_edited_by_user?.full_name || '',
+      'Last Edited At': e.last_edited_at ? format(new Date(e.last_edited_at), 'yyyy-MM-dd HH:mm') : '',
+      'Last Edit Reason': e.last_edit_reason || '',
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -97,15 +108,17 @@ export default function ProductionEntryListPage() {
     {
       key: 'entry_date', header: 'Date',
       render: (item: any) => {
-        try { return format(new Date(item.entry_date), 'dd MMM yyyy'); } catch { return item.entry_date; }
+        let d = item.entry_date;
+        try { d = format(new Date(item.entry_date), 'dd MMM yyyy'); } catch { /* keep raw */ }
+        return <EditedValue entry={item} field="entry_date">{d}</EditedValue>;
       },
     },
-    { key: 'shift', header: 'Shift' },
-    { key: 'production_departments', header: 'Department', render: (item: any) => item.production_departments?.name || '-' },
+    { key: 'shift', header: 'Shift', render: (item: any) => <EditedValue entry={item} field="shift">{item.shift}</EditedValue> },
+    { key: 'production_departments', header: 'Department', render: (item: any) => <EditedValue entry={item} field="department_id" formatOriginal={(v) => departments?.find(d => d.id === v)?.name ?? String(v ?? '—')}>{item.production_departments?.name || '-'}</EditedValue> },
     { key: 'production_sub_departments', header: 'Sub-Dept', render: (item: any) => item.production_sub_departments?.name || '-' },
-    { key: 'grades', header: 'Grade', render: (item: any) => item.grades?.code || '-' },
-    { key: 'target_production', header: 'Target', render: (item: any) => Number(item.target_production)?.toLocaleString() || '0' },
-    { key: 'quantity_produced', header: 'Produced', render: (item: any) => Number(item.quantity_produced)?.toLocaleString() || '0' },
+    { key: 'grades', header: 'Grade', render: (item: any) => <EditedValue entry={item} field="grade_id" formatOriginal={(v) => grades?.find(g => g.id === v)?.code ?? String(v ?? '—')}>{item.grades?.code || '-'}</EditedValue> },
+    { key: 'target_production', header: 'Target', render: (item: any) => <EditedValue entry={item} field="target_production">{Number(item.target_production)?.toLocaleString() || '0'}</EditedValue> },
+    { key: 'quantity_produced', header: 'Produced', render: (item: any) => <EditedValue entry={item} field="quantity_produced">{Number(item.quantity_produced)?.toLocaleString() || '0'}</EditedValue> },
     {
       key: 'achievement', header: 'Achievement',
       render: (item: any) => {
@@ -116,9 +129,9 @@ export default function ProductionEntryListPage() {
         return <span className={isGood ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>{pct}%</span>;
       },
     },
-    { key: 'quantity_ok', header: 'OK', render: (item: any) => <span className="text-green-600">{Number(item.quantity_ok)?.toLocaleString() || '0'}</span> },
-    { key: 'quantity_rejected', header: 'Rejected', render: (item: any) => <span className="text-destructive">{Number(item.quantity_rejected)?.toLocaleString() || '0'}</span> },
-    { key: 'status', header: 'Status', render: (item: any) => <StatusBadge status={item.status} /> },
+    { key: 'quantity_ok', header: 'OK', render: (item: any) => <EditedValue entry={item} field="quantity_ok"><span className="text-green-600">{Number(item.quantity_ok)?.toLocaleString() || '0'}</span></EditedValue> },
+    { key: 'quantity_rejected', header: 'Rejected', render: (item: any) => <EditedValue entry={item} field="quantity_rejected"><span className="text-destructive">{Number(item.quantity_rejected)?.toLocaleString() || '0'}</span></EditedValue> },
+    { key: 'status', header: 'Status', render: (item: any) => <span className="inline-flex flex-wrap items-center gap-1"><StatusBadge status={item.status} /><EditedBadge entry={item} /></span> },
     { key: 'created_by', header: 'Created By', render: (item: any) => item.created_by_user?.full_name || '-' },
   ];
 
@@ -178,6 +191,9 @@ export default function ProductionEntryListPage() {
                 </SelectContent>
               </Select>
             </div>
+            <Button variant={editedOnly ? 'default' : 'outline'} onClick={() => setEditedOnly((v) => !v)} title="Show only entries that were edited after saving">
+              {editedOnly ? 'Edited only ✓' : 'Edited only'}
+            </Button>
             <Button variant="outline" onClick={handleExport} disabled={!entries?.length}>
               <FileDown className="h-4 w-4 mr-2" /> Export
             </Button>
@@ -206,6 +222,9 @@ export default function ProductionEntryListPage() {
       )}
 
       {/* Data Table */}
+      <div className="mb-2">
+        <EditedEntriesNote entries={allEntries} prefix="This range includes" />
+      </div>
       <DataTable columns={columns} data={entries || []} />
     </ERPLayout>
   );

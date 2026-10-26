@@ -14,6 +14,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
+import { EDIT_FLAG_COLUMNS, useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedBadge } from "@/components/production/EditedBadge";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import {
   BarChart,
   Bar,
@@ -41,6 +44,12 @@ export default function ProductionDashboard() {
   const [rejectionGradeFilter, setRejectionGradeFilter] = useState<string>('all');
   const [daywiseDeptFilter, setDaywiseDeptFilter] = useState<string>('all');
   const [showSubDepts, setShowSubDepts] = useState<boolean>(false);
+
+  // Refresh when a production entry is edited anywhere (edited badge / notes)
+  useProductionEntriesLive([
+    'production-period-stats', 'production-dept-analytics', 'production-grade-by-dept-analytics',
+    'grade-wise-prod-rejection', 'production-trend', 'production-daywise', 'production-rejections',
+  ]);
   
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const weekStart = format(startOfWeek(selectedDate), 'yyyy-MM-dd');
@@ -96,7 +105,7 @@ export default function ProductionDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('production_entries')
-        .select('target_production, quantity_produced, quantity_ok, quantity_rejected, entry_date')
+        .select('target_production, quantity_produced, quantity_ok, quantity_rejected, entry_date, edit_count')
         .gte('entry_date', dateRange.start)
         .lte('entry_date', dateRange.end);
       
@@ -111,7 +120,7 @@ export default function ProductionDashboard() {
       // Count unique working days
       const workingDays = new Set(data?.map(e => e.entry_date) || []).size;
       
-      return { totalTarget, totalProduced, totalOk, totalRejected, achievement, entries: data?.length || 0, workingDays };
+      return { totalTarget, totalProduced, totalOk, totalRejected, achievement, entries: data?.length || 0, workingDays, rows: data || [] };
     },
   });
 
@@ -147,6 +156,7 @@ export default function ProductionDashboard() {
           quantity_ok,
           quantity_rejected,
           entry_date,
+          edit_count,
           production_departments(id, name, code, sequence_order),
           production_sub_departments(id, name)
         `)
@@ -233,6 +243,7 @@ export default function ProductionDashboard() {
         .select(`
           quantity_produced,
           department_id,
+          edit_count,
           production_departments(id, name, code, sequence_order),
           grades(name, code)
         `)
@@ -290,6 +301,7 @@ export default function ProductionDashboard() {
           quantity_produced,
           quantity_rejected,
           department_id,
+          edit_count,
           production_departments(id, name, code),
           grades(name, code)
         `)
@@ -363,7 +375,7 @@ export default function ProductionDashboard() {
         const results = await Promise.all(months.map(async (month) => {
           const { data, error } = await supabase
             .from('production_entries')
-            .select('quantity_produced, quantity_rejected, production_departments!inner(code)')
+            .select('quantity_produced, quantity_rejected, edit_count, production_departments!inner(code)')
             .in('production_departments.code', TREND_DEPT_CODES)
             .gte('entry_date', month.start)
             .lte('entry_date', month.end);
@@ -371,13 +383,16 @@ export default function ProductionDashboard() {
           if (error) throw error;
           
           return {
-            date: month.label,
-            produced: data?.reduce((sum, e) => sum + Number(e.quantity_produced), 0) || 0,
-            rejected: data?.reduce((sum, e) => sum + Number(e.quantity_rejected), 0) || 0,
+            point: {
+              date: month.label,
+              produced: data?.reduce((sum, e) => sum + Number(e.quantity_produced), 0) || 0,
+              rejected: data?.reduce((sum, e) => sum + Number(e.quantity_rejected), 0) || 0,
+            },
+            entries: data || [],
           };
         }));
         
-        return results;
+        return { points: results.map(r => r.point), entries: results.flatMap(r => r.entries) };
       } else {
         // Last 7 days trend
         const days = [];
@@ -388,13 +403,13 @@ export default function ProductionDashboard() {
         
         const { data, error } = await supabase
           .from('production_entries')
-          .select('entry_date, quantity_produced, quantity_rejected, production_departments!inner(code)')
+          .select('entry_date, quantity_produced, quantity_rejected, edit_count, production_departments!inner(code)')
           .in('production_departments.code', TREND_DEPT_CODES)
           .in('entry_date', days);
         
         if (error) throw error;
         
-        return days.map(date => {
+        const points = days.map(date => {
           const dayEntries = data?.filter(e => e.entry_date === date) || [];
           const produced = dayEntries.reduce((sum, e) => sum + Number(e.quantity_produced), 0);
           const rejected = dayEntries.reduce((sum, e) => sum + Number(e.quantity_rejected), 0);
@@ -404,6 +419,7 @@ export default function ProductionDashboard() {
             rejected,
           };
         });
+        return { points, entries: data || [] };
       }
     },
   });
@@ -442,7 +458,8 @@ export default function ProductionDashboard() {
           entry_date,
           quantity_produced,
           quantity_rejected,
-          department_id
+          department_id,
+          edit_count
         `)
         .gte('entry_date', monthStart)
         .lte('entry_date', monthEnd);
@@ -467,7 +484,7 @@ export default function ProductionDashboard() {
       });
 
       // Sort by date and format
-      return Object.entries(byDate)
+      const points = Object.entries(byDate)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, data]) => ({
           date: format(new Date(date), 'dd MMM'),
@@ -475,6 +492,7 @@ export default function ProductionDashboard() {
           produced: data.produced,
           rejected: data.rejected,
         }));
+      return { points, entries: data || [] };
     },
   });
 
@@ -495,6 +513,7 @@ export default function ProductionDashboard() {
             entry_date,
             department_id,
             grade_id,
+            ${EDIT_FLAG_COLUMNS},
             production_departments(id, name, code),
             grades(id, name, code)
           )
@@ -535,10 +554,19 @@ export default function ProductionDashboard() {
           severity: defect?.severity || '-',
           quantity: r.quantity,
           remarks: r.remarks || '-',
+          entry,
         };
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     },
   });
+
+  // Distinct production entries behind the listed rejection lines (for the edited note)
+  const rejectionEntries = Object.values(
+    (rejectionsData || []).reduce((acc: Record<string, any>, r) => {
+      if (r.entry?.id) acc[r.entry.id] = r.entry;
+      return acc;
+    }, {})
+  );
 
   const getViewModeLabel = () => {
     switch (viewMode) {
@@ -589,8 +617,9 @@ export default function ProductionDashboard() {
           </PopoverContent>
         </Popover>
 
-        <div className="ml-auto text-sm text-muted-foreground">
-          Showing: {getViewModeLabel()}
+        <div className="ml-auto flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Showing: {getViewModeLabel()}</span>
+          <EditedEntriesNote entries={periodStats?.rows} prefix="Period figures include" />
         </div>
       </div>
 
@@ -718,7 +747,10 @@ export default function ProductionDashboard() {
       {/* Department-wise Analytics Table */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Department-wise Production Analytics</CardTitle>
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
+            Department-wise Production Analytics
+            <EditedEntriesNote entries={periodStats?.rows} />
+          </CardTitle>
           <div className="flex items-center gap-2">
             <Label htmlFor="sub-dept-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Show Sub-Departments
@@ -935,14 +967,15 @@ export default function ProductionDashboard() {
         {/* Production Trend */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
+            <CardTitle className="text-base flex flex-wrap items-center gap-2">
               {viewMode === 'monthly' ? '6-Month Production Trend' : '7-Day Production Trend'}
+              <EditedEntriesNote entries={trendData?.entries} />
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData || []}>
+                <LineChart data={trendData?.points || []}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="date" className="text-xs" />
                   <YAxis className="text-xs" />
@@ -977,7 +1010,10 @@ export default function ProductionDashboard() {
         {/* Production by Department Bar Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Production by Department</CardTitle>
+            <CardTitle className="text-base flex flex-wrap items-center gap-2">
+              Production by Department
+              <EditedEntriesNote entries={periodStats?.rows} />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -1007,7 +1043,10 @@ export default function ProductionDashboard() {
       {/* Production by Grade - Department-wise Pie Charts */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-base">Production by Grade (Department-wise)</CardTitle>
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
+            Production by Grade (Department-wise)
+            <EditedEntriesNote entries={periodStats?.rows} />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
@@ -1159,7 +1198,10 @@ export default function ProductionDashboard() {
         {/* Day-wise Production Chart */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <CardTitle className="text-base">Day-wise Production ({format(selectedDate, 'MMMM yyyy')})</CardTitle>
+            <CardTitle className="text-base flex flex-wrap items-center gap-2">
+              Day-wise Production ({format(selectedDate, 'MMMM yyyy')})
+              <EditedEntriesNote entries={daywiseProduction?.entries} />
+            </CardTitle>
             <Select value={daywiseDeptFilter} onValueChange={setDaywiseDeptFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select Department" />
@@ -1175,7 +1217,7 @@ export default function ProductionDashboard() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={daywiseProduction || []}>
+                <BarChart data={daywiseProduction?.points || []}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis 
                     dataKey="date" 
@@ -1208,7 +1250,10 @@ export default function ProductionDashboard() {
       {/* Rejections Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-base">Rejection Details</CardTitle>
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
+            Rejection Details
+            <EditedEntriesNote entries={rejectionEntries} />
+          </CardTitle>
           <div className="flex gap-3">
             <Select value={rejectionDeptFilter} onValueChange={setRejectionDeptFilter}>
               <SelectTrigger className="w-[160px]">
@@ -1251,7 +1296,12 @@ export default function ProductionDashboard() {
               <tbody>
                 {rejectionsData?.map((rejection) => (
                   <tr key={rejection.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-3">{format(new Date(rejection.date), 'dd MMM yyyy')}</td>
+                    <td className="py-3 px-3">
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        {format(new Date(rejection.date), 'dd MMM yyyy')}
+                        <EditedBadge entry={rejection.entry} compact />
+                      </span>
+                    </td>
                     <td className="py-3 px-3">{rejection.department}</td>
                     <td className="py-3 px-3">{rejection.grade}</td>
                     <td className="py-3 px-3">

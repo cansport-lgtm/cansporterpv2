@@ -32,6 +32,7 @@ import ProductionOrdersPage from "./pages/production/ProductionOrdersPage";
 import ProductionOrderDashboard from "./pages/production/ProductionOrderDashboard";
 import ProductionTargetDashboard from "./pages/production/ProductionTargetDashboard";
 import ProductionEntryListPage from "./pages/production/ProductionEntryListPage";
+import ProductionEntryEditsPage from "./pages/production/ProductionEntryEditsPage";
 import MPHMasterPage from "./pages/production/MPHMasterPage";
 import ProductionCoordinatorPage from "./pages/production/ProductionCoordinatorPage";
 import QualityCoordinatorPage from "./pages/qa/QualityCoordinatorPage";
@@ -639,6 +640,7 @@ const App = () => (
             <Route path="/production/reports" element={<ProtectedRoute><ProductionReportsPage /></ProtectedRoute>} />
             <Route path="/production/target-dashboard" element={<ProtectedRoute><ProductionTargetDashboard /></ProtectedRoute>} />
             <Route path="/production/entry-list" element={<ProtectedRoute><ProductionEntryListPage /></ProtectedRoute>} />
+            <Route path="/production/entry-edits" element={<ProtectedRoute><ProductionEntryEditsPage /></ProtectedRoute>} />
             <Route path="/production/mph-master" element={<ProtectedRoute><MPHMasterPage /></ProtectedRoute>} />
             <Route path="/production/coordinator" element={<ProtectedRoute><ProductionCoordinatorPage /></ProtectedRoute>} />
             <Route path="/production/wip-sequence" element={<ProtectedRoute><WIPSequencePage /></ProtectedRoute>} />

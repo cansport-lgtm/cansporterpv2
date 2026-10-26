@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,11 +66,14 @@ export default function LabourMPHManagementPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("production_entries")
-        .select("department_id, sub_department_id, quantity_produced")
+        .select("department_id, sub_department_id, quantity_produced, edit_count")
         .eq("entry_date", dateStr);
       return data || [];
     },
   });
+
+  // Re-fetch both tabs' production figures when a production entry is edited.
+  useProductionEntriesLive(["production-entries-daily-mph", "production-entries-monthly-mph"]);
 
   // Fetch existing reason/action data for the date
   const { data: authorizedData = [] } = useQuery({
@@ -104,7 +109,7 @@ export default function LabourMPHManagementPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("production_entries")
-        .select("department_id, sub_department_id, quantity_produced, entry_date")
+        .select("department_id, sub_department_id, quantity_produced, entry_date, edit_count")
         .gte("entry_date", monthStart)
         .lte("entry_date", monthEnd);
       return data || [];
@@ -296,6 +301,7 @@ export default function LabourMPHManagementPage() {
             </div>
 
             {/* Summary */}
+            <EditedEntriesNote entries={dailyProduction} prefix="Authorized MPH figures include" />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card><CardContent className="pt-3 pb-2">
                 <p className="text-[10px] text-muted-foreground">Authorized</p>
@@ -423,6 +429,7 @@ export default function LabourMPHManagementPage() {
             </div>
 
             {/* Monthly Summary */}
+            <EditedEntriesNote entries={monthlyProduction} prefix="Authorized MPH figures include" />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card><CardContent className="pt-3 pb-2">
                 <p className="text-[10px] text-muted-foreground">Total Authorized</p>
@@ -443,7 +450,10 @@ export default function LabourMPHManagementPage() {
             {/* Monthly Table */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{MONTHS[selectedMonth - 1]} {selectedYear} — Monthly MPH Analysis</CardTitle>
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                  <span>{MONTHS[selectedMonth - 1]} {selectedYear} — Monthly MPH Analysis</span>
+                  <EditedEntriesNote entries={monthlyProduction} prefix="Output figures include" />
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-auto">

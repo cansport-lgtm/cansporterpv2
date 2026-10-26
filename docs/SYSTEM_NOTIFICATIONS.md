@@ -71,6 +71,11 @@ dispatcher) with the dispatch number, order, customer, and vehicle
 (`20260901160000_dispatch_notifications.sql`). To change who is notified,
 edit the role array in `notify_new_dispatch()`.
 
+A third producer covers edited daily production entries: the
+`trg_production_entry_track_edit` trigger notifies everyone in the entry's
+department (warning) and every super admin (error, plus an alert bar, a siren
+and a daily reminder until acknowledged). See `PRODUCTION_ENTRY_EDITS.md`.
+
 Copy this pattern for other events (QA holds, PM due, low stock, …): write a
 trigger function that calls `notify_role` / `notify_user` and attach it to the
 relevant table.

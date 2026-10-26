@@ -43,6 +43,9 @@ export interface DepartmentMph {
 
 // One posted production entry: output × MPH number = authorized MPH.
 export interface MphItemRow {
+  // production_entries row id + edit flag, so lists can mark edited entries.
+  id?: string;
+  edit_count?: number | null;
   item_name: string;
   item_code: string;
   sub_department: string;
@@ -113,6 +116,8 @@ export function fixedMphForDays(rows: MphNumberRow[], departmentId: string, depl
 export interface MphDay {
   departments: DepartmentMph[];
   detail: Record<string, DepartmentMphDetail>;
+  // How many production entries behind these figures were edited after their first save.
+  editedEntryCount: number;
 }
 
 export const MPH_LOSS_CATEGORIES = ["Labour", "Utilities", "Material", "Machine", "Quality", "Planning", "Other"];
@@ -167,7 +172,7 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
     supabase.from("mph_calculating_numbers").select(MPH_NUMBER_COLUMNS).eq("is_active", true),
     supabase
       .from("production_entries")
-      .select("department_id, sub_department_id, grade_id, shift, quantity_produced, grades(name, code)")
+      .select("id, edit_count, department_id, sub_department_id, grade_id, shift, quantity_produced, grades(name, code)")
       .eq("entry_date", date)
       .limit(10000),
     supabase
@@ -189,14 +194,18 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
   const bucket = (id: string) => (byDept[id] ??= { output: 0, authorized: 0, used: 0 });
   const det = (id: string) => (detail[id] ??= { items: [], workers: [], fixed_daily_mph: 0 });
 
+  let editedEntryCount = 0;
   (prodRes.data ?? []).forEach((e: any) => {
     if (!e.department_id) return;
+    if (Number(e.edit_count ?? 0) > 0) editedEntryCount += 1;
     const qty = Number(e.quantity_produced || 0);
     const rate = mphNumber(e.department_id, e.sub_department_id);
     const b = bucket(e.department_id);
     b.output += qty;
     b.authorized += qty * rate;
     det(e.department_id).items.push({
+      id: e.id,
+      edit_count: e.edit_count ?? 0,
       item_name: e.grades?.name ?? "—",
       item_code: e.grades?.code ?? "",
       sub_department: e.sub_department_id ? subName[e.sub_department_id] ?? "—" : "—",
@@ -248,7 +257,12 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
       };
     });
 
-  return { departments, detail };
+  return { departments, detail, editedEntryCount };
+}
+
+// Stub rows for <EditedEntriesNote> when only the count of edited entries is known.
+export function editedEntryStubs(count: number | null | undefined): { edit_count: number }[] {
+  return Array.from({ length: Math.max(0, Number(count ?? 0)) }, () => ({ edit_count: 1 }));
 }
 
 export async function fetchDepartmentMph(date: string): Promise<DepartmentMph[]> {

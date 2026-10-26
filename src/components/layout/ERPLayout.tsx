@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ERPSidebar } from "./ERPSidebar";
 import { ERPHeader } from "./ERPHeader";
+import { ProductionEditAlertBanner } from "@/components/production/ProductionEditAlertBanner";
 import { cn } from "@/lib/utils";
 
 interface ERPLayoutProps {
@@ -62,6 +63,9 @@ export function ERPLayout({ children }: ERPLayoutProps) {
         )}
       >
         <ERPHeader onMenuClick={() => setSidebarOpen(true)} />
+
+        {/* Super admins: red bar listing production entry edits awaiting acknowledgement. */}
+        <ProductionEditAlertBanner />
 
         <main className="min-w-0 p-3 pb-[calc(0.75rem_+_var(--safe-bottom))] sm:p-4 sm:pb-4 lg:p-6 lg:pb-6 max-lg:overflow-x-clip">
           {children}

@@ -25,6 +25,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { CONSUMES_FROM, bucketLabel, fmtQty, type LedgerAvailability } from "@/lib/gradeLedger";
+import {
+  EDIT_REASON_MIN_LENGTH, EDIT_WINDOW_MINUTES, EDIT_WINDOW_MS, editProductionEntry,
+  editWindowRemainingMinutes, useProductionEntriesLive,
+} from "@/lib/productionEntryEdits";
+import { EditedBadge } from "@/components/production/EditedBadge";
+import { EditedValue } from "@/components/production/EditedValue";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 
 interface RejectionEntry {
   defect_reason_id: string;
@@ -60,6 +67,8 @@ export default function DailyEntryPage() {
     remarks: '',
   });
   const [rejections, setRejections] = useState<RejectionEntry[]>([]);
+  // Mandatory on every edit; stored with the edit and sent in the notifications.
+  const [editReason, setEditReason] = useState("");
   // Set when saving would take the grade's input stock below zero during the
   // warn-only period; the user confirms before the save goes through.
   const [negativeWarning, setNegativeWarning] = useState<string | null>(null);
@@ -73,16 +82,21 @@ export default function DailyEntryPage() {
   };
   
   const { toast } = useToast();
-  const { user, hasRole, roles, hasModulePermission } = useAuth();
+  const { user, hasRole, hasModulePermission } = useAuth();
   const canCreate = hasModulePermission('production', 'create');
   const canEditProduction = hasModulePermission('production', 'edit');
   // Posting finalizes an entry (locks it and, once the consumption sync is
   // live, feeds it into Material Consumption). Unposting uses the same
   // permission so a poster can correct their own mistake without an admin.
   const canPost = hasModulePermission('production', 'approve');
-  // production_operator gets a 48h edit window; other (non-super-admin) users keep 72h.
-  const editWindowMs = (roles.some(r => r.role === 'production_operator') ? 48 : 72) * 60 * 60 * 1000;
+  // Everyone except a super admin may edit an entry only within 60 minutes of
+  // creating it (also enforced by the database). Every edit needs a reason, is
+  // logged, flagged on the entry and notified to the department + super admins.
+  const editWindowMs = EDIT_WINDOW_MS;
+  const isSuperAdmin = hasRole('super_admin');
   const queryClient = useQueryClient();
+  // Refresh the list when any entry is edited from another device / screen.
+  useProductionEntriesLive(['production-entries']);
 
   const { data: departments } = useQuery({
     queryKey: ['production-departments'],
@@ -177,7 +191,7 @@ export default function DailyEntryPage() {
     queryFn: async () => {
       let query = supabase
         .from('production_entries')
-        .select(`*, production_departments(name, code), production_sub_departments(name, code), grades(name, code), created_by_user:app_users!production_entries_created_by_fkey(full_name)`)
+        .select(`*, production_departments(name, code), production_sub_departments(name, code), grades(name, code), created_by_user:app_users!production_entries_created_by_fkey(full_name), last_edited_by_user:app_users!production_entries_last_edited_by_fkey(full_name)`)
         .eq('entry_date', dateFilter)
         .order('created_at', { ascending: false });
       if (departmentFilter !== 'all') query = query.eq('department_id', departmentFilter);
@@ -267,11 +281,13 @@ export default function DailyEntryPage() {
       remarks: '',
     });
     setRejections([]);
+    setEditReason('');
     setEditingEntry(null);
   };
 
   const loadEntryForEdit = async (entry: any) => {
     setEditingEntry(entry);
+    setEditReason('');
     setFormData({
       entry_date: entry.entry_date,
       shift: entry.shift || 'Day',
@@ -327,15 +343,17 @@ export default function DailyEntryPage() {
       key: 'entry_date', header: 'Date',
       render: (item: any) => {
         if (!item.entry_date) return '-';
-        try { return format(new Date(item.entry_date), 'dd MMM yyyy'); } catch { return item.entry_date; }
+        let d = item.entry_date;
+        try { d = format(new Date(item.entry_date), 'dd MMM yyyy'); } catch { /* keep raw */ }
+        return <EditedValue entry={item} field="entry_date">{d}</EditedValue>;
       },
     },
-    { key: 'shift', header: 'Shift' },
-    { key: 'production_departments', header: 'Department', render: (item: any) => item.production_departments?.name || '-' },
+    { key: 'shift', header: 'Shift', render: (item: any) => <EditedValue entry={item} field="shift">{item.shift}</EditedValue> },
+    { key: 'production_departments', header: 'Department', render: (item: any) => <EditedValue entry={item} field="department_id" formatOriginal={(v) => departments?.find(d => d.id === v)?.name ?? String(v ?? '—')}>{item.production_departments?.name || '-'}</EditedValue> },
     { key: 'production_sub_departments', header: 'Sub-Dept', render: (item: any) => item.production_sub_departments?.name || '-' },
-    { key: 'grades', header: 'Grade', render: (item: any) => item.grades?.code || '-' },
-    { key: 'target_production', header: 'Target', render: (item: any) => Number(item.target_production)?.toLocaleString() || '0' },
-    { key: 'quantity_produced', header: 'Produced', render: (item: any) => Number(item.quantity_produced)?.toLocaleString() || '0' },
+    { key: 'grades', header: 'Grade', render: (item: any) => <EditedValue entry={item} field="grade_id" formatOriginal={(v) => grades?.find(g => g.id === v)?.code ?? String(v ?? '—')}>{item.grades?.code || '-'}</EditedValue> },
+    { key: 'target_production', header: 'Target', render: (item: any) => <EditedValue entry={item} field="target_production">{Number(item.target_production)?.toLocaleString() || '0'}</EditedValue> },
+    { key: 'quantity_produced', header: 'Produced', render: (item: any) => <EditedValue entry={item} field="quantity_produced">{Number(item.quantity_produced)?.toLocaleString() || '0'}</EditedValue> },
     {
       key: 'achievement', header: 'Achievement',
       render: (item: any) => {
@@ -346,20 +364,21 @@ export default function DailyEntryPage() {
         return <span className={isGood ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>{pct}%</span>;
       },
     },
-    { key: 'quantity_ok', header: 'OK', render: (item: any) => <span className="text-green-600">{Number(item.quantity_ok)?.toLocaleString() || '0'}</span> },
-    { key: 'quantity_rejected', header: 'Rejected', render: (item: any) => <span className="text-red-600">{Number(item.quantity_rejected)?.toLocaleString() || '0'}</span> },
-    { key: 'status', header: 'Status', render: (item: any) => <StatusBadge status={item.status} /> },
+    { key: 'quantity_ok', header: 'OK', render: (item: any) => <EditedValue entry={item} field="quantity_ok"><span className="text-green-600">{Number(item.quantity_ok)?.toLocaleString() || '0'}</span></EditedValue> },
+    { key: 'quantity_rejected', header: 'Rejected', render: (item: any) => <EditedValue entry={item} field="quantity_rejected"><span className="text-red-600">{Number(item.quantity_rejected)?.toLocaleString() || '0'}</span></EditedValue> },
+    { key: 'status', header: 'Status', render: (item: any) => <span className="inline-flex flex-wrap items-center gap-1"><StatusBadge status={item.status} /><EditedBadge entry={item} /></span> },
     ...(user ? [{
       key: 'actions', header: 'Actions',
       render: (item: any) => {
         const isPosted = item.status === 'Posted';
         const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
         const withinWindow = createdAt > 0 && (Date.now() - createdAt) <= editWindowMs;
-        const canEdit = !isPosted && (hasRole('super_admin') || (withinWindow && canEditProduction));
-        const canDelete = !isPosted && hasRole('super_admin');
+        const canEdit = !isPosted && (isSuperAdmin || (withinWindow && canEditProduction));
+        const canDelete = !isPosted && isSuperAdmin;
         if (!canEdit && !canDelete && !canPost) return null;
+        const minutesLeft = !isSuperAdmin && canEdit ? editWindowRemainingMinutes(item.created_at) : null;
         return (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             {canPost && !isPosted && (
               <Button variant="ghost" size="icon" title="Post entry" className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-600/10" onClick={(e) => { e.stopPropagation(); postMutation.mutate([item.id]); }} disabled={postMutation.isPending}>
                 <CheckCircle2 className="h-4 w-4" />
@@ -371,7 +390,7 @@ export default function DailyEntryPage() {
               </Button>
             )}
             {canEdit && (
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); loadEntryForEdit(item); }}>
+              <Button variant="ghost" size="icon" title={minutesLeft != null ? `Edit (${minutesLeft} min left)` : 'Edit'} className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); loadEntryForEdit(item); }}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
@@ -390,38 +409,36 @@ export default function DailyEntryPage() {
     mutationFn: async () => {
       if (!editingEntry) throw new Error('No entry selected for editing');
       if (editingEntry.status === 'Posted') throw new Error('This entry is posted and locked. Unpost it before editing.');
-      if (!hasRole('super_admin') && editingEntry.created_at) {
+      if (!isSuperAdmin && editingEntry.created_at) {
         const elapsed = Date.now() - new Date(editingEntry.created_at).getTime();
-        const windowHours = Math.round(editWindowMs / 3600000);
-        if (elapsed > editWindowMs) throw new Error(`Editing window expired (${windowHours} hours). Contact a Super Admin.`);
+        if (elapsed > editWindowMs) throw new Error(`Editing window expired (${EDIT_WINDOW_MINUTES} minutes). Contact a Super Admin.`);
       }
-      const { error: entryError } = await supabase.from('production_entries').update({
-        entry_date: formData.entry_date, shift: formData.shift, department_id: formData.department_id,
-        sub_department_id: formData.sub_department_id || null,
-        grade_id: formData.grade_id, uom_id: getUomIdForDepartment(formData.department_id),
-        target_production: Number(formData.target_production) || 0,
-        quantity_produced: Number(formData.quantity_produced), quantity_ok: Number(formData.quantity_ok),
-        quantity_rejected: Number(formData.quantity_rejected), remarks: formData.remarks || null,
-      }).eq('id', editingEntry.id);
-      if (entryError) throw entryError;
-
-      const { error: deleteRejError } = await supabase.from('production_rejections').delete().eq('production_entry_id', editingEntry.id);
-      if (deleteRejError) throw deleteRejError;
-
-      if (rejections.length > 0) {
-        const rejectionsToInsert = rejections.filter(r => r.quantity > 0 && r.defect_reason_id).map(r => ({
-          production_entry_id: editingEntry.id, defect_reason_id: r.defect_reason_id, quantity: r.quantity, remarks: r.remarks || null,
-        }));
-        if (rejectionsToInsert.length > 0) {
-          const { error: rejError } = await supabase.from('production_rejections').insert(rejectionsToInsert);
-          if (rejError) throw rejError;
-        }
+      if (editReason.trim().length < EDIT_REASON_MIN_LENGTH) {
+        throw new Error(`Please give a reason for the edit (at least ${EDIT_REASON_MIN_LENGTH} characters).`);
       }
-      return editingEntry;
+      // One database call: enforces the window, the lock and the reason,
+      // replaces the rejection breakdown, logs the edit and notifies the
+      // department and every super admin.
+      return editProductionEntry(
+        editingEntry.id,
+        {
+          entry_date: formData.entry_date, shift: formData.shift, department_id: formData.department_id,
+          sub_department_id: formData.sub_department_id || null,
+          grade_id: formData.grade_id, uom_id: getUomIdForDepartment(formData.department_id),
+          target_production: Number(formData.target_production) || 0,
+          quantity_produced: Number(formData.quantity_produced), quantity_ok: Number(formData.quantity_ok),
+          quantity_rejected: Number(formData.quantity_rejected), remarks: formData.remarks || null,
+        },
+        rejections.filter(r => r.quantity > 0 && r.defect_reason_id).map(r => ({
+          defect_reason_id: r.defect_reason_id, quantity: r.quantity, remarks: r.remarks || null,
+        })),
+        editReason.trim(),
+      );
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Production entry updated successfully" });
+      toast({ title: "Entry updated", description: "The edit was logged and the department and super admins were notified." });
       queryClient.invalidateQueries({ queryKey: ['production-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['production-entry-edits'] });
       queryClient.invalidateQueries({ queryKey: ['grade-ledger-available'] });
       setIsDialogOpen(false);
       resetForm();
@@ -662,11 +679,30 @@ export default function DailyEntryPage() {
                     <Textarea value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional notes..." rows={2} />
                   </div>
 
+                  {editingEntry && (
+                    <div className="rounded-md border border-orange-300 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-950/40">
+                      <Label className="text-orange-900 dark:text-orange-100">Reason for this edit *</Label>
+                      <Textarea
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        placeholder="Why is this entry being changed? (required)"
+                        rows={2}
+                        className="mt-1 bg-background"
+                      />
+                      <p className="mt-1 text-xs text-orange-800 dark:text-orange-200">
+                        This edit is logged with your name, highlighted on every screen and report, and sent as a
+                        notification to the whole {departments?.find(d => d.id === formData.department_id)?.name ?? ''} department
+                        and all super admins.
+                        {!isSuperAdmin && (() => { const m = editWindowRemainingMinutes(editingEntry.created_at); return m != null ? ` You have ${m} min left in the ${EDIT_WINDOW_MINUTES}-minute edit window.` : ''; })()}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2 pt-4">
                     <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
                     <Button
                       onClick={handleSave}
-                      disabled={!formData.department_id || !formData.grade_id || !formData.quantity_produced || createMutation.isPending || updateMutation.isPending}
+                      disabled={!formData.department_id || !formData.grade_id || !formData.quantity_produced || createMutation.isPending || updateMutation.isPending || (!!editingEntry && editReason.trim().length < EDIT_REASON_MIN_LENGTH)}
                     >
                       {(createMutation.isPending || updateMutation.isPending) ? 'Saving...' : (editingEntry ? 'Update Entry' : 'Save Entry')}
                     </Button>
@@ -680,6 +716,12 @@ export default function DailyEntryPage() {
 
       <Card>
         <CardContent className="pt-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <EditedEntriesNote entries={entries} prefix="This list includes" />
+            {!isSuperAdmin && (
+              <span className="text-xs text-muted-foreground">Entries can be edited for {EDIT_WINDOW_MINUTES} minutes after saving; every edit needs a reason.</span>
+            )}
+          </div>
           <DataTable columns={columns} data={entries || []} emptyMessage="No production entries found for the selected date" />
         </CardContent>
       </Card>

@@ -127,7 +127,7 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
           supabase.from("qa_processes").select("id, name"),
           supabase
             .from("production_entries")
-            .select("entry_date, department_id, sub_department_id, target_production, quantity_produced")
+            .select("entry_date, department_id, sub_department_id, target_production, quantity_produced, edit_count")
             .gte("entry_date", fromStr)
             .lte("entry_date", toStr),
           supabase
@@ -175,25 +175,31 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
       const rate = mphRateLookup(mphRows);
       const prodByDateDept: Record<
         string,
-        { targetProd: number; produced: number; targetMPH: number; actualMPH: number }
+        { targetProd: number; produced: number; targetMPH: number; actualMPH: number; edited: number }
       > = {};
+      // Production entries edited after their first save, in total and per date + department.
+      let editedProdTotal = 0;
       (prodRes.data || []).forEach((e: any) => {
         const deptId = e.department_id || "";
         const key = `${e.entry_date}|${deptId}`;
         if (!prodByDateDept[key])
-          prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0 };
+          prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0, edited: 0 };
         const mphNum = rate(deptId, e.sub_department_id);
         prodByDateDept[key].targetProd += e.target_production || 0;
         prodByDateDept[key].produced += e.quantity_produced || 0;
         prodByDateDept[key].targetMPH += (e.target_production || 0) * mphNum;
         prodByDateDept[key].actualMPH += (e.quantity_produced || 0) * mphNum;
+        if (Number(e.edit_count || 0) > 0) {
+          prodByDateDept[key].edited += 1;
+          editedProdTotal += 1;
+        }
       });
       // Fixed daily MPH: a department with anyone deployed that day earns it (src/lib/mphLoss.ts)
       new Set(rows.filter((r) => r.department_id).map((r) => `${r.target_date}|${r.department_id}`)).forEach((key) => {
         const [date, deptId] = key.split("|");
         const fixed = fixedDailyMph(mphRows, deptId, date);
         if (fixed <= 0) return;
-        if (!prodByDateDept[key]) prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0 };
+        if (!prodByDateDept[key]) prodByDateDept[key] = { targetProd: 0, produced: 0, targetMPH: 0, actualMPH: 0, edited: 0 };
         prodByDateDept[key].targetMPH += fixed;
         prodByDateDept[key].actualMPH += fixed;
       });
@@ -264,6 +270,7 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
         "Today's Target",
         "Actual",
         "Efficiency %",
+        "Edited Prod Entries",
       ];
       const groups = new Map<string, ExportRow[]>();
       rows.forEach((r) => {
@@ -308,6 +315,7 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
             todayTgt,
             actual,
             denom > 0 ? Math.round((actual / denom) * 100) : "",
+            prod?.edited || 0,
           ];
         });
 
@@ -320,15 +328,19 @@ export function DeploymentExcelExportButton({ defaultDate }: { defaultDate?: Dat
 
       const summaryWs = XLSX.utils.aoa_to_sheet([
         [`Labour Deployment & Targets Summary — ${rangeLabel}`],
+        [`Edited production entries included: ${editedProdTotal}`],
         summaryHeaders,
         ...summaryData,
       ]);
       summaryWs["!cols"] = [
         { wch: 12 }, { wch: 22 }, { wch: 9 }, { wch: 13 }, { wch: 12 }, { wch: 12 },
         { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 14 },
-        { wch: 10 }, { wch: 12 },
+        { wch: 10 }, { wch: 12 }, { wch: 18 },
       ];
-      summaryWs["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: summaryHeaders.length - 1 } }];
+      summaryWs["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: summaryHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: summaryHeaders.length - 1 } },
+      ];
       XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
 
       const detailWs = XLSX.utils.aoa_to_sheet([

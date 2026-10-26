@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/table";
 import { Package, ArrowRight, TrendingUp, TrendingDown, Calendar, CalendarDays } from "lucide-react";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import {
   BarChart,
   Bar,
@@ -42,6 +44,9 @@ export default function WIPTrackingPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [monthFilter, setMonthFilter] = useState(format(new Date(), 'yyyy-MM'));
+
+  // Refresh when a production entry is edited anywhere (edited notes)
+  useProductionEntriesLive(['production-for-wip']);
 
   // Departments to exclude from WIP matrix (matched case-insensitively)
   const EXCLUDED_DEPARTMENTS = [
@@ -151,6 +156,7 @@ export default function WIPTrackingPage() {
           quantity_rejected,
           department_id,
           grade_id,
+          edit_count,
           production_departments(id, name, code, sequence_order),
           grades(id, name, code)
         `)
@@ -201,6 +207,9 @@ export default function WIPTrackingPage() {
   };
 
   const { matrix, totals } = buildWIPMatrix();
+
+  // Production entries only feed the matrix when no WIP inventory rows exist for the period
+  const entriesUsed = wipData && wipData.length > 0 ? [] : productionData;
 
   // Build chart data for department comparison
   const chartData = departments?.map(dept => ({
@@ -289,7 +298,10 @@ export default function WIPTrackingPage() {
         <TabsContent value="matrix">
           <Card>
             <CardHeader>
-              <CardTitle>WIP Matrix (Department × Grade)</CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                WIP Matrix (Department × Grade)
+                <EditedEntriesNote entries={entriesUsed} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -357,7 +369,10 @@ export default function WIPTrackingPage() {
         <TabsContent value="chart">
           <Card>
             <CardHeader>
-              <CardTitle>WIP by Department and Grade</CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                WIP by Department and Grade
+                <EditedEntriesNote entries={entriesUsed} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
@@ -391,6 +406,7 @@ export default function WIPTrackingPage() {
 
         {/* Flow View */}
         <TabsContent value="flow">
+          <EditedEntriesNote entries={entriesUsed} className="mb-4" />
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {departments?.map((dept, index) => {
               const total = totals[dept.id] || 0;

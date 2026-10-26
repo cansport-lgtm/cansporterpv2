@@ -25,6 +25,8 @@ import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
   LineChart, Line,
@@ -47,6 +49,9 @@ export default function ProductionTargetDashboard() {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Refresh when a production entry is edited anywhere (edited notes)
+  useProductionEntriesLive(['prod-target-dashboard', 'prod-target-trend']);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const monthStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd');
@@ -90,14 +95,14 @@ export default function ProductionTargetDashboard() {
   });
 
   // Fetch department-wise target vs actual
-  const { data: deptTargetData, isLoading } = useQuery({
+  const { data: deptTargetResult, isLoading } = useQuery({
     queryKey: ['prod-target-dashboard', dateRange.start, dateRange.end],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('production_entries')
         .select(`
           entry_date, target_production, quantity_produced, quantity_ok, quantity_rejected,
-          department_id, production_departments(id, name, code, sequence_order)
+          department_id, edit_count, production_departments(id, name, code, sequence_order)
         `)
         .gte('entry_date', dateRange.start)
         .lte('entry_date', dateRange.end);
@@ -123,7 +128,7 @@ export default function ProductionTargetDashboard() {
         byDept[dept.id].days.add(entry.entry_date);
       });
 
-      return Object.entries(byDept)
+      const depts = Object.entries(byDept)
         .filter(([, d]) => d.target > 0)
         .map(([id, d]) => ({
           id, name: d.name, code: d.code, sequence: d.sequence,
@@ -132,11 +137,13 @@ export default function ProductionTargetDashboard() {
           workingDays: d.days.size,
         }))
         .sort((a, b) => a.sequence - b.sequence);
+      return { depts, entries: data || [] };
     },
   });
+  const deptTargetData = deptTargetResult?.depts;
 
   // Trend data: last 14 days
-  const { data: trendData } = useQuery({
+  const { data: trendResult } = useQuery({
     queryKey: ['prod-target-trend', dateStr],
     queryFn: async () => {
       const days: string[] = [];
@@ -145,17 +152,19 @@ export default function ProductionTargetDashboard() {
       }
       const { data, error } = await supabase
         .from('production_entries')
-        .select('entry_date, target_production, quantity_produced')
+        .select('entry_date, target_production, quantity_produced, edit_count')
         .in('entry_date', days);
       if (error) throw error;
-      return days.map(date => {
+      const points = days.map(date => {
         const entries = data?.filter(e => e.entry_date === date) || [];
         const target = entries.reduce((s, e) => s + Number(e.target_production || 0), 0);
         const produced = entries.reduce((s, e) => s + Number(e.quantity_produced), 0);
         return { date: format(new Date(date), 'dd MMM'), target, produced, achievement: target > 0 ? Math.round((produced / target) * 100) : 0 };
       }).filter(d => d.target > 0);
+      return { points, entries: data || [] };
     },
   });
+  const trendData = trendResult?.points;
 
   // Target CRUD mutations
   const saveTargetMutation = useMutation({
@@ -295,7 +304,11 @@ export default function ProductionTargetDashboard() {
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-purple-100"><TrendingUp className="h-5 w-5 text-purple-600" /></div>
-                  <div><p className="text-xs text-muted-foreground">Total Produced</p><p className="text-xl font-bold">{summary.totalProduced.toLocaleString()}</p></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Produced</p>
+                    <p className="text-xl font-bold">{summary.totalProduced.toLocaleString()}</p>
+                    <EditedEntriesNote entries={deptTargetResult?.entries} className="mt-1" />
+                  </div>
                 </div>
               </CardContent></Card>
               <Card><CardContent className="pt-6">
@@ -317,7 +330,7 @@ export default function ProductionTargetDashboard() {
 
             {/* Department-wise Achievement */}
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Target className="h-5 w-5" />Department-wise Achievement Status</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2 flex-wrap"><Target className="h-5 w-5" />Department-wise Achievement Status<EditedEntriesNote entries={deptTargetResult?.entries} /></CardTitle></CardHeader>
               <CardContent>
                 {isLoading ? (
                   <p className="text-muted-foreground text-center py-8">Loading...</p>
@@ -351,7 +364,7 @@ export default function ProductionTargetDashboard() {
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
-                <CardHeader><CardTitle className="text-sm">Target vs Actual by Department</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm flex items-center gap-2 flex-wrap">Target vs Actual by Department<EditedEntriesNote entries={deptTargetResult?.entries} /></CardTitle></CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
                     {deptTargetData?.length ? (
@@ -377,7 +390,7 @@ export default function ProductionTargetDashboard() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-sm">Achievement Trend (Last 14 Days)</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm flex items-center gap-2 flex-wrap">Achievement Trend (Last 14 Days)<EditedEntriesNote entries={trendResult?.entries} /></CardTitle></CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
                     {trendData?.length ? (

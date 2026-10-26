@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/table";
 import { Download, FileText, BarChart3, AlertTriangle } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedBadge } from "@/components/production/EditedBadge";
+import { EditedValue } from "@/components/production/EditedValue";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import {
   BarChart,
   Bar,
@@ -47,6 +51,9 @@ export default function ProductionReportsPage() {
   const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
+
+  // Refresh when a production entry is edited anywhere (edited badge / highlights / notes)
+  useProductionEntriesLive(['production-reports', 'rejection-reports']);
 
   // Fetch departments
   const { data: departments } = useQuery({
@@ -86,7 +93,8 @@ export default function ProductionReportsPage() {
           *,
           production_departments(id, name, code),
           production_sub_departments(id, name, code),
-          grades(id, name, code)
+          grades(id, name, code),
+          last_edited_by_user:app_users!production_entries_last_edited_by_fkey(full_name)
         `)
         .gte('entry_date', dateFrom)
         .lte('entry_date', dateTo);
@@ -113,7 +121,7 @@ export default function ProductionReportsPage() {
         .select(`
           *,
           defect_reasons(id, name, code, severity),
-          production_entries!inner(entry_date, department_id)
+          production_entries!inner(id, entry_date, department_id, edit_count)
         `)
         .gte('production_entries.entry_date', dateFrom)
         .lte('production_entries.entry_date', dateTo);
@@ -171,6 +179,15 @@ export default function ProductionReportsPage() {
 
   const rejectionReasonData = Object.values(rejectionByReason)
     .sort((a, b) => b.quantity - a.quantity);
+
+  // Distinct production entries behind the rejection lines (for the edited note)
+  const rejectionEntries = Object.values(
+    (rejectionData || []).reduce((acc: Record<string, any>, rej) => {
+      const entry = rej.production_entries as any;
+      if (entry?.id) acc[entry.id] = entry;
+      return acc;
+    }, {})
+  );
 
   // Daily production trend
   const dailyTrend: Record<string, { date: string; produced: number; rejected: number }> = {};
@@ -259,7 +276,10 @@ export default function ProductionReportsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{summary.totalProduced.toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Total Produced</div>
+            <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+              Total Produced
+              <EditedEntriesNote entries={productionData} />
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -304,7 +324,10 @@ export default function ProductionReportsPage() {
             {/* Daily Trend */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Daily Production Trend</CardTitle>
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                  Daily Production Trend
+                  <EditedEntriesNote entries={productionData} />
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -332,7 +355,10 @@ export default function ProductionReportsPage() {
             {/* By Grade */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Production by Grade</CardTitle>
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                  Production by Grade
+                  <EditedEntriesNote entries={productionData} />
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -368,7 +394,10 @@ export default function ProductionReportsPage() {
           {/* By Department */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Production by Department</CardTitle>
+              <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                Production by Department
+                <EditedEntriesNote entries={productionData} />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
@@ -398,7 +427,10 @@ export default function ProductionReportsPage() {
         <TabsContent value="details">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Production Details</CardTitle>
+              <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                Production Details
+                <EditedEntriesNote entries={productionData} prefix="This list includes" />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -418,20 +450,25 @@ export default function ProductionReportsPage() {
                 <TableBody>
                   {productionData?.slice(0, 50).map((entry) => (
                     <TableRow key={entry.id}>
-                       <TableCell>{format(new Date(entry.entry_date), 'dd MMM yyyy')}</TableCell>
-                       <TableCell>{(entry.production_departments as any)?.name}</TableCell>
+                       <TableCell><EditedValue entry={entry as any} field="entry_date">{format(new Date(entry.entry_date), 'dd MMM yyyy')}</EditedValue></TableCell>
+                       <TableCell><EditedValue entry={entry as any} field="department_id" formatOriginal={(v) => departments?.find(d => d.id === v)?.name ?? String(v ?? '—')}>{(entry.production_departments as any)?.name}</EditedValue></TableCell>
                        <TableCell>{(entry.production_sub_departments as any)?.name || '-'}</TableCell>
                        <TableCell>
-                        <Badge variant="outline">{(entry.grades as any)?.code}</Badge>
+                        <EditedValue entry={entry as any} field="grade_id" formatOriginal={(v) => grades?.find(g => g.id === v)?.code ?? String(v ?? '—')}>
+                          <Badge variant="outline">{(entry.grades as any)?.code}</Badge>
+                        </EditedValue>
                       </TableCell>
-                      <TableCell>{entry.shift}</TableCell>
-                      <TableCell className="text-right">{Number(entry.quantity_produced).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-green-600">{Number(entry.quantity_ok).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-red-600">{Number(entry.quantity_rejected).toLocaleString()}</TableCell>
+                      <TableCell><EditedValue entry={entry as any} field="shift">{entry.shift}</EditedValue></TableCell>
+                      <TableCell className="text-right"><EditedValue entry={entry as any} field="quantity_produced">{Number(entry.quantity_produced).toLocaleString()}</EditedValue></TableCell>
+                      <TableCell className="text-right text-green-600"><EditedValue entry={entry as any} field="quantity_ok">{Number(entry.quantity_ok).toLocaleString()}</EditedValue></TableCell>
+                      <TableCell className="text-right text-red-600"><EditedValue entry={entry as any} field="quantity_rejected">{Number(entry.quantity_rejected).toLocaleString()}</EditedValue></TableCell>
                       <TableCell>
-                        <Badge variant={entry.status === 'Approved' ? 'default' : 'secondary'}>
-                          {entry.status}
-                        </Badge>
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                          <Badge variant={entry.status === 'Approved' ? 'default' : 'secondary'}>
+                            {entry.status}
+                          </Badge>
+                          <EditedBadge entry={entry as any} />
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -451,7 +488,10 @@ export default function ProductionReportsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Rejection Analysis by Reason</CardTitle>
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                  Rejection Analysis by Reason
+                  <EditedEntriesNote entries={rejectionEntries} />
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>

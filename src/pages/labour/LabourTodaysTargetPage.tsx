@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { CalendarIcon, Target, Users, TrendingUp, ChevronDown, ChevronRight, Clock, Factory, ArrowUpDown, Printer, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
+import { countEditedEntries, useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Button } from "@/components/ui/button";
@@ -104,7 +106,7 @@ export default function LabourTodaysTargetPage() {
   const { data: prodData = {} } = useQuery({
     queryKey: ["todays-target-production", dateStr],
     queryFn: async () => {
-      const res = await supabase.from("production_entries").select("department_id, sub_department_id, target_production, quantity_produced").eq("entry_date", dateStr);
+      const res = await supabase.from("production_entries").select("department_id, sub_department_id, target_production, quantity_produced, edit_count").eq("entry_date", dateStr);
       const map: Record<string, { targetProd: number; produced: number }> = {};
       (res.data || []).forEach((r) => {
         const deptId = r.department_id || "";
@@ -129,10 +131,14 @@ export default function LabourTodaysTargetPage() {
   const { data: prodEntriesRaw = [] } = useQuery({
     queryKey: ["todays-target-prod-entries", dateStr],
     queryFn: async () => {
-      const res = await supabase.from("production_entries").select("department_id, sub_department_id, target_production").eq("entry_date", dateStr);
+      const res = await supabase.from("production_entries").select("department_id, sub_department_id, target_production, edit_count").eq("entry_date", dateStr);
       return res.data || [];
     },
   });
+
+  // Keep the production figures (and their edit marks) current when an entry is edited.
+  useProductionEntriesLive(["todays-target-production", "todays-target-prod-entries"]);
+  const editedProdCount = countEditedEntries(prodEntriesRaw as any[]);
 
   // Calculate Target MPH per department: sum(target_production × mph_number) grouped by dept,
   // plus the department's fixed daily MPH when it has anyone deployed (src/lib/mphLoss.ts)
@@ -239,7 +245,7 @@ export default function LabourTodaysTargetPage() {
         })
         .join("");
 
-      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Today's Deployment & Targets - ${dateLabel}</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:12px}h1{font-size:18px;margin:0 0 4px}.meta{font-size:11px;color:#555;margin-bottom:10px}.summary{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:14px}.kpi{border:1px solid #d1d5db;border-radius:4px;padding:6px 8px}.kpi .lbl{font-size:9px;color:#6b7280;text-transform:uppercase}.kpi .val{font-size:14px;font-weight:700}.dept-section{margin-bottom:14px;page-break-inside:avoid}.dept-header{background:#f3f4f6;padding:6px 8px;border:1px solid #d1d5db;border-bottom:0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.dept-title{font-size:13px;font-weight:700}.badge{display:inline-block;background:#e5e7eb;color:#374151;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;margin-left:6px}.dept-summary{font-size:10px;display:flex;gap:10px;flex-wrap:wrap}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #d1d5db;padding:4px 6px}th{background:#f9fafb;font-weight:600;text-align:left}tbody tr:nth-child(even){background:#fafafa}@media print{body{padding:0}}</style></head><body><h1>Today's Labour Deployment & Targets</h1><div class="meta">Date: <strong>${dateLabel}</strong> &nbsp;|&nbsp; Printed: ${format(new Date(), "dd MMM yyyy HH:mm")}</div><div class="summary"><div class="kpi"><div class="lbl">Total Workers</div><div class="val">${totalWorkers}</div></div><div class="kpi"><div class="lbl">Std Target</div><div class="val">${totalStdTarget.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Today's Target</div><div class="val">${totalTodaysTarget.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Actual</div><div class="val">${totalActual.toLocaleString()}</div></div><div class="kpi"><div class="lbl">MPH Deployed</div><div class="val">${totalMPH.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Target Prod</div><div class="val">${totalTargetProd.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Target MPH</div><div class="val">${Math.round(totalTargetMPH).toLocaleString()}</div></div><div class="kpi"><div class="lbl">Planned L/G</div><div class="val" style="color:${totalPlannedLG > 0 ? "#dc2626" : totalPlannedLG < 0 ? "#16a34a" : "#6b7280"}">${totalPlannedLG.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Efficiency</div><div class="val">${overallEff}%</div></div></div>${sortedDepts.length === 0 ? `<div style="text-align:center;padding:40px;color:#6b7280">No entries found for ${dateLabel}</div>` : deptSections}</body></html>`;
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Today's Deployment & Targets - ${dateLabel}</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:12px}h1{font-size:18px;margin:0 0 4px}.meta{font-size:11px;color:#555;margin-bottom:10px}.summary{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-bottom:14px}.kpi{border:1px solid #d1d5db;border-radius:4px;padding:6px 8px}.kpi .lbl{font-size:9px;color:#6b7280;text-transform:uppercase}.kpi .val{font-size:14px;font-weight:700}.dept-section{margin-bottom:14px;page-break-inside:avoid}.dept-header{background:#f3f4f6;padding:6px 8px;border:1px solid #d1d5db;border-bottom:0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.dept-title{font-size:13px;font-weight:700}.badge{display:inline-block;background:#e5e7eb;color:#374151;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;margin-left:6px}.dept-summary{font-size:10px;display:flex;gap:10px;flex-wrap:wrap}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #d1d5db;padding:4px 6px}th{background:#f9fafb;font-weight:600;text-align:left}tbody tr:nth-child(even){background:#fafafa}@media print{body{padding:0}}</style></head><body><h1>Today's Labour Deployment & Targets</h1><div class="meta">Date: <strong>${dateLabel}</strong> &nbsp;|&nbsp; Printed: ${format(new Date(), "dd MMM yyyy HH:mm")}${editedProdCount > 0 ? ` &nbsp;|&nbsp; Target Prod / Target MPH figures include ${editedProdCount} edited production ${editedProdCount === 1 ? "entry" : "entries"}` : ""}</div><div class="summary"><div class="kpi"><div class="lbl">Total Workers</div><div class="val">${totalWorkers}</div></div><div class="kpi"><div class="lbl">Std Target</div><div class="val">${totalStdTarget.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Today's Target</div><div class="val">${totalTodaysTarget.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Actual</div><div class="val">${totalActual.toLocaleString()}</div></div><div class="kpi"><div class="lbl">MPH Deployed</div><div class="val">${totalMPH.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Target Prod</div><div class="val">${totalTargetProd.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Target MPH</div><div class="val">${Math.round(totalTargetMPH).toLocaleString()}</div></div><div class="kpi"><div class="lbl">Planned L/G</div><div class="val" style="color:${totalPlannedLG > 0 ? "#dc2626" : totalPlannedLG < 0 ? "#16a34a" : "#6b7280"}">${totalPlannedLG.toLocaleString()}</div></div><div class="kpi"><div class="lbl">Efficiency</div><div class="val">${overallEff}%</div></div></div>${sortedDepts.length === 0 ? `<div style="text-align:center;padding:40px;color:#6b7280">No entries found for ${dateLabel}</div>` : deptSections}</body></html>`;
 
       try {
         printWindow.document.open();
@@ -374,6 +380,7 @@ export default function LabourTodaysTargetPage() {
       </PageHeader>
 
       {/* Summary Cards */}
+      <EditedEntriesNote entries={prodEntriesRaw as any[]} prefix="Target Prod / Target MPH figures include" />
       <div className="grid grid-cols-2 md:grid-cols-9 gap-4">
         <MetricCard title="Total Workers" value={totalWorkers} icon={Users} />
         <MetricCard title="Std Target" value={totalStdTarget.toLocaleString()} icon={Target} />

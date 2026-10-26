@@ -10757,9 +10757,14 @@ export type Database = {
           created_at: string
           created_by: string | null
           department_id: string
+          edit_count: number
+          edited_fields: Json
           entry_date: string
           grade_id: string
           id: string
+          last_edit_reason: string | null
+          last_edited_at: string | null
+          last_edited_by: string | null
           machine_id: string | null
           operator_id: string | null
           quantity_ok: number
@@ -10780,9 +10785,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           department_id: string
+          edit_count?: number
+          edited_fields?: Json
           entry_date?: string
           grade_id: string
           id?: string
+          last_edit_reason?: string | null
+          last_edited_at?: string | null
+          last_edited_by?: string | null
           machine_id?: string | null
           operator_id?: string | null
           quantity_ok?: number
@@ -10803,9 +10813,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           department_id?: string
+          edit_count?: number
+          edited_fields?: Json
           entry_date?: string
           grade_id?: string
           id?: string
+          last_edit_reason?: string | null
+          last_edited_at?: string | null
+          last_edited_by?: string | null
           machine_id?: string | null
           operator_id?: string | null
           quantity_ok?: number
@@ -10847,6 +10862,13 @@ export type Database = {
             columns: ["grade_id"]
             isOneToOne: false
             referencedRelation: "grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_entries_last_edited_by_fkey"
+            columns: ["last_edited_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
             referencedColumns: ["id"]
           },
           {
@@ -17368,6 +17390,22 @@ export type Database = {
       mark_all_notifications_read: {
         Args: { p_recipient_id: string }
         Returns: number
+      }
+      production_entry_edit: {
+        Args: { p_entry_id: string; p_entry: Json; p_rejections: Json; p_reason: string }
+        Returns: Json
+      }
+      production_entry_edits_acknowledge: {
+        Args: { p_ids: string[] }
+        Returns: number
+      }
+      production_entry_edits_acknowledge_all: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      production_entry_edit_settings_save: {
+        Args: { p_enabled: boolean; p_time: string }
+        Returns: undefined
       }
       notify_role: {
         Args: {

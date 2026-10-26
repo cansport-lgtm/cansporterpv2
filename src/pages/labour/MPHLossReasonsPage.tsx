@@ -27,6 +27,7 @@ import {
   mphLossPct,
   mphLossReasonRequired,
   MPH_LOSS_TOLERANCE,
+  editedEntryStubs,
   escapeHtml,
   fetchMphDay,
   fmtMph,
@@ -34,6 +35,8 @@ import {
   reasonsForDepartment,
   round1,
 } from "@/lib/mphLoss";
+import { useProductionEntriesLive, type EditedEntryFlags } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 
 interface Report {
   id: string;
@@ -130,6 +133,9 @@ export default function MPHLossReasonsPage() {
   });
   const liveDepts = live?.departments ?? [];
   const detail = live?.detail ?? {};
+  // Production entries behind the live figures that were edited after first save.
+  const editedEntries = useMemo(() => editedEntryStubs(live?.editedEntryCount), [live?.editedEntryCount]);
+  useProductionEntriesLive(["mph-loss-live"]);
 
   const { data: saved, isLoading: loadingReport } = useQuery({
     queryKey: ["mph-loss-report", date],
@@ -448,7 +454,7 @@ export default function MPHLossReasonsPage() {
 
   const commonProps = {
     date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, canEditRole, isLoading,
-    deptState, totals, allDepts, lossDepts, noLossCount, reasons, mapping, reasonById, detail,
+    deptState, totals, allDepts, lossDepts, noLossCount, reasons, mapping, reasonById, detail, editedEntries,
     updateLine, addLine, removeLine, handleSave, handlePrint, saveMutation, reopenMutation, allExplained,
   };
 
@@ -817,6 +823,7 @@ type Common = {
   mapping: { reason_id: string; department_id: string }[];
   reasonById: Record<string, MphLossReason>;
   detail: Record<string, DepartmentMphDetail>;
+  editedEntries: EditedEntryFlags[];
   updateLine: (deptId: string, key: string, patch: Partial<LineDraft>) => void;
   addLine: (deptId: string) => string;
   removeLine: (deptId: string, key: string) => void;
@@ -864,9 +871,13 @@ function RequirementBadge({ d, className = "" }: { d: DeptState; className?: str
   );
 }
 
-function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, lossDepts, allDepts }: Common) {
+function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, lossDepts, allDepts, editedEntries }: Common) {
   return (
     <>
+      <EditedEntriesNote
+        entries={editedEntries}
+        prefix={isSubmitted ? "Production for this date includes" : "Output figures include"}
+      />
       {isSubmitted ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
           <Badge className="bg-green-600 hover:bg-green-600">Submitted</Badge>
@@ -1211,7 +1222,7 @@ function MobileOverview(
   props: Common & { filter: "pending" | "all"; setFilter: (f: "pending" | "all") => void; onOpen: (id: string) => void }
 ) {
   const { date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, isLoading, deptState, totals, allDepts, lossDepts, noLossCount,
-    handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
+    editedEntries, handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
   const pct = totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100;
   const pendingDepts = deptState.filter((d) => d.required && d.status !== "complete");
   const shown = filter === "pending" ? pendingDepts : deptState;
@@ -1253,6 +1264,10 @@ function MobileOverview(
       </div>
 
       <div className="px-3 pt-3 space-y-3">
+        <EditedEntriesNote
+          entries={editedEntries}
+          prefix={isSubmitted ? "Production for this date includes" : "Output figures include"}
+        />
         {/* Progress */}
         <Card>
           <CardContent className="p-4 space-y-2.5">

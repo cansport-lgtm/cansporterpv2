@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { subscribeToPush } from "@/lib/webPush";
+import { startGateAlarm } from "@/lib/gateAlarm";
 import type { Database } from "@/integrations/supabase/types";
 
 export type SystemNotification = Database["public"]["Tables"]["notifications"]["Row"];
@@ -109,6 +110,13 @@ export function useNotifications() {
             description: n.message ?? undefined,
             variant: n.type === "error" ? "destructive" : "default",
           });
+
+          // Super admin extra alert: an edited production entry also sounds
+          // a short siren (after the first tap unlocked audio — see
+          // ProductionEditAlertBanner) and vibrates on phones.
+          if (n.reference_type === "production_entry_edit" && n.type === "error") {
+            startGateAlarm(4);
+          }
 
           // Device notification when the tab is in the background and the
           // user granted permission (see requestDesktopNotifications below).

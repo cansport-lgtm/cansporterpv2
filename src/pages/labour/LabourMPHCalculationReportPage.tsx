@@ -23,9 +23,12 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  MPH_NUMBER_COLUMNS, escapeHtml, fetchMphDay, fixedDailyMph, fmtMph, fmtQty, mphRateLookup, round1,
+  MPH_NUMBER_COLUMNS, editedEntryStubs, escapeHtml, fetchMphDay, fixedDailyMph, fmtMph, fmtQty, mphRateLookup, round1,
   type DepartmentMph, type DepartmentMphDetail, type MphNumberRow, type MphWorkerRow,
 } from "@/lib/mphLoss";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedBadge } from "@/components/production/EditedBadge";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -115,6 +118,9 @@ export default function LabourMPHCalculationReportPage() {
   const [sortMode, setSortMode] = useState<SortMode>("loss");
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [openInit, setOpenInit] = useState<string | null>(null);
+
+  // Re-fetch when any production entry is edited, so edit marks stay current.
+  useProductionEntriesLive(["mph-loss-live", "mph-calc-range"]);
 
   const { data: day, isLoading: loadingDay, error: dayError } = useQuery({
     queryKey: ["mph-loss-live", date],
@@ -226,7 +232,7 @@ export default function LabourMPHCalculationReportPage() {
       const [prodRes, usedRes, reasons] = await Promise.all([
         supabase
           .from("production_entries")
-          .select("department_id, sub_department_id, quantity_produced, entry_date")
+          .select("department_id, sub_department_id, quantity_produced, entry_date, edit_count")
           .gte("entry_date", range.start)
           .lte("entry_date", range.end)
           .limit(10000),
@@ -409,7 +415,7 @@ export default function LabourMPHCalculationReportPage() {
           <td class="n">${pct(tot.authorized, tot.used)}</td><td></td></tr></tbody></table>
       ${blocks}
       <div class="sign"><div>Production Coordinator</div><div>Labour In-charge</div><div>Operations Manager</div></div>
-      <div class="foot">MPH number = MPH Master (department + sub-department). Fixed daily MPH is counted once per day when anyone is deployed. Figures rounded to 0.1 MPH.</div>
+      <div class="foot">MPH number = MPH Master (department + sub-department). Fixed daily MPH is counted once per day when anyone is deployed. Figures rounded to 0.1 MPH.${day.editedEntryCount > 0 ? ` Output figures include ${day.editedEntryCount} production ${day.editedEntryCount === 1 ? "entry" : "entries"} edited after first save.` : ""}</div>
       </body></html>`);
     w.document.close();
     w.focus();
@@ -423,7 +429,7 @@ export default function LabourMPHCalculationReportPage() {
       const wb = XLSX.utils.book_new();
       const summary = XLSX.utils.aoa_to_sheet([
         ["MPH Calculation Report", fmtDate(date)],
-        [],
+        day.editedEntryCount > 0 ? [`Edited production entries included: ${day.editedEntryCount}`] : [],
         ["Department", "Output", "Σ output × MPH no.", "Fixed MPH", "Authorized MPH", "Workers", "Used MPH", "Net MPH", "Efficiency %", "Loss reasons"],
         ...dayRows.map((d) => {
           const det = day.detail[d.department_id];
@@ -562,8 +568,9 @@ export default function LabourMPHCalculationReportPage() {
               />
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Full day = 12 MPH · Half day = 6 MPH · figures rounded to 0.1 MPH · same calculation as MPH Analysis
+            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Full day = 12 MPH · Half day = 6 MPH · figures rounded to 0.1 MPH · same calculation as MPH Analysis</span>
+              <EditedEntriesNote entries={editedEntryStubs(day?.editedEntryCount)} prefix="Output figures include" />
             </p>
 
             {dayError ? (
@@ -672,8 +679,9 @@ export default function LabourMPHCalculationReportPage() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  Net MPH by department and day <span className="text-sm font-normal text-muted-foreground">· click a day to open that day's report</span>
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
+                  <span>Net MPH by department and day <span className="text-sm font-normal text-muted-foreground">· click a day to open that day's report</span></span>
+                  <EditedEntriesNote entries={rangeData?.production} prefix="Output figures include" />
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -918,7 +926,10 @@ function DepartmentCard({
                       {g.rows.map((it, i) => (
                         <div key={i} className="px-3 py-2">
                           <div className="flex justify-between gap-2">
-                            <span className="font-medium truncate">{it.item_name}</span>
+                            <span className="font-medium truncate">
+                              {it.item_name}
+                              {it.id && <EditedBadge entry={it as { id: string; edit_count?: number | null }} compact className="ml-1.5 align-middle" />}
+                            </span>
                             <span className="font-medium tabular-nums">{fmtMph(it.authorized)}</span>
                           </div>
                           <div className="flex justify-between gap-2 text-xs text-muted-foreground">
@@ -1084,7 +1095,10 @@ function SubGroupRows({ sub, rows }: { sub: string; rows: DepartmentMphDetail["i
     <>
       {rows.map((it, i) => (
         <TableRow key={i}>
-          <TableCell className="text-sm">{it.item_name}{it.item_code && it.item_code !== it.item_name ? <span className="text-muted-foreground"> · {it.item_code}</span> : null}</TableCell>
+          <TableCell className="text-sm">
+            {it.item_name}{it.item_code && it.item_code !== it.item_name ? <span className="text-muted-foreground"> · {it.item_code}</span> : null}
+            {it.id && <EditedBadge entry={it as { id: string; edit_count?: number | null }} compact className="ml-1.5 align-middle" />}
+          </TableCell>
           <TableCell className="text-sm">{it.sub_department}</TableCell>
           <TableCell className="text-sm">{it.shift || "—"}</TableCell>
           <TableCell className="text-right text-sm">{fmtQty(it.output)}</TableCell>

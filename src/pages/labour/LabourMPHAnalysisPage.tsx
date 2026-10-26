@@ -4,6 +4,8 @@ import { format, subDays, startOfMonth, endOfMonth, subMonths, parseISO } from "
 import { Activity, Gauge, TrendingUp, TrendingDown, CalendarIcon, Factory, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -82,7 +84,7 @@ export default function LabourMPHAnalysisPage() {
     queryFn: async () => {
       let query = supabase
         .from("production_entries")
-        .select("department_id, sub_department_id, quantity_produced, entry_date")
+        .select("department_id, sub_department_id, quantity_produced, entry_date, edit_count")
         .gte("entry_date", start)
         .lte("entry_date", end);
       if (selectedDepartment !== "all") query = query.eq("department_id", selectedDepartment);
@@ -91,6 +93,9 @@ export default function LabourMPHAnalysisPage() {
       return data;
     },
   });
+
+  // Re-fetch when a production entry is edited, so the edited-entries note stays current.
+  useProductionEntriesLive(["mph-analysis-production"]);
 
   const { data: usedMphEntries = [], isLoading: loadingUsed } = useQuery({
     queryKey: ["mph-analysis-used", start, end, selectedDepartment],
@@ -307,6 +312,7 @@ export default function LabourMPHAnalysisPage() {
         </div>
 
         {/* KPI cards */}
+        <EditedEntriesNote entries={productionEntries} prefix="Output figures include" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCard title="Production Output" value={fmt(totals.output)} icon={Factory} description="Total quantity produced" />
           <MetricCard title="Authorized MPH" value={fmt(totals.authorized)} icon={Gauge} description="Earned from production output" />
@@ -428,7 +434,10 @@ export default function LabourMPHAnalysisPage() {
         {/* Department summary table */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Department Summary — {format(parseISO(start), "dd MMM yyyy")} to {format(parseISO(end), "dd MMM yyyy")}</CardTitle>
+            <CardTitle className="text-base flex flex-wrap items-center gap-2">
+              <span>Department Summary — {format(parseISO(start), "dd MMM yyyy")} to {format(parseISO(end), "dd MMM yyyy")}</span>
+              <EditedEntriesNote entries={productionEntries} prefix="Output figures include" />
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-auto">

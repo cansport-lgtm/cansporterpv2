@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MPH_NUMBER_COLUMNS, fixedDailyMph, mphRateLookup, type MphNumberRow } from "@/lib/mphLoss";
+import { countEditedEntries, useProductionEntriesLive, type EditedEntryFlags } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -57,6 +59,8 @@ interface DaySnapshot {
   prodData: Record<string, { targetProd: number; produced: number }>;
   targetMPHByDept: Record<string, number>;
   actualMPHByDept: Record<string, number>;
+  // The production entries the figures above were built from (with their edit flag).
+  prodEntries: EditedEntryFlags[];
 }
 
 interface DeptStats {
@@ -92,7 +96,7 @@ const fetchDayData = async (dateStr: string): Promise<DaySnapshot> => {
       supabase.from("qa_processes").select("id, name"),
       supabase
         .from("production_entries")
-        .select("department_id, sub_department_id, target_production, quantity_produced")
+        .select("department_id, sub_department_id, target_production, quantity_produced, edit_count")
         .eq("entry_date", dateStr),
       supabase
         .from("mph_calculating_numbers")
@@ -149,7 +153,7 @@ const fetchDayData = async (dateStr: string): Promise<DaySnapshot> => {
     actualMPHByDept[deptId] = (actualMPHByDept[deptId] || 0) + fixed;
   });
 
-  return { entries, prodData, targetMPHByDept, actualMPHByDept };
+  return { entries, prodData, targetMPHByDept, actualMPHByDept, prodEntries: (prodRes.data || []) as EditedEntryFlags[] };
 };
 
 const computeDeptStats = (snapshot: DaySnapshot, deptName: string): DeptStats | null => {
@@ -318,14 +322,21 @@ export default function LabourDeploymentAnalysisPage() {
 
   const isLoading = queries.some((q) => q.isLoading);
 
+  // Re-fetch the window when a production entry is edited.
+  useProductionEntriesLive(["labour-deployment-analysis"]);
+
   const emptySnap: DaySnapshot = {
     entries: [],
     prodData: {},
     targetMPHByDept: {},
     actualMPHByDept: {},
+    prodEntries: [],
   };
 
   const snapshots = queries.map((q) => q.data || emptySnap);
+  // Every production entry in the 4-day window, for the "includes edited entries" note.
+  const allProdEntries = snapshots.flatMap((s) => s.prodEntries);
+  const editedProdCount = countEditedEntries(allProdEntries);
   const overalls = snapshots.map((s) => computeOverall(s));
 
   const allDepts = Array.from(
@@ -397,7 +408,7 @@ export default function LabourDeploymentAnalysisPage() {
         return `<div class="kpi"><div class="lbl">${label}</div>${rows}</div>`;
       };
 
-      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Labour Deployment & Target Analysis - ${days[0].shortLabel}</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0;padding:10px}h1{font-size:16px;margin:0 0 4px}.meta{font-size:10px;color:#555;margin-bottom:8px}.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:10px}.kpi{border:1px solid #d1d5db;border-radius:4px;padding:5px 6px}.kpi .lbl{font-size:9px;color:#374151;text-transform:uppercase;font-weight:700;margin-bottom:3px;border-bottom:1px solid #e5e7eb;padding-bottom:2px}.dept{margin-bottom:8px;page-break-inside:avoid}.dept-title{font-size:11px;font-weight:700;background:#f3f4f6;padding:4px 6px;border:1px solid #d1d5db;border-bottom:0}table{width:100%;border-collapse:collapse;font-size:9px}th,td{border:1px solid #d1d5db;padding:3px 4px}th{background:#f9fafb;font-weight:600;text-align:left}@media print{body{padding:0}}</style></head><body><h1>Labour Deployment & Target Analysis</h1><div class="meta">Window: <strong>${days[3].shortLabel} → ${days[0].shortLabel}</strong> &nbsp;|&nbsp; Printed: ${format(new Date(), "dd MMM yyyy HH:mm")}</div><div class="summary">${kpiBlock("Workers", "workers")}${kpiBlock("Std Tgt", "stdTgt")}${kpiBlock("Today's Tgt", "todaysTgt")}${kpiBlock("Actual", "actual")}${kpiBlock("MPH Deployed", "mph")}${kpiBlock("Target Prod", "targetProd")}${kpiBlock("Production", "production")}${kpiBlock("Target MPH", "targetMPH")}${kpiBlock("Actual MPH", "actualMPH")}${kpiBlock("Planned L/G", "plannedLG")}${kpiBlock("Actual L/G", "actualLG")}${kpiBlock("Efficiency", "eff", "%")}</div>${allDepts.length === 0 ? `<div style="text-align:center;padding:40px;color:#6b7280">No entries found</div>` : sections}</body></html>`;
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Labour Deployment & Target Analysis - ${days[0].shortLabel}</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0;padding:10px}h1{font-size:16px;margin:0 0 4px}.meta{font-size:10px;color:#555;margin-bottom:8px}.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:10px}.kpi{border:1px solid #d1d5db;border-radius:4px;padding:5px 6px}.kpi .lbl{font-size:9px;color:#374151;text-transform:uppercase;font-weight:700;margin-bottom:3px;border-bottom:1px solid #e5e7eb;padding-bottom:2px}.dept{margin-bottom:8px;page-break-inside:avoid}.dept-title{font-size:11px;font-weight:700;background:#f3f4f6;padding:4px 6px;border:1px solid #d1d5db;border-bottom:0}table{width:100%;border-collapse:collapse;font-size:9px}th,td{border:1px solid #d1d5db;padding:3px 4px}th{background:#f9fafb;font-weight:600;text-align:left}@media print{body{padding:0}}</style></head><body><h1>Labour Deployment & Target Analysis</h1><div class="meta">Window: <strong>${days[3].shortLabel} → ${days[0].shortLabel}</strong> &nbsp;|&nbsp; Printed: ${format(new Date(), "dd MMM yyyy HH:mm")}${editedProdCount > 0 ? ` &nbsp;|&nbsp; Production / Target MPH figures include ${editedProdCount} edited production ${editedProdCount === 1 ? "entry" : "entries"}` : ""}</div><div class="summary">${kpiBlock("Workers", "workers")}${kpiBlock("Std Tgt", "stdTgt")}${kpiBlock("Today's Tgt", "todaysTgt")}${kpiBlock("Actual", "actual")}${kpiBlock("MPH Deployed", "mph")}${kpiBlock("Target Prod", "targetProd")}${kpiBlock("Production", "production")}${kpiBlock("Target MPH", "targetMPH")}${kpiBlock("Actual MPH", "actualMPH")}${kpiBlock("Planned L/G", "plannedLG")}${kpiBlock("Actual L/G", "actualLG")}${kpiBlock("Efficiency", "eff", "%")}</div>${allDepts.length === 0 ? `<div style="text-align:center;padding:40px;color:#6b7280">No entries found</div>` : sections}</body></html>`;
 
       try {
         w.document.open();
@@ -458,7 +469,7 @@ export default function LabourDeploymentAnalysisPage() {
         </div>
       </PageHeader>
 
-      <div className="flex flex-wrap gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {days.map((d, i) => (
           <Badge
             key={d.str}
@@ -471,6 +482,7 @@ export default function LabourDeploymentAnalysisPage() {
             {d.shortLabel}
           </Badge>
         ))}
+        <EditedEntriesNote entries={allProdEntries} prefix="Production / Target MPH figures include" />
       </div>
 
       {/* Top KPI strip */}

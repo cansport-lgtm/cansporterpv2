@@ -12,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Scale, Printer, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 
 interface Dept { id: string; name: string; code: string; }
 interface SeqRow { department_id: string; wip_order: number; is_included: boolean; }
-interface ProdEntry { department_id: string; quantity_ok: number; }
+interface ProdEntry { department_id: string; quantity_ok: number; edit_count?: number | null; }
 interface PlanningItem { id: string; code: string; name: string; department_id: string; }
 interface ClosingRow { planning_item_id: string; department_id: string; closing_quantity: number; }
 interface Level { order: number; depts: Dept[]; label: string; isLast: boolean; }
@@ -26,6 +28,9 @@ export default function WIPReconciliationPage() {
   const [asOfDate, setAsOfDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+
+  // Refresh when a production entry is edited anywhere (edited note)
+  useProductionEntriesLive(["wip-rec-entries"]);
 
   const { data: departments = [] } = useQuery({
     queryKey: ["wip-rec-depts"],
@@ -55,7 +60,7 @@ export default function WIPReconciliationPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_entries")
-        .select("department_id, quantity_ok")
+        .select("department_id, quantity_ok, edit_count")
         .lte("entry_date", asOfDate);
       if (error) throw error;
       return (data || []) as ProdEntry[];
@@ -263,7 +268,10 @@ export default function WIPReconciliationPage() {
 
         <Card className="print-area">
           <CardHeader>
-            <CardTitle>Reconciliation as of {asOfDate}</CardTitle>
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              Reconciliation as of {asOfDate}
+              <EditedEntriesNote entries={entries} prefix="System closing includes" />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>

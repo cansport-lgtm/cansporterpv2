@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BookOpen, ArrowRight, Printer } from "lucide-react";
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns";
+import { useProductionEntriesLive } from "@/lib/productionEntryEdits";
+import { EditedEntriesNote } from "@/components/production/EditedEntriesNote";
 
 interface Dept {
   id: string;
@@ -29,6 +31,7 @@ interface ProdEntry {
   entry_date: string;
   department_id: string;
   quantity_ok: number;
+  edit_count?: number | null;
 }
 
 interface Level {
@@ -66,6 +69,9 @@ export default function WIPLedgerPage() {
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
   const [levelFilter, setLevelFilter] = useState<string>("all");
 
+  // Refresh when a production entry is edited anywhere (edited notes)
+  useProductionEntriesLive(["wip-ledger-entries", "wip-ledger-opening-entries"]);
+
   const { data: departments = [] } = useQuery({
     queryKey: ["wip-ledger-depts"],
     queryFn: async () => {
@@ -95,7 +101,7 @@ export default function WIPLedgerPage() {
       fetchAllRows<ProdEntry>((from, to) =>
         supabase
           .from("production_entries")
-          .select("entry_date, department_id, quantity_ok")
+          .select("entry_date, department_id, quantity_ok, edit_count")
           .gte("entry_date", fromDate)
           .lte("entry_date", toDate)
           .order("id")
@@ -109,7 +115,7 @@ export default function WIPLedgerPage() {
       fetchAllRows<ProdEntry>((from, to) =>
         supabase
           .from("production_entries")
-          .select("entry_date, department_id, quantity_ok")
+          .select("entry_date, department_id, quantity_ok, edit_count")
           .lt("entry_date", fromDate)
           .order("id")
           .range(from, to)
@@ -354,7 +360,10 @@ export default function WIPLedgerPage() {
     }
     const totalIn = rows.reduce((s, r) => s + r.inQty, 0);
     const totalOut = rows.reduce((s, r) => s + r.outQty, 0);
-    return { rows, totalIn, totalOut, closing: balance, openingBalance };
+    // Production entries (opening + in-range) that feed this level's In / Out figures
+    const deptIds = new Set([...lvl.depts, ...(prev?.depts ?? [])].map(d => d.id));
+    const usedEntries = [...openingEntries, ...entries].filter(e => deptIds.has(e.department_id));
+    return { rows, totalIn, totalOut, closing: balance, openingBalance, usedEntries };
   };
 
   return (
@@ -441,12 +450,15 @@ export default function WIPLedgerPage() {
 
         {visibleLevels.map((lvl) => {
           const idx = levels.findIndex(l => l.order === lvl.order);
-          const { rows, totalIn, totalOut, closing, openingBalance } = buildLedger(idx);
+          const { rows, totalIn, totalOut, closing, openingBalance, usedEntries } = buildLedger(idx);
           return (
             <Card key={lvl.order}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between flex-wrap gap-2">
-                  <span>L{lvl.order}. {lvl.label}</span>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    L{lvl.order}. {lvl.label}
+                    <EditedEntriesNote entries={usedEntries} />
+                  </span>
                   <div className="flex gap-4 text-sm font-normal">
                     <span className="text-muted-foreground">Opening: <span className="font-semibold">{fmtNum(openingBalance)}</span></span>
                     <span className="text-muted-foreground">In: <span className="font-semibold text-green-500">{fmtNum(totalIn)}</span></span>

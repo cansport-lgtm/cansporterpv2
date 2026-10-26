@@ -206,6 +206,7 @@ const navigationItems: NavItem[] = [
       { title: "Order Dashboard", href: "/production/order-dashboard" },
       { title: "Daily Entry", href: "/production/daily-entry" },
       { title: "Entry List", href: "/production/entry-list" },
+      { title: "Entry Edit Log", href: "/production/entry-edits" },
       { title: "WIP Tracking", href: "/production/wip" },
       { title: "WIP Ledger", href: "/production/wip-ledger" },
       { title: "WIP Reconciliation", href: "/production/wip-reconciliation" },
