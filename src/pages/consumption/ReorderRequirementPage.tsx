@@ -92,8 +92,9 @@ const fmtNum = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits:
 
 export default function ReorderRequirementPage() {
   const { hasRole } = useAuth();
-  // Rates and values follow the stock-closing pages: visible to super admins only.
-  const showValue = hasRole("super_admin");
+  // Rates and values: visible to super admins and to the Purchase Manager, who
+  // already sees supplier spend in Purchase Analysis and uses this report to plan buying.
+  const showValue = hasRole("super_admin") || hasRole("purchase_manager");
 
   const [asOfDate, setAsOfDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
