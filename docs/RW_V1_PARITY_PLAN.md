@@ -1,6 +1,8 @@
 # Rejections & Wastage — back to the v1 module (plan)
 
-Status: **Plan only. Nothing built.** Direction confirmed 10 Nov 2026: v2 uses
+Status: **Phases 1 and 2 built** (code and migration
+`20261118120000_rw_back_to_v1.sql`; the migration is not yet applied to the
+live database). Phases 3 and 4 pending. Direction confirmed 10 Nov 2026: v2 uses
 the same seven tables and the same screens as v1; everything added on top is
 removed.
 Module: `rejections_wastages` (`rw_*` tables, `/rejections/*` routes).
@@ -151,8 +153,9 @@ Still open: **the cutover date** for the final v1 export (Phase 4).
 
 - `RejectionsWastageEntryPage.tsx`: remove the `rw_ball_cutover` gate; all
   three tabs on every date; Rejections is the default tab.
-- Department list: every active `production_departments` row (drop the
-  job-order-eligible filter), so Quality Department and Packing can be chosen.
+- Department list: unchanged. It is filtered to
+  `job_order_eligible_departments`, which v1 has too with the same six
+  departments (Fancy Final, Jorr, Press, Packing, Quality, Store).
 - Delete the nine added pages, `DowngradeDetailDialog.tsx`,
   `src/lib/rwDowngrades.ts`, and their imports and routes in `App.tsx`.
 - `ERPSidebar.tsx`: Dashboard → New Entry → Rework Tracking → Analytics →
@@ -170,8 +173,9 @@ One migration, in this order:
 3. Masters clean-up per decisions 2 and 4, each guarded by a reference check.
 4. No change to the seven v1 tables.
 
-Ships with `supabase/rollbacks/…_rw_back_to_v1_down.sql`, which replays the
-ball-inventory migrations and reloads from `rw_archive`. Regenerate
+Ships with `supabase/rollbacks/20261118120000_rw_back_to_v1_down.sql`: replay
+the ball-inventory migrations, then reload from `rw_archive`. Both directions
+were tested on a local restore of the v1 backup. Regenerate
 `src/integrations/supabase/types.ts` afterwards.
 
 ### Phase 3 — data merge from the backup (one-off script)

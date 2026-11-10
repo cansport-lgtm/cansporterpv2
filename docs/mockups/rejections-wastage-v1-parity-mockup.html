@@ -190,8 +190,8 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
     <div class="card">
       <div class="ctx">
         <div class="field"><label>Entry date</label><input type="date" value="2026-11-10"></div>
-        <div class="field"><label>Department <span class="muted">(all active)</span></label>
-          <select><option>Press</option><option>Jorr</option><option>Local Final</option><option selected>Fancy Final</option><option>Packing</option><option>Quality Department</option><option>Kapra Cutting</option><option>Compounding+others</option></select></div>
+        <div class="field"><label>Department</label>
+          <select><option selected>Fancy Final</option><option>Jorr</option><option>Packing</option><option>Press</option><option>Quality Department</option><option>Store department</option></select></div>
         <div class="field"><label>Shift</label><select><option selected>Day</option><option>Night</option></select></div>
         <div class="field"><label>Show entries for</label><select><option selected>This day</option><option>This week</option><option>Month…</option><option>Custom range</option></select></div>
       </div>
@@ -250,7 +250,7 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
         </div>
       </div>
     </div>
-    <div class="note">Change from today's live screen: the <span class="mono">rw_ball_cutover</span> check that hides Rejections and Leakages from 1 Sep 2026 is removed, Rejections is the default tab again, and the department list is every active production department (Quality Department and Packing included).</div>
+    <div class="note">Change from today's live screen: the <span class="mono">rw_ball_cutover</span> check that hides Rejections and Leakages from 1 Sep 2026 is removed, so all three tabs show on every date. The department list is unchanged; v1 uses the same six eligible departments.</div>
   </section>
 
   <!-- REWORK -->
