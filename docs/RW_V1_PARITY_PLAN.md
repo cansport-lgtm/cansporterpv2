@@ -1,11 +1,13 @@
 # Rejections & Wastage — back to the v1 module (plan)
 
-Status: **Phases 1 and 2 built** (code and migration
-`20261118120000_rw_back_to_v1.sql`; the migration is not yet applied to the
-live database). Phases 3 and 4 pending. Direction confirmed 10 Nov 2026: v2 uses
-the same seven tables and the same screens as v1; everything added on top is
-removed.
-Module: `rejections_wastages` (`rw_*` tables, `/rejections/*` routes).
+Status: **Complete as of 10 Nov 2026.** Phases 1 and 2 shipped in #442 and
+`20261118120000_rw_back_to_v1.sql`. Phases 3 and 4 were done in one step from
+a fresh v1 backup taken 10 Nov 2026: `supabase/scripts/rw_v1_merge.py` inserted
+680 rejections, 1,920 leakages, 19 wastages and 1 reason, and live now matches
+that backup row for row (plus 5 wastage rows keyed in v2 on 3 Sep). The
+comparison also found that `rw_leakages` lacked v1's three rework columns;
+`20261119120000_rw_leakages_rework_columns.sql` adds them. The sections below
+are the plan as written and are kept for the record.
 Mockup: `docs/mockups/rejections-wastage-v1-parity-mockup.html` (open in a
 browser; one screen per sidebar entry, sample figures only).
 Source analysed: `cansport_db_backup_2026-09-15_v2_1.zip` (the v1 ERP database,
