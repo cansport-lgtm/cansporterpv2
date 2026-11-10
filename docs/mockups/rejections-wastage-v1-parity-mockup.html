@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: ERP shell as in the live Rejections & Wastages module — slim dark sidebar, content column, one screen per sidebar entry.
-   Screens: Dashboard, New Entry (three tabs on every date), Rework Tracking, Analytics, Masters, the parked Ball Inventory group,
-   the data merge summary, and a phone view of New Entry.
+   Screens: Dashboard, New Entry (three tabs on every date), Rework Tracking, Analytics, Masters (the eight v1 screens),
+   plus reference screens: what is removed from v2, the data merge summary, and a phone view of New Entry.
    MOCKUP ONLY — sample figures for Tue 10 Nov 2026 drawn from the v1 backup's materials, reasons and departments. Nothing is wired. */
 :root{
   --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
@@ -132,10 +132,9 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
       <h1>Reports</h1>
       <button data-s="ana">Analytics</button>
       <h1>Masters <span class="sa">super admin</span></h1>
-      <button data-s="masters">Materials · Reasons · Units · Dispositions</button>
-      <h1>Ball Inventory (legacy) <span class="sa">super admin</span></h1>
-      <button data-s="legacy" class="legacy">Checker · Bins · Ledger · Downgrades · Rates</button>
+      <button data-s="masters">Reasons · Units · Dispositions · Materials</button>
       <h1>Reference</h1>
+      <button data-s="legacy">Removed from v2</button>
       <button data-s="merge">Data merge from v1</button>
       <button data-s="phone">Phone view · New Entry</button>
     </nav>
@@ -210,7 +209,7 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
         <div class="field"><label>Unit cost <span class="muted">(from Materials master)</span></label><input class="ro" value="100.00" readonly></div>
         <div class="field"><label>Total cost</label><input class="ro" value="1,200.00" readonly></div>
         <div class="field"><label>Reason *</label><select><option>— select —</option><option selected>Gas girnai ka dhabba</option><option>Solution dhabba</option><option>dori crack</option><option>Katchi dori issue</option></select></div>
-        <div class="field"><label>Disposition</label><select><option selected>Scrap · ضائع</option><option>Rework · دوبارہ کام</option><option>Use-as-is</option><option>Return to Supplier</option><option>Quarantine to store</option></select></div>
+        <div class="field"><label>Disposition</label><select><option selected>Scrap · ضائع</option><option>Rework · دوبارہ کام</option><option>Use-as-is</option><option>Return to Supplier</option><option>Quarantine</option></select></div>
         <div class="field"><label>Process <span class="muted">(optional)</span></label><select><option selected>— none —</option><option>kapra pasting</option><option>local kapra pasting</option></select></div>
         <div class="field wide"><label>Remarks</label><textarea rows="2" placeholder="Optional note in Urdu or English"></textarea></div>
       </div>
@@ -262,10 +261,10 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
       <div class="tw"><table>
         <tr><th>Date</th><th>Type</th><th>Department</th><th>Material</th><th class="num">Rejected</th><th class="num">Reworked</th><th>Status</th><th></th></tr>
         <tr><td>10 Nov</td><td><span class="pill p-bad">rejection</span></td><td>Fancy Final</td><td>FINAL T72 PEACH</td><td class="num">6</td><td class="num"><input value="0" style="width:60px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)"></td><td><span class="pill p-warn">pending</span></td><td><span class="act"><span>Start</span><span>Complete</span></span></td></tr>
-        <tr><td>6 Nov</td><td><span class="pill p-warn">leakage</span></td><td>Jorr</td><td>JORR VM72</td><td class="num">20</td><td class="num"><input value="20" style="width:60px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)"></td><td><span class="pill p-info">in progress</span></td><td><span class="act"><span>Complete</span></span></td></tr>
+        <tr><td>6 Nov</td><td><span class="pill p-bad">rejection</span></td><td>Fancy Final</td><td>FINAL KB72 GOLDEN</td><td class="num">20</td><td class="num"><input value="20" style="width:60px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)"></td><td><span class="pill p-info">in progress</span></td><td><span class="act"><span>Complete</span></span></td></tr>
       </table></div>
     </div>
-    <div class="note">Phase 4 item: today this screen reads rejections only. Leakages marked <em>Rework</em> appear here too once the small fix lands. v1 never used rework, so this stays low priority.</div>
+    <div class="note">Unchanged from v1: this screen lists rejections whose disposition is <em>Rework</em>. v1 used it once in three months.</div>
   </section>
 
   <!-- ANALYTICS -->
@@ -276,7 +275,7 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
       <div class="tile bad"><div class="k">Rejections</div><div class="v">7,912 pcs</div><div class="s">1,180 entries</div></div>
       <div class="tile warn"><div class="k">Leakages</div><div class="v">24,365 pcs</div><div class="s">4,071 entries</div></div>
       <div class="tile"><div class="k">Wastage</div><div class="v">61.5 kg · 14 ltr</div><div class="s">41 entries</div></div>
-      <div class="tile info"><div class="k">Cost of loss</div><div class="v">PKR 3.21 M</div><div class="s">incl. 743 merged v1 rows</div></div>
+      <div class="tile info"><div class="k">Cost of loss</div><div class="v">PKR 3.21 M</div><div class="s">incl. 765 merged v1 rows</div></div>
     </div>
     <div class="grid2">
       <div class="card"><h3>Rejections by material <small>pcs</small></h3>
@@ -323,7 +322,7 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
   <!-- MASTERS -->
   <section class="screen" id="s-masters">
     <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages · Masters</div><h2>Masters</h2></div><span class="pill p-info">super admin</span></div>
-    <div class="tabs"><span class="on">Materials<b>29</b></span><span>Reasons<b>13</b></span><span>Units<b>5</b></span><span>Dispositions<b>6</b></span></div>
+    <div class="tabs"><span class="on">Materials<b>29</b></span><span>Reasons<b>13</b></span><span>Units<b>5</b></span><span>Dispositions<b>5</b></span></div>
     <div class="card"><h3>Materials <small>cost per unit, auto-filled on entry</small>
       <button class="btn sm" style="float:right">+ Add material</button></h3>
       <div class="tw"><table>
@@ -365,20 +364,46 @@ tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)
           <tr><td class="mono strike">TEST</td><td class="strike">Test</td><td><span class="pill p-bad">remove</span></td></tr>
           <tr><td class="mono strike">UNIT</td><td class="strike">Unit</td><td><span class="pill p-bad">remove</span></td></tr>
         </table></div>
-        <p style="margin:10px 0 0;font-size:13px">Dispositions: Scrap, Rework, Use-as-is, Return to Supplier, Quarantine to store, Down grade conversion. All kept; Urdu names shown beside English.</p>
+        <p style="margin:10px 0 0;font-size:13px">Dispositions, back to the v1 five with Urdu names: Scrap, Rework, Use-as-is, Return to Supplier, Quarantine. <span class="strike">Quarantine to store</span> is renamed back; <span class="strike">Down grade conversion</span> is removed.</p>
       </div>
     </div>
   </section>
 
-  <!-- LEGACY -->
+  <!-- REMOVED -->
   <section class="screen" id="s-legacy">
-    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages</div><h2>Ball Inventory (legacy)</h2></div><span class="pill p-warn">parked · super admin only</span></div>
-    <div class="note warn">This group is kept readable, not advertised. The checker grid, floor bins, ball ledger, downgrade approvals, cheap ball rates, defect grades, checkpoints and locations all still open at their old URLs. No new checker entries are expected.</div>
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>Removed from v2</h2></div><span class="pill p-bad">archived, then dropped</span></div>
+    <div class="note warn">The module goes back to the seven v1 tables and eight v1 screens. Everything v2 added from 30 Aug is removed. The added tables are copied into an <span class="mono">rw_archive</span> schema first, so their rows stay readable by SQL.</div>
     <div class="tiles" style="margin-top:14px">
-      <div class="tile"><div class="k">Checker entries</div><div class="v">48</div><div class="s">31 Aug – 22 Sep 2026, none since</div></div>
-      <div class="tile"><div class="k">Ball ledger rows</div><div class="v">47</div><div class="s">read-only history</div></div>
-      <div class="tile"><div class="k">Downgrades</div><div class="v">1</div><div class="s">approved, kept</div></div>
-      <div class="tile"><div class="k">Tables kept</div><div class="v">9</div><div class="s">rollback file exists if ever dropped</div></div>
+      <div class="tile ok"><div class="k">Tables kept</div><div class="v">7</div><div class="s">identical to v1, no change</div></div>
+      <div class="tile bad"><div class="k">Tables dropped</div><div class="v">9</div><div class="s">archived first</div></div>
+      <div class="tile bad"><div class="k">Screens removed</div><div class="v">9</div><div class="s">8 v1 screens remain</div></div>
+      <div class="tile"><div class="k">Rows archived</div><div class="v">96</div><div class="s">48 checker · 47 ledger · 1 downgrade</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Tables</h3>
+        <div class="tw"><table>
+          <tr><th>Table</th><th>Fate</th></tr>
+          <tr><td class="mono">rw_rejections · rw_leakages · rw_wastages</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">rw_reasons · rw_materials · rw_units · rw_dispositions</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono strike">rw_checker_entries · rw_checker_entry_intervals</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_ball_ledger · rw_ball_stock</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_locations · rw_defect_grades · rw_department_defect_grades · rw_defect_rates</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_downgrades</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_ball_cutover() and ~10 other functions, triggers, views</td><td><span class="pill p-bad">drop</span></td></tr>
+        </table></div>
+      </div>
+      <div class="card"><h3>Screens</h3>
+        <div class="tw"><table>
+          <tr><th>Screen</th><th>Fate</th></tr>
+          <tr><td>Dashboard · New Entry · Rework Tracking · Analytics</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td>Reasons · Units · Dispositions · Materials masters</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="strike">Daily Checker Entry</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Floor Bin Stock · Ball Ledger</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Downgrade Requests · Downgrade Approvals</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Cheap Ball Rates · Defect Grades</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Department Checkpoints · R&amp;W Locations</td><td><span class="pill p-bad">remove</span></td></tr>
+        </table></div>
+      </div>
     </div>
     <div class="card"><h3>Sidebar before and after</h3>
       <div class="diff">
@@ -400,7 +425,7 @@ Masters
   Defect Grades · Checkpoints · Locations
   Reasons · Units · Dispositions · Materials</div></div>
         <div class="mid">→</div>
-        <div><div class="muted" style="font-size:12px;margin-bottom:6px">Proposed</div>
+        <div><div class="muted" style="font-size:12px;margin-bottom:6px">After (same as v1)</div>
           <div class="flow">Dashboard
 Entries
   New Entry            ◀ three tabs, every date
@@ -408,10 +433,10 @@ Entries
 Reports
   Analytics
 Masters (super admin)
-  Materials · Reasons · Units · Dispositions
-Ball Inventory (legacy) (super admin, collapsed)
-  Checker · Bins · Ledger · Downgrades
-  Rates · Defect Grades · Checkpoints · Locations</div></div>
+  Reasons Master
+  Units Master
+  Dispositions Master
+  Materials Master</div></div>
       </div>
     </div>
   </section>
@@ -420,8 +445,8 @@ Ball Inventory (legacy) (super admin, collapsed)
   <section class="screen" id="s-merge">
     <div class="topbar"><div><div class="crumb">Reference</div><h2>Data merge from the v1 backup</h2></div><span class="pill p-info">one-off script · id-keyed · idempotent</span></div>
     <div class="tiles">
-      <div class="tile ok"><div class="k">Rejections</div><div class="v">+171</div><div class="s">162 new · 9 updated · 0 deleted</div></div>
-      <div class="tile ok"><div class="k">Leakages</div><div class="v">+589</div><div class="s">581 new · 8 updated · 0 deleted</div></div>
+      <div class="tile ok"><div class="k">Rejections</div><div class="v">+171</div><div class="s">171 new rows · 0 deleted</div></div>
+      <div class="tile ok"><div class="k">Leakages</div><div class="v">+589</div><div class="s">589 new rows · 0 deleted</div></div>
       <div class="tile ok"><div class="k">Wastages</div><div class="v">+5</div><div class="s">live keeps its own 5 rows from 3 Sep</div></div>
       <div class="tile warn"><div class="k">Not in this file</div><div class="v">16 Sep →</div><div class="s">needs a fresh v1 export at cutover</div></div>
     </div>
@@ -431,8 +456,8 @@ Ball Inventory (legacy) (super admin, collapsed)
 2. pre-check  every department / material / reason /
               disposition / user id exists in live   (abort if not)
 3. masters    upsert rw_reasons, rw_materials, rw_units,
-              rw_dispositions by id; deactivate Test / TEST / UNIT
-4. backup     copy the 17 rows about to change → rw_merge_backup
+              rw_dispositions by id (names and costs as in v1)
+4. backup     copy any row about to change → rw_archive.merge_backup
 5. upsert     INSERT … ON CONFLICT (id) DO UPDATE
               WHEN excluded.updated_at &gt; live.updated_at
 6. post-check per-day count + md5(ids) = backup for every day ≤ 15 Sep
@@ -444,10 +469,10 @@ Ball Inventory (legacy) (super admin, collapsed)
           <tr><td class="mono">rw_rejections</td><td class="num">602</td><td class="num">773</td><td class="num">773</td><td><span class="pill p-ok">match</span></td></tr>
           <tr><td class="mono">rw_leakages</td><td class="num">2,349</td><td class="num">2,938</td><td class="num">2,938</td><td><span class="pill p-ok">match</span></td></tr>
           <tr><td class="mono">rw_wastages</td><td class="num">33</td><td class="num">38</td><td class="num">33</td><td><span class="pill p-info">+5 v2-only</span></td></tr>
-          <tr><td class="mono">rw_reasons</td><td class="num">13</td><td class="num">13</td><td class="num">13</td><td><span class="pill p-ok">Test deactivated</span></td></tr>
+          <tr><td class="mono">rw_reasons</td><td class="num">13</td><td class="num">13</td><td class="num">13</td><td><span class="pill p-ok">Test row removed</span></td></tr>
           <tr><td class="mono">rw_materials</td><td class="num">29</td><td class="num">29</td><td class="num">29</td><td><span class="pill p-ok">match</span></td></tr>
         </table></div>
-        <p class="muted" style="font-size:12px;margin:8px 0 0">Days that differ today and get the v1 version: rejections 31 Jul and 25 Aug; leakages 25 Aug.</p>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Seeded days that gain rows v1 added later: rejections 31 Jul and 25 Aug; leakages 25 Aug. Live's Test reason is replaced by v1's COLY CRACKNESS.</p>
       </div>
     </div>
     <div class="card"><h3>Timeline</h3>
@@ -456,11 +481,11 @@ Ball Inventory (legacy) (super admin, collapsed)
 30 Aug ── v2 ball-inventory build · cutover 1 Sep hides Rejection + Leakage tabs
 31 Aug – 22 Sep ── 48 checker entries in v2, then nothing
 15 Sep ── this backup taken; floor still keying into v1
-10 Nov ── today · plan + mockup
-  ▸ Phase 1  un-hide tabs, reorder sidebar          (frontend PR)
-  ▸ Phase 2  merge this file's 743 rows             (one-off SQL)
-  ▸ Phase 3  cutover day: fresh v1 export, rerun    (same script)
-  ▸ Phase 4  rework-for-leakages, docs</div>
+10 Nov ── today · direction confirmed: same tables and screens as v1
+  ▸ Phase 1  frontend back to the 8 v1 screens      (one PR with Phase 2)
+  ▸ Phase 2  archive + drop the 9 added tables      (one migration)
+  ▸ Phase 3  merge this file's 765 rows             (one-off SQL)
+  ▸ Phase 4  cutover day: fresh v1 export, rerun    (same script)</div>
     </div>
   </section>
 
