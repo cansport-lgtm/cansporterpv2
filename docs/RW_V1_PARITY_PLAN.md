@@ -2,6 +2,8 @@
 
 Status: **Plan only. Nothing built.**
 Module: `rejections_wastages` (`rw_*` tables, `/rejections/*` routes).
+Mockup: `docs/mockups/rejections-wastage-v1-parity-mockup.html` (open in a
+browser; one screen per sidebar entry, sample figures only).
 Source analysed: `cansport_db_backup_2026-09-15_v2_1.zip` (the v1 ERP database,
 taken 15 Sep 2026 13:45 UTC; 246 tables, full SQL dump plus one CSV per table).
 
