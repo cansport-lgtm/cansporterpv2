@@ -493,15 +493,6 @@ import RWUnitsMasterPage from "./pages/rejections/RWUnitsMasterPage";
 import RWDispositionsMasterPage from "./pages/rejections/RWDispositionsMasterPage";
 import RWMaterialsMasterPage from "./pages/rejections/RWMaterialsMasterPage";
 import RejectionsAnalyticsPage from "./pages/rejections/RejectionsAnalyticsPage";
-import DailyCheckerEntryPage from "./pages/rejections/DailyCheckerEntryPage";
-import FloorBinStockPage from "./pages/rejections/FloorBinStockPage";
-import BallLedgerPage from "./pages/rejections/BallLedgerPage";
-import RWDefectGradesPage from "./pages/rejections/RWDefectGradesPage";
-import RWDefectRatesPage from "./pages/rejections/RWDefectRatesPage";
-import RWLocationsPage from "./pages/rejections/RWLocationsPage";
-import RWCheckpointsPage from "./pages/rejections/RWCheckpointsPage";
-import RWDowngradesPage from "./pages/rejections/RWDowngradesPage";
-import RWDowngradeApprovalsPage from "./pages/rejections/RWDowngradeApprovalsPage";
 import QualityScoreDashboard from "./pages/quality-score/QualityScoreDashboard";
 import BallQualityEntryPage from "./pages/quality-score/BallQualityEntryPage";
 import ProcessQualityEntryPage from "./pages/quality-score/ProcessQualityEntryPage";
@@ -1147,20 +1138,11 @@ const App = () => (
             <Route path="/rejections/dashboard" element={<ProtectedRoute><RejectionsWastagesDashboard /></ProtectedRoute>} />
             <Route path="/rejections/entry" element={<ProtectedRoute><RejectionsWastageEntryPage /></ProtectedRoute>} />
             <Route path="/rejections/rework" element={<ProtectedRoute><ReworkTrackingPage /></ProtectedRoute>} />
-            <Route path="/rejections/downgrades" element={<ProtectedRoute><RWDowngradesPage /></ProtectedRoute>} />
-            <Route path="/rejections/downgrade-approvals" element={<ProtectedRoute requiredRole="super_admin"><RWDowngradeApprovalsPage /></ProtectedRoute>} />
             <Route path="/rejections/reasons" element={<ProtectedRoute><RejectionWastageReasonsPage /></ProtectedRoute>} />
             <Route path="/rejections/units" element={<ProtectedRoute><RWUnitsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/materials" element={<ProtectedRoute><RWMaterialsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/analytics" element={<ProtectedRoute><RejectionsAnalyticsPage /></ProtectedRoute>} />
-            <Route path="/rejections/checker" element={<ProtectedRoute><DailyCheckerEntryPage /></ProtectedRoute>} />
-            <Route path="/rejections/bin-stock" element={<ProtectedRoute><FloorBinStockPage /></ProtectedRoute>} />
-            <Route path="/rejections/ledger" element={<ProtectedRoute><BallLedgerPage /></ProtectedRoute>} />
-            <Route path="/rejections/defect-grades" element={<ProtectedRoute><RWDefectGradesPage /></ProtectedRoute>} />
-            <Route path="/rejections/defect-rates" element={<ProtectedRoute><RWDefectRatesPage /></ProtectedRoute>} />
-            <Route path="/rejections/locations" element={<ProtectedRoute><RWLocationsPage /></ProtectedRoute>} />
-            <Route path="/rejections/checkpoints" element={<ProtectedRoute><RWCheckpointsPage /></ProtectedRoute>} />
             <Route path="/quality-score/dashboard" element={<ProtectedRoute><QualityScoreDashboard /></ProtectedRoute>} />
             <Route path="/quality-score/ball-entry" element={<ProtectedRoute><BallQualityEntryPage /></ProtectedRoute>} />
             <Route path="/quality-score/process-entry" element={<ProtectedRoute><ProcessQualityEntryPage /></ProtectedRoute>} />

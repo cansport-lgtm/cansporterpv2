@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rejections &amp; Wastage Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ERP shell as in the live Rejections & Wastages module — slim dark sidebar, content column, one screen per sidebar entry.
+   Screens: Dashboard, New Entry (three tabs on every date), Rework Tracking, Analytics, Masters (the eight v1 screens),
+   plus reference screens: what is removed from v2, the data merge summary, and a phone view of New Entry.
+   MOCKUP ONLY — sample figures for Tue 10 Nov 2026 drawn from the v1 backup's materials, reasons and departments. Nothing is wired. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#2457a6; --accent-fg:#ffffff; --side:#0f172a; --side-fg:#cbd5e1; --side-active:#1e293b;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#b26a00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --info-bg:#e6eefb;
+  --amber:#b26a00; --sub:#f8f9fb;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44;
+  --amber:#f0b454; --sub:#151a21; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220; --side:#0b0f16; --side-fg:#aeb8c6; --side-active:#1a2230;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --info-bg:#1b2a44;
+  --amber:#f0b454; --sub:#151a21; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+.shell{display:flex;min-height:100vh}
+.side{background:var(--side);color:var(--side-fg);width:240px;flex:0 0 240px;padding-block:16px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:12px}
+.side h1{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7c8aa0;margin:14px 0 4px 8px;font-weight:600}
+.side .brand{font-size:15px;font-weight:600;color:#fff;margin:0 8px 6px}
+.side .mod{display:flex;align-items:center;gap:8px;margin:0 8px 10px;color:var(--amber);font-weight:600}
+.side nav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:7px 10px;border-radius:6px;cursor:pointer}
+.side nav button:hover{background:var(--side-active)}
+.side nav button.on{background:var(--side-active);color:#fff;font-weight:500}
+.side nav button:focus-visible{outline:2px solid var(--accent)}
+.side nav button .sa{font-size:10px;color:#7c8aa0;margin-left:6px;letter-spacing:.04em}
+.side nav button.legacy{color:#7c8aa0}
+.main{flex:1;min-width:0;padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.topbar h2{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.crumb{color:var(--muted);font-size:12px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.danger{background:var(--bad-bg);color:var(--bad)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:none}.screen.on{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .s{font-size:12px;color:var(--muted)}
+.tile.warn{border-left:4px solid var(--warn)}.tile.bad{border-left:4px solid var(--bad)}.tile.ok{border-left:4px solid var(--ok)}.tile.info{border-left:4px solid var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.card h3 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+.tabs span{padding:7px 12px;font-size:13px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs span.on{color:var(--fg);border-color:var(--accent);font-weight:500}
+.tabs span b{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:600;background:var(--bg);border-radius:999px;padding:1px 6px;margin-left:6px;color:var(--muted)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.tot td{font-weight:600;border-top:2px solid var(--line);background:var(--sub)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-bad{background:var(--bad-bg);color:var(--bad)}.p-info{background:var(--info-bg);color:var(--accent)}.p-mut{background:var(--bg);color:var(--muted)}
+.muted{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field select,.field textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+.field .ro{background:var(--sub);color:var(--muted)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.form .wide{grid-column:1/-1}
+.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end}
+.note{background:var(--info-bg);border-radius:6px;padding:8px 10px;font-size:13px}
+.note.warn{background:var(--warn-bg);color:var(--warn)}
+.note.ok{background:var(--ok-bg);color:var(--ok)}
+.bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar i.b{background:var(--bad)}.bar i.w{background:var(--warn)}
+.hb{display:grid;grid-template-columns:150px 1fr 70px;gap:8px;align-items:center;font-size:13px;padding:5px 0}
+.hb .n{text-align:right;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.flow{font-family:var(--mono);font-size:12.5px;background:var(--bg);border-radius:6px;padding:10px 12px;overflow-x:auto;white-space:pre}
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:22px;background:var(--panel);padding:14px 14px 18px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.phone .ph{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+.phone .form{grid-template-columns:1fr 1fr}
+.phone .field.wide{grid-column:1/-1}
+.ent{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ent b{font-weight:600}
+.ent .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.act{display:inline-flex;gap:6px}
+.act span{font-size:12px;color:var(--accent);cursor:pointer}
+.act span.d{color:var(--bad)}
+.diff{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start}
+.diff .mid{align-self:center;color:var(--muted);font-size:20px}
+.strike{text-decoration:line-through;color:var(--muted)}
+@media (max-width:760px){
+  .shell{flex-direction:column}
+  .side{width:auto;flex:none;padding-block:10px;padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .side nav{display:flex;flex-wrap:wrap;gap:4px}
+  .side h1{display:none}
+  .side nav button{width:auto;padding:6px 9px;font-size:13px}
+  .kv{grid-template-columns:1fr}
+  .hb{grid-template-columns:110px 1fr 60px}
+  .diff{grid-template-columns:1fr}.diff .mid{display:none}
+}
+@media (prefers-reduced-motion:no-preference){.screen.on{animation:fade .15s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">Cansport ERP</div>
+    <div class="mod">&#9888; Rejections &amp; Wastages</div>
+    <nav id="nav">
+      <button data-s="dash" class="on">Dashboard</button>
+      <h1>Entries</h1>
+      <button data-s="entry">New Entry</button>
+      <button data-s="rework">Rework Tracking</button>
+      <h1>Reports</h1>
+      <button data-s="ana">Analytics</button>
+      <h1>Masters <span class="sa">super admin</span></h1>
+      <button data-s="masters">Reasons · Units · Dispositions · Materials</button>
+      <h1>Reference</h1>
+      <button data-s="legacy">Removed from v2</button>
+      <button data-s="merge">Data merge from v1</button>
+      <button data-s="phone">Phone view · New Entry</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+  <!-- DASHBOARD -->
+  <section class="screen on" id="s-dash">
+    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages</div><h2>Dashboard · November 2026</h2></div>
+      <div class="row"><button class="btn ghost sm">Today</button><button class="btn ghost sm">This week</button><button class="btn sm">This month</button><button class="btn ghost sm">Custom</button></div></div>
+    <div class="tiles">
+      <div class="tile bad"><div class="k">Rejected balls</div><div class="v">412 pcs</div><div class="s">PKR 41,650 · 38 entries</div></div>
+      <div class="tile warn"><div class="k">Leaker balls</div><div class="v">1,296 pcs</div><div class="s">PKR 121,340 · 171 entries</div></div>
+      <div class="tile"><div class="k">Material wastage</div><div class="v">9.25 kg · 3 ltr</div><div class="s">PKR 18,850 · 5 entries</div></div>
+      <div class="tile info"><div class="k">Total cost of loss</div><div class="v">PKR 181,840</div><div class="s">1 – 10 Nov, all departments</div></div>
+      <div class="tile ok"><div class="k">Rework pending</div><div class="v">0</div><div class="s">Nothing marked Rework this month</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>By department <small>pcs, this month</small></h3>
+        <div class="hb"><span>Fancy Final</span><div class="bar"><i style="width:68%"></i></div><span class="n">1,162</span></div>
+        <div class="hb"><span>Jorr</span><div class="bar"><i style="width:29%"></i></div><span class="n">498</span></div>
+        <div class="hb"><span>Local Final</span><div class="bar"><i style="width:2%"></i></div><span class="n">34</span></div>
+        <div class="hb"><span>Packing</span><div class="bar"><i style="width:1%"></i></div><span class="n">14</span></div>
+      </div>
+      <div class="card"><h3>Top reasons <small>pcs, this month</small></h3>
+        <div class="hb"><span>coly masam <span class="pill p-warn">leakage</span></span><div class="bar"><i class="w" style="width:62%"></i></div><span class="n">918</span></div>
+        <div class="hb"><span>Gas girnai ka dhabba <span class="pill p-bad">rejection</span></span><div class="bar"><i class="b" style="width:22%"></i></div><span class="n">331</span></div>
+        <div class="hb"><span>coly blast pakai taiz <span class="pill p-warn">leakage</span></span><div class="bar"><i class="w" style="width:17%"></i></div><span class="n">254</span></div>
+        <div class="hb"><span>Jorr fault <span class="pill p-warn">leakage</span></span><div class="bar"><i class="w" style="width:6%"></i></div><span class="n">88</span></div>
+        <div class="hb"><span>Solution dhabba <span class="pill p-bad">rejection</span></span><div class="bar"><i class="b" style="width:4%"></i></div><span class="n">61</span></div>
+      </div>
+    </div>
+    <div class="card"><h3>Last 7 days <small>entries keyed per day</small></h3>
+      <div class="tw"><table>
+        <tr><th>Date</th><th class="num">Rejections</th><th class="num">Leakages</th><th class="num">Wastage</th><th class="num">Cost (PKR)</th><th>Keyed by</th></tr>
+        <tr><td>Tue 10 Nov</td><td class="num">4 · 38 pcs</td><td class="num">19 · 142 pcs</td><td class="num">—</td><td class="num">17,310</td><td>QA04 arsalan</td></tr>
+        <tr><td>Mon 9 Nov</td><td class="num">5 · 52 pcs</td><td class="num">22 · 171 pcs</td><td class="num">1 · 2.25 kg</td><td class="num">26,085</td><td>QA04 arsalan</td></tr>
+        <tr><td>Sat 7 Nov</td><td class="num">3 · 29 pcs</td><td class="num">17 · 118 pcs</td><td class="num">—</td><td class="num">14,420</td><td>QA04 arsalan</td></tr>
+        <tr><td>Fri 6 Nov</td><td class="num">6 · 61 pcs</td><td class="num">20 · 160 pcs</td><td class="num">1 · 3 ltr</td><td class="num">23,675</td><td>QA04 arsalan · QA03</td></tr>
+        <tr><td>Thu 5 Nov</td><td class="num">4 · 40 pcs</td><td class="num">18 · 133 pcs</td><td class="num">—</td><td class="num">16,990</td><td>QA04 arsalan</td></tr>
+        <tr><td>Wed 4 Nov</td><td class="num">2 · 21 pcs</td><td class="num">16 · 121 pcs</td><td class="num">—</td><td class="num">14,205</td><td>QA04 arsalan</td></tr>
+        <tr><td>Tue 3 Nov</td><td class="num">5 · 47 pcs</td><td class="num">21 · 155 pcs</td><td class="num">1 · 4 kg</td><td class="num">24,860</td><td>QA04 arsalan</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- NEW ENTRY -->
+  <section class="screen" id="s-entry">
+    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages · Entries</div><h2>New Entry</h2></div>
+      <div class="row"><span class="pill p-ok">All three tabs on every date</span></div></div>
+
+    <div class="card">
+      <div class="ctx">
+        <div class="field"><label>Entry date</label><input type="date" value="2026-11-10"></div>
+        <div class="field"><label>Department</label>
+          <select><option selected>Fancy Final</option><option>Jorr</option><option>Packing</option><option>Press</option><option>Quality Department</option><option>Store department</option></select></div>
+        <div class="field"><label>Shift</label><select><option selected>Day</option><option>Night</option></select></div>
+        <div class="field"><label>Show entries for</label><select><option selected>This day</option><option>This week</option><option>Month…</option><option>Custom range</option></select></div>
+      </div>
+    </div>
+
+    <div class="tabs"><span class="on">Rejections<b>4</b></span><span>Leakages<b>19</b></span><span>Wastages<b>0</b></span></div>
+
+    <div class="card">
+      <h3>Log a rejection <small>Fancy Final · Tue 10 Nov · Day</small></h3>
+      <div class="form">
+        <div class="field"><label>Material (ball) *</label>
+          <select><option>FF-02 · FINAL VMS 72 YELLOW</option><option selected>FF07 · FINAL T70 YELLOW</option><option>FF09 · FINAL KB72 GOLDEN</option><option>FF03 · FINAL T72 PEACH</option><option>FF08 · FINAL KB70 YELLOW</option><option>FF06 · FINAL FB GOLDEN</option><option>FF10 · FINAL H70 SHINE</option><option>FF11 · FINAL T70 YELLOW</option></select></div>
+        <div class="field"><label>Rejected qty *</label><input type="number" value="12"></div>
+        <div class="field"><label>Unit</label><select><option selected>pcs</option><option>dozen</option><option>kg</option><option>gram</option><option>ltr</option></select></div>
+        <div class="field"><label>Unit cost <span class="muted">(from Materials master)</span></label><input class="ro" value="100.00" readonly></div>
+        <div class="field"><label>Total cost</label><input class="ro" value="1,200.00" readonly></div>
+        <div class="field"><label>Reason *</label><select><option>— select —</option><option selected>Gas girnai ka dhabba</option><option>Solution dhabba</option><option>dori crack</option><option>Katchi dori issue</option></select></div>
+        <div class="field"><label>Disposition</label><select><option selected>Scrap · ضائع</option><option>Rework · دوبارہ کام</option><option>Use-as-is</option><option>Return to Supplier</option><option>Quarantine</option></select></div>
+        <div class="field"><label>Process <span class="muted">(optional)</span></label><select><option selected>— none —</option><option>kapra pasting</option><option>local kapra pasting</option></select></div>
+        <div class="field wide"><label>Remarks</label><textarea rows="2" placeholder="Optional note in Urdu or English"></textarea></div>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:space-between">
+        <span class="muted" style="font-size:12px">Unit cost is a snapshot: changing the master later does not restate this row.</span>
+        <button class="btn">+ Add rejection</button>
+      </div>
+    </div>
+
+    <div class="card"><h3>Rejections · Tue 10 Nov 2026 <small>Fancy Final · 4 entries · 38 pcs · PKR 3,890</small></h3>
+      <div class="tw"><table>
+        <tr><th>Time</th><th>Material</th><th class="num">Qty</th><th>Reason</th><th>Disposition</th><th class="num">Unit cost</th><th class="num">Total</th><th>Remarks</th><th>By</th><th></th></tr>
+        <tr><td class="mono">13:42</td><td>FINAL VMS 72 YELLOW</td><td class="num">10 pcs</td><td>Gas girnai ka dhabba</td><td><span class="pill p-mut">Scrap</span></td><td class="num">125</td><td class="num">1,250</td><td class="muted">—</td><td>QA04</td><td><span class="act"><span>Edit</span><span class="d">Delete</span></span></td></tr>
+        <tr><td class="mono">13:40</td><td>FINAL KB72 GOLDEN</td><td class="num">8 pcs</td><td>Solution dhabba</td><td><span class="pill p-mut">Scrap</span></td><td class="num">80</td><td class="num">640</td><td class="muted">—</td><td>QA04</td><td><span class="act"><span>Edit</span><span class="d">Delete</span></span></td></tr>
+        <tr><td class="mono">11:05</td><td>FINAL T70 YELLOW</td><td class="num">14 pcs</td><td>Gas girnai ka dhabba</td><td><span class="pill p-mut">Scrap</span></td><td class="num">100</td><td class="num">1,400</td><td>old mall</td><td>QA04</td><td><span class="act"><span>Edit</span><span class="d">Delete</span></span></td></tr>
+        <tr><td class="mono">09:18</td><td>FINAL T72 PEACH</td><td class="num">6 pcs</td><td>dori crack</td><td><span class="pill p-info">Rework</span></td><td class="num">100</td><td class="num">600</td><td class="muted">—</td><td>QA04</td><td><span class="act"><span>Edit</span><span class="d">Delete</span></span></td></tr>
+        <tr class="tot"><td colspan="2">Total</td><td class="num">38 pcs</td><td colspan="3"></td><td class="num">3,890</td><td colspan="3"></td></tr>
+      </table></div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">Edit and Delete on a saved row: own rows for the keyer, every row for super admin (as today).</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h3>Leakages tab <small>same form, different fields</small></h3>
+        <div class="kv">
+          <dt>Material</dt><dd>Jorr balls (JORR VM72, JORR KB 72…) or Final balls, from the Materials master</dd>
+          <dt>Qty / unit</dt><dd>Leaked qty, default <span class="mono">pcs</span></dd>
+          <dt>Reason</dt><dd>Leakage reasons only: coly masam, coly blast pakai taiz, Jorr fault, Kacha jorr, hardness issue, Ghisai fault, COLY CRACKNESS</dd>
+          <dt>Cost</dt><dd>Auto from master, snapshot on the row</dd>
+          <dt>Disposition</dt><dd>Optional, defaults blank (v1 left it blank on 99.9% of rows)</dd>
+        </div>
+      </div>
+      <div class="card"><h3>Wastages tab <small>materials, not balls</small></h3>
+        <div class="kv">
+          <dt>Material</dt><dd>MT01 solvent (ltr), K01 Fancy kapra (kg), K02 Kapra local (kg), WASTE 01 / 02 compound (kg), LC01 Lacha B grade</dd>
+          <dt>Qty / unit</dt><dd>Wasted qty, default <span class="mono">kg</span>; decimals allowed (2.25 kg)</dd>
+          <dt>Reason</dt><dd>Wastage reasons: solution pak gaya tha, compound pak gaya</dd>
+          <dt>Cost</dt><dd>Auto from master (e.g. kapra 2,000 / kg)</dd>
+        </div>
+      </div>
+    </div>
+    <div class="note">Change from today's live screen: the <span class="mono">rw_ball_cutover</span> check that hides Rejections and Leakages from 1 Sep 2026 is removed, so all three tabs show on every date. The department list is unchanged; v1 uses the same six eligible departments.</div>
+  </section>
+
+  <!-- REWORK -->
+  <section class="screen" id="s-rework">
+    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages · Entries</div><h2>Rework Tracking</h2></div>
+      <div class="row"><button class="btn sm">Pending</button><button class="btn ghost sm">In progress</button><button class="btn ghost sm">Completed</button><button class="btn ghost sm">All</button></div></div>
+    <div class="card">
+      <div class="tw"><table>
+        <tr><th>Date</th><th>Type</th><th>Department</th><th>Material</th><th class="num">Rejected</th><th class="num">Reworked</th><th>Status</th><th></th></tr>
+        <tr><td>10 Nov</td><td><span class="pill p-bad">rejection</span></td><td>Fancy Final</td><td>FINAL T72 PEACH</td><td class="num">6</td><td class="num"><input value="0" style="width:60px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)"></td><td><span class="pill p-warn">pending</span></td><td><span class="act"><span>Start</span><span>Complete</span></span></td></tr>
+        <tr><td>6 Nov</td><td><span class="pill p-bad">rejection</span></td><td>Fancy Final</td><td>FINAL KB72 GOLDEN</td><td class="num">20</td><td class="num"><input value="20" style="width:60px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)"></td><td><span class="pill p-info">in progress</span></td><td><span class="act"><span>Complete</span></span></td></tr>
+      </table></div>
+    </div>
+    <div class="note">Unchanged from v1: this screen lists rejections whose disposition is <em>Rework</em>. v1 used it once in three months.</div>
+  </section>
+
+  <!-- ANALYTICS -->
+  <section class="screen" id="s-ana">
+    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages · Reports</div><h2>Analytics · 1 Jun – 10 Nov 2026</h2></div>
+      <div class="row"><div class="field"><label>Department</label><select><option>All</option><option>Fancy Final</option><option>Jorr</option></select></div><button class="btn ghost sm">Export CSV</button></div></div>
+    <div class="tiles">
+      <div class="tile bad"><div class="k">Rejections</div><div class="v">7,912 pcs</div><div class="s">1,180 entries</div></div>
+      <div class="tile warn"><div class="k">Leakages</div><div class="v">24,365 pcs</div><div class="s">4,071 entries</div></div>
+      <div class="tile"><div class="k">Wastage</div><div class="v">61.5 kg · 14 ltr</div><div class="s">41 entries</div></div>
+      <div class="tile info"><div class="k">Cost of loss</div><div class="v">PKR 3.21 M</div><div class="s">incl. 765 merged v1 rows</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Rejections by material <small>pcs</small></h3>
+        <div class="hb"><span>FINAL VMS 72 YELLOW</span><div class="bar"><i class="b" style="width:100%"></i></div><span class="n">1,604</span></div>
+        <div class="hb"><span>FINAL T70 YELLOW</span><div class="bar"><i class="b" style="width:91%"></i></div><span class="n">1,452</span></div>
+        <div class="hb"><span>FINAL KB72 GOLDEN</span><div class="bar"><i class="b" style="width:80%"></i></div><span class="n">1,281</span></div>
+        <div class="hb"><span>FINAL T72 PEACH</span><div class="bar"><i class="b" style="width:72%"></i></div><span class="n">1,148</span></div>
+        <div class="hb"><span>FINAL KB70 YELLOW</span><div class="bar"><i class="b" style="width:45%"></i></div><span class="n">726</span></div>
+        <div class="hb"><span>FINAL FB GOLDEN</span><div class="bar"><i class="b" style="width:31%"></i></div><span class="n">502</span></div>
+      </div>
+      <div class="card"><h3>Leakages by material <small>pcs</small></h3>
+        <div class="hb"><span>JORR VM72</span><div class="bar"><i class="w" style="width:100%"></i></div><span class="n">6,210</span></div>
+        <div class="hb"><span>FINAL VMS 72 YELLOW</span><div class="bar"><i class="w" style="width:74%"></i></div><span class="n">4,588</span></div>
+        <div class="hb"><span>JORR KB 72</span><div class="bar"><i class="w" style="width:58%"></i></div><span class="n">3,617</span></div>
+        <div class="hb"><span>FINAL T70 YELLOW</span><div class="bar"><i class="w" style="width:51%"></i></div><span class="n">3,190</span></div>
+        <div class="hb"><span>JORR T72</span><div class="bar"><i class="w" style="width:40%"></i></div><span class="n">2,460</span></div>
+        <div class="hb"><span>JORR H70</span><div class="bar"><i class="w" style="width:27%"></i></div><span class="n">1,655</span></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Reasons <small>share of pcs, all types</small></h3>
+        <div class="tw"><table>
+          <tr><th>Reason</th><th>Type</th><th class="num">Entries</th><th class="num">Pcs</th><th class="num">Cost (PKR)</th></tr>
+          <tr><td>coly masam</td><td><span class="pill p-warn">leakage</span></td><td class="num">2,870</td><td class="num">17,120</td><td class="num">1,586,400</td></tr>
+          <tr><td>Gas girnai ka dhabba</td><td><span class="pill p-bad">rejection</span></td><td class="num">958</td><td class="num">6,410</td><td class="num">662,900</td></tr>
+          <tr><td>coly blast pakai taiz</td><td class="num"><span class="pill p-warn">leakage</span></td><td class="num">778</td><td class="num">4,690</td><td class="num">438,100</td></tr>
+          <tr><td>Jorr fault</td><td><span class="pill p-warn">leakage</span></td><td class="num">181</td><td class="num">1,312</td><td class="num">118,080</td></tr>
+          <tr><td>Solution dhabba</td><td><span class="pill p-bad">rejection</span></td><td class="num">116</td><td class="num">902</td><td class="num">95,610</td></tr>
+          <tr><td class="muted">No reason given</td><td></td><td class="num">124</td><td class="num">840</td><td class="num">79,200</td></tr>
+        </table></div>
+      </div>
+      <div class="card"><h3>Month by month <small>cost of loss, PKR</small></h3>
+        <div class="hb"><span>Jun 2026</span><div class="bar"><i style="width:45%"></i></div><span class="n">389 k</span></div>
+        <div class="hb"><span>Jul 2026</span><div class="bar"><i style="width:100%"></i></div><span class="n">862 k</span></div>
+        <div class="hb"><span>Aug 2026</span><div class="bar"><i style="width:92%"></i></div><span class="n">794 k</span></div>
+        <div class="hb"><span>Sep 2026</span><div class="bar"><i style="width:70%"></i></div><span class="n">603 k</span></div>
+        <div class="hb"><span>Oct 2026</span><div class="bar"><i style="width:48%"></i></div><span class="n">412 k</span></div>
+        <div class="hb"><span>Nov 2026 <span class="muted">(to date)</span></span><div class="bar"><i style="width:21%"></i></div><span class="n">182 k</span></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Sep and Oct only fill in after the cutover resync (Phase 3). Until then they show the v2-only rows.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MASTERS -->
+  <section class="screen" id="s-masters">
+    <div class="topbar"><div><div class="crumb">Rejections &amp; Wastages · Masters</div><h2>Masters</h2></div><span class="pill p-info">super admin</span></div>
+    <div class="tabs"><span class="on">Materials<b>29</b></span><span>Reasons<b>13</b></span><span>Units<b>5</b></span><span>Dispositions<b>5</b></span></div>
+    <div class="card"><h3>Materials <small>cost per unit, auto-filled on entry</small>
+      <button class="btn sm" style="float:right">+ Add material</button></h3>
+      <div class="tw"><table>
+        <tr><th>Code</th><th>Material (hp_materials)</th><th>Unit</th><th class="num">Unit cost</th><th>Used for</th><th>Active</th><th></th></tr>
+        <tr><td class="mono">FF-02</td><td>FINAL VMS 72 YELLOW</td><td>pcs</td><td class="num">125</td><td>Rejection · Leakage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">FF07</td><td>FINAL T70 YELLOW</td><td>pcs</td><td class="num">100</td><td>Rejection · Leakage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">FF09</td><td>FINAL KB72 GOLDEN</td><td>pcs</td><td class="num">80</td><td>Rejection · Leakage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">J01</td><td>JORR VM72</td><td>pcs</td><td class="num">90</td><td>Leakage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">J08</td><td>JORR KB 72</td><td>pcs</td><td class="num">80</td><td>Leakage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">MT01</td><td>solvent</td><td>ltr</td><td class="num">450</td><td>Wastage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">K01</td><td>Fancy kapra cutting</td><td>kg</td><td class="num">2,000</td><td>Wastage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="mono">WASTE 01</td><td>Coly compound fancy paka hua</td><td>kg</td><td class="num">900</td><td>Wastage</td><td><span class="pill p-ok">yes</span></td><td><span class="act"><span>Edit</span></span></td></tr>
+        <tr><td class="muted" colspan="7">… 21 more, unchanged from v1</td></tr>
+      </table></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Reasons <small>typed, shown only in their tab</small></h3>
+        <div class="tw"><table>
+          <tr><th>Reason</th><th>Type</th><th>Active</th></tr>
+          <tr><td>Gas girnai ka dhabba</td><td><span class="pill p-bad">rejection</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>Solution dhabba</td><td><span class="pill p-bad">rejection</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>dori crack</td><td><span class="pill p-bad">rejection</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>Katchi dori issue</td><td><span class="pill p-bad">rejection</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>coly masam</td><td><span class="pill p-warn">leakage</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>coly blast pakai taiz</td><td><span class="pill p-warn">leakage</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>COLY CRACKNESS</td><td><span class="pill p-warn">leakage</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td>solution pak gaya tha</td><td><span class="pill p-mut">wastage</span></td><td><span class="pill p-ok">yes</span></td></tr>
+          <tr><td class="strike">Test</td><td><span class="pill p-bad">rejection</span></td><td><span class="pill p-bad">remove (v2 test row)</span></td></tr>
+        </table></div>
+      </div>
+      <div class="card"><h3>Units &amp; Dispositions</h3>
+        <div class="tw"><table>
+          <tr><th>Unit</th><th>Name</th><th>Status</th></tr>
+          <tr><td class="mono">pcs</td><td>Pieces</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">dozen</td><td>Dozen</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">kg</td><td>Kilogram</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">gram</td><td>Gram</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">ltr</td><td>Litre</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono strike">TEST</td><td class="strike">Test</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="mono strike">UNIT</td><td class="strike">Unit</td><td><span class="pill p-bad">remove</span></td></tr>
+        </table></div>
+        <p style="margin:10px 0 0;font-size:13px">Dispositions, back to the v1 five with Urdu names: Scrap, Rework, Use-as-is, Return to Supplier, Quarantine. <span class="strike">Quarantine to store</span> is renamed back; <span class="strike">Down grade conversion</span> is removed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- REMOVED -->
+  <section class="screen" id="s-legacy">
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>Removed from v2</h2></div><span class="pill p-bad">archived, then dropped</span></div>
+    <div class="note warn">The module goes back to the seven v1 tables and eight v1 screens. Everything v2 added from 30 Aug is removed. The added tables are copied into an <span class="mono">rw_archive</span> schema first, so their rows stay readable by SQL.</div>
+    <div class="tiles" style="margin-top:14px">
+      <div class="tile ok"><div class="k">Tables kept</div><div class="v">7</div><div class="s">identical to v1, no change</div></div>
+      <div class="tile bad"><div class="k">Tables dropped</div><div class="v">9</div><div class="s">archived first</div></div>
+      <div class="tile bad"><div class="k">Screens removed</div><div class="v">9</div><div class="s">8 v1 screens remain</div></div>
+      <div class="tile"><div class="k">Rows archived</div><div class="v">96</div><div class="s">48 checker · 47 ledger · 1 downgrade</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Tables</h3>
+        <div class="tw"><table>
+          <tr><th>Table</th><th>Fate</th></tr>
+          <tr><td class="mono">rw_rejections · rw_leakages · rw_wastages</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono">rw_reasons · rw_materials · rw_units · rw_dispositions</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="mono strike">rw_checker_entries · rw_checker_entry_intervals</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_ball_ledger · rw_ball_stock</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_locations · rw_defect_grades · rw_department_defect_grades · rw_defect_rates</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_downgrades</td><td><span class="pill p-bad">archive + drop</span></td></tr>
+          <tr><td class="mono strike">rw_ball_cutover() and ~10 other functions, triggers, views</td><td><span class="pill p-bad">drop</span></td></tr>
+        </table></div>
+      </div>
+      <div class="card"><h3>Screens</h3>
+        <div class="tw"><table>
+          <tr><th>Screen</th><th>Fate</th></tr>
+          <tr><td>Dashboard · New Entry · Rework Tracking · Analytics</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td>Reasons · Units · Dispositions · Materials masters</td><td><span class="pill p-ok">keep</span></td></tr>
+          <tr><td class="strike">Daily Checker Entry</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Floor Bin Stock · Ball Ledger</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Downgrade Requests · Downgrade Approvals</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Cheap Ball Rates · Defect Grades</td><td><span class="pill p-bad">remove</span></td></tr>
+          <tr><td class="strike">Department Checkpoints · R&amp;W Locations</td><td><span class="pill p-bad">remove</span></td></tr>
+        </table></div>
+      </div>
+    </div>
+    <div class="card"><h3>Sidebar before and after</h3>
+      <div class="diff">
+        <div><div class="muted" style="font-size:12px;margin-bottom:6px">Today (live)</div>
+          <div class="flow">Dashboard
+Entries
+  Daily Checker Entry  ◀ highlighted
+  New Entry            (Wastages tab only after 1 Sep)
+  Rework Tracking
+Downgrades
+  Downgrade Requests
+  Downgrade Approvals
+Ball Inventory
+  Floor Bin Stock
+  Ball Ledger
+  Analytics
+Masters
+  Cheap Ball Rates
+  Defect Grades · Checkpoints · Locations
+  Reasons · Units · Dispositions · Materials</div></div>
+        <div class="mid">→</div>
+        <div><div class="muted" style="font-size:12px;margin-bottom:6px">After (same as v1)</div>
+          <div class="flow">Dashboard
+Entries
+  New Entry            ◀ three tabs, every date
+  Rework Tracking
+Reports
+  Analytics
+Masters (super admin)
+  Reasons Master
+  Units Master
+  Dispositions Master
+  Materials Master</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MERGE -->
+  <section class="screen" id="s-merge">
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>Data merge from the v1 backup</h2></div><span class="pill p-info">one-off script · id-keyed · idempotent</span></div>
+    <div class="tiles">
+      <div class="tile ok"><div class="k">Rejections</div><div class="v">+171</div><div class="s">171 new rows · 0 deleted</div></div>
+      <div class="tile ok"><div class="k">Leakages</div><div class="v">+589</div><div class="s">589 new rows · 0 deleted</div></div>
+      <div class="tile ok"><div class="k">Wastages</div><div class="v">+5</div><div class="s">live keeps its own 5 rows from 3 Sep</div></div>
+      <div class="tile warn"><div class="k">Not in this file</div><div class="v">16 Sep →</div><div class="s">needs a fresh v1 export at cutover</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>What the script does</h3>
+        <div class="flow">1. staging  ← csv/rw_rejections, rw_leakages, rw_wastages
+2. pre-check  every department / material / reason /
+              disposition / user id exists in live   (abort if not)
+3. masters    upsert rw_reasons, rw_materials, rw_units,
+              rw_dispositions by id (names and costs as in v1)
+4. backup     copy any row about to change → rw_archive.merge_backup
+5. upsert     INSERT … ON CONFLICT (id) DO UPDATE
+              WHEN excluded.updated_at &gt; live.updated_at
+6. post-check per-day count + md5(ids) = backup for every day ≤ 15 Sep
+7. rollback   supabase/rollbacks/…_rw_v1_merge_down.sql</div>
+      </div>
+      <div class="card"><h3>Expected totals after merge</h3>
+        <div class="tw"><table>
+          <tr><th>Table</th><th class="num">Live now</th><th class="num">After</th><th class="num">Backup</th><th>Check</th></tr>
+          <tr><td class="mono">rw_rejections</td><td class="num">602</td><td class="num">773</td><td class="num">773</td><td><span class="pill p-ok">match</span></td></tr>
+          <tr><td class="mono">rw_leakages</td><td class="num">2,349</td><td class="num">2,938</td><td class="num">2,938</td><td><span class="pill p-ok">match</span></td></tr>
+          <tr><td class="mono">rw_wastages</td><td class="num">33</td><td class="num">38</td><td class="num">33</td><td><span class="pill p-info">+5 v2-only</span></td></tr>
+          <tr><td class="mono">rw_reasons</td><td class="num">13</td><td class="num">13</td><td class="num">13</td><td><span class="pill p-ok">Test row removed</span></td></tr>
+          <tr><td class="mono">rw_materials</td><td class="num">29</td><td class="num">29</td><td class="num">29</td><td><span class="pill p-ok">match</span></td></tr>
+        </table></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Seeded days that gain rows v1 added later: rejections 31 Jul and 25 Aug; leakages 25 Aug. Live's Test reason is replaced by v1's COLY CRACKNESS.</p>
+      </div>
+    </div>
+    <div class="card"><h3>Timeline</h3>
+      <div class="flow">14 Jun ── v1 R&amp;W module in daily use (QA04 keys ~30 rows a day)
+26–29 Aug ── v2 seeded from v1 (602 / 2,349 / 33 rows)
+30 Aug ── v2 ball-inventory build · cutover 1 Sep hides Rejection + Leakage tabs
+31 Aug – 22 Sep ── 48 checker entries in v2, then nothing
+15 Sep ── this backup taken; floor still keying into v1
+10 Nov ── today · direction confirmed: same tables and screens as v1
+  ▸ Phase 1  frontend back to the 8 v1 screens      (one PR with Phase 2)
+  ▸ Phase 2  archive + drop the 9 added tables      (one migration)
+  ▸ Phase 3  merge this file's 765 rows             (one-off SQL)
+  ▸ Phase 4  cutover day: fresh v1 export, rerun    (same script)</div>
+    </div>
+  </section>
+
+  <!-- PHONE -->
+  <section class="screen" id="s-phone">
+    <div class="topbar"><div><div class="crumb">Reference</div><h2>Phone view · New Entry</h2></div><span class="muted">QA supervisor on the floor</span></div>
+    <div class="phone">
+      <div class="ph"><span>9:41</span><span>Cansport ERP</span><span>●●●</span></div>
+      <div style="font-weight:600;margin-bottom:8px">New Entry</div>
+      <div class="form" style="margin-bottom:10px">
+        <div class="field"><label>Date</label><input type="date" value="2026-11-10"></div>
+        <div class="field"><label>Shift</label><select><option>Day</option></select></div>
+        <div class="field wide"><label>Department</label><select><option>Fancy Final</option></select></div>
+      </div>
+      <div class="tabs"><span class="on">Rejections<b>4</b></span><span>Leakages<b>19</b></span><span>Wastages<b>0</b></span></div>
+      <div class="form">
+        <div class="field wide"><label>Material</label><select><option>FF07 · FINAL T70 YELLOW</option></select></div>
+        <div class="field"><label>Qty</label><input type="number" value="12"></div>
+        <div class="field"><label>Unit</label><select><option>pcs</option></select></div>
+        <div class="field"><label>Unit cost</label><input class="ro" value="100" readonly></div>
+        <div class="field"><label>Total</label><input class="ro" value="1,200" readonly></div>
+        <div class="field wide"><label>Reason</label><select><option>Gas girnai ka dhabba</option></select></div>
+        <div class="field wide"><label>Disposition</label><select><option>Scrap · ضائع</option></select></div>
+        <div class="field wide"><label>Remarks</label><input placeholder="optional"></div>
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px">+ Add rejection</button>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Today · 4 entries · 38 pcs</div>
+      <div class="ent"><div><b>FINAL VMS 72 YELLOW</b><br><span class="muted">Gas girnai ka dhabba · Scrap</span></div><div class="r">10 pcs<br><span class="muted">1,250</span></div></div>
+      <div class="ent"><div><b>FINAL KB72 GOLDEN</b><br><span class="muted">Solution dhabba · Scrap</span></div><div class="r">8 pcs<br><span class="muted">640</span></div></div>
+      <div class="ent"><div><b>FINAL T70 YELLOW</b><br><span class="muted">Gas girnai ka dhabba · old mall</span></div><div class="r">14 pcs<br><span class="muted">1,400</span></div></div>
+      <div class="ent"><div><b>FINAL T72 PEACH</b><br><span class="muted">dori crack · Rework</span></div><div class="r">6 pcs<br><span class="muted">600</span></div></div>
+    </div>
+    <p class="note" style="max-width:390px;margin:14px auto 0">Process is hidden on the phone (never used in v1); it stays available on desktop as an optional field.</p>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var nav=document.getElementById('nav');
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.toggle('on',s.id==='s-'+id);});
+    nav.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.s===id);});
+    try{localStorage.setItem('rw-mock-tab',id);}catch(e){}
+  }
+  nav.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&b.dataset.s){show(b.dataset.s);window.scrollTo(0,0);}});
+  var start=null;
+  var h=(location.hash||'').replace('#','');
+  if(h&&document.getElementById('s-'+h))start=h;
+  if(!start){try{var t=localStorage.getItem('rw-mock-tab');if(t&&document.getElementById('s-'+t))start=t;}catch(e){}}
+  if(start)show(start);
+})();
+</script>
+</html>
