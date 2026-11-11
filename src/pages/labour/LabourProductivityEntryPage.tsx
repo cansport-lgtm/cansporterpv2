@@ -77,6 +77,7 @@ interface ProductivityEntry {
   production_departments?: { id: string; name: string; code: string };
   qa_processes?: { id: string; name: string; code: string };
   created_by_user?: { id: string; full_name: string };
+  approved_by_user?: { id: string; full_name: string } | null;
 }
 
 const LabourProductivityEntryPage = () => {
@@ -355,7 +356,8 @@ const LabourProductivityEntryPage = () => {
           labour_employees(id, full_name, employee_code, category, joining_date, photo_url),
           production_departments(id, name, code),
           qa_processes(id, name, code),
-          created_by_user:app_users!labour_productivity_targets_created_by_fkey(id, full_name)
+          created_by_user:app_users!labour_productivity_targets_created_by_fkey(id, full_name),
+          approved_by_user:app_users!labour_productivity_targets_approved_by_fkey(id, full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -1399,6 +1401,15 @@ const LabourProductivityEntryPage = () => {
       ),
     },
     {
+      key: "approved_by",
+      header: "Approved By",
+      render: (item) => (
+        <span className="text-sm text-muted-foreground">
+          {item.status === "approved" ? item.approved_by_user?.full_name || "-" : "-"}
+        </span>
+      ),
+    },
+    {
       key: "actions",
       header: "Actions",
       render: (item) => {
@@ -1568,6 +1579,12 @@ const LabourProductivityEntryPage = () => {
           {item.created_by_user?.full_name && (
             <p className="text-xs text-muted-foreground mb-3">
               Entry by: {item.created_by_user.full_name}
+            </p>
+          )}
+
+          {item.status === "approved" && item.approved_by_user?.full_name && (
+            <p className="text-xs text-muted-foreground mb-3">
+              Approved by: {item.approved_by_user.full_name}
             </p>
           )}
 
