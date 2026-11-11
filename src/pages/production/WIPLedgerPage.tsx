@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { gpDb } from "@/lib/gatePass";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, ArrowRight, Printer } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { BookOpen, ArrowRight, Printer, SlidersHorizontal, Trash2, Loader2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns";
 
 interface Dept {
@@ -36,6 +40,29 @@ interface Level {
   depts: Dept[];
   label: string;
 }
+
+// Super-admin stock correction, stored in wip_ledger_adjustments. Anchored to a
+// department so it follows its level if the WIP sequence is renumbered.
+interface Adjustment {
+  id: string;
+  txn_date: string;
+  department_id: string;
+  quantity: number;   // bags; + adds stock, − removes it
+  reason: string;
+  reference: string | null;
+}
+
+interface LedgerRow {
+  date: string;
+  ref: string;
+  inQty: number;
+  outQty: number;
+  balance: number;
+  isOpening?: boolean;
+  adjustmentId?: string;
+}
+
+type AdjMode = "add" | "remove" | "count";
 
 const fmtNum = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
@@ -65,6 +92,21 @@ export default function WIPLedgerPage() {
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
   const [levelFilter, setLevelFilter] = useState<string>("all");
+
+  const { hasRole } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isSuperAdmin = hasRole("super_admin");
+
+  // Adjustment dialog: which level it is for (by wip_order) and the form.
+  const [adjLevel, setAdjLevel] = useState<number | null>(null);
+  const [adj, setAdj] = useState({
+    date: format(today, "yyyy-MM-dd"),
+    mode: "add" as AdjMode,
+    quantity: "",
+    reason: "",
+    reference: "",
+  });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["wip-ledger-depts"],
@@ -206,6 +248,22 @@ export default function WIPLedgerPage() {
       ).catch(() => []),
   });
 
+  // Super-admin adjustments, all dates: the ones before fromDate feed the
+  // opening balance. The table is missing until its migration is applied;
+  // treat that as none.
+  const { data: adjustments = [] } = useQuery({
+    queryKey: ["wip-ledger-adjustments"],
+    queryFn: () =>
+      fetchAllRows<Adjustment>((from, to) =>
+        (supabase as any)
+          .from("wip_ledger_adjustments")
+          .select("id, txn_date, department_id, quantity, reason, reference")
+          .order("created_at")
+          .order("id")
+          .range(from, to)
+      ).catch(() => []),
+  });
+
   // Build ordered levels (group departments by wip_order)
   const levels: Level[] = useMemo(() => {
     const deptMap = new Map(departments.map(d => [d.id, d]));
@@ -313,6 +371,21 @@ export default function WIPLedgerPage() {
     } catch { return []; }
   }, [fromDate, toDate]);
 
+  // Adjustments per level (wip_order), in posting order.
+  const adjByLevel = useMemo(() => {
+    const deptLevel = new Map<string, number>();
+    for (const l of levels) for (const d of l.depts) deptLevel.set(d.id, l.order);
+    const m = new Map<number, Adjustment[]>();
+    for (const a of adjustments) {
+      const order = deptLevel.get(a.department_id);
+      if (order === undefined) continue;
+      const arr = m.get(order) || [];
+      arr.push(a);
+      m.set(order, arr);
+    }
+    return m;
+  }, [adjustments, levels]);
+
   const buildLedger = (levelIdx: number) => {
     const lvl = levels[levelIdx];
     const prev = levelIdx > 0 ? levels[levelIdx - 1] : null;
@@ -323,10 +396,14 @@ export default function WIPLedgerPage() {
     const openingIn = prev ? sumLevelOpening(prev) : 0;
     // At the final level, returns add FG back, so they net off opening sales-out.
     const openingOut = isLast ? (openingSalesTotal - openingReturnsTotal + openingSamplesTotal) : sumLevelOpening(lvl);
-    const openingBalance = openingIn - openingOut;
+    const levelAdjs = adjByLevel.get(lvl.order) || [];
+    const openingAdj = levelAdjs
+      .filter(a => a.txn_date < fromDate)
+      .reduce((s, a) => s + Number(a.quantity || 0), 0);
+    const openingBalance = openingIn - openingOut + openingAdj;
 
     let balance = openingBalance;
-    const rows: Array<{ date: string; ref: string; inQty: number; outQty: number; balance: number; isOpening?: boolean }> = [];
+    const rows: LedgerRow[] = [];
     rows.push({ date: fromDate, ref: "Opening Balance", inQty: 0, outQty: 0, balance: openingBalance, isOpening: true });
 
     for (const d of dates) {
@@ -334,7 +411,8 @@ export default function WIPLedgerPage() {
       const retIn = isLast ? (returnsMap.get(d) || 0) : 0;   // FG returned by customers
       const outQty = isLast ? (salesMap.get(d) || 0) : sumLevel(lvl, d);
       const sampleOut = isLast ? (samplesMap.get(d) || 0) : 0;   // FG samples out on a gate pass
-      if (inQty === 0 && outQty === 0 && retIn === 0 && sampleOut === 0) continue;
+      const dayAdjs = levelAdjs.filter(a => a.txn_date === d);
+      if (inQty === 0 && outQty === 0 && retIn === 0 && sampleOut === 0 && dayAdjs.length === 0) continue;
       if (inQty > 0) {
         balance += inQty;
         rows.push({ date: d, ref: prev ? `From ${prev.label}` : "Input", inQty, outQty: 0, balance });
@@ -351,11 +429,113 @@ export default function WIPLedgerPage() {
         balance -= sampleOut;
         rows.push({ date: d, ref: "Samples (gate pass)", inQty: 0, outQty: sampleOut, balance });
       }
+      // Adjustments last, so a "set to physical count" lands on the day's closing.
+      for (const a of dayAdjs) {
+        const q = Number(a.quantity || 0);
+        balance += q;
+        rows.push({
+          date: d,
+          ref: `Adjustment — ${a.reason}${a.reference ? ` (Ref: ${a.reference})` : ""}`,
+          inQty: q > 0 ? q : 0,
+          outQty: q < 0 ? -q : 0,
+          balance,
+          adjustmentId: a.id,
+        });
+      }
     }
     const totalIn = rows.reduce((s, r) => s + r.inQty, 0);
     const totalOut = rows.reduce((s, r) => s + r.outQty, 0);
     return { rows, totalIn, totalOut, closing: balance, openingBalance };
   };
+
+  // --- Adjustment dialog ------------------------------------------------------
+  const adjLevelIdx = adjLevel === null ? -1 : levels.findIndex(l => l.order === adjLevel);
+  const adjLevelObj = adjLevelIdx >= 0 ? levels[adjLevelIdx] : null;
+  const adjDateInRange = !!adj.date && adj.date >= fromDate && adj.date <= toDate;
+
+  // Book balance at the end of the adjustment date. Only known when the date
+  // is inside the period on screen, which is all the page has loaded.
+  const adjBookBalance = (() => {
+    if (adjLevelIdx < 0 || !adjDateInRange) return null;
+    const { rows } = buildLedger(adjLevelIdx);
+    let bal = rows[0].balance;
+    for (const r of rows) if (r.date <= adj.date) bal = r.balance;
+    return bal;
+  })();
+
+  const adjQtyNum = Number(adj.quantity);
+  const adjQtyValid = adj.quantity.trim() !== "" && Number.isFinite(adjQtyNum);
+  const adjSigned = !adjQtyValid
+    ? null
+    : adj.mode === "add" ? adjQtyNum
+    : adj.mode === "remove" ? -adjQtyNum
+    : adjBookBalance === null ? null
+    : Math.round((adjQtyNum - adjBookBalance) * 100) / 100;
+  const adjError =
+    !adj.date ? "Pick a date."
+    : !adjQtyValid ? null
+    : adj.mode !== "count" && adjQtyNum <= 0 ? "Quantity must be greater than zero."
+    : adj.mode === "count" && !adjDateInRange ? "To set a physical count, pick a date inside the period shown on the ledger."
+    : adjSigned === 0 ? "The book balance already matches this count."
+    : null;
+  const canPostAdj = !!adjLevelObj && adjSigned !== null && adjSigned !== 0 && !adjError && adj.reason.trim() !== "";
+
+  const openAdjust = (order: number) => {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    setAdj({
+      date: todayStr >= fromDate && todayStr <= toDate ? todayStr : toDate,
+      mode: "add", quantity: "", reason: "", reference: "",
+    });
+    setAdjLevel(order);
+  };
+
+  const addAdjustment = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any).rpc("wip_ledger_add_adjustment", {
+        p_date: adj.date,
+        p_department: adjLevelObj!.depts[0].id,
+        p_quantity: adjSigned,
+        p_reason: adj.reason.trim(),
+        p_reference: adj.reference.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Adjustment posted" });
+      setAdjLevel(null);
+      queryClient.invalidateQueries({ queryKey: ["wip-ledger-adjustments"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteAdjustment = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).rpc("wip_ledger_delete_adjustment", { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Adjustment deleted" });
+      queryClient.invalidateQueries({ queryKey: ["wip-ledger-adjustments"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const confirmDelete = (id: string) => {
+    if (window.confirm("Delete this adjustment? The level balance will change from its date onward.")) {
+      deleteAdjustment.mutate(id);
+    }
+  };
+
+  const deleteButton = (id?: string) =>
+    isSuperAdmin && id ? (
+      <Button
+        variant="ghost" size="icon" className="no-print h-7 w-7 text-destructive"
+        title="Delete adjustment" disabled={deleteAdjustment.isPending}
+        onClick={() => confirmDelete(id)}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    ) : null;
 
   return (
     <ERPLayout>
@@ -447,11 +627,16 @@ export default function WIPLedgerPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between flex-wrap gap-2">
                   <span>L{lvl.order}. {lvl.label}</span>
-                  <div className="flex gap-4 text-sm font-normal">
+                  <div className="flex items-center flex-wrap gap-4 text-sm font-normal">
                     <span className="text-muted-foreground">Opening: <span className="font-semibold">{fmtNum(openingBalance)}</span></span>
                     <span className="text-muted-foreground">In: <span className="font-semibold text-green-500">{fmtNum(totalIn)}</span></span>
                     <span className="text-muted-foreground">Out: <span className="font-semibold text-blue-500">{fmtNum(totalOut)}</span></span>
                     <span className="text-muted-foreground">Closing: <span className="font-semibold">{fmtNum(closing)}</span></span>
+                    {isSuperAdmin && (
+                      <Button variant="outline" size="sm" className="no-print" onClick={() => openAdjust(lvl.order)}>
+                        <SlidersHorizontal className="h-4 w-4 mr-2" /> Adjustment
+                      </Button>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -474,7 +659,12 @@ export default function WIPLedgerPage() {
                       ) : rows.map((r, i) => (
                         <TableRow key={i} className={r.isOpening ? "bg-muted/40 font-medium" : ""}>
                           <TableCell>{format(parseISO(r.date), "dd MMM yyyy")}</TableCell>
-                          <TableCell>{r.ref}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{r.ref}</span>
+                              {deleteButton(r.adjustmentId)}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-right text-green-500">{r.inQty ? fmtNum(r.inQty) : "—"}</TableCell>
                           <TableCell className="text-right text-blue-500">{r.outQty ? fmtNum(r.outQty) : "—"}</TableCell>
                           <TableCell className="text-right font-medium">{fmtNum(r.balance)}</TableCell>
@@ -491,10 +681,11 @@ export default function WIPLedgerPage() {
                   ) : rows.map((r, i) => (
                     <div key={i} className={`border rounded-lg p-3 flex items-center justify-between gap-2 ${r.isOpening ? "bg-muted/40 font-medium" : "bg-card"}`}>
                       <div className="min-w-0">
-                        <div className="text-sm truncate">{r.ref}</div>
+                        <div className={`text-sm ${r.adjustmentId ? "break-words" : "truncate"}`}>{r.ref}</div>
                         <div className="text-xs text-muted-foreground">{format(parseISO(r.date), "dd MMM yyyy")}</div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 text-xs text-right">
+                        {deleteButton(r.adjustmentId)}
                         <div>
                           <div className="text-[10px] text-muted-foreground">In</div>
                           <div className="text-green-500">{r.inQty ? fmtNum(r.inQty) : "—"}</div>
@@ -516,6 +707,74 @@ export default function WIPLedgerPage() {
           );
         })}
       </div>
+
+      <Dialog open={adjLevel !== null} onOpenChange={(o) => { if (!o) setAdjLevel(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stock adjustment{adjLevelObj ? ` — L${adjLevelObj.order}. ${adjLevelObj.label}` : ""}</DialogTitle>
+            <DialogDescription>
+              Corrects this level's balance from the chosen date onward. Quantities are in bags. Super admin only.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Date</Label>
+                <Input type="date" value={adj.date} onChange={(e) => setAdj(a => ({ ...a, date: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Select value={adj.mode} onValueChange={(v) => setAdj(a => ({ ...a, mode: v as AdjMode }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add">Add stock (+)</SelectItem>
+                    <SelectItem value="remove">Remove stock (−)</SelectItem>
+                    <SelectItem value="count">Set to physical count</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>{adj.mode === "count" ? "Counted balance (bags)" : "Quantity (bags)"}</Label>
+              <Input
+                type="number" step="any" min={adj.mode === "count" ? undefined : 0}
+                value={adj.quantity} onChange={(e) => setAdj(a => ({ ...a, quantity: e.target.value }))}
+              />
+              <div className="text-xs text-muted-foreground">
+                {adjBookBalance === null
+                  ? "Book balance is shown only for dates inside the period on the ledger."
+                  : <>Book balance at end of {format(parseISO(adj.date), "dd MMM yyyy")}: <span className="font-medium">{fmtNum(adjBookBalance)}</span>
+                      {adjSigned !== null && adjSigned !== 0 && !adjError && (
+                        <> → after adjustment ({adjSigned > 0 ? "+" : "−"}{fmtNum(Math.abs(adjSigned))}): <span className="font-medium">{fmtNum(adjBookBalance + adjSigned)}</span></>
+                      )}
+                    </>}
+              </div>
+              {adjError && <div className="text-xs text-destructive">{adjError}</div>}
+            </div>
+            <div className="space-y-1">
+              <Label>Reason <span className="text-destructive">*</span></Label>
+              <Textarea
+                rows={2} value={adj.reason} placeholder="Why is this adjustment needed?"
+                onChange={(e) => setAdj(a => ({ ...a, reason: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Reference (optional)</Label>
+              <Input
+                value={adj.reference} placeholder="e.g. stock count sheet no."
+                onChange={(e) => setAdj(a => ({ ...a, reference: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjLevel(null)}>Cancel</Button>
+            <Button disabled={!canPostAdj || addAdjustment.isPending} onClick={() => addAdjustment.mutate()}>
+              {addAdjustment.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Post adjustment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ERPLayout>
   );
 }
