@@ -20,7 +20,7 @@ export const CONSUMES_FROM: Record<string, LedgerBucket> = {
   FANCY_FINAL: "JORR",
 };
 
-export const CUTOVER_OPTIONS = ["2026-09-01", "2026-10-01"];
+export const CUTOVER_OPTIONS = ["2026-09-01", "2026-10-01", "2026-11-10"];
 
 export const LEDGER_SOURCE: Record<
   string,
