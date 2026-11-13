@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
-import { AlertOctagon, Recycle, Coins, TrendingDown, Droplets, Sigma } from "lucide-react";
+import { AlertOctagon, Recycle, Coins, TrendingDown, Droplets, Sigma, Download } from "lucide-react";
+import { exportRwWorkbook } from "@/lib/rwExport";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, startOfMonth } from "date-fns";
 
@@ -237,6 +238,80 @@ export default function RejectionsAnalyticsPage() {
     return Object.values(map).sort((a, b) => b.cost - a.cost);
   }, [rejections, wastages, leakages, reasonMap]);
 
+  const exportReport = () => {
+    const matRows = (rows: { material: string; qty: number; cost: number }[], qtyLabel: string) =>
+      rows.map((m) => ({ Material: m.material, [qtyLabel]: m.qty, "Cost (Rs.)": m.cost }));
+    const detail = (rows: any[], qtyKey: string, qtyLabel: string) =>
+      [...rows]
+        .sort((a, b) => String(a.entry_date).localeCompare(String(b.entry_date)))
+        .map((r) => ({
+          Date: r.entry_date,
+          Shift: r.shift || "",
+          Department: deptMap[r.department_id] || "",
+          Material: matMap[r.material_id] || "",
+          Reason: reasonMap[r.reason_id] || "",
+          [qtyLabel]: Number(r[qtyKey] || 0),
+          Unit: r.unit || "",
+          "Unit Cost (Rs.)": Number(r.unit_cost || 0),
+          "Total Cost (Rs.)": Number(r.total_cost || 0),
+          ...(qtyKey === "rejected_qty" ? { Disposition: r.disposition || "" } : {}),
+          Remarks: r.remarks || "",
+        }));
+    exportRwWorkbook(`rw-analytics_${fromDate}_to_${toDate}`, [
+      {
+        name: "Summary",
+        rows: [
+          { Metric: "From", Value: fromDate },
+          { Metric: "To", Value: toDate },
+          { Metric: "Department", Value: deptFilter === "all" ? "All" : deptMap[deptFilter] || "" },
+          { Metric: "Rejected Qty", Value: totalRejQty },
+          { Metric: "Rejection Cost (Rs.)", Value: totalRejCost },
+          { Metric: "Wastage Qty", Value: totalWstQty },
+          { Metric: "Wastage Cost (Rs.)", Value: totalWstCost },
+          { Metric: "Leakage Qty", Value: totalLkgQty },
+          { Metric: "Leakage Cost (Rs.)", Value: totalLkgCost },
+          { Metric: "Total R&W Loss (Rs.)", Value: totalLoss },
+        ],
+      },
+      {
+        name: "Daily Trend",
+        rows: dailyTrend.map((d) => ({
+          Date: d.date,
+          "Rejected Qty": d.rejQty,
+          "Wastage (Rs.)": d.wstCost,
+          "Leakage Qty": d.lkgQty,
+          "Leakage (Rs.)": d.lkgCost,
+        })),
+      },
+      {
+        name: "By Department",
+        rows: byDept.map((d) => ({
+          Department: d.dept,
+          "Rejected Qty": d.rejected,
+          "Wastage (Rs.)": d.wastageCost,
+          "Leakage Qty": d.leakageQty,
+          "Leakage (Rs.)": d.leakageCost,
+        })),
+      },
+      { name: "Top Wastage Materials", rows: matRows(topMaterials, "Wasted Qty") },
+      { name: "Top Rejection Materials", rows: matRows(topRejMaterials, "Rejected Qty") },
+      { name: "Top Leakage Materials", rows: matRows(topLkgMaterials, "Leaked Qty") },
+      {
+        name: "Reason Breakdown",
+        rows: reasonBreakdown.map((r) => ({
+          Reason: r.reason,
+          Type: r.type,
+          Entries: r.count,
+          Qty: r.qty,
+          "Cost (Rs.)": r.cost,
+        })),
+      },
+      { name: "Rejection Entries", rows: detail(rejections, "rejected_qty", "Rejected Qty") },
+      { name: "Wastage Entries", rows: detail(wastages, "wasted_qty", "Wasted Qty") },
+      { name: "Leakage Entries", rows: detail(leakages, "leaked_qty", "Leaked Qty") },
+    ]);
+  };
+
   return (
     <ERPLayout>
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
@@ -245,6 +320,7 @@ export default function RejectionsAnalyticsPage() {
           description="Trends, top reasons and cost impact"
           icon={TrendingDown}
           iconColor="bg-amber-500 text-white"
+          action={{ label: "Export Excel", onClick: exportReport, icon: Download }}
         />
 
         <Card>
