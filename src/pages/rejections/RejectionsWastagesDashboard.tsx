@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertOctagon, Recycle, Coins, Plus, BarChart3, ListChecks, Droplets, CalendarDays } from "lucide-react";
+import { AlertOctagon, Recycle, Coins, Plus, BarChart3, ListChecks, Droplets, CalendarDays, Download } from "lucide-react";
+import { exportRwWorkbook } from "@/lib/rwExport";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, startOfWeek, endOfWeek } from "date-fns";
 
@@ -56,6 +57,27 @@ export default function RejectionsWastagesDashboard() {
 
   const sum = (arr: any[], k: string) => arr.reduce((s, r) => s + Number(r[k] || 0), 0);
 
+  const exportSummary = () =>
+    exportRwWorkbook(`rw-summary_${fromDate}_to_${toDate}`, [
+      {
+        name: "Summary",
+        rows: [
+          { Metric: "From", Value: fromDate },
+          { Metric: "To", Value: toDate },
+          { Metric: "Rejection Entries", Value: rejData.length },
+          { Metric: "Rejected Qty", Value: sum(rejData, "rejected_qty") },
+          { Metric: "Rejection Cost (Rs.)", Value: sum(rejData, "total_cost") },
+          { Metric: "Wastage Entries", Value: wstData.length },
+          { Metric: "Wasted Qty", Value: sum(wstData, "wasted_qty") },
+          { Metric: "Wastage Cost (Rs.)", Value: sum(wstData, "total_cost") },
+          { Metric: "Leakage Entries", Value: lkgData.length },
+          { Metric: "Leakage Qty", Value: sum(lkgData, "leaked_qty") },
+          { Metric: "Leakage Cost (Rs.)", Value: sum(lkgData, "total_cost") },
+          { Metric: "Rework Pending (all time)", Value: reworkPending.length },
+        ],
+      },
+    ]);
+
   const presets = [
     { key: "today" as const, label: "Today" },
     { key: "week" as const, label: "This Week" },
@@ -78,6 +100,7 @@ export default function RejectionsWastagesDashboard() {
           <Button variant="outline" asChild><Link to="/rejections/rework"><Recycle className="h-4 w-4 mr-2" />Rework ({reworkPending.length})</Link></Button>
           <Button variant="outline" asChild><Link to="/rejections/analytics"><BarChart3 className="h-4 w-4 mr-2" />Analytics</Link></Button>
           <Button variant="outline" asChild><Link to="/rejections/reasons"><ListChecks className="h-4 w-4 mr-2" />Reasons</Link></Button>
+          <Button variant="outline" onClick={exportSummary}><Download className="h-4 w-4 mr-2" />Export Excel</Button>
         </div>
 
         <Card>

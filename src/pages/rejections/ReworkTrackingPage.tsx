@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Recycle, CheckCircle2, Loader2 } from "lucide-react";
+import { Recycle, CheckCircle2, Loader2, Download } from "lucide-react";
+import { exportRwWorkbook } from "@/lib/rwExport";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -58,6 +59,27 @@ export default function ReworkTrackingPage() {
     refetch();
   };
 
+  const exportRows = () =>
+    exportRwWorkbook(`rework-tracking_${status}_${format(new Date(), "yyyyMMdd_HHmm")}`, [
+      {
+        name: "Rework Items",
+        rows: rows.map((r: any) => ({
+          Date: r.entry_date,
+          Shift: r.shift || "",
+          Department: deptMap[r.department_id] || "",
+          "Product Code": productMap[r.product_id]?.code || "",
+          Product: productMap[r.product_id]?.name || "",
+          "Rejected Qty": Number(r.rejected_qty || 0),
+          Unit: r.unit || "",
+          "Reworked Qty": Number(r.rework_qty || 0),
+          Status: r.rework_status || "",
+          "Completed At": r.rework_completed_at ? format(new Date(r.rework_completed_at), "yyyy-MM-dd HH:mm") : "",
+          "Total Cost (Rs.)": Number(r.total_cost || 0),
+          Remarks: r.remarks || "",
+        })),
+      },
+    ]);
+
   return (
     <ERPLayout>
       <div className="w-full max-w-full overflow-x-hidden space-y-4">
@@ -82,6 +104,9 @@ export default function ReworkTrackingPage() {
                 </SelectContent>
               </Select>
             </div>
+            <Button variant="outline" onClick={exportRows} disabled={rows.length === 0}>
+              <Download className="h-4 w-4 mr-2" />Export Excel
+            </Button>
           </CardContent>
         </Card>
 

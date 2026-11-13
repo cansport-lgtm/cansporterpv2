@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 
-import { Trash2, Plus, AlertOctagon, Loader2, Droplets, Pencil } from "lucide-react";
+import { Trash2, Plus, AlertOctagon, Loader2, Droplets, Pencil, Download } from "lucide-react";
+import { exportRwWorkbook } from "@/lib/rwExport";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -235,6 +236,57 @@ export default function RejectionsWastageEntryPage() {
   const processMap = useMemo(() => Object.fromEntries(processes.map((p) => [p.id, p])), [processes]);
   const materialMap = useMemo(() => Object.fromEntries(materials.map((m) => [m.id, m])), [materials]);
   const reasonMap = useMemo(() => Object.fromEntries((reasons as any[]).map((r) => [r.id, r])), [reasons]);
+
+  const exportEntries = () => {
+    const deptName = (id: string) => departments.find((d) => d.id === id)?.name || "";
+    const base = (r: any) => ({
+      Date: r.entry_date,
+      Shift: r.shift || "",
+      Department: deptName(r.department_id),
+    });
+    const tail = (r: any) => ({
+      Unit: r.unit || "",
+      "Unit Cost (Rs.)": Number(r.unit_cost || 0),
+      "Total Cost (Rs.)": Number(r.total_cost || 0),
+      Reason: reasonMap[r.reason_id]?.name || "",
+      Remarks: r.remarks || "",
+    });
+    exportRwWorkbook(`rw-entries_${viewFrom}_to_${viewTo}`, [
+      {
+        name: "Rejections",
+        rows: (todayRejections as any[]).map((r) => ({
+          ...base(r),
+          Process: processMap[r.process_id]?.name || "",
+          Product: productMap[r.product_id]?.name || "",
+          Material: materialMap[r.material_id]?.name || "",
+          "Rejected Qty": Number(r.rejected_qty || 0),
+          ...tail(r),
+          Disposition: r.disposition || "",
+          "Rework Qty": Number(r.rework_qty || 0),
+          "Rework Status": r.disposition === "rework" ? r.rework_status || "" : "",
+        })),
+      },
+      {
+        name: "Wastages",
+        rows: (todayWastages as any[]).map((w) => ({
+          ...base(w),
+          Material: materialMap[w.material_id]?.name || "",
+          "Wasted Qty": Number(w.wasted_qty || 0),
+          ...tail(w),
+        })),
+      },
+      {
+        name: "Leakages",
+        rows: (todayLeakages as any[]).map((l) => ({
+          ...base(l),
+          Process: processMap[l.process_id]?.name || "",
+          Material: materialMap[l.material_id]?.name || "",
+          "Leaked Qty": Number(l.leaked_qty || 0),
+          ...tail(l),
+        })),
+      },
+    ]);
+  };
 
   // Rejection form
   const [rejForm, setRejForm] = useState({
@@ -511,6 +563,16 @@ export default function RejectionsWastageEntryPage() {
               <span className="text-[11px] text-muted-foreground">
                 {viewFrom === viewTo ? viewFrom : `${viewFrom} → ${viewTo}`}
               </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={exportEntries}
+                disabled={todayRejections.length + todayWastages.length + todayLeakages.length === 0}
+                className="h-8 text-xs"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />Export Excel
+              </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 max-sm:[&>*]:!col-span-full gap-1">
               {(["day","week","month","custom"] as const).map((m) => (
