@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { formatTiming, isLateCheckIn, lateAfter } from "@/lib/officialTiming";
+import { codeKey, parseDate, parseStatus, parseTime, readRow } from "@/lib/attendanceImport";
 
 const STATUSES = [
   { value: "present", label: "Present" },
@@ -253,48 +254,82 @@ export default function AttendancePage() {
         return;
       }
 
-      // Build employee code -> id map
-      const { data: emps } = await supabase
+      // Build employee code -> employee map. Codes are compared loosely because
+      // Excel turns "06" into the number 6 when a sheet is edited and saved.
+      const { data: emps, error: empError } = await supabase
         .from("employees")
-        .select("id, employee_code")
-        .eq("is_active", true);
-      const empMap = new Map((emps || []).map((e) => [e.employee_code, e.id]));
-
-      let imported = 0;
-      let skipped = 0;
-
-      for (const row of rows) {
-        const empCode = String(row["Employee Code"] || "").trim();
-        const empId = empMap.get(empCode);
-        if (!empId) { skipped++; continue; }
-
-        const dateVal = row["Date"];
-        let attDate: string;
-        if (dateVal && typeof dateVal === "number") {
-          const d = XLSX.SSF.parse_date_code(dateVal);
-          attDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-        } else if (dateVal && String(dateVal).trim()) {
-          attDate = String(dateVal).trim();
-        } else {
-          // Use selected import date as fallback
-          attDate = format(importDate, "yyyy-MM-dd");
-        }
-
-        const status = String(row["Status"] || "present").toLowerCase().replace(/ /g, "_");
-        const checkIn = String(row["Check In"] || "").trim() || null;
-        const checkOut = String(row["Check Out"] || "").trim() || null;
-        const remarks = String(row["Remarks"] || "").trim() || null;
-
-        const { error } = await supabase.from("attendance").upsert(
-          { employee_id: empId, attendance_date: attDate, check_in: checkIn, check_out: checkOut, status, remarks },
-          { onConflict: "employee_id,attendance_date" }
-        );
-        if (error) { skipped++; } else { imported++; }
+        .select("id, employee_code, is_active");
+      if (empError) throw empError;
+      const empMap = new Map<string, { id: string; is_active: boolean | null }>();
+      for (const e of emps || []) {
+        const key = codeKey(e.employee_code);
+        // An active employee wins if two codes collapse to the same key
+        if (!empMap.has(key) || e.is_active) empMap.set(key, e);
       }
 
-      toast.success(`Imported ${imported} records, ${skipped} skipped`);
+      if (readRow(rows[0]).code === undefined) {
+        toast.error(
+          `No "Employee Code" column found. Columns in file: ${Object.keys(rows[0]).join(", ")}`,
+          { duration: 15000 }
+        );
+        return;
+      }
+
+      let imported = 0;
+      const problems: string[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const rowNo = i + 2; // header is row 1
+        const r = readRow(rows[i]);
+        const empCode = String(r.code ?? "").trim();
+        if (!empCode) { problems.push(`Row ${rowNo}: Employee Code is empty`); continue; }
+        const emp = empMap.get(codeKey(empCode));
+        if (!emp) { problems.push(`Row ${rowNo}: employee code "${empCode}" not found`); continue; }
+        if (!emp.is_active) { problems.push(`Row ${rowNo}: employee "${empCode}" is inactive`); continue; }
+
+        const parsedDate = parseDate(r.date);
+        if (parsedDate === null) { problems.push(`Row ${rowNo}: invalid date "${r.date}"`); continue; }
+        // Blank date falls back to the date picked in the import dialog
+        const attDate = parsedDate ?? format(importDate, "yyyy-MM-dd");
+
+        const checkIn = parseTime(r.checkIn);
+        if (checkIn === null) { problems.push(`Row ${rowNo}: invalid check-in time "${r.checkIn}"`); continue; }
+        const checkOut = parseTime(r.checkOut);
+        if (checkOut === null) { problems.push(`Row ${rowNo}: invalid check-out time "${r.checkOut}"`); continue; }
+
+        const status = parseStatus(r.status);
+        if (!status) { problems.push(`Row ${rowNo}: unknown status "${r.status}"`); continue; }
+        const remarks = String(r.remarks ?? "").trim() || null;
+
+        const { error } = await supabase.from("attendance").upsert(
+          {
+            employee_id: emp.id,
+            attendance_date: attDate,
+            check_in: checkIn ?? null,
+            check_out: checkOut ?? null,
+            status,
+            remarks,
+          },
+          { onConflict: "employee_id,attendance_date" }
+        );
+        if (error) problems.push(`Row ${rowNo}: ${error.message}`);
+        else imported++;
+      }
+
+      if (problems.length === 0) {
+        toast.success(`Imported ${imported} records`);
+      } else {
+        const shown = problems.slice(0, 6).join("\n");
+        const more = problems.length > 6 ? `\n…and ${problems.length - 6} more` : "";
+        const opts = {
+          description: <div className="whitespace-pre-line text-xs">{shown + more}</div>,
+          duration: 20000,
+        };
+        if (imported > 0) toast.warning(`Imported ${imported} records, ${problems.length} skipped`, opts);
+        else toast.error(`Nothing imported — ${problems.length} rows skipped`, opts);
+      }
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
-      setShowImportDialog(false);
+      if (imported > 0) setShowImportDialog(false);
     } catch (err: any) {
       toast.error("Import failed: " + err.message);
     }
