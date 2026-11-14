@@ -1,0 +1,460 @@
+<title>MPH Entry Issue Flags</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the live MPH Loss Reasons form with the proposed "entry issue" flags added — tab strip of screens
+   (Reason form, Phone, Print, Analysis, Rules), department cards stacked in one column.
+   MOCKUP ONLY — sample figures for Fri 13 Nov 2026, nothing is wired to the database. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#2457a6; --accent-fg:#ffffff;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#b26a00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --bad-line:#f1a9ae; --info-bg:#e6eefb;
+  --sub:#f8f9fb; --paper:#ffffff; --paper-fg:#111111; --paper-line:#bbbbbb; --new:#7a3fc4;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --bad-line:#7a3237; --info-bg:#1b2a44;
+  --sub:#151a21; --new:#b99cf0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f;
+  --accent:#6ea1f0; --accent-fg:#0b1220;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --bad-line:#7a3237; --info-bg:#1b2a44;
+  --sub:#151a21; --new:#b99cf0; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+.mock{font-size:12px;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs button{font:inherit;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:500}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:flex;flex-direction:column;gap:14px}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.topbar h2{margin:0;font-size:20px;font-weight:600}
+.crumb{color:var(--muted);font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent);border-radius:6px;padding:7px 13px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn.sm{padding:4px 10px;font-size:13px}
+.btn.danger{background:transparent;color:var(--bad);border-color:var(--bad-line)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.banner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-radius:8px;padding:10px 14px;font-size:13.5px;border:1px solid var(--line)}
+.banner.info{background:var(--info-bg)}
+.banner.bad{background:var(--bad-bg);border-color:var(--bad-line);align-items:flex-start;flex-direction:column}
+.banner.bad b.h{color:var(--bad);font-size:14.5px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px}
+.tile .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .v{font-size:23px;font-weight:600;font-variant-numeric:tabular-nums}
+.tile .s{font-size:12px;color:var(--muted)}
+.tile.bad{border-color:var(--bad-line);background:var(--bad-bg)}.tile.bad .v{color:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0;overflow:hidden}
+.card.flag{border-color:var(--bad-line)}
+.dh{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 14px;background:var(--sub);border-bottom:1px solid var(--line)}
+.card.flag .dh{background:var(--bad-bg);border-bottom-color:var(--bad-line)}
+.dh h3{margin:0;font-size:15.5px;font-weight:600;flex:1;min-width:130px}
+.fig{display:flex;flex-wrap:wrap;gap:4px 16px;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.fig b{color:var(--fg);font-weight:600}.fig b.neg,.neg{color:var(--bad)}.fig b.zero{color:var(--bad);text-decoration:underline dotted}
+.body{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}
+.p-bad{background:var(--bad);color:#fff}.p-badl{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad-line)}
+.p-mut{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+:root[data-theme="dark"] .p-bad{color:#1a0b0c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .p-bad{color:#1a0b0c}}
+.newtag{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--new);border:1px dashed var(--new);border-radius:4px;padding:0 5px;white-space:nowrap}
+.cause{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.cause>div{min-width:0}
+.cause h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cause p{margin:0}
+.ev{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.ev li{display:flex;gap:8px}.ev .m{flex:0 0 14px;font-weight:600}.ev .y{color:var(--ok)}.ev .n{color:var(--bad)}
+.lock{border:1px dashed var(--line);border-radius:6px;padding:9px 12px;color:var(--muted);font-size:13px;background:var(--sub)}
+.confirm{border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+.confirm label.ck{display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer}
+.confirm input[type=checkbox]{margin-top:3px;width:15px;height:15px;accent-color:var(--accent)}
+.tw{overflow-x:auto}
+.lines{min-width:640px;display:grid;grid-template-columns:2.2fr .8fr .8fr 2.2fr;gap:6px 8px;align-items:center;font-size:13px}
+.lines .hd{font-size:12px;font-weight:600;color:var(--muted)}
+.inp{border:1px solid var(--line);border-radius:6px;padding:6px 9px;background:var(--bg);min-height:32px;font-variant-numeric:tabular-nums}
+.inp.req{border-color:var(--bad-line)}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+.toast{font-size:13px;color:var(--ok);font-weight:500}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.tot td{font-weight:600;border-top:2px solid var(--line);border-bottom:0}
+.mono{font-family:var(--mono);font-size:12.5px}
+/* phone */
+.phones{display:flex;flex-wrap:wrap;gap:22px;justify-content:center}
+.phone{width:340px;max-width:100%;border:8px solid #20242c;border-radius:30px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column}
+.phone .ph{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;font-weight:600}
+.phone .pb{padding:12px;display:flex;flex-direction:column;gap:9px;flex:1}
+.phone .pf{background:var(--panel);border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px}
+.phone .pf .btn{flex:1;text-align:center}
+.pi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:flex;flex-direction:column;gap:4px}
+.pi.flag{border-color:var(--bad-line);background:var(--bad-bg)}
+.pi .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.cap{text-align:center;font-size:12.5px;color:var(--muted);margin-top:6px}
+/* print */
+.paper{background:var(--paper);color:var(--paper-fg);border:1px solid var(--paper-line);max-width:794px;width:100%;margin:0 auto;padding:28px 30px;font-size:12.5px;display:flex;flex-direction:column;gap:12px}
+.paper h3{margin:0;font-size:16px;text-align:center}
+.paper h4{margin:0;font-size:13px}
+.paper table{font-size:12px}.paper th,.paper td{border:1px solid var(--paper-line);color:var(--paper-fg);padding:4px 7px}
+.paper th{text-transform:none;letter-spacing:0;font-weight:600;background:#eee}
+.paper .box{border:1.5px solid #111;padding:6px 9px}
+.sig{display:flex;justify-content:space-between;gap:20px;margin-top:26px}.sig div{border-top:1px solid #111;padding-top:4px;flex:1;text-align:center}
+/* bars */
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar{display:grid;grid-template-columns:64px 1fr 62px;gap:8px;align-items:center;font-size:12.5px;font-variant-numeric:tabular-nums}
+.bar .trk{display:flex;height:16px;border-radius:3px;overflow:hidden;background:var(--sub)}
+.bar .real{background:var(--warn)}.bar .iss{background:var(--bad)}
+.lg{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted)}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+.pad{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.pad h3{margin:0;font-size:15px}
+</style>
+
+<div class="wrap">
+  <div>
+    <div class="crumb">Labour Productivity › MPH Loss Reasons</div>
+    <div class="mock">Mockup with sample figures for Fri 13 Nov 2026. Items marked <span class="newtag">new</span> are the proposed additions; everything else is the form as it is today.</div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="on" data-s="form">Reason form</button>
+    <button data-s="phone">Phone</button>
+    <button data-s="print">Print</button>
+    <button data-s="analysis">Reason analysis</button>
+    <button data-s="rules">Rules</button>
+  </div>
+
+  <!-- ============ REASON FORM ============ -->
+  <section class="screen" id="s-form">
+    <div class="topbar">
+      <h2>MPH Loss Reasons · 13 Nov 2026</h2>
+      <div class="row">
+        <button class="btn ghost">Print</button>
+        <button class="btn ghost">Save Draft</button>
+        <button class="btn" disabled id="submitTop">Submit Reasons</button>
+      </div>
+    </div>
+
+    <div class="banner info">
+      <span style="flex:1;min-width:200px"><b>Production posted</b> for 13 Nov 2026 at 18:40. 5 of 6 departments are in loss.</span>
+      <span class="pill p-warn">Draft · not submitted</span>
+    </div>
+
+    <div class="banner bad">
+      <div class="row"><b class="h">3 departments show labour but earned 0 MPH. Check the entries before giving reasons.</b><span class="newtag">new</span></div>
+      <div class="row">
+        <span class="pill p-badl">Lamination · production entry missing</span>
+        <span class="pill p-badl">Printing · MPH number not set</span>
+        <span class="pill p-ok">Packing · confirmed no production</span>
+      </div>
+      <span class="small">These are 268.0 of the day's 352.0 MPH loss. Submit stays blocked until each one is fixed or confirmed.</span>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="k">Total loss</div><div class="v">352.0</div><div class="s">Authorized 700.0 · Used 1,052.0</div></div>
+      <div class="tile bad"><div class="k">From entry issues <span class="newtag">new</span></div><div class="v">268.0</div><div class="s">3 departments · 76% of the loss</div></div>
+      <div class="tile"><div class="k">Explained</div><div class="v">122.0</div><div class="s">230.0 MPH still open</div></div>
+      <div class="tile"><div class="k">Departments done</div><div class="v">2 / 5</div><div class="s">4 required · 1 optional</div></div>
+    </div>
+
+    <!-- Lamination: production entry missing -->
+    <div class="card flag">
+      <div class="dh">
+        <h3>Lamination</h3>
+        <div class="fig"><span>Output <b class="zero">0</b></span><span>Authorized <b class="zero">0.0</b></span><span>Used <b>112.0</b></span><span>Net <b class="neg">−112.0</b></span></div>
+        <span class="pill p-bad">No production entered</span><span class="newtag">new</span>
+      </div>
+      <div class="body">
+        <div class="cause">
+          <div>
+            <h4>Likely cause</h4>
+            <p><b>Production entry missing.</b> The workers reported output in Labour Productivity Entry, but nothing was entered for Lamination in Daily Entry.</p>
+          </div>
+          <div>
+            <h4>What the entries show</h4>
+            <ul class="ev">
+              <li><span class="m y">✓</span><span>14 workers deployed, 112.0 MPH used</span></li>
+              <li><span class="m y">✓</span><span>Workers' actual quantity: 1,840 units</span></li>
+              <li><span class="m n">✕</span><span>Production entries for 13 Nov: none</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn sm">Open Daily Entry · Lamination · 13 Nov</button>
+          <button class="btn sm ghost" id="reqBtn">Request production entry</button>
+          <span class="toast" id="reqMsg" hidden>Sent to production entry users at 19:05</span>
+        </div>
+        <div class="confirm">
+          <label class="ck" for="ckLam"><input type="checkbox" id="ckLam"><span>Confirmed: Lamination had no production on 13 Nov <span class="muted" style="font-weight:400">(use only when the entries are correct)</span></span></label>
+          <div id="lamLock" class="lock">Reasons are locked. Enter the production, or tick the confirmation above to explain a real no-production day.</div>
+          <div id="lamLines" hidden class="tw">
+            <div class="lines">
+              <div class="hd">Reason (No production only)</div><div class="hd">MPH lost</div><div class="hd">Workers</div><div class="hd">Remarks (required)</div>
+              <div class="inp req muted">Select reason…</div><div class="inp">112.0</div><div class="inp">14</div><div class="inp req muted">What happened, who decided</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Printing: MPH number not set -->
+    <div class="card flag">
+      <div class="dh">
+        <h3>Printing</h3>
+        <div class="fig"><span>Output <b>2,400</b></span><span>Authorized <b class="zero">0.0</b></span><span>Used <b>108.0</b></span><span>Net <b class="neg">−108.0</b></span></div>
+        <span class="pill p-bad">MPH number not set</span><span class="newtag">new</span>
+      </div>
+      <div class="body">
+        <div class="cause">
+          <div>
+            <h4>Likely cause</h4>
+            <p><b>MPH number missing in MPH Master.</b> Production was entered, but the sub-department has no MPH number, so the output earned nothing.</p>
+          </div>
+          <div>
+            <h4>What the entries show</h4>
+            <ul class="ev">
+              <li><span class="m y">✓</span><span>2,400 units entered under Screen Print</span></li>
+              <li><span class="m n">✕</span><span>MPH number for Printing › Screen Print: not set</span></li>
+              <li><span class="m y">✓</span><span>12 workers deployed, 108.0 MPH used</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn sm">Open MPH Master · Printing</button>
+          <span class="muted small">Super admin only. The coordinator sees "Ask a super admin to set the MPH number".</span>
+        </div>
+        <div class="lock">Reasons are locked. This cannot be confirmed as "no production" because output was entered.</div>
+      </div>
+    </div>
+
+    <!-- Packing: confirmed -->
+    <div class="card">
+      <div class="dh">
+        <h3>Packing</h3>
+        <div class="fig"><span>Output <b>0</b></span><span>Authorized <b>0.0</b></span><span>Used <b>48.0</b></span><span>Net <b class="neg">−48.0</b></span></div>
+        <span class="pill p-ok">Confirmed no production</span><span class="pill p-ok">Complete</span><span class="newtag">new</span>
+      </div>
+      <div class="body">
+        <div class="cause">
+          <div>
+            <h4>Likely cause shown before confirming</h4>
+            <p><b>Check the deployment.</b> No production and no quantity reported by the workers, so they may be booked to the wrong department.</p>
+          </div>
+          <div>
+            <h4>What the entries show</h4>
+            <ul class="ev">
+              <li><span class="m y">✓</span><span>6 workers deployed, 48.0 MPH used</span></li>
+              <li><span class="m n">✕</span><span>Workers' actual quantity: 0</span></li>
+              <li><span class="m n">✕</span><span>Production entries for 13 Nov: none</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="confirm">
+          <label class="ck" for="ckPack"><input type="checkbox" id="ckPack" checked><span>Confirmed: Packing had no production on 13 Nov <span class="muted" style="font-weight:400">· Nadia Qureshi, 18:52</span></span></label>
+          <div class="tw">
+            <div class="lines">
+              <div class="hd">Reason (No production only)</div><div class="hd">MPH lost</div><div class="hd">Workers</div><div class="hd">Remarks (required)</div>
+              <div class="inp">Machine breakdown, full day <span class="muted small">No production</span></div><div class="inp">48.0</div><div class="inp">6</div><div class="inp">Strapping machine down from 08:10, workers kept on standby</div>
+            </div>
+          </div>
+        </div>
+        <div class="row"><button class="btn sm ghost">Open Labour Productivity Entry · Packing</button></div>
+      </div>
+    </div>
+
+    <!-- Stitching: ordinary loss, unchanged -->
+    <div class="card">
+      <div class="dh">
+        <h3>Stitching</h3>
+        <div class="fig"><span>Output <b>5,200</b></span><span>Authorized <b>520.0</b></span><span>Used <b>594.0</b></span><span>Net <b class="neg">−74.0</b></span><span>MPH/unit <b>0.114</b></span></div>
+        <span class="pill p-ok">Complete</span><span class="pill p-badl">Required · 14.2% loss</span>
+      </div>
+      <div class="body">
+        <div class="tw">
+          <div class="lines">
+            <div class="hd">Reason</div><div class="hd">MPH lost</div><div class="hd">Workers</div><div class="hd">Remarks / what happened</div>
+            <div class="inp">Material shortage <span class="muted small">Material</span></div><div class="inp">50.0</div><div class="inp">9</div><div class="inp">Thread lot received at 11:30</div>
+            <div class="inp">New workers under training <span class="muted small">Labour</span></div><div class="inp">24.0</div><div class="inp">4</div><div class="inp"></div>
+          </div>
+        </div>
+        <span class="muted small">An ordinary loss. Nothing changes for this department.</span>
+      </div>
+    </div>
+
+    <!-- Cutting: optional -->
+    <div class="card">
+      <div class="dh">
+        <h3>Cutting</h3>
+        <div class="fig"><span>Output <b>3,000</b></span><span>Authorized <b>180.0</b></span><span>Used <b>190.0</b></span><span>Net <b class="neg">−10.0</b></span></div>
+        <span class="pill p-mut">Pending</span><span class="pill p-mut">Optional · 5.6% loss</span>
+      </div>
+      <div class="body"><span class="muted">No reason entered yet.</span></div>
+    </div>
+
+    <div class="foot">
+      <span id="blockMsg"><b class="neg">Submit blocked.</b> Lamination and Printing have open entry issues.</span>
+      <div class="row"><button class="btn ghost">Save Draft</button><button class="btn" disabled id="submitBot">Submit Reasons</button></div>
+    </div>
+    <div class="mock">Housekeeping (12.0 fixed daily MPH, 12.0 used) is not flagged: departments on a fixed daily MPH are not expected to produce.</div>
+  </section>
+
+  <!-- ============ PHONE ============ -->
+  <section class="screen" id="s-phone" hidden>
+    <div class="phones">
+      <div>
+        <div class="phone">
+          <div class="ph">MPH Loss · 13 Nov</div>
+          <div class="pb">
+            <div class="pi flag"><div class="t"><span class="neg">3 entry issues</span><span class="neg">268.0</span></div><span class="small">Labour deployed but 0 MPH earned. Check these first.</span></div>
+            <div class="pi flag"><div class="t"><span>Lamination</span><span class="neg">−112.0</span></div><span><span class="pill p-bad">No production entered</span></span><span class="small muted">Production entry missing</span></div>
+            <div class="pi flag"><div class="t"><span>Printing</span><span class="neg">−108.0</span></div><span><span class="pill p-bad">MPH number not set</span></span><span class="small muted">Ask a super admin</span></div>
+            <div class="pi"><div class="t"><span>Packing</span><span class="neg">−48.0</span></div><span><span class="pill p-ok">Confirmed no production</span></span></div>
+            <div class="pi"><div class="t"><span>Stitching</span><span class="neg">−74.0</span></div><span><span class="pill p-ok">Complete</span> <span class="pill p-badl">Required</span></span></div>
+            <div class="pi"><div class="t"><span>Cutting</span><span class="neg">−10.0</span></div><span><span class="pill p-mut">Optional</span></span></div>
+          </div>
+          <div class="pf"><button class="btn ghost">Save Draft</button><button class="btn" disabled>Submit</button></div>
+        </div>
+        <div class="cap">Overview: flagged departments listed first</div>
+      </div>
+      <div>
+        <div class="phone">
+          <div class="ph">‹ Lamination</div>
+          <div class="pb">
+            <div class="pi flag">
+              <span><span class="pill p-bad">No production entered</span></span>
+              <div class="t"><span>Used 112.0 · Earned 0.0</span><span class="neg">−112.0</span></div>
+            </div>
+            <div class="pi">
+              <b>Production entry missing</b>
+              <ul class="ev">
+                <li><span class="m y">✓</span><span>14 workers, 112.0 MPH used</span></li>
+                <li><span class="m y">✓</span><span>Workers reported 1,840 units</span></li>
+                <li><span class="m n">✕</span><span>No production entry for 13 Nov</span></li>
+              </ul>
+            </div>
+            <button class="btn">Open Daily Entry</button>
+            <button class="btn ghost">Request production entry</button>
+            <div class="pi"><label class="row" for="ckPh" style="flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="ckPh" disabled><span>Confirmed: no production this day</span></label></div>
+            <div class="lock">Reasons are locked until the entry is fixed or confirmed.</div>
+          </div>
+          <div class="pf"><button class="btn ghost">Save Draft</button></div>
+        </div>
+        <div class="cap">Department screen: cause, evidence, actions</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRINT ============ -->
+  <section class="screen" id="s-print" hidden>
+    <div class="paper">
+      <h3>MPH Loss Reason Report</h3>
+      <div class="row" style="justify-content:space-between"><span>Date: <b>13 Nov 2026</b></span><span>Report: <b>MPHL-2026-00187</b></span><span>Status: <b>Draft</b></span></div>
+      <div class="box"><b>Entry issues (new section):</b> 268.0 of 352.0 MPH lost comes from departments with labour deployed but no MPH earned. These are listed separately from production losses.</div>
+      <h4>A. Entry issues</h4>
+      <div class="tw"><table>
+        <tr><th>Department</th><th>Issue</th><th class="num">Used MPH</th><th class="num">Loss</th><th>Outcome</th></tr>
+        <tr><td>Lamination</td><td>Production entry missing (workers reported 1,840 units)</td><td class="num">112.0</td><td class="num">112.0</td><td>Open</td></tr>
+        <tr><td>Printing</td><td>MPH number not set (Screen Print, 2,400 units)</td><td class="num">108.0</td><td class="num">108.0</td><td>Open</td></tr>
+        <tr><td>Packing</td><td>No production entered</td><td class="num">48.0</td><td class="num">48.0</td><td>Confirmed no production: Machine breakdown, full day</td></tr>
+      </table></div>
+      <h4>B. Production losses</h4>
+      <div class="tw"><table>
+        <tr><th>Department</th><th class="num">Authorized</th><th class="num">Used</th><th class="num">Loss</th><th>Reasons</th></tr>
+        <tr><td>Stitching</td><td class="num">520.0</td><td class="num">594.0</td><td class="num">74.0</td><td>Material shortage 50.0; New workers under training 24.0</td></tr>
+        <tr><td>Cutting</td><td class="num">180.0</td><td class="num">190.0</td><td class="num">10.0</td><td>Not explained (optional, 5.6%)</td></tr>
+      </table></div>
+      <div class="sig"><div>Production Coordinator</div><div>Production Manager</div><div>Approved by</div></div>
+    </div>
+  </section>
+
+  <!-- ============ ANALYSIS ============ -->
+  <section class="screen" id="s-analysis" hidden>
+    <div class="topbar"><h2>MPH Loss Reason Analysis · 7–13 Nov 2026</h2></div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Total loss</div><div class="v">1,410.0</div><div class="s">7 days</div></div>
+      <div class="tile bad"><div class="k">From entry issues <span class="newtag">new</span></div><div class="v">612.0</div><div class="s">43% · 9 department-days</div></div>
+      <div class="tile"><div class="k">Production loss</div><div class="v">798.0</div><div class="s">What the reasons below explain</div></div>
+      <div class="tile"><div class="k">Entry issues fixed later</div><div class="v">5 of 9</div><div class="s">3 confirmed · 1 open</div></div>
+    </div>
+    <div class="card"><div class="pad">
+      <div class="row"><h3>Daily loss</h3><span class="newtag">new split</span></div>
+      <div class="lg"><span><i style="background:var(--warn)"></i>Production loss</span><span><i style="background:var(--bad)"></i>Entry issue</span></div>
+      <div class="bars">
+        <div class="bar"><span>07 Nov</span><div class="trk"><div class="real" style="width:34%"></div></div><span>120.0</span></div>
+        <div class="bar"><span>08 Nov</span><div class="trk"><div class="real" style="width:27%"></div><div class="iss" style="width:27%"></div></div><span>190.0</span></div>
+        <div class="bar"><span>09 Nov</span><div class="trk"><div class="real" style="width:40%"></div></div><span>140.0</span></div>
+        <div class="bar"><span>10 Nov</span><div class="trk"><div class="real" style="width:31%"></div><div class="iss" style="width:38%"></div></div><span>244.0</span></div>
+        <div class="bar"><span>11 Nov</span><div class="trk"><div class="real" style="width:36%"></div><div class="iss" style="width:16%"></div></div><span>180.0</span></div>
+        <div class="bar"><span>12 Nov</span><div class="trk"><div class="real" style="width:37%"></div><div class="iss" style="width:16%"></div></div><span>184.0</span></div>
+        <div class="bar"><span>13 Nov</span><div class="trk"><div class="real" style="width:24%"></div><div class="iss" style="width:76%"></div></div><span>352.0</span></div>
+      </div>
+    </div></div>
+    <div class="card"><div class="pad">
+      <div class="row"><h3>Entry issue log</h3><span class="newtag">new</span></div>
+      <div class="tw"><table>
+        <tr><th>Date</th><th>Department</th><th>Issue</th><th class="num">MPH</th><th>Outcome</th></tr>
+        <tr><td>13 Nov</td><td>Lamination</td><td>Production entry missing</td><td class="num">112.0</td><td><span class="pill p-badl">Open</span></td></tr>
+        <tr><td>13 Nov</td><td>Printing</td><td>MPH number not set</td><td class="num">108.0</td><td><span class="pill p-badl">Open</span></td></tr>
+        <tr><td>13 Nov</td><td>Packing</td><td>No production entered</td><td class="num">48.0</td><td><span class="pill p-ok">Confirmed · breakdown</span></td></tr>
+        <tr><td>12 Nov</td><td>Lamination</td><td>Production entry missing</td><td class="num">56.0</td><td><span class="pill p-ok">Fixed · entry added 13 Nov</span></td></tr>
+        <tr><td>10 Nov</td><td>Lamination</td><td>Production entry missing</td><td class="num">134.0</td><td><span class="pill p-ok">Fixed · entry added 11 Nov</span></td></tr>
+      </table></div>
+      <span class="muted small">Lamination has missed its production entry on 3 of 7 days. That pattern is what this log is for.</span>
+    </div></div>
+  </section>
+
+  <!-- ============ RULES ============ -->
+  <section class="screen" id="s-rules" hidden>
+    <div class="card"><div class="pad">
+      <h3>When a department is flagged</h3>
+      <div class="tw"><table>
+        <tr><th>Flag</th><th>Condition on the date</th><th>Action offered</th><th>Can be confirmed as no production?</th></tr>
+        <tr><td><span class="pill p-bad">No production entered</span><br><span class="small">Production entry missing</span></td><td>Workers deployed, output 0, workers' actual quantity above 0</td><td>Open Daily Entry · Request production entry</td><td>Yes</td></tr>
+        <tr><td><span class="pill p-bad">No production entered</span><br><span class="small">Check the deployment</span></td><td>Workers deployed, output 0, workers' actual quantity 0</td><td>Open Labour Productivity Entry · Open Daily Entry</td><td>Yes</td></tr>
+        <tr><td><span class="pill p-bad">MPH number not set</span></td><td>Output above 0 but earned 0, because the sub-department has no MPH number</td><td>Open MPH Master (super admin)</td><td>No, output exists</td></tr>
+        <tr><td><span class="pill p-mut">Not flagged</span></td><td>Department has a fixed daily MPH (housekeeping, security, store)</td><td>None</td><td>Not needed</td></tr>
+      </table></div>
+    </div></div>
+    <div class="card"><div class="pad">
+      <h3>Submit rules</h3>
+      <table>
+        <tr><td>Flag open</td><td>Reasons locked for that department. Save Draft works. Submit is blocked, on the form and in the database.</td></tr>
+        <tr><td>Entry fixed</td><td>Figures refresh, the flag clears, and the department is treated as an ordinary loss or no loss.</td></tr>
+        <tr><td>Confirmed no production</td><td>Only reasons in the new "No production" category can be picked. Remarks are required. Who confirmed and when is saved and printed.</td></tr>
+      </table>
+    </div></div>
+    <div class="card"><div class="pad">
+      <h3>"No production" reasons (starting list)</h3>
+      <div class="row"><span class="pill p-mut">Plant / department shutdown</span><span class="pill p-mut">Machine breakdown, full day</span><span class="pill p-mut">No order or plan</span><span class="pill p-mut">No material, full day</span><span class="pill p-mut">Power or utility failure, full day</span><span class="pill p-mut">Workers on maintenance or cleaning</span></div>
+      <span class="muted small">Editable on the reason master like any other reason.</span>
+    </div></div>
+    <div class="card"><div class="pad">
+      <h3>Notification sent by "Request production entry"</h3>
+      <div class="banner info" style="align-items:flex-start;flex-direction:column;gap:2px">
+        <b>Production entry missing · Lamination · 13 Nov 2026</b>
+        <span>14 workers were deployed and reported 1,840 units, but no production is entered. Requested by Nadia Qureshi.</span>
+        <span class="mono muted">Opens Production › Daily Entry for 13 Nov, Lamination</span>
+      </div>
+    </div></div>
+  </section>
+</div>
+
+<script>
+const tabs=[...document.querySelectorAll('.tabs button')];
+function show(s){tabs.forEach(b=>b.classList.toggle('on',b.dataset.s===s));
+  document.querySelectorAll('.screen').forEach(el=>el.hidden=el.id!=='s-'+s);}
+tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.s)));
+document.getElementById('ckLam').addEventListener('change',e=>{
+  document.getElementById('lamLock').hidden=e.target.checked;
+  document.getElementById('lamLines').hidden=!e.target.checked;});
+document.getElementById('reqBtn').addEventListener('click',e=>{
+  e.target.disabled=true;e.target.textContent='Requested';document.getElementById('reqMsg').hidden=false;});
+</script>
