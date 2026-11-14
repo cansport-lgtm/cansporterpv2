@@ -50,6 +50,50 @@ reason picker (search, category chips, "used today" first), a "Use remaining"
 shortcut, and sticky Save / Submit buttons. Desktop (≥768px) keeps the original
 layout.
 
+## Entry issues (labour deployed, 0 MPH earned)
+
+A department that used labour but earned nothing is usually an entry problem,
+not a real loss. The form flags it instead of asking for an ordinary reason.
+
+| Flag | When | Likely cause shown |
+|---|---|---|
+| No production entered | Workers deployed, output 0, workers reported a quantity in Labour Productivity Entry | Production entry missing in Daily Entry |
+| No production entered | Workers deployed, output 0, workers reported no quantity | Check the deployment (workers may be on the wrong department) |
+| MPH number not set | Output entered, but the sub-department has no MPH number | Set the MPH number in MPH Master |
+
+Departments on a fixed daily MPH (below) are never flagged.
+
+What the coordinator sees:
+
+- A red banner listing the flagged departments, and a "From entry issues" tile
+  showing how much of the day's loss they make up.
+- On each flagged department: the likely cause, what the entries show, and a
+  **Request production entry** button (one request per department and date).
+  It notifies the production roles; for "check the deployment" also the labour
+  productivity poster and approver; for a missing MPH number, super admins.
+  Super admins also get direct links to Daily Entry, the deployment sheet and
+  MPH Master.
+- Reasons are **locked** for a flagged department and **Submit is blocked**
+  (on the form and in `mph_loss_report_save`) until one of these happens:
+  1. The entry is fixed. The figures refresh and the flag clears.
+  2. The coordinator ticks **Confirmed: no production this day**. Only reasons
+     in the **No production** category can then be picked, and remarks are
+     required. Who confirmed and when is saved with the report and printed.
+     Not available for "MPH number not set", because output exists.
+
+"No production" reasons are seeded (shutdown, full-day breakdown, no order,
+no material, utility failure, maintenance / cleaning) and are editable on the
+reason master. They do not appear for ordinary losses.
+
+The print has an "Entry issues" section above the department-wise reasons.
+Reason Analysis shows the loss from entry issues separately (tile, stacked
+daily chart, entry issue log). Reports saved before this feature carry no
+flag, so the split starts from go-live.
+
+Migration: `supabase/migrations/20261122120000_mph_entry_issue_flags.sql`
+(rollback in `supabase/rollbacks/`). Until it is applied the form still shows
+the flags, but the database does not enforce them and the request button fails.
+
 ## Fixed daily MPH (departments with no output)
 
 Authorized MPH is earned from output, so a department that produces nothing
