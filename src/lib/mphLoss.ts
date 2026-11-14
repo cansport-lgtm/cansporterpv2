@@ -39,7 +39,22 @@ export interface DepartmentMph {
   authorized_mph: number;
   used_mph: number;
   net_mph: number;
+  // Only on rows read back from a saved report (mph_loss_report_departments).
+  entry_issue?: MphEntryIssueKind | null;
+  no_production_confirmed?: boolean;
+  no_production_confirmed_by_name?: string | null;
+  no_production_confirmed_at?: string | null;
 }
+
+// Labour used but 0 MPH earned is usually an entry problem, not a real loss:
+//   production_missing — no production entered, and the workers reported a
+//                        quantity in Labour Productivity Entry
+//   check_deployment   — no production entered and no quantity reported
+//                        (workers may be deployed to the wrong department)
+//   mph_number_missing — production entered, but the sub-department has no
+//                        MPH number, so the output earned nothing
+// The database works the flag out the same way in mph_loss_report_save.
+export type MphEntryIssueKind = "production_missing" | "check_deployment" | "mph_number_missing";
 
 // One posted production entry: output × MPH number = authorized MPH.
 export interface MphItemRow {
@@ -67,6 +82,8 @@ export interface DepartmentMphDetail {
   workers: MphWorkerRow[];
   // Fixed daily MPH counted for this department on this date (0 if none).
   fixed_daily_mph: number;
+  // Σ actual quantity the deployed workers reported in Labour Productivity Entry.
+  workers_actual_qty: number;
 }
 
 // One MPH Master row, as every page should select it.
@@ -115,7 +132,11 @@ export interface MphDay {
   detail: Record<string, DepartmentMphDetail>;
 }
 
-export const MPH_LOSS_CATEGORIES = ["Labour", "Utilities", "Material", "Machine", "Quality", "Planning", "Other"];
+// Reasons in this category are only for a department confirmed as having had
+// no production (see mphEntryIssue); they are hidden from ordinary losses.
+export const MPH_NO_PRODUCTION_CATEGORY = "No production";
+
+export const MPH_LOSS_CATEGORIES = ["Labour", "Utilities", "Material", "Machine", "Quality", "Planning", MPH_NO_PRODUCTION_CATEGORY, "Other"];
 
 // Reasons must add up to the loss within this many MPH (same as the database check).
 export const MPH_LOSS_TOLERANCE = 0.05;
@@ -137,6 +158,35 @@ export function mphLossPct(d: Pick<DepartmentMph, "authorized_mph" | "net_mph">)
 export function mphLossReasonRequired(d: Pick<DepartmentMph, "authorized_mph" | "net_mph">): boolean {
   return d.net_mph < 0 && mphLossPct(d) >= MPH_LOSS_REQUIRED_PCT;
 }
+
+// The entry issue behind a department's loss, or null for an ordinary loss.
+// A department on a fixed daily MPH earns that allowance, so it is never flagged.
+export function mphEntryIssue(
+  d: Pick<DepartmentMph, "output" | "authorized_mph" | "used_mph" | "net_mph">,
+  detail?: Pick<DepartmentMphDetail, "workers_actual_qty">
+): MphEntryIssueKind | null {
+  if (d.net_mph >= 0 || d.used_mph <= 0 || d.authorized_mph > 0) return null;
+  if (d.output > 0) return "mph_number_missing";
+  return (detail?.workers_actual_qty ?? 0) > 0 ? "production_missing" : "check_deployment";
+}
+
+export const MPH_ENTRY_ISSUE_LABEL: Record<MphEntryIssueKind, { badge: string; cause: string; explain: string }> = {
+  production_missing: {
+    badge: "No production entered",
+    cause: "Production entry missing",
+    explain: "The workers reported output in Labour Productivity Entry, but nothing is entered for this department in Daily Entry.",
+  },
+  check_deployment: {
+    badge: "No production entered",
+    cause: "Check the deployment",
+    explain: "No production is entered and the workers reported no quantity, so they may be deployed to the wrong department.",
+  },
+  mph_number_missing: {
+    badge: "MPH number not set",
+    cause: "MPH number missing in MPH Master",
+    explain: "Production is entered, but the sub-department has no MPH number, so the output earned nothing.",
+  },
+};
 
 // Edits go through the database functions, which check these roles again.
 export const MPH_LOSS_EDIT_ROLES = ["super_admin", "production_coordinator"];
@@ -172,7 +222,7 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
       .limit(10000),
     supabase
       .from("labour_productivity_targets")
-      .select("department_id, employee_id, process_id, shift, mph, check_in, check_out, labour_employees(employee_code, full_name), qa_processes(name)")
+      .select("department_id, employee_id, process_id, shift, mph, actual_quantity, check_in, check_out, labour_employees(employee_code, full_name), qa_processes(name)")
       .eq("target_date", date)
       .limit(10000),
   ]);
@@ -187,7 +237,7 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
   const byDept: Record<string, { output: number; authorized: number; used: number }> = {};
   const detail: Record<string, DepartmentMphDetail> = {};
   const bucket = (id: string) => (byDept[id] ??= { output: 0, authorized: 0, used: 0 });
-  const det = (id: string) => (detail[id] ??= { items: [], workers: [], fixed_daily_mph: 0 });
+  const det = (id: string) => (detail[id] ??= { items: [], workers: [], fixed_daily_mph: 0, workers_actual_qty: 0 });
 
   (prodRes.data ?? []).forEach((e: any) => {
     if (!e.department_id) return;
@@ -210,6 +260,7 @@ export async function fetchMphDay(date: string): Promise<MphDay> {
     if (!e.department_id) return;
     const mph = Number(e.mph || 0);
     bucket(e.department_id).used += mph;
+    det(e.department_id).workers_actual_qty += Number(e.actual_quantity || 0);
     det(e.department_id).workers.push({
       employee_code: e.labour_employees?.employee_code ?? "",
       employee_name: e.labour_employees?.full_name ?? "—",

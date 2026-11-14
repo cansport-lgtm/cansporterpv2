@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
-import { AlertTriangle, CheckCircle2, Gauge, ListChecks, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileWarning, Gauge, ListChecks, TrendingDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -13,11 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
-import { fmtMph, round1 } from "@/lib/mphLoss";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
+import { type MphEntryIssueKind, MPH_ENTRY_ISSUE_LABEL, fmtMph, round1 } from "@/lib/mphLoss";
 
 // One hue for "MPH lost" everywhere on this page (single-series charts + matrix shading).
 const LOSS_COLOR = "#dc2626";
+// Loss that comes from an entry issue (labour deployed, 0 MPH earned) rather than production.
+const ISSUE_COLOR = "#7c3aed";
 
 interface ReportRow {
   id: string;
@@ -83,6 +85,9 @@ export default function MPHLossReasonAnalysisPage() {
     );
 
     const totalLoss = round1(depts.reduce((s: number, d: any) => s - Number(d.net_mph), 0));
+    // Departments flagged as an entry issue when the report was last saved.
+    const issueDepts = depts.filter((d: any) => d.entry_issue);
+    const issueLoss = round1(issueDepts.reduce((s: number, d: any) => s - Number(d.net_mph), 0));
     const explained = round1(lines.reduce((s: number, l: any) => s + Number(l.mph_lost), 0));
 
     const byReason: Record<string, { name: string; category: string | null; mph: number; count: number }> = {};
@@ -109,14 +114,25 @@ export default function MPHLossReasonAnalysisPage() {
       .sort((a, b) => b.loss - a.loss);
     const matrixMax = Math.max(1, ...matrixRows.flatMap((r) => Object.values(r.cells)));
 
-    const byDate: Record<string, number> = {};
+    const byDate: Record<string, { production: number; issue: number }> = {};
     depts.forEach((d: any) => {
       const date = reportById[d.report_id].report_date;
-      byDate[date] = (byDate[date] ?? 0) - Number(d.net_mph);
+      const b = (byDate[date] ??= { production: 0, issue: 0 });
+      if (d.entry_issue) b.issue -= Number(d.net_mph);
+      else b.production -= Number(d.net_mph);
     });
     const trend = Object.entries(byDate)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, mph]) => ({ date, label: format(parseISO(date), "dd MMM"), mph: round1(mph) }));
+      .map(([date, v]) => ({ date, label: format(parseISO(date), "dd MMM"), production: round1(v.production), issue: round1(v.issue) }));
+
+    const issueLog = issueDepts
+      .map((d: any) => ({
+        ...d,
+        report: reportById[d.report_id],
+        loss: round1(-Number(d.net_mph)),
+        reasons: lines.filter((l: any) => l.report_id === d.report_id && l.department_id === d.department_id).map((l: any) => l.reason_name),
+      }))
+      .sort((a: any, b: any) => b.report.report_date.localeCompare(a.report.report_date) || b.loss - a.loss);
 
     const lineLog = lines
       .map((l: any) => ({
@@ -137,6 +153,9 @@ export default function MPHLossReasonAnalysisPage() {
       matrixMax,
       trend,
       lineLog,
+      issueLoss,
+      issueLog,
+      issueOpen: issueDepts.filter((d: any) => !d.no_production_confirmed).length,
     };
   }, [data, department, statusFilter]);
 
@@ -209,7 +228,7 @@ export default function MPHLossReasonAnalysisPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${analysis.issueLog.length > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           <MetricCard
             title="MPH lost"
             value={fmtMph(analysis.totalLoss)}
@@ -217,6 +236,15 @@ export default function MPHLossReasonAnalysisPage() {
             iconColor="text-red-600"
             description={`${analysis.reportCount} production days`}
           />
+          {analysis.issueLog.length > 0 && (
+            <MetricCard
+              title="From entry issues"
+              value={fmtMph(analysis.issueLoss)}
+              icon={FileWarning}
+              iconColor="text-violet-600"
+              description={`${analysis.totalLoss > 0 ? Math.round((analysis.issueLoss / analysis.totalLoss) * 100) : 0}% of the loss · ${analysis.issueLog.length} department-days · ${analysis.issueOpen} open`}
+            />
+          )}
           <MetricCard
             title="Explained"
             value={`${analysis.totalLoss > 0 ? Math.round((analysis.explained / analysis.totalLoss) * 100) : 0}%`}
@@ -279,14 +307,71 @@ export default function MPHLossReasonAnalysisPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)" }} formatter={(v: number) => [`${fmtMph(v)} MPH`, "Lost"]} />
-                    <Bar dataKey="mph" fill={LOSS_COLOR} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)" }} formatter={(v: number, name) => [`${fmtMph(v)} MPH`, name]} />
+                    {analysis.issueLog.length > 0 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+                    <Bar dataKey="production" name="Production loss" stackId="loss" fill={LOSS_COLOR} maxBarSize={28} />
+                    <Bar dataKey="issue" name="Entry issue" stackId="loss" fill={ISSUE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
         </div>
+
+        {analysis.issueLog.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Entry issue log</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Departments that used labour but earned 0 MPH, as flagged when the report was last saved. A department that
+                keeps appearing here has an entry problem, not a production problem.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-auto max-h-[420px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="text-xs font-semibold">Date</TableHead>
+                      <TableHead className="text-xs font-semibold">Department</TableHead>
+                      <TableHead className="text-xs font-semibold">Issue</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">Used MPH</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">MPH lost</TableHead>
+                      <TableHead className="text-xs font-semibold">Outcome</TableHead>
+                      <TableHead className="text-xs font-semibold">Report</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {analysis.issueLog.map((d: any) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-sm whitespace-nowrap">{format(parseISO(d.report.report_date), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-sm font-medium">{d.department_name}</TableCell>
+                        <TableCell className="text-sm">{MPH_ENTRY_ISSUE_LABEL[d.entry_issue as MphEntryIssueKind]?.cause ?? d.entry_issue}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">{fmtMph(Number(d.used_mph))}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums font-semibold text-red-600">{fmtMph(d.loss)}</TableCell>
+                        <TableCell className="text-sm">
+                          {d.no_production_confirmed ? (
+                            <>
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Confirmed no production</Badge>
+                              {d.reasons.length > 0 && <span className="ml-2 text-xs text-muted-foreground">{d.reasons.join(", ")}</span>}
+                            </>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Open</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          <Link to={`/labour/mph-loss-reasons?date=${d.report.report_date}`} className="text-primary hover:underline">
+                            {d.report.report_number}
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-2">

@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import {
   Bell, Plus, Printer, Save, Send, Trash2, AlertTriangle, Unlock, Gauge, ChevronDown, ChevronUp,
-  ChevronRight, ChevronLeft, Search, Calculator, ArrowRight, ExternalLink, Check, X,
+  ChevronRight, ChevronLeft, Search, Calculator, ArrowRight, ExternalLink, Check, X, Lock, BellRing,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ERPLayout } from "@/components/layout/ERPLayout";
@@ -23,6 +23,10 @@ import {
   type DepartmentMph,
   type DepartmentMphDetail,
   type MphLossReason,
+  type MphEntryIssueKind,
+  MPH_ENTRY_ISSUE_LABEL,
+  MPH_NO_PRODUCTION_CATEGORY,
+  mphEntryIssue,
   MPH_LOSS_REQUIRED_PCT,
   mphLossPct,
   mphLossReasonRequired,
@@ -89,6 +93,18 @@ interface DeptState {
   explained: number;
   remaining: number;
   status: DeptStatus;
+  // Labour used but 0 MPH earned: an entry problem rather than a real loss.
+  issue: MphEntryIssueKind | null;
+  // The coordinator confirmed the department really had no production.
+  confirmed: boolean;
+  // Issue still open: no reasons can be given and the report cannot be submitted.
+  locked: boolean;
+}
+
+interface EntryRequest {
+  department_id: string;
+  requested_by_name: string | null;
+  requested_at: string;
 }
 
 export default function MPHLossReasonsPage() {
@@ -154,6 +170,10 @@ export default function MPHLossReasonsPage() {
         authorized_mph: Number(d.authorized_mph),
         used_mph: Number(d.used_mph),
         net_mph: Number(d.net_mph),
+        entry_issue: d.entry_issue ?? null,
+        no_production_confirmed: !!d.no_production_confirmed,
+        no_production_confirmed_by_name: d.no_production_confirmed_by_name ?? null,
+        no_production_confirmed_at: d.no_production_confirmed_at ?? null,
       }));
       return { report: report as Report, departments, lines: (lineRes.data || []) as SavedLine[] };
     },
@@ -174,6 +194,19 @@ export default function MPHLossReasonsPage() {
     },
   });
 
+  // Requests already sent to the people who can fix a missing entry.
+  const { data: entryRequests = [] } = useQuery({
+    queryKey: ["mph-entry-requests", date],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("mph_entry_requests")
+        .select("department_id, requested_by_name, requested_at")
+        .eq("report_date", date);
+      if (error) throw error;
+      return (data || []) as EntryRequest[];
+    },
+  });
+
   const report = saved?.report ?? null;
   const isSubmitted = report?.status === "submitted";
   const canEdit = canEditRole && !isSubmitted;
@@ -185,6 +218,8 @@ export default function MPHLossReasonsPage() {
 
   // Editable lines, keyed by department. Reloaded whenever the saved report changes.
   const [lines, setLines] = useState<Record<string, LineDraft[]>>({});
+  // Departments confirmed as "no production this day", keyed by department.
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const loadKey = `${date}|${report?.id ?? "none"}|${report?.updated_at ?? ""}`;
   useEffect(() => {
     const next: Record<string, LineDraft[]> = {};
@@ -198,26 +233,44 @@ export default function MPHLossReasonsPage() {
       });
     });
     setLines(next);
+    setConfirmed(
+      Object.fromEntries((saved?.departments ?? []).filter((d) => d.no_production_confirmed).map((d) => [d.department_id, true]))
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadKey]);
+
+  const savedDeptById = useMemo(
+    () => Object.fromEntries((saved?.departments ?? []).map((d) => [d.department_id, d])),
+    [saved]
+  );
+  // A submitted report keeps the flag it was saved with; a draft works it out from the live entries.
+  const issueOf = (d: DepartmentMph): MphEntryIssueKind | null =>
+    isSubmitted ? d.entry_issue ?? null : mphEntryIssue(d, detail[d.department_id]);
 
   const reasonById = useMemo(() => Object.fromEntries(reasons.map((r) => [r.id, r])), [reasons]);
 
   const deptState: DeptState[] = useMemo(() => {
-    return lossDepts.map((d) => {
+    const states = lossDepts.map((d) => {
       const loss = round1(-d.net_mph);
       const lossPct = mphLossPct(d);
       const required = mphLossReasonRequired(d);
-      const deptLines = lines[d.department_id] ?? [];
+      const issue = issueOf(d);
+      const isConfirmed = !!issue && issue !== "mph_number_missing" && !!confirmed[d.department_id];
+      const locked = !!issue && !isConfirmed;
+      // An open entry issue takes no reasons (older draft lines are dropped on save).
+      const deptLines = locked ? [] : lines[d.department_id] ?? [];
       const explained = round1(deptLines.reduce((s, l) => s + (Number(l.mph_lost) || 0), 0));
       const remaining = round1(loss - explained);
       let status: DeptStatus = "pending";
       if (Math.abs(remaining) <= MPH_LOSS_TOLERANCE) status = "complete";
       else if (remaining < 0) status = "over";
       else if (explained > 0) status = "partial";
-      return { dept: d, loss, lossPct, required, lines: deptLines, explained, remaining, status };
+      return { dept: d, loss, lossPct, required, lines: deptLines, explained, remaining, status, issue, confirmed: isConfirmed, locked };
     });
-  }, [lossDepts, lines]);
+    // Open entry issues first: they have to be dealt with before anything else.
+    return [...states.filter((d) => d.locked), ...states.filter((d) => !d.locked)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lossDepts, lines, confirmed, detail, isSubmitted]);
 
   const totals = useMemo(() => {
     const loss = round1(deptState.reduce((s, d) => s + d.loss, 0));
@@ -236,6 +289,9 @@ export default function MPHLossReasonsPage() {
       partial: deptState.filter((d) => d.status === "partial" || d.status === "over").length,
       authorized: round1(allDepts.reduce((s, d) => s + d.authorized_mph, 0)),
       used: round1(allDepts.reduce((s, d) => s + d.used_mph, 0)),
+      issueCount: deptState.filter((d) => d.issue).length,
+      issueLoss: round1(deptState.filter((d) => d.issue).reduce((s, d) => s + d.loss, 0)),
+      openIssues: deptState.filter((d) => d.locked).length,
     };
   }, [deptState, allDepts]);
 
@@ -247,7 +303,31 @@ export default function MPHLossReasonsPage() {
   // but its reasons must not exceed its loss.
   const allExplained =
     deptState.length > 0 &&
-    deptState.every((d) => (d.required ? d.status === "complete" : d.status !== "over"));
+    deptState.every((d) => !d.locked && (d.required ? d.status === "complete" : d.status !== "over"));
+  // A confirmed no-production day needs a "No production" reason with remarks on every line.
+  const badConfirmed = deptState.find(
+    (d) =>
+      d.confirmed &&
+      d.lines.some((l) => !l.remarks.trim() || (l.reason_id && reasonById[l.reason_id]?.category !== MPH_NO_PRODUCTION_CATEGORY))
+  );
+  const submitHint =
+    totals.openIssues > 0
+      ? "Fix or confirm every entry issue to submit"
+      : `Explain every department with a loss of ${MPH_LOSS_REQUIRED_PCT}% or more to submit`;
+
+  // Reasons a department can pick: the "No production" category is only for a
+  // confirmed no-production day, and such a day can only use that category.
+  const optionsFor = (d: DeptState) =>
+    reasonsForDepartment(reasons, mapping, d.dept.department_id).filter(
+      (r) => (r.category === MPH_NO_PRODUCTION_CATEGORY) === d.confirmed
+    );
+
+  // Tick: one line for the whole loss, ready for the reason. Untick: back to locked.
+  const toggleConfirm = (d: DeptState, on: boolean) => {
+    const id = d.dept.department_id;
+    setConfirmed((prev) => ({ ...prev, [id]: on }));
+    setLines((prev) => ({ ...prev, [id]: on ? [{ ...newLine(), mph_lost: String(d.loss) }] : [] }));
+  };
 
   // Reasons already used for this date, shown first in the phone picker.
   const usedReasonIds = useMemo(() => {
@@ -282,7 +362,15 @@ export default function MPHLossReasonsPage() {
       );
       const { data, error } = await (supabase as any).rpc("mph_loss_report_save", {
         p_date: date,
-        p_departments: allDepts,
+        p_departments: allDepts.map((d) => ({
+          department_id: d.department_id,
+          output: d.output,
+          authorized_mph: d.authorized_mph,
+          used_mph: d.used_mph,
+          net_mph: d.net_mph,
+          entry_issue: issueOf(d),
+          no_production_confirmed: !!confirmed[d.department_id],
+        })),
         p_lines: payloadLines,
         p_submit: submit,
       });
@@ -310,9 +398,37 @@ export default function MPHLossReasonsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const requestMutation = useMutation({
+    mutationFn: async (departmentId: string) => {
+      const { error } = await (supabase as any).rpc("mph_entry_issue_request", { p_date: date, p_department_id: departmentId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Request sent");
+      qc.invalidateQueries({ queryKey: ["mph-entry-requests", date] });
+    },
+    onError: (e: any) => {
+      toast.error(e.message || "Could not send the request");
+      qc.invalidateQueries({ queryKey: ["mph-entry-requests", date] });
+    },
+  });
+
   const handleSave = (submit: boolean) => {
     if (invalidLine) {
       toast.error("Every reason line needs a reason and the MPH lost");
+      return;
+    }
+    if (badConfirmed) {
+      toast.error(`${badConfirmed.dept.department_name}: a confirmed no-production day needs a "No production" reason and remarks on every line`);
+      return;
+    }
+    if (submit && totals.openIssues > 0) {
+      const open = deptState.find((d) => d.locked)!;
+      toast.error(
+        open.issue === "mph_number_missing"
+          ? `${open.dept.department_name}: set the MPH number in MPH Master before submitting`
+          : `${open.dept.department_name}: enter the production, or confirm it had no production, before submitting`
+      );
       return;
     }
     if (submit && !allExplained) {
@@ -341,13 +457,28 @@ export default function MPHLossReasonsPage() {
             (l, i) => `<tr>
               <td class="b">${i === 0 ? escapeHtml(d.dept.department_name) : ""}</td>
               <td class="n">${i === 0 ? "−" + fmtMph(d.loss) : ""}</td>
-              <td>${l ? escapeHtml(reasonById[l.reason_id]?.name ?? "—") : '<span class="muted">No reason given</span>'}</td>
+              <td>${l ? escapeHtml(reasonById[l.reason_id]?.name ?? "—") : d.locked ? '<span class="muted">Entry issue open (see above)</span>' : '<span class="muted">No reason given</span>'}</td>
               <td class="n">${l && Number(l.mph_lost) > 0 ? fmtMph(Number(l.mph_lost)) : ""}</td>
               <td class="n">${l ? escapeHtml(l.workers_affected) : ""}</td>
               <td class="muted">${l ? escapeHtml(l.remarks) : ""}</td>
             </tr>`
           )
           .join("");
+      })
+      .join("");
+
+    const issueRows = deptState
+      .filter((d) => d.issue)
+      .map((d) => {
+        const sd = savedDeptById[d.dept.department_id];
+        const who = d.confirmed && sd?.no_production_confirmed_by_name ? ` by ${escapeHtml(sd.no_production_confirmed_by_name)}` : "";
+        return `<tr>
+          <td class="b">${escapeHtml(d.dept.department_name)}</td>
+          <td>${escapeHtml(MPH_ENTRY_ISSUE_LABEL[d.issue!].cause)}</td>
+          <td class="n">${fmtMph(d.dept.used_mph)}</td>
+          <td class="n">−${fmtMph(d.loss)}</td>
+          <td>${d.confirmed ? `Confirmed no production${who}` : "<b>Open</b>"}</td>
+        </tr>`;
       })
       .join("");
 
@@ -409,6 +540,9 @@ export default function MPHLossReasonsPage() {
         <div>Net MPH loss<b>−${fmtMph(totals.loss)}</b></div>
         <div>Explained<b>${fmtMph(totals.explained)} (${totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100}%)</b></div>
       </div>
+      ${issueRows ? `<h2>Entry issues: labour deployed but no MPH earned (−${fmtMph(totals.issueLoss)} of −${fmtMph(totals.loss)})</h2>
+      <table><thead><tr><th>Department</th><th>Issue</th><th class="n">Used MPH</th><th class="n">Loss</th><th>Outcome</th></tr></thead>
+        <tbody>${issueRows}</tbody></table>` : ""}
       <h2>Department-wise reasons</h2>
       <table><thead><tr><th>Department</th><th class="n">Net loss</th><th>Reason</th><th class="n">MPH</th><th class="n">Workers</th><th>Remarks</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="6" class="muted">No department in MPH loss</td></tr>'}</tbody></table>
@@ -450,6 +584,7 @@ export default function MPHLossReasonsPage() {
     date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, canEditRole, isLoading,
     deptState, totals, allDepts, lossDepts, noLossCount, reasons, mapping, reasonById, detail,
     updateLine, addLine, removeLine, handleSave, handlePrint, saveMutation, reopenMutation, allExplained,
+    toggleConfirm, entryRequests, requestMutation, savedDeptById, submitHint,
   };
 
   if (isMobile) {
@@ -482,7 +617,7 @@ export default function MPHLossReasonsPage() {
             {pickerDept && picker && (
               <ReasonPicker
                 dept={pickerDept}
-                options={reasonsForDepartment(reasons, mapping, pickerDept.dept.department_id)}
+                options={optionsFor(pickerDept)}
                 usedIds={usedReasonIds}
                 current={pickerDept.lines.find((l) => l.key === picker.lineKey)?.reason_id ?? ""}
                 onPick={(id) => {
@@ -556,7 +691,7 @@ export default function MPHLossReasonsPage() {
                 <Button
                   onClick={() => handleSave(true)}
                   disabled={saveMutation.isPending || isLoading || !allExplained}
-                  title={allExplained ? undefined : `Explain every department with a loss of ${MPH_LOSS_REQUIRED_PCT}% or more to submit`}
+                  title={allExplained ? undefined : submitHint}
                 >
                   <Send className="h-4 w-4 mr-2" /> Submit Reasons
                 </Button>
@@ -571,10 +706,20 @@ export default function MPHLossReasonsPage() {
         </div>
 
         <StatusBanners {...commonProps} />
+        <EntryIssueBanner deptState={deptState} totals={totals} isSubmitted={isSubmitted} />
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${totals.issueCount > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           <Kpi label="Total MPH loss" value={`−${fmtMph(totals.loss)}`} sub={`${lossDepts.length} departments`} className="text-red-700" />
+          {totals.issueCount > 0 && (
+            <Kpi
+              label="From entry issues"
+              value={`−${fmtMph(totals.issueLoss)}`}
+              sub={`${totals.issueCount} department${totals.issueCount === 1 ? "" : "s"} · ${totals.loss > 0 ? Math.round((totals.issueLoss / totals.loss) * 100) : 0}% of the loss · ${totals.openIssues} open`}
+              className="text-red-700"
+              highlight
+            />
+          )}
           <Kpi
             label="Explained"
             value={fmtMph(totals.explained)}
@@ -606,13 +751,13 @@ export default function MPHLossReasonsPage() {
           </Card>
         ) : (
           deptState.map((d) => {
-            const options = reasonsForDepartment(reasons, mapping, d.dept.department_id);
+            const options = optionsFor(d);
             const badge = STATUS_BADGE[d.status];
             const pct = d.loss > 0 ? Math.min((d.explained / d.loss) * 100, 100) : 0;
             const calcOpen = openCalc.has(d.dept.department_id);
             return (
-              <Card key={d.dept.department_id} className="overflow-hidden">
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-muted/40 px-4 py-3">
+              <Card key={d.dept.department_id} className={`overflow-hidden ${d.locked ? "border-red-300" : ""}`}>
+                <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 border-b px-4 py-3 ${d.locked ? "bg-red-50 border-red-200" : "bg-muted/40"}`}>
                   <h2 className="flex-1 min-w-[140px] text-base font-semibold">{d.dept.department_name}</h2>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground tabular-nums">
                     <span>Output <b className="text-foreground">{fmtQty(d.dept.output)}</b></span>
@@ -636,19 +781,25 @@ export default function MPHLossReasonsPage() {
                     {calcOpen ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
                     {calcOpen ? "Hide calculation" : "Show calculation"}
                   </Button>
-                  <div className="w-[170px]">
-                    <div className="text-xs text-muted-foreground mb-1">
-                      Explained {fmtMph(d.explained)} of {fmtMph(d.loss)}
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full ${d.status === "complete" ? "bg-green-600" : "bg-amber-500"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                  <Badge className={badge.className}>{badge.label}</Badge>
-                  <RequirementBadge d={d} />
+                  {d.locked ? (
+                    <EntryIssueBadge d={d} />
+                  ) : (
+                    <>
+                      <div className="w-[170px]">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          Explained {fmtMph(d.explained)} of {fmtMph(d.loss)}
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-2 rounded-full ${d.status === "complete" ? "bg-green-600" : "bg-amber-500"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                      {d.issue ? <EntryIssueBadge d={d} /> : <RequirementBadge d={d} />}
+                    </>
+                  )}
                 </div>
 
                 {calcOpen && (
@@ -658,7 +809,8 @@ export default function MPHLossReasonsPage() {
                 )}
 
                 <CardContent className="p-4 space-y-3">
-                  {d.lines.length === 0 ? (
+                  {d.issue && <EntryIssuePanel {...commonProps} d={d} />}
+                  {d.locked ? null : d.lines.length === 0 ? (
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className="text-sm text-muted-foreground">No reason entered yet.</span>
                       {canEdit && (
@@ -735,7 +887,8 @@ export default function MPHLossReasonsPage() {
                               />
                               <Input
                                 aria-label="Remarks"
-                                placeholder="What happened?"
+                                placeholder={d.confirmed ? "Why was there no production? (required)" : "What happened?"}
+                                className={d.confirmed && !l.remarks.trim() ? "border-red-400" : ""}
                                 value={l.remarks}
                                 disabled={!canEdit}
                                 onChange={(e) => updateLine(d.dept.department_id, l.key, { remarks: e.target.value })}
@@ -809,7 +962,10 @@ type Common = {
   canEditRole: boolean;
   isLoading: boolean;
   deptState: DeptState[];
-  totals: { loss: number; explained: number; remaining: number; requiredRemaining: number; required: number; optional: number; done: number; partial: number; authorized: number; used: number };
+  totals: {
+    loss: number; explained: number; remaining: number; requiredRemaining: number; required: number; optional: number;
+    done: number; partial: number; authorized: number; used: number; issueCount: number; issueLoss: number; openIssues: number;
+  };
   allDepts: DepartmentMph[];
   lossDepts: DepartmentMph[];
   noLossCount: number;
@@ -825,7 +981,170 @@ type Common = {
   saveMutation: { isPending: boolean };
   reopenMutation: { isPending: boolean; mutate: () => void };
   allExplained: boolean;
+  toggleConfirm: (d: DeptState, on: boolean) => void;
+  entryRequests: EntryRequest[];
+  requestMutation: { isPending: boolean; mutate: (departmentId: string) => void };
+  savedDeptById: Record<string, DepartmentMph>;
+  submitHint: string;
 };
+
+// "No production entered" / "MPH number not set" while open; green once confirmed.
+function EntryIssueBadge({ d, className = "" }: { d: DeptState; className?: string }) {
+  if (!d.issue) return null;
+  return d.confirmed ? (
+    <Badge className={`bg-green-100 text-green-700 hover:bg-green-100 ${className}`}>Confirmed no production</Badge>
+  ) : (
+    <Badge className={`bg-red-600 text-white hover:bg-red-600 ${className}`}>{MPH_ENTRY_ISSUE_LABEL[d.issue].badge}</Badge>
+  );
+}
+
+// Top-of-page warning: departments with labour deployed that earned 0 MPH.
+function EntryIssueBanner({ deptState, totals, isSubmitted, compact = false }: Pick<Common, "deptState" | "totals" | "isSubmitted"> & { compact?: boolean }) {
+  const flagged = deptState.filter((d) => d.issue);
+  if (flagged.length === 0) return null;
+  const open = totals.openIssues;
+  return (
+    <div className={`rounded-lg border px-4 py-3 space-y-2 ${compact ? "text-xs" : "text-sm"} ${open > 0 ? "border-red-300 bg-red-50 text-red-900" : "border-green-200 bg-green-50 text-green-900"}`}>
+      <div className="flex items-start gap-2 font-semibold">
+        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>
+          {flagged.length} department{flagged.length === 1 ? "" : "s"} used labour but earned 0 MPH
+          {open > 0 ? ". Check the entries before giving reasons." : ". All confirmed as no production."}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {flagged.map((d) => (
+          <span
+            key={d.dept.department_id}
+            className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${d.confirmed ? "border-green-300 bg-green-100 text-green-800" : "border-red-300 bg-background text-red-800"}`}
+          >
+            {d.dept.department_name} · {d.confirmed ? "confirmed no production" : MPH_ENTRY_ISSUE_LABEL[d.issue!].cause.toLowerCase()}
+          </span>
+        ))}
+      </div>
+      <div>
+        These are {fmtMph(totals.issueLoss)} of the day's {fmtMph(totals.loss)} MPH loss.
+        {open > 0 && !isSubmitted ? " Submit stays blocked until each one is fixed or confirmed." : ""}
+      </div>
+    </div>
+  );
+}
+
+// Why the department is flagged, what the entries show, and what to do about it.
+// Page links are for super admin only: the coordinator's role cannot open those
+// pages, so the coordinator sends a request instead.
+function EntryIssuePanel({
+  d, date, detail, canEdit, canEditRole, isSubmitted, isSuperAdmin, entryRequests, requestMutation, toggleConfirm, savedDeptById, compact = false,
+}: Common & { d: DeptState; compact?: boolean }) {
+  if (!d.issue) return null;
+  const id = d.dept.department_id;
+  const label = MPH_ENTRY_ISSUE_LABEL[d.issue];
+  const det = detail[id];
+  const workers = det?.workers.length ?? 0;
+  const actual = det?.workers_actual_qty ?? 0;
+  const noRateSubs = Array.from(new Set((det?.items ?? []).filter((i) => i.mph_number <= 0).map((i) => (i.sub_department === "—" ? "department level" : i.sub_department))));
+  const request = entryRequests.find((r) => r.department_id === id);
+  const saved = savedDeptById[id];
+  const day = format(parseISO(date), "dd MMM yyyy");
+  const canConfirm = d.issue !== "mph_number_missing";
+  const linkCls = "inline-flex items-center gap-1 rounded-md border px-2.5 h-8 text-xs font-medium text-primary bg-background hover:bg-muted";
+
+  const evidence: { ok: boolean; text: string }[] = [
+    { ok: true, text: `${workers} worker${workers === 1 ? "" : "s"} deployed, ${fmtMph(d.dept.used_mph)} MPH used` },
+  ];
+  if (d.issue === "mph_number_missing") {
+    evidence.push({ ok: true, text: `${fmtQty(d.dept.output)} units entered in Daily Entry` });
+    evidence.push({ ok: false, text: `No MPH number for: ${noRateSubs.length ? noRateSubs.join(", ") : "this department"}` });
+  } else {
+    evidence.push(
+      actual > 0
+        ? { ok: true, text: `Workers reported ${fmtQty(actual)} units in Labour Productivity Entry` }
+        : { ok: false, text: "Workers reported no quantity" }
+    );
+    evidence.push({ ok: false, text: `No production entry for ${day}` });
+  }
+
+  return (
+    <div className="space-y-3">
+      {!isSubmitted && (
+        <div className={`grid gap-3 ${compact ? "" : "md:grid-cols-2"}`}>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Likely cause</div>
+            <p className="text-sm m-0"><b>{label.cause}.</b> {label.explain}</p>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">What the entries show</div>
+            <ul className="space-y-1 text-sm m-0 p-0 list-none">
+              {evidence.map((e, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  {e.ok ? <Check className="h-4 w-4 shrink-0 mt-0.5 text-green-700" /> : <X className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />}
+                  <span>{e.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {!isSubmitted && (
+        <div className="flex flex-wrap items-center gap-2">
+          {isSuperAdmin && d.issue === "mph_number_missing" && (
+            <Link to="/production/mph-master" className={linkCls}>Open MPH Master <ExternalLink className="h-3 w-3" /></Link>
+          )}
+          {isSuperAdmin && d.issue !== "mph_number_missing" && (
+            <>
+              <Link to="/production/daily-entry" className={linkCls}>Open Daily Entry <ExternalLink className="h-3 w-3" /></Link>
+              <Link to="/labour/todays-target" className={linkCls}>Open deployment sheet <ExternalLink className="h-3 w-3" /></Link>
+            </>
+          )}
+          {request ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700">
+              <Check className="h-3.5 w-3.5" /> Requested{request.requested_by_name ? ` by ${request.requested_by_name}` : ""}, {format(new Date(request.requested_at), "dd MMM HH:mm")}
+            </span>
+          ) : (
+            canEditRole && d.locked && (
+              <Button variant="outline" size="sm" className="h-8" onClick={() => requestMutation.mutate(id)} disabled={requestMutation.isPending}>
+                <BellRing className="h-3.5 w-3.5 mr-1.5" />
+                {d.issue === "mph_number_missing" ? "Ask a super admin to set the MPH number" : "Request production entry"}
+              </Button>
+            )
+          )}
+        </div>
+      )}
+
+      {canConfirm && (
+        <label className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm ${canEdit ? "cursor-pointer" : ""} ${d.confirmed ? "border-green-200 bg-green-50" : "bg-background"}`}>
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+            checked={d.confirmed}
+            disabled={!canEdit}
+            onChange={(e) => toggleConfirm(d, e.target.checked)}
+          />
+          <span>
+            <b>Confirmed: {d.dept.department_name} had no production on {day}.</b>{" "}
+            <span className="text-muted-foreground">
+              {d.confirmed && saved?.no_production_confirmed && saved.no_production_confirmed_by_name
+                ? `${saved.no_production_confirmed_by_name}${saved.no_production_confirmed_at ? `, ${format(new Date(saved.no_production_confirmed_at), "dd MMM HH:mm")}` : ""}`
+                : d.confirmed
+                ? `Pick a "${MPH_NO_PRODUCTION_CATEGORY}" reason below and write what happened in the remarks.`
+                : "Tick only when the entries are correct."}
+            </span>
+          </span>
+        </label>
+      )}
+
+      {d.locked && (
+        <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+          <Lock className="h-4 w-4 shrink-0 mt-0.5" />
+          {d.issue === "mph_number_missing"
+            ? "Reasons are locked until the MPH number is set. This cannot be confirmed as no production because output was entered."
+            : "Reasons are locked. Enter the production, or tick the confirmation above to explain a real no-production day."}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RemainingText({ d, className = "" }: { d: DeptState; className?: string }) {
   const ok = d.status === "complete" || (!d.required && d.status !== "over");
@@ -909,9 +1228,9 @@ function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, l
   );
 }
 
-function Kpi({ label, value, sub, className = "" }: { label: string; value: string; sub: string; className?: string }) {
+function Kpi({ label, value, sub, className = "", highlight = false }: { label: string; value: string; sub: string; className?: string; highlight?: boolean }) {
   return (
-    <Card>
+    <Card className={highlight ? "border-red-300 bg-red-50" : ""}>
       <CardContent className="p-4">
         <div className="text-xs font-semibold text-muted-foreground">{label}</div>
         <div className={`text-2xl font-bold tabular-nums ${className}`}>{value}</div>
@@ -1213,7 +1532,7 @@ function MobileOverview(
   const { date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, isLoading, deptState, totals, allDepts, lossDepts, noLossCount,
     handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
   const pct = totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100;
-  const pendingDepts = deptState.filter((d) => d.required && d.status !== "complete");
+  const pendingDepts = deptState.filter((d) => d.locked || (d.required && d.status !== "complete"));
   const shown = filter === "pending" ? pendingDepts : deptState;
 
   return (
@@ -1302,6 +1621,8 @@ function MobileOverview(
           </CardContent>
         </Card>
 
+        <EntryIssueBanner deptState={deptState} totals={totals} isSubmitted={isSubmitted} compact />
+
         {/* List header */}
         <div className="flex items-center justify-between px-0.5">
           <div className="text-sm font-bold">Departments in loss</div>
@@ -1344,10 +1665,15 @@ function MobileOverview(
                   onClick={() => onOpen(d.dept.department_id)}
                   className="flex w-full items-center gap-3 px-4 min-h-[64px] text-left border-b last:border-b-0 active:bg-muted/60"
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${s.dot}`} />
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${d.locked ? "bg-red-600" : s.dot}`} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-[15px] font-semibold truncate">{d.dept.department_name}</span>
-                    <span className="block text-xs text-muted-foreground">
+                    {d.issue && (
+                      <span className={`block text-xs font-semibold ${d.confirmed ? "text-green-700" : "text-red-700"}`}>
+                        {d.confirmed ? "Confirmed no production" : `${MPH_ENTRY_ISSUE_LABEL[d.issue].badge} · ${MPH_ENTRY_ISSUE_LABEL[d.issue].cause.toLowerCase()}`}
+                      </span>
+                    )}
+                    <span className={`block text-xs text-muted-foreground ${d.locked ? "hidden" : ""}`}>
                       {d.lines.length === 0
                         ? "No reason yet"
                         : d.status === "complete"
@@ -1383,7 +1709,11 @@ function MobileOverview(
             Save draft
           </Button>
           <Button className="h-12 text-[15px] rounded-xl" onClick={() => handleSave(true)} disabled={saveMutation.isPending || isLoading || !allExplained}>
-            {allExplained ? "Submit reasons" : `Submit · ${fmtMph(totals.remaining)} left`}
+            {allExplained
+              ? "Submit reasons"
+              : totals.openIssues > 0
+              ? `Submit · ${totals.openIssues} entry issue${totals.openIssues === 1 ? "" : "s"}`
+              : `Submit · ${fmtMph(totals.remaining)} left`}
           </Button>
         </div>
       )}
@@ -1437,9 +1767,17 @@ function MobileDepartment(
               <span className="text-muted-foreground"><b className="text-foreground">{fmtMph(d.explained)}</b> of {fmtMph(d.loss)} explained</span>
               <RemainingText d={d} className="text-[13px]" />
             </div>
-            <RequirementBadge d={d} />
+            {d.issue ? <EntryIssueBadge d={d} /> : <RequirementBadge d={d} />}
           </CardContent>
         </Card>
+
+        {d.issue && (
+          <Card className={d.locked ? "border-red-300" : ""}>
+            <CardContent className="p-3.5">
+              <EntryIssuePanel {...props} d={d} compact />
+            </CardContent>
+          </Card>
+        )}
 
         {d.lines.map((l, i) => {
           const reason = reasonById[l.reason_id];
@@ -1510,8 +1848,8 @@ function MobileDepartment(
                 <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
                   Remarks
                   <Input
-                    placeholder="What happened?"
-                    className={`${input} font-normal`}
+                    placeholder={d.confirmed ? "Why was there no production? (required)" : "What happened?"}
+                    className={`${input} font-normal ${d.confirmed && !l.remarks.trim() ? "border-red-400" : ""}`}
                     value={l.remarks}
                     disabled={!canEdit}
                     onChange={(e) => updateLine(deptId, l.key, { remarks: e.target.value })}
@@ -1522,7 +1860,7 @@ function MobileDepartment(
           );
         })}
 
-        {canEdit && (
+        {canEdit && !d.locked && (
           <button
             type="button"
             onClick={() => {
@@ -1534,7 +1872,7 @@ function MobileDepartment(
             <Plus className="h-[18px] w-[18px]" /> {d.lines.length === 0 ? "Add a reason" : "Add another reason"}
           </button>
         )}
-        {!canEdit && d.lines.length === 0 && (
+        {!canEdit && !d.locked && d.lines.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">No reason entered.</p>
         )}
       </div>
