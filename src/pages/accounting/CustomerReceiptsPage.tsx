@@ -15,10 +15,13 @@ import { toast } from "@/hooks/use-toast";
 import { Receipt, CheckCircle, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { postCustomerReceipt } from "@/lib/accounting/postCustomerReceipt";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 
 export default function CustomerReceiptsPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const [selectedPartyId, setSelectedPartyId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
@@ -126,11 +129,12 @@ export default function CustomerReceiptsPage() {
       toast({ title: result.skipped === "flag_off" ? "Flag is OFF" : `Receipt posted: ${result.voucherNumber}` });
       setAmount(""); setReference(""); setNote("");
     },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Customer Receipts" description="AR aging + record customer payments against open balances" />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 max-sm:[&>*]:!col-span-full gap-3 mb-4">
@@ -192,7 +196,7 @@ export default function CustomerReceiptsPage() {
             ) : (
               <>
                 <div className="text-sm">Open balance: <strong>Rs. {selectedRow?.total.toLocaleString()}</strong></div>
-                <div><Label>Date</Label><Input type="date" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} /></div>
+                <div><Label>Date</Label><Input type="date" min={minDate} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} /></div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label>Mode</Label>

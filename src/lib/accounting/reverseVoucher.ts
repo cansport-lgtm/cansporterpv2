@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { fetchClosingDate, minPostingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
 
 const sb = supabase as any;
 
@@ -23,7 +25,9 @@ export interface ReverseVoucherResult {
  * Mathematically the two cancel out — the original's GL impact is undone, and
  * the audit trail is preserved (both vouchers remain in the DB).
  *
- * Blocked by the period-close trigger if voucher_date is in a closed period.
+ * If the original is dated in a closed period, the reversal is dated on the first
+ * open day (or today, whichever is later) instead of the original date; the original
+ * stays untouched apart from its status flip (allowed by the period-close trigger).
  */
 export async function reverseVoucher(originalVoucherId: string, reason: string): Promise<ReverseVoucherResult> {
   try {
@@ -48,9 +52,17 @@ export async function reverseVoucher(originalVoucherId: string, reason: string):
       .order("line_order");
     if (lErr || !lines || lines.length === 0) return { ok: false, error: lErr?.message || "Original has no lines" };
 
-    // 2) Insert reversal voucher
+    // 2) Insert reversal voucher (dated in the open period if the original is closed)
+    const closedThrough = await fetchClosingDate();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const firstOpen = minPostingDate(closedThrough);
+    let reversalDate: string = original.voucher_date;
+    if (closedThrough && original.voucher_date <= closedThrough) {
+      reversalDate = firstOpen && firstOpen > today ? firstOpen : today;
+    }
     const reversalNarration =
       `Reversal of ${original.voucher_number}: ${reason.trim()}` +
+      (reversalDate !== original.voucher_date ? ` (original dated ${original.voucher_date}, closed period)` : "") +
       (original.narration ? `\n— original narration: ${original.narration}` : "");
 
     const { data: reversal, error: rErr } = await sb
@@ -58,7 +70,7 @@ export async function reverseVoucher(originalVoucherId: string, reason: string):
       .insert({
         voucher_number: "",
         voucher_type: "JV",
-        voucher_date: original.voucher_date,
+        voucher_date: reversalDate,
         party_id: original.party_id,
         narration: reversalNarration,
         total_amount: original.total_amount,
@@ -69,7 +81,7 @@ export async function reverseVoucher(originalVoucherId: string, reason: string):
       })
       .select("id, voucher_number")
       .single();
-    if (rErr || !reversal) return { ok: false, error: rErr?.message || "Failed to insert reversal voucher" };
+    if (rErr || !reversal) return { ok: false, error: friendlyPostingError(rErr?.message) || "Failed to insert reversal voucher" };
 
     // 3) Insert mirror lines (Dr ↔ Cr swapped)
     const mirrorLines = (lines as any[]).map((line, idx) => ({
@@ -82,14 +94,14 @@ export async function reverseVoucher(originalVoucherId: string, reason: string):
       line_order: idx,
     }));
     const { error: mlErr } = await sb.from("accounting_voucher_lines").insert(mirrorLines);
-    if (mlErr) return { ok: false, error: mlErr.message };
+    if (mlErr) return { ok: false, error: friendlyPostingError(mlErr.message) };
 
     // 4) Mark original as reversed
     const { error: uErr } = await sb
       .from("accounting_vouchers")
       .update({ status: "reversed", updated_at: new Date().toISOString() })
       .eq("id", originalVoucherId);
-    if (uErr) return { ok: false, error: uErr.message };
+    if (uErr) return { ok: false, error: friendlyPostingError(uErr.message) };
 
     return { ok: true, reversalVoucherId: reversal.id, reversalVoucherNumber: reversal.voucher_number };
   } catch (e: any) {

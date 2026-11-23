@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { Lock, Unlock, AlertTriangle, CheckCircle, Archive } from "lucide-react";
 import { format, endOfYear } from "date-fns";
+import { friendlyPostingError } from "@/lib/accounting/periodLock";
 
 const sb = supabase as any;
 
@@ -22,12 +23,21 @@ export default function PeriodClosePage() {
   const [proposedClose, setProposedClose] = useState("");
   const [yearEndDate, setYearEndDate] = useState(format(endOfYear(new Date()), "yyyy-MM-dd"));
   const [yearEndNote, setYearEndNote] = useState("");
+  const [reason, setReason] = useState("");
 
   const { data: state } = useQuery({
     queryKey: ["acc-period-close"],
     queryFn: async () => {
       const { data } = await sb.from("accounting_period_close").select("*").eq("id", 1).maybeSingle();
       return data;
+    },
+  });
+
+  const { data: history } = useQuery({
+    queryKey: ["acc-period-close-log"],
+    queryFn: async () => {
+      const { data } = await sb.from("accounting_period_close_log").select("*").order("changed_at", { ascending: false }).limit(50);
+      return data || [];
     },
   });
 
@@ -77,18 +87,20 @@ export default function PeriodClosePage() {
 
   const setCloseMutation = useMutation({
     mutationFn: async (date: string | null) => {
+      // Server trigger: super admin only; reason mandatory when reopening / moving back
       const { error } = await sb.from("accounting_period_close").update({
         closed_through_date: date,
-        last_closed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        notes: reason.trim() || null,
       }).eq("id", 1);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["acc-period-close"] });
+      queryClient.invalidateQueries({ queryKey: ["acc-period-close-log"] });
+      setReason("");
       toast({ title: vars === null ? "Period reopened" : `Period locked through ${vars}` });
     },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   // Year-end closing JV
@@ -170,7 +182,7 @@ export default function PeriodClosePage() {
       toast({ title: `Year-end JV posted: ${result.voucherNumber}`, description: `Net ${result.netIncome >= 0 ? "profit" : "loss"} Rs. ${Math.abs(result.netIncome).toLocaleString()} → Retained Earnings (${result.lineCount} lines)` });
       setYearEndNote("");
     },
-    onError: (e: any) => toast({ title: "Year-end close failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Year-end close failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   const isLocked = !!state?.closed_through_date;
@@ -194,7 +206,7 @@ export default function PeriodClosePage() {
               {state?.last_closed_at && <div className="text-xs text-muted-foreground mt-1">Last updated: {format(new Date(state.last_closed_at), "dd MMM yyyy HH:mm")}</div>}
             </div>
             {isLocked && (
-              <Button variant="outline" size="sm" onClick={() => setCloseMutation.mutate(null)} disabled={setCloseMutation.isPending}>
+              <Button variant="outline" size="sm" onClick={() => setCloseMutation.mutate(null)} disabled={setCloseMutation.isPending || reason.trim().length < 5} title="Enter a reason below first">
                 <Unlock className="h-4 w-4 mr-1" />Reopen Period
               </Button>
             )}
@@ -209,7 +221,11 @@ export default function PeriodClosePage() {
             <div>
               <Label>Close through date *</Label>
               <Input type="date" value={proposedClose} onChange={e => setProposedClose(e.target.value)} />
-              <p className="text-xs text-muted-foreground mt-1">All vouchers dated on or before this date will be locked. New vouchers cannot be posted to these dates until the period is reopened.</p>
+              <p className="text-xs text-muted-foreground mt-1">Nobody (including Super Admin) can post, edit, delete or reverse-into any voucher dated on or before this date until the date is moved back.</p>
+            </div>
+            <div>
+              <Label>Reason {isLocked && "(required to reopen or move the date back)"}</Label>
+              <Textarea rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Reopening to correct March bank entry" />
             </div>
 
             {proposedClose && (
@@ -227,7 +243,7 @@ export default function PeriodClosePage() {
             </Button>
             <div className="text-xs text-muted-foreground flex items-start gap-1">
               <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-600" />
-              Lock is enforced at database level by a trigger. Can be reopened anytime via this page.
+              Enforced at database level for every voucher and voucher line. Only a Super Admin can move the date; every change is logged below.
             </div>
           </CardContent>
         </Card>
@@ -257,6 +273,26 @@ export default function PeriodClosePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader><CardTitle className="text-sm">Closing Date History</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader><TableRow><TableHead>When</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Reason</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {(history || []).map((h: any) => (
+                <TableRow key={h.id}>
+                  <TableCell className="text-xs">{format(new Date(h.changed_at), "dd MMM yyyy HH:mm")}</TableCell>
+                  <TableCell className="text-xs">{h.old_closed_through_date || "—"}</TableCell>
+                  <TableCell className="text-xs">{h.new_closed_through_date || "Reopened"}</TableCell>
+                  <TableCell className="text-xs">{h.reason || "—"}</TableCell>
+                </TableRow>
+              ))}
+              {(history || []).length === 0 && <TableRow><TableCell colSpan={4} className="text-xs text-muted-foreground text-center">No changes yet</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </ERPLayout>
   );
 }

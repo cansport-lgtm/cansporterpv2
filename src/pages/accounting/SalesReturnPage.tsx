@@ -15,10 +15,13 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowDownLeft } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { postSalesReturn } from "@/lib/accounting/postSalesReturn";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 
 export default function SalesReturnPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const [partyId, setPartyId] = useState("");
   const [salesAmount, setSalesAmount] = useState("");
@@ -68,7 +71,7 @@ export default function SalesReturnPage() {
       toast({ title: result.skipped === "flag_off" ? "Flag is OFF" : `Sales return posted: ${result.voucherNumber}` });
       setPartyId(""); setSalesAmount(""); setCogsAmount(""); setReference(""); setNote("");
     },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   const sa = parseFloat(salesAmount) || 0;
@@ -76,6 +79,7 @@ export default function SalesReturnPage() {
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Sales Return / Credit Note" description="Reverse a sale: revenue and cost are both reversed" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -91,7 +95,7 @@ export default function SalesReturnPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Return Date *</Label><Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} /></div>
+            <div><Label>Return Date *</Label><Input type="date" min={minDate} value={returnDate} onChange={e => setReturnDate(e.target.value)} /></div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Sales Amount (revenue reversed) *</Label>

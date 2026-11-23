@@ -1098,7 +1098,7 @@ const App = () => (
             <Route path="/accounting/purchase-return" element={<ProtectedRoute><PurchaseReturnPage /></ProtectedRoute>} />
             <Route path="/accounting/budgets" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><AccountingBudgetsPage /></ProtectedRoute>} />
             <Route path="/accounting/budget-vs-actual" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><BudgetVsActualPage /></ProtectedRoute>} />
-            <Route path="/accounting/period-close" element={<ProtectedRoute><PeriodClosePage /></ProtectedRoute>} />
+            <Route path="/accounting/period-close" element={<ProtectedRoute requiredRole="super_admin"><PeriodClosePage /></ProtectedRoute>} />
             <Route path="/accounting/periodic-cogs" element={<ProtectedRoute><PeriodicCOGSPage /></ProtectedRoute>} />
             <Route path="/accounting/fg-inventory" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><FinishedGoodsInventoryPage /></ProtectedRoute>} />
             <Route path="/accounting/rm-inventory" element={<ProtectedRoute requiredRoles={["accounting_manager", "super_admin"]}><RawMaterialInventoryPage /></ProtectedRoute>} />

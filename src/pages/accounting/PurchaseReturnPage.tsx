@@ -14,11 +14,14 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowUpLeft } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { postPurchaseReturn } from "@/lib/accounting/postPurchaseReturn";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 type Category = "raw_material" | "office_supplies" | "general_supplies" | "spare_maintenance";
 
 export default function PurchaseReturnPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const [partyId, setPartyId] = useState("");
   const [amount, setAmount] = useState("");
@@ -68,7 +71,7 @@ export default function PurchaseReturnPage() {
       toast({ title: result.skipped === "flag_off" ? "Flag is OFF" : `Purchase return posted: ${result.voucherNumber}` });
       setPartyId(""); setAmount(""); setReference(""); setNote("");
     },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   const amt = parseFloat(amount) || 0;
@@ -81,6 +84,7 @@ export default function PurchaseReturnPage() {
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Purchase Return / Debit Note" description="Return goods to supplier — reverses original GRN posting" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -96,7 +100,7 @@ export default function PurchaseReturnPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Return Date *</Label><Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} /></div>
+            <div><Label>Return Date *</Label><Input type="date" min={minDate} value={returnDate} onChange={e => setReturnDate(e.target.value)} /></div>
             <div>
               <Label>Category *</Label>
               <Select value={category} onValueChange={(v: Category) => setCategory(v)}>

@@ -16,10 +16,13 @@ import { Factory, Wallet, CheckCircle, AlertTriangle } from "lucide-react";
 import { format, startOfMonth, parseISO } from "date-fns";
 import { useAppSetting } from "@/hooks/useAppSetting";
 import { postProductionOutput } from "@/lib/accounting/postProductionOutput";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 
 export default function ProductionOutputRecognitionPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [amount, setAmount] = useState<string>("");
@@ -89,13 +92,14 @@ export default function ProductionOutputRecognitionPage() {
         toast({ title: "Post failed", description: result.error, variant: "destructive" });
       }
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: friendlyPostingError(err.message), variant: "destructive" }),
   });
 
   const { value: flagEnabled } = useAppSetting<boolean>("accounting_autopost_enabled", true);
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Production Output Recognition" description="Transfer completed production from WIP to Finished Goods inventory">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Auto-post flag:</span>
@@ -130,7 +134,7 @@ export default function ProductionOutputRecognitionPage() {
           <CardContent className="space-y-4">
             <div>
               <Label>Date *</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div>
               <Label>FG Value Completed (PKR) *</Label>
