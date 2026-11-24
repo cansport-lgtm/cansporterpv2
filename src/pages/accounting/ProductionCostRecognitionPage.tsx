@@ -12,8 +12,11 @@ import { Calculator, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react"
 import { format, parseISO } from "date-fns";
 import { useAppSetting } from "@/hooks/useAppSetting";
 import { previewProductionConsumption, postProductionConsumption } from "@/lib/accounting/postProductionConsumption";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 export default function ProductionCostRecognitionPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
@@ -39,7 +42,7 @@ export default function ProductionCostRecognitionPage() {
         toast({ title: "Post failed", description: result.error, variant: "destructive" });
       }
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: friendlyPostingError(err.message), variant: "destructive" }),
   });
 
   const totalAmount = preview?.totalAmount || 0;
@@ -49,9 +52,10 @@ export default function ProductionCostRecognitionPage() {
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Production Cost Recognition" description="Post daily raw-material consumption as a batched journal voucher">
         <div className="flex gap-2 items-center">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-[170px]" />
+          <Input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} className="w-[170px]" />
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />Refresh
           </Button>

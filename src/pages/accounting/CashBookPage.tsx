@@ -19,12 +19,15 @@ import { VoucherViewDialog } from "@/components/accounting/VoucherViewDialog";
 import { printVoucher, shareVoucherWhatsApp } from "@/lib/accounting/voucherShare";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, subDays, parseISO } from "date-fns";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 
 type QEMode = "receipt" | "payment";
 
 export default function CashBookPage() {
+  const { minDate } = useClosingDate();
   const queryClient = useQueryClient();
   const { roles } = useAuth();
   const isSuperAdmin = roles.some((r) => r.role === "super_admin");
@@ -235,7 +238,7 @@ export default function CashBookPage() {
       resetQuickEntry();
       amountRef.current?.focus();
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: friendlyPostingError(err.message), variant: "destructive" }),
   });
 
   const submitOnEnter = (e: React.KeyboardEvent) => {
@@ -438,11 +441,12 @@ export default function CashBookPage() {
       queryClient.invalidateQueries({ queryKey: ["acc-dash-recent"] });
       setEditVoucherId(null);
     },
-    onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Update failed", description: friendlyPostingError(err.message), variant: "destructive" }),
   });
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title="Cash Book" description="Running ledger for any cash account">
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Select value={accountId} onValueChange={setAccountId}>
@@ -501,7 +505,7 @@ export default function CashBookPage() {
             </div>
             <div className="order-2 lg:order-none col-span-1 lg:col-span-1">
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-11 lg:h-9" />
+              <Input type="date" min={minDate} value={qeDate} onChange={(e) => setQeDate(e.target.value)} className="h-11 lg:h-9" />
             </div>
             <div className="order-4 lg:order-none col-span-2 lg:col-span-3">
               <Label className="text-xs">{qeMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>
@@ -804,7 +808,7 @@ export default function CashBookPage() {
             </div>
             <div>
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={edDate} onChange={(e) => setEdDate(e.target.value)} className="h-11 sm:h-9" />
+              <Input type="date" min={minDate} value={edDate} onChange={(e) => setEdDate(e.target.value)} className="h-11 sm:h-9" />
             </div>
             <div>
               <Label className="text-xs">{edMode === "receipt" ? "Received From (Cr)" : "Paid For (Dr)"}</Label>

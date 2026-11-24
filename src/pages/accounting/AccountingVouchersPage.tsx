@@ -1,3 +1,4 @@
+import { friendlyPostingError } from "@/lib/accounting/periodLock";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -95,7 +96,7 @@ export default function AccountingVouchersPage() {
       setReverseDialogId(null);
       setReverseReason("");
     },
-    onError: (e: any) => toast({ title: "Reversal failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Reversal failed", description: friendlyPostingError(e.message), variant: "destructive" }),
   });
 
   const searchLower = search.toLowerCase();

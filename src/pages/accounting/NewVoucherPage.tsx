@@ -16,6 +16,8 @@ import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2, CheckCircle, AlertTriangle, ArrowLeft, Wallet, Landmark, BookOpen, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { useClosingDate, friendlyPostingError } from "@/lib/accounting/periodLock";
+import { ClosedPeriodBanner } from "@/components/accounting/ClosedPeriodBanner";
 
 const sb = supabase as any;
 
@@ -42,6 +44,7 @@ interface VoucherLine {
 const blankLine = (): VoucherLine => ({ account_id: "", party_id: null, debit_amount: 0, credit_amount: 0, line_narration: "" });
 
 export default function NewVoucherPage() {
+  const { minDate } = useClosingDate();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -210,7 +213,7 @@ export default function NewVoucherPage() {
       toast({ title: `${type} posted`, description: voucher.voucher_number });
       navigate("/accounting/vouchers");
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: friendlyPostingError(err.message), variant: "destructive" }),
   });
 
   // ----- Helpers for the form -----
@@ -234,6 +237,7 @@ export default function NewVoucherPage() {
 
   return (
     <ERPLayout>
+      <ClosedPeriodBanner />
       <PageHeader title={`New ${meta.label}`} description={meta.description}>
         <Link to="/accounting/vouchers"><Button size="sm" variant="outline"><ArrowLeft className="h-4 w-4 mr-1" />Back</Button></Link>
       </PageHeader>
@@ -263,7 +267,7 @@ export default function NewVoucherPage() {
               </div>
               <div>
                 <Label>Date *</Label>
-                <Input type="date" value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} />
+                <Input type="date" min={minDate} value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} />
               </div>
               <div>
                 <Label>Voucher #</Label>
