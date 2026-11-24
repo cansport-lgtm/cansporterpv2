@@ -1,21 +1,12 @@
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 
 interface OperatorLayoutProps {
   children: React.ReactNode;
 }
 
 export function OperatorLayout({ children }: OperatorLayoutProps) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
+  const { user } = useAuth();
   return (
     <div className="min-h-dvh-safe bg-background">
       {/* Simple header with only logout */}
@@ -32,16 +23,7 @@ export function OperatorLayout({ children }: OperatorLayoutProps) {
               </p>
             </div>
           </div>
-
-          <Button
-            variant="destructive"
-            onClick={handleLogout}
-            className="gap-2 shrink-0"
-            aria-label="Logout"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Logout</span>
-          </Button>
+          <UserMenu showName={false} />
         </div>
       </header>
 
