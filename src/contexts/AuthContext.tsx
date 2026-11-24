@@ -13,6 +13,11 @@ interface AppUser {
   // Distributor Order Management: which distributor this user belongs to.
   // NULL for company staff (super_admin/admin/etc.); set for distributor users.
   distributor_id: string | null;
+  // Self-service profile fields (Profile / Account Settings pages).
+  phone?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+  created_at?: string | null;
 }
 
 interface UserRole {
@@ -631,6 +636,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (userId: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  // Re-reads the signed-in user's app_users row (after a profile / photo edit).
+  refreshUser: () => Promise<void>;
   hasRole: (role: UserRole['role']) => boolean;
   hasModulePermission: (module: string, permission: 'view' | 'create' | 'edit' | 'delete' | 'approve') => boolean;
   hasPurchaseCategoryPermission: (category: PurchaseCategoryPermission['category'], permission: 'view' | 'create' | 'approve') => boolean;
@@ -817,6 +824,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'An unexpected error occurred.' };
     }
   };
+
+  const refreshUser = useCallback(async () => {
+    if (!user?.id) return;
+    const { data } = await supabase.from('app_users').select('*').eq('id', user.id).single();
+    if (data) setUser(data as AppUser);
+  }, [user?.id]);
 
   const logout = () => {
     // Login/failed-login events are recorded inside verify_user_password;
@@ -1250,6 +1263,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every role — including strictly route-locked ones — may open it.
     if (route === '/notifications') return true;
 
+    // Every signed-in user may open their own profile and account settings.
+    if (route === '/profile' || route === '/account-settings') return true;
+
     // The help desk submit page only ever shows the user's own tickets, so
     // every role may open it. Ticket management is gated separately via the
     // /helpdesk/manage route's requiredRoles guard (super_admin + helpdesk_manager).
@@ -1350,6 +1366,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       login,
       logout,
+      refreshUser,
       hasRole,
       hasModulePermission,
       hasPurchaseCategoryPermission,

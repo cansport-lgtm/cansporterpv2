@@ -670,6 +670,9 @@ export type Database = {
           designation: string | null
           distributor_id: string | null
           full_name: string
+          phone: string | null
+          email: string | null
+          avatar_url: string | null
           id: string
           is_active: boolean | null
           last_login: string | null
@@ -683,6 +686,9 @@ export type Database = {
           designation?: string | null
           distributor_id?: string | null
           full_name: string
+          phone?: string | null
+          email?: string | null
+          avatar_url?: string | null
           id?: string
           is_active?: boolean | null
           last_login?: string | null
@@ -696,6 +702,9 @@ export type Database = {
           designation?: string | null
           distributor_id?: string | null
           full_name?: string
+          phone?: string | null
+          email?: string | null
+          avatar_url?: string | null
           id?: string
           is_active?: boolean | null
           last_login?: string | null
@@ -16891,6 +16900,10 @@ export type Database = {
         }[]
       }
       request_header: { Args: { p_name: string }; Returns: string }
+      change_own_password: {
+        Args: { p_user_uuid: string; p_current_password: string; p_new_password: string }
+        Returns: boolean
+      }
       reset_user_password: {
         Args: { p_new_password: string; p_user_uuid: string }
         Returns: boolean

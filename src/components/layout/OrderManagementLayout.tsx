@@ -1,21 +1,13 @@
-import { LogOut, Factory } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Factory } from "lucide-react";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 
 interface OrderManagementLayoutProps {
   children: React.ReactNode;
 }
 
 export function OrderManagementLayout({ children }: OrderManagementLayoutProps) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
+  const { user } = useAuth();
   return (
     <div className="min-h-dvh-safe bg-background">
       <header className="sticky top-0 z-30 border-b bg-card pt-safe">
@@ -31,11 +23,7 @@ export function OrderManagementLayout({ children }: OrderManagementLayoutProps) 
               </p>
             </div>
           </div>
-
-          <Button variant="destructive" onClick={handleLogout} className="gap-2 shrink-0" aria-label="Logout">
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Logout</span>
-          </Button>
+          <UserMenu showName={false} />
         </div>
       </header>
 

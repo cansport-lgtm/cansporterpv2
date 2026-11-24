@@ -14,6 +14,8 @@ import NotFound from "./pages/NotFound";
 import ComingSoon from "./pages/ComingSoon";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 import NotificationsPage from "./pages/NotificationsPage";
+import ProfilePage from "@/pages/account/ProfilePage";
+import AccountSettingsPage from "@/pages/account/AccountSettingsPage";
 
 // Help Desk pages
 import HelpDeskPage from "./pages/helpdesk/HelpDeskPage";
@@ -558,6 +560,9 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            {/* Own profile & account settings — available to every authenticated user */}
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/account-settings" element={<ProtectedRoute><AccountSettingsPage /></ProtectedRoute>} />
             {/* Notifications inbox — available to every authenticated user */}
             <Route
               path="/notifications"
