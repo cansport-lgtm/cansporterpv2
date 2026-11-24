@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { AlertOctagon, Recycle, Coins, TrendingDown, Droplets, Sigma, Download } from "lucide-react";
 import { exportRwWorkbook } from "@/lib/rwExport";
+import { MaterialReasonSheet, type SelectedMaterial } from "./MaterialReasonSheet";
+import { ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, startOfMonth } from "date-fns";
 
@@ -22,6 +24,7 @@ export default function RejectionsAnalyticsPage() {
   const [fromDate, setFromDate] = useState(format(subDays(new Date(), 29), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [deptFilter, setDeptFilter] = useState<string>("all");
+  const [selectedMat, setSelectedMat] = useState<SelectedMaterial | null>(null);
 
   const yesterdayStr = format(subDays(new Date(), 1), "yyyy-MM-dd");
 
@@ -177,10 +180,10 @@ export default function RejectionsAnalyticsPage() {
 
   // Top wastage materials by Rs.
   const topMaterials = useMemo(() => {
-    const map: Record<string, { material: string; qty: number; cost: number }> = {};
+    const map: Record<string, { id: string; material: string; qty: number; cost: number }> = {};
     wastages.forEach((w: any) => {
       const k = w.material_id || "none";
-      map[k] = map[k] || { material: matMap[k] || "—", qty: 0, cost: 0 };
+      map[k] = map[k] || { id: k, material: matMap[k] || "—", qty: 0, cost: 0 };
       map[k].qty += Number(w.wasted_qty || 0);
       map[k].cost += Number(w.total_cost || 0);
     });
@@ -189,10 +192,10 @@ export default function RejectionsAnalyticsPage() {
 
   // Top rejection materials by Rs.
   const topRejMaterials = useMemo(() => {
-    const map: Record<string, { material: string; qty: number; cost: number }> = {};
+    const map: Record<string, { id: string; material: string; qty: number; cost: number }> = {};
     rejections.forEach((r: any) => {
       const k = r.material_id || "none";
-      map[k] = map[k] || { material: matMap[k] || "—", qty: 0, cost: 0 };
+      map[k] = map[k] || { id: k, material: matMap[k] || "—", qty: 0, cost: 0 };
       map[k].qty += Number(r.rejected_qty || 0);
       map[k].cost += Number(r.total_cost || 0);
     });
@@ -201,10 +204,10 @@ export default function RejectionsAnalyticsPage() {
 
   // Top leakage materials by Rs.
   const topLkgMaterials = useMemo(() => {
-    const map: Record<string, { material: string; qty: number; cost: number }> = {};
+    const map: Record<string, { id: string; material: string; qty: number; cost: number }> = {};
     leakages.forEach((l: any) => {
       const k = l.material_id || "none";
-      map[k] = map[k] || { material: matMap[k] || "—", qty: 0, cost: 0 };
+      map[k] = map[k] || { id: k, material: matMap[k] || "—", qty: 0, cost: 0 };
       map[k].qty += Number(l.leaked_qty || 0);
       map[k].cost += Number(l.total_cost || 0);
     });
@@ -444,14 +447,24 @@ export default function RejectionsAnalyticsPage() {
                   <TableHead>Material</TableHead>
                   <TableHead className="text-right">Wasted Qty</TableHead>
                   <TableHead className="text-right">Cost (Rs.)</TableHead>
+                  <TableHead className="w-8" />
                 </TableRow></TableHeader>
                 <TableBody>
-                  {topMaterials.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No wastage data.</TableCell></TableRow>}
+                  {topMaterials.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No wastage data.</TableCell></TableRow>}
                   {topMaterials.map((m, i) => (
-                    <TableRow key={i}>
+                    <TableRow
+                      key={i}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Show reason breakdown for ${m.material}`}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedMat({ kind: "wastage", id: m.id, name: m.material })}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMat({ kind: "wastage", id: m.id, name: m.material }); } }}
+                    >
                       <TableCell>{m.material}</TableCell>
                       <TableCell className="text-right">{m.qty.toLocaleString()}</TableCell>
                       <TableCell className="text-right">Rs. {m.cost.toLocaleString()}</TableCell>
+                      <TableCell className="w-8 text-right"><ChevronRight className="h-4 w-4 text-muted-foreground inline" /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -469,14 +482,24 @@ export default function RejectionsAnalyticsPage() {
                   <TableHead>Material</TableHead>
                   <TableHead className="text-right">Rejected Qty</TableHead>
                   <TableHead className="text-right">Cost (Rs.)</TableHead>
+                  <TableHead className="w-8" />
                 </TableRow></TableHeader>
                 <TableBody>
-                  {topRejMaterials.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No rejection data.</TableCell></TableRow>}
+                  {topRejMaterials.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No rejection data.</TableCell></TableRow>}
                   {topRejMaterials.map((m, i) => (
-                    <TableRow key={i}>
+                    <TableRow
+                      key={i}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Show reason breakdown for ${m.material}`}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedMat({ kind: "rejection", id: m.id, name: m.material })}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMat({ kind: "rejection", id: m.id, name: m.material }); } }}
+                    >
                       <TableCell>{m.material}</TableCell>
                       <TableCell className="text-right">{m.qty.toLocaleString()}</TableCell>
                       <TableCell className="text-right">Rs. {m.cost.toLocaleString()}</TableCell>
+                      <TableCell className="w-8 text-right"><ChevronRight className="h-4 w-4 text-muted-foreground inline" /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -494,14 +517,24 @@ export default function RejectionsAnalyticsPage() {
                   <TableHead>Material</TableHead>
                   <TableHead className="text-right">Leaked Qty</TableHead>
                   <TableHead className="text-right">Cost (Rs.)</TableHead>
+                  <TableHead className="w-8" />
                 </TableRow></TableHeader>
                 <TableBody>
-                  {topLkgMaterials.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No leakage data.</TableCell></TableRow>}
+                  {topLkgMaterials.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No leakage data.</TableCell></TableRow>}
                   {topLkgMaterials.map((m, i) => (
-                    <TableRow key={i}>
+                    <TableRow
+                      key={i}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Show reason breakdown for ${m.material}`}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedMat({ kind: "leakage", id: m.id, name: m.material })}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedMat({ kind: "leakage", id: m.id, name: m.material }); } }}
+                    >
                       <TableCell>{m.material}</TableCell>
                       <TableCell className="text-right">{m.qty.toLocaleString()}</TableCell>
                       <TableCell className="text-right">Rs. {m.cost.toLocaleString()}</TableCell>
+                      <TableCell className="w-8 text-right"><ChevronRight className="h-4 w-4 text-muted-foreground inline" /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -540,6 +573,14 @@ export default function RejectionsAnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+      <MaterialReasonSheet
+        selected={selectedMat}
+        onClose={() => setSelectedMat(null)}
+        records={selectedMat?.kind === "rejection" ? rejections : selectedMat?.kind === "wastage" ? wastages : leakages}
+        reasonMap={reasonMap}
+        deptMap={deptMap}
+        dateLabel={`${fromDate} – ${toDate}${deptFilter !== "all" ? ` · ${deptMap[deptFilter] || "Department"}` : " · All departments"}`}
+      />
     </ERPLayout>
   );
 }
