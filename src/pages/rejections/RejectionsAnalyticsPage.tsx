@@ -260,6 +260,34 @@ export default function RejectionsAnalyticsPage() {
           ...(qtyKey === "rejected_qty" ? { Disposition: r.disposition || "" } : {}),
           Remarks: r.remarks || "",
         }));
+    const matReason = (
+      kind: string,
+      tops: { id: string; material: string; cost: number }[],
+      records: any[],
+      qtyKey: string,
+    ) =>
+      tops.flatMap((m) => {
+        const mine = records.filter((r) => (r.material_id || "none") === m.id);
+        const map: Record<string, { reason: string; qty: number; cost: number; count: number }> = {};
+        mine.forEach((r) => {
+          const k = r.reason_id || "none";
+          map[k] = map[k] || { reason: reasonMap[k] || "No reason recorded", qty: 0, cost: 0, count: 0 };
+          map[k].qty += Number(r[qtyKey] || 0);
+          map[k].cost += Number(r.total_cost || 0);
+          map[k].count += 1;
+        });
+        return Object.values(map)
+          .sort((a, b) => b.cost - a.cost)
+          .map((x) => ({
+            Type: kind,
+            Material: m.material,
+            Reason: x.reason,
+            Entries: x.count,
+            Qty: x.qty,
+            "Cost (Rs.)": x.cost,
+            "% of Material Cost": m.cost > 0 ? Math.round((x.cost / m.cost) * 1000) / 10 : 0,
+          }));
+      });
     exportRwWorkbook(`rw-analytics_${fromDate}_to_${toDate}`, [
       {
         name: "Summary",
@@ -308,6 +336,14 @@ export default function RejectionsAnalyticsPage() {
           Qty: r.qty,
           "Cost (Rs.)": r.cost,
         })),
+      },
+      {
+        name: "Material Reason Breakdown",
+        rows: [
+          ...matReason("Rejection", topRejMaterials, rejections, "rejected_qty"),
+          ...matReason("Wastage", topMaterials, wastages, "wasted_qty"),
+          ...matReason("Leakage", topLkgMaterials, leakages, "leaked_qty"),
+        ],
       },
       { name: "Rejection Entries", rows: detail(rejections, "rejected_qty", "Rejected Qty") },
       { name: "Wastage Entries", rows: detail(wastages, "wasted_qty", "Wasted Qty") },
