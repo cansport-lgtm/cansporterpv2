@@ -17,6 +17,13 @@ interface Project {
   id: string;
   project_number: string;
   title: string;
+  category_id: string | null;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  is_active: boolean | null;
 }
 
 interface Task extends ProjectTask {
@@ -67,6 +74,8 @@ export default function ProjectKanbanPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [_loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null);
@@ -107,17 +116,19 @@ export default function ProjectKanbanPage() {
   }, [selectedProjectId]);
 
   const loadInitial = async () => {
-    let projQuery = supabase.from("projects").select("id, project_number, title").order("created_at", { ascending: false });
+    let projQuery = supabase.from("projects").select("id, project_number, title, category_id").order("created_at", { ascending: false });
     if (!canViewAllProjects && user) {
       projQuery = projQuery.eq("project_manager_id", user.id);
     }
-    const [projRes, userRes] = await Promise.all([
+    const [projRes, userRes, catRes] = await Promise.all([
       projQuery,
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
+      supabase.from("project_categories").select("id, name, is_active").order("sequence_order").order("name"),
     ]);
     const projs = projRes.data || [];
     setProjects(projs);
     setUsers(userRes.data || []);
+    setCategories(catRes.data || []);
     if (projs.length > 0) setSelectedProjectId(projs[0].id);
     setLoading(false);
   };
@@ -190,6 +201,19 @@ export default function ProjectKanbanPage() {
     await updateTaskStatus(task, { status: newStatus });
   };
 
+  const visibleProjects = useMemo(
+    () => projects.filter((p) => categoryFilter === "all" || p.category_id === categoryFilter),
+    [projects, categoryFilter],
+  );
+
+  // Keep the selected project inside the category filter
+  useEffect(() => {
+    if (projects.length === 0) return;
+    if (!visibleProjects.some((p) => p.id === selectedProjectId)) {
+      setSelectedProjectId(visibleProjects[0]?.id ?? "");
+    }
+  }, [visibleProjects, projects.length, selectedProjectId]);
+
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.full_name || ""])), [users]);
 
   const filteredTasks = useMemo(() => {
@@ -231,12 +255,29 @@ export default function ProjectKanbanPage() {
   return (
     <ERPLayout>
       <PageHeader title="Kanban Board" description="Drag & drop tasks across columns">
-        <ProjectCombobox
-          projects={projects}
-          value={selectedProjectId}
-          onChange={setSelectedProjectId}
-          className="w-[280px]"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {categories.length > 0 && (
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+              aria-label="Filter projects by category"
+            >
+              <option value="all">All categories</option>
+              {categories
+                .filter((c) => c.is_active !== false || c.id === categoryFilter)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </select>
+          )}
+          <ProjectCombobox
+            projects={visibleProjects}
+            value={selectedProjectId}
+            onChange={setSelectedProjectId}
+            className="w-[280px]"
+          />
+        </div>
       </PageHeader>
 
       {selectedProjectId && (
@@ -296,7 +337,7 @@ export default function ProjectKanbanPage() {
       )}
 
       {!selectedProjectId ? (
-        <Card><CardContent className="p-6 text-center text-muted-foreground">Select a project to view its tasks</CardContent></Card>
+        <Card><CardContent className="p-6 text-center text-muted-foreground">{categoryFilter !== "all" && visibleProjects.length === 0 ? "No projects in this category" : "Select a project to view its tasks"}</CardContent></Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
