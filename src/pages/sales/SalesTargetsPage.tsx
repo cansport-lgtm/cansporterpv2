@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Target, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Target, Plus, Pencil, Trash2, Copy, ListChecks } from "lucide-react";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -41,8 +43,12 @@ function achievementBadge(p: number | null) {
   return <Badge variant="outline" className={cls}>{p.toFixed(0)}%</Badge>;
 }
 
+// Only these roles can change which products are tracked.
+const SELECTION_ROLES = ["super_admin", "admin", "manager"];
+
 export default function SalesTargetsPage() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const canManageSelection = roles.some((r) => SELECTION_ROLES.includes(r.role as string));
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(monthKey(new Date()));
   const [open, setOpen] = useState(false);
@@ -51,6 +57,10 @@ export default function SalesTargetsPage() {
   const [qty, setQty] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [selOpen, setSelOpen] = useState(false);
+  const [selDraft, setSelDraft] = useState<Set<string>>(new Set());
+  const [selSearch, setSelSearch] = useState("");
+  const [selOnly, setSelOnly] = useState(false);
 
   const monthStart = new Date(`${month}T00:00:00`);
   const monthEnd = format(addMonths(monthStart, 1), "yyyy-MM-dd"); // exclusive
@@ -61,6 +71,15 @@ export default function SalesTargetsPage() {
       const { data, error } = await sb.from("products").select("id, code, name").eq("is_active", true).order("name");
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  const { data: selectedIds, isLoading: selLoading } = useQuery({
+    queryKey: ["sales-target-products"],
+    queryFn: async () => {
+      const { data, error } = await sb.from("sales_target_products").select("product_id");
+      if (error) throw error;
+      return new Set<string>((data || []).map((r: any) => r.product_id));
     },
   });
 
@@ -101,13 +120,11 @@ export default function SalesTargetsPage() {
 
   // One row per product that has a target OR sales this month.
   const rows = useMemo(() => {
-    const ids = new Set<string>();
-    (targets || []).forEach((t) => ids.add(t.product_id));
-    actuals?.forEach((_, k) => ids.add(k));
-    return Array.from(ids)
+    return Array.from(selectedIds || [])
       .map((id) => {
         const t = targets?.find((x) => x.product_id === id);
         const a = actuals?.get(id);
+        const prod = products?.find((p: any) => p.id === id);
         const tQty = Number(t?.target_qty_dozens || 0);
         const tAmt = Number(t?.target_amount || 0);
         const aQty = a?.qty || 0;
@@ -115,14 +132,14 @@ export default function SalesTargetsPage() {
         return {
           id,
           target: t || null,
-          label: `${t?.product?.code || a?.code || ""} — ${t?.product?.name || a?.name || ""}`,
+          label: `${prod?.code || t?.product?.code || a?.code || ""} — ${prod?.name || t?.product?.name || a?.name || ""}`,
           tQty, tAmt, aQty, aAmt,
           qtyPct: pct(aQty, tQty),
           amtPct: pct(aAmt, tAmt),
         };
       })
       .sort((x, y) => (y.tQty + y.tAmt) - (x.tQty + x.tAmt) || y.aAmt - x.aAmt);
-  }, [targets, actuals]);
+  }, [selectedIds, products, targets, actuals]);
 
   const totals = useMemo(() => rows.reduce(
     (s, r) => ({ tQty: s.tQty + r.tQty, tAmt: s.tAmt + r.tAmt, aQty: s.aQty + r.aQty, aAmt: s.aAmt + r.aAmt }),
@@ -178,7 +195,7 @@ export default function SalesTargetsPage() {
       if (error) throw error;
       const have = new Set((targets || []).map((t) => t.product_id));
       const toInsert = (prevRows || [])
-        .filter((r: any) => !have.has(r.product_id))
+        .filter((r: any) => !have.has(r.product_id) && selectedIds?.has(r.product_id))
         .map((r: any) => ({
           product_id: r.product_id,
           period_month: month,
@@ -199,6 +216,43 @@ export default function SalesTargetsPage() {
     },
     onError: (e: any) => toast({ title: "Copy failed", description: e?.message, variant: "destructive" }),
   });
+
+  const saveSelection = useMutation({
+    mutationFn: async () => {
+      const current = selectedIds || new Set<string>();
+      const toAdd = Array.from(selDraft).filter((id) => !current.has(id));
+      const toRemove = Array.from(current).filter((id) => !selDraft.has(id));
+      if (toAdd.length) {
+        const { error } = await sb.from("sales_target_products").insert(toAdd.map((product_id) => ({ product_id, added_by: user?.id })));
+        if (error) throw error;
+      }
+      if (toRemove.length) {
+        const { error } = await sb.from("sales_target_products").delete().in("product_id", toRemove);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-target-products"] });
+      setSelOpen(false);
+      toast({ title: "Tracked products updated" });
+    },
+    onError: (e: any) => toast({ title: "Could not save selection", description: e?.message, variant: "destructive" }),
+  });
+
+  const openSelection = () => {
+    setSelDraft(new Set(selectedIds || []));
+    setSelSearch(""); setSelOnly(false); setSelOpen(true);
+  };
+  const toggleDraft = (id: string) =>
+    setSelDraft((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const visibleProducts = useMemo(() => {
+    const q = selSearch.trim().toLowerCase();
+    return (products || []).filter((p: any) =>
+      (!selOnly || selDraft.has(p.id)) && (!q || `${p.code} ${p.name}`.toLowerCase().includes(q)));
+  }, [products, selSearch, selOnly, selDraft]);
+
+  const trackedProducts = (products || []).filter((p: any) => selectedIds?.has(p.id));
 
   const openNew = () => {
     setEditing(null); setProductId(""); setQty(""); setAmount(""); setNotes(""); setOpen(true);
@@ -225,6 +279,11 @@ export default function SalesTargetsPage() {
           <Label>Month</Label>
           <Input type="month" value={month.slice(0, 7)} onChange={(e) => e.target.value && setMonth(`${e.target.value}-01`)} className="w-44" />
         </div>
+        {canManageSelection && (
+          <Button variant="outline" onClick={openSelection}>
+            <ListChecks className="h-4 w-4 mr-2" /> Select products ({selectedIds?.size || 0})
+          </Button>
+        )}
         <Button variant="outline" onClick={() => copyMutation.mutate()} disabled={copyMutation.isPending}>
           <Copy className="h-4 w-4 mr-2" /> Copy last month's targets
         </Button>
@@ -265,12 +324,14 @@ export default function SalesTargetsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
+              {(isLoading || selLoading) && (
                 <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
               )}
-              {!isLoading && rows.length === 0 && (
+              {!isLoading && !selLoading && rows.length === 0 && (
                 <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                  No targets or sales for this month. Click “Add Target” to start.
+                  {canManageSelection
+                    ? "No products are being tracked yet. Click “Select products” to choose the products you want targets for."
+                    : "No products are being tracked yet. Ask a manager to select the products."}
                 </TableCell></TableRow>
               )}
               {rows.map((r) => (
@@ -315,7 +376,7 @@ export default function SalesTargetsPage() {
               <Select value={productId} onValueChange={setProductId} disabled={!!editing}>
                 <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                 <SelectContent>
-                  {(products || []).map((p: any) => (
+                  {trackedProducts.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -339,6 +400,49 @@ export default function SalesTargetsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!canSave}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={selOpen} onOpenChange={setSelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select products to track</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Search by code or name" value={selSearch} onChange={(e) => setSelSearch(e.target.value)} />
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox checked={selOnly} onCheckedChange={(v) => setSelOnly(v === true)} /> Show selected only
+              </label>
+              <span className="text-muted-foreground">{selDraft.size} selected</span>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSelDraft((prev) => { const n = new Set(prev); visibleProducts.forEach((p: any) => n.add(p.id)); return n; })}>
+                Select shown
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelDraft((prev) => { const n = new Set(prev); visibleProducts.forEach((p: any) => n.delete(p.id)); return n; })}>
+                Clear shown
+              </Button>
+            </div>
+            <ScrollArea className="h-72 border rounded-md">
+              <div className="p-2 space-y-1">
+                {visibleProducts.length === 0 && <div className="text-sm text-muted-foreground p-2">No products found.</div>}
+                {visibleProducts.map((p: any) => (
+                  <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                    <Checkbox checked={selDraft.has(p.id)} onCheckedChange={() => toggleDraft(p.id)} />
+                    <span>{p.code} — {p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </ScrollArea>
+            <p className="text-xs text-muted-foreground">
+              Removing a product only hides it from this page. Its saved targets are kept and come back if you select it again.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveSelection.mutate()} disabled={saveSelection.isPending}>Save selection</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
