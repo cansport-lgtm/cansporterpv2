@@ -21,7 +21,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, GripVertical, Calendar, User, Pencil, Trash2 } from "lucide-react";
+import { Plus, GripVertical, Calendar, User, Pencil, Trash2, ListChecks } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -33,6 +36,9 @@ const STAGES = [
   { key: "won", label: "Won", color: "border-t-green-500" },
   { key: "lost", label: "Lost", color: "border-t-red-500" },
 ];
+
+// Only these roles can change which products are selectable.
+const SELECTION_ROLES = ["super_admin", "admin", "manager"];
 
 const NONE = "none";
 const ALL = "all";
@@ -46,6 +52,13 @@ export default function CRMDealsPipelinePage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selOpen, setSelOpen] = useState(false);
+  const [selDraft, setSelDraft] = useState<Set<string>>(new Set());
+  const [selSearch, setSelSearch] = useState("");
+  const [selOnly, setSelOnly] = useState(false);
+  const { user, roles } = useAuth();
+  const canManageSelection = roles.some((r) => SELECTION_ROLES.includes(r.role as string));
   const [productFilter, setProductFilter] = useState<string>(ALL);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,18 +82,20 @@ export default function CRMDealsPipelinePage() {
   }, []);
 
   const load = async () => {
-    const [dRes, cRes, custRes, uRes, pRes] = await Promise.all([
+    const [dRes, cRes, custRes, uRes, pRes, sRes] = await Promise.all([
       supabase.from("crm_deals").select("*").order("created_at", { ascending: false }),
       supabase.from("crm_contacts").select("id, full_name, company"),
       supabase.from("customers").select("id, name, code").eq("is_active", true),
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
       supabase.from("products").select("id, code, name").eq("is_active", true).order("name"),
+      supabase.from("crm_deal_products" as any).select("product_id"),
     ]);
     setDeals(dRes.data || []);
     setContacts(cRes.data || []);
     setCustomers(custRes.data || []);
     setUsers(uRes.data || []);
     setProducts(pRes.data || []);
+    setSelectedIds(new Set(((sRes.data as any[]) || []).map((x) => x.product_id)));
   };
 
   const openCreate = (stage: string) => {
@@ -202,6 +217,49 @@ export default function CRMDealsPipelinePage() {
     const p = products.find((x) => x.id === id);
     return p ? `${p.code} — ${p.name}` : "";
   };
+  // Dropdown/filter options: the selected products (plus the deal's current
+  // product when editing, so an older choice is never lost).
+  const optionProducts = products.filter(
+    (p) => selectedIds.has(p.id) || p.id === editing?.product_id,
+  );
+  const filterProducts = products.filter(
+    (p) => selectedIds.has(p.id) || deals.some((d) => d.product_id === p.id),
+  );
+
+  const openSelection = () => {
+    setSelDraft(new Set(selectedIds));
+    setSelSearch("");
+    setSelOnly(false);
+    setSelOpen(true);
+  };
+  const toggleDraft = (id: string) =>
+    setSelDraft((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const shownProducts = products.filter((p) => {
+    const q = selSearch.trim().toLowerCase();
+    return (!selOnly || selDraft.has(p.id)) && (!q || `${p.code} ${p.name}`.toLowerCase().includes(q));
+  });
+  const saveSelection = async () => {
+    const toAdd = Array.from(selDraft).filter((id) => !selectedIds.has(id));
+    const toRemove = Array.from(selectedIds).filter((id) => !selDraft.has(id));
+    const t: any = supabase.from("crm_deal_products" as any);
+    if (toAdd.length) {
+      const { error } = await t.insert(toAdd.map((product_id) => ({ product_id, added_by: user?.id })));
+      if (error) return toast.error("Could not save selection");
+    }
+    if (toRemove.length) {
+      const { error } = await (supabase.from("crm_deal_products" as any) as any).delete().in("product_id", toRemove);
+      if (error) return toast.error("Could not save selection");
+    }
+    toast.success("Deal products updated");
+    setSelOpen(false);
+    load();
+  };
+
   const stageDeals = (s: string) => visibleDeals.filter((d) => d.stage === s);
   const stageValue = (s: string) =>
     stageDeals(s).reduce((sum, d) => sum + Number(d.value || 0), 0);
@@ -224,7 +282,7 @@ export default function CRMDealsPipelinePage() {
             <SelectContent>
               <SelectItem value={ALL}>All products</SelectItem>
               <SelectItem value={UNASSIGNED}>No product set</SelectItem>
-              {products.map((p) => (
+              {filterProducts.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.code} — {p.name}
                 </SelectItem>
@@ -232,6 +290,11 @@ export default function CRMDealsPipelinePage() {
             </SelectContent>
           </Select>
         </div>
+        {canManageSelection && (
+          <Button variant="outline" onClick={openSelection}>
+            <ListChecks className="h-4 w-4 mr-2" /> Select products ({selectedIds.size})
+          </Button>
+        )}
         {productFilter !== ALL && (
           <Button variant="ghost" onClick={() => setProductFilter(ALL)}>
             Clear
@@ -388,7 +451,7 @@ export default function CRMDealsPipelinePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
-                  {products.map((p) => (
+                  {optionProducts.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.code} — {p.name}
                     </SelectItem>
@@ -477,6 +540,48 @@ export default function CRMDealsPipelinePage() {
               Cancel
             </Button>
             <Button onClick={handleSave}>{editing ? "Update" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={selOpen} onOpenChange={setSelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select products for CRM deals</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Search by code or name" value={selSearch} onChange={(e) => setSelSearch(e.target.value)} />
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox checked={selOnly} onCheckedChange={(v) => setSelOnly(v === true)} /> Show selected only
+              </label>
+              <span className="text-muted-foreground">{selDraft.size} selected</span>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSelDraft((prev) => { const n = new Set(prev); shownProducts.forEach((p) => n.add(p.id)); return n; })}>
+                Select shown
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelDraft((prev) => { const n = new Set(prev); shownProducts.forEach((p) => n.delete(p.id)); return n; })}>
+                Clear shown
+              </Button>
+            </div>
+            <ScrollArea className="h-72 border rounded-md">
+              <div className="p-2 space-y-1">
+                {shownProducts.length === 0 && <div className="text-sm text-muted-foreground p-2">No products found.</div>}
+                {shownProducts.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                    <Checkbox checked={selDraft.has(p.id)} onCheckedChange={() => toggleDraft(p.id)} />
+                    <span>{p.code} — {p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </ScrollArea>
+            <p className="text-xs text-muted-foreground">
+              Only selected products appear in the deal form and filter. Deals already linked to a deselected product keep it.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelOpen(false)}>Cancel</Button>
+            <Button onClick={saveSelection}>Save selection</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
