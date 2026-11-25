@@ -1439,6 +1439,8 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
             {displayItems.all.map((item, index) => {
               const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
               const isPinned = pinned.includes(item.title);
+              // Rows painted with the brand gradient need a light pin to stay visible
+              const onGradient = !!item.prominent || (itemActive && !!item.href);
               const pinnedCount = displayItems.pinnedItems.length;
               const sectionLabel =
                 pinnedCount > 0 && index === 0
@@ -1462,10 +1464,13 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                     title={isPinned ? "Unpin" : "Pin to top"}
                     className={cn(
                       "absolute right-9 top-1/2 z-10 -translate-y-1/2 rounded p-1 transition-opacity focus-visible:opacity-100",
-                      isPinned
-                        ? "opacity-100 text-primary"
-                        : "opacity-0 group-hover/item:opacity-100 text-sidebar-foreground/50 hover:text-primary",
-                      itemActive && item.href && "text-primary-foreground hover:text-primary-foreground"
+                      onGradient
+                        ? isPinned
+                          ? "opacity-90 text-primary-foreground hover:opacity-100"
+                          : "opacity-0 group-hover/item:opacity-100 text-primary-foreground/80 hover:text-primary-foreground"
+                        : isPinned
+                          ? "opacity-60 text-primary hover:opacity-100"
+                          : "opacity-0 group-hover/item:opacity-100 text-sidebar-foreground/50 hover:text-primary"
                     )}
                   >
                     <Pin className={cn("h-3.5 w-3.5", isPinned && "fill-current")} />
@@ -1474,7 +1479,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                     <Link
                       to={item.href}
                       className={cn(
-                        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                        "group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-16 text-sm font-medium transition-all duration-200",
                         itemActive
                           ? "bg-brand-gradient text-primary-foreground shadow-soft"
                           : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -1486,10 +1491,11 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                       <item.icon
                         className={cn(
                           "h-5 w-5 transition-transform group-hover:scale-110",
+                          "shrink-0",
                           itemActive ? "text-primary-foreground" : item.color,
                         )}
                       />
-                      {item.title}
+                      <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
                     </Link>
                   ) : (
                     <Collapsible
@@ -1503,10 +1509,10 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                         <div className="group relative flex items-center gap-1 rounded-xl bg-brand-gradient text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-md">
                           <Link
                             to={item.quickHref || item.children?.[0]?.href || "#"}
-                            className="flex flex-1 items-center gap-3 rounded-l-xl px-3 py-2.5 text-sm font-semibold"
+                            className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl py-2.5 pl-3 pr-9 text-sm font-semibold"
                           >
-                            <item.icon className="h-5 w-5 transition-transform group-hover:scale-110 text-primary-foreground" />
-                            {item.title}
+                            <item.icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110 text-primary-foreground" />
+                            <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
                           </Link>
                           <CollapsibleTrigger
                             aria-label={`Toggle ${item.title} menu`}
@@ -1524,7 +1530,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                         <CollapsibleTrigger className="w-full">
                           <div
                             className={cn(
-                              "group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                              "group relative flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-[4.25rem] text-left text-sm font-medium transition-all duration-200",
                               itemActive
                                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -1533,18 +1539,16 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                             {itemActive && (
                               <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary" />
                             )}
-                            <div className="flex items-center gap-3">
-                              <item.icon
-                                className={cn(
-                                  "h-5 w-5 transition-transform group-hover:scale-110",
-                                  item.color,
-                                )}
-                              />
-                              {item.title}
-                            </div>
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
+                                item.color,
+                              )}
+                            />
+                            <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
                             <ChevronDown
                               className={cn(
-                                "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
+                                "absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transition-transform duration-300 text-sidebar-foreground/50",
                                 isExpanded(item.title) && "rotate-180 text-sidebar-foreground"
                               )}
                             />
