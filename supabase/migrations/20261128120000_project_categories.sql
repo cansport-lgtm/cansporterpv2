@@ -17,11 +17,11 @@ ALTER TABLE public.project_categories ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public read" ON public.project_categories;
 CREATE POLICY "Public read" ON public.project_categories
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Full access" ON public.project_categories;
 CREATE POLICY "Full access" ON public.project_categories
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL USING (true) WITH CHECK (true);
 
 DROP TRIGGER IF EXISTS update_project_categories_updated_at ON public.project_categories;
 CREATE TRIGGER update_project_categories_updated_at
