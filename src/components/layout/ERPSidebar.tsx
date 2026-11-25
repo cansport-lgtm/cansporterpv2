@@ -687,6 +687,7 @@ const navigationItems: NavItem[] = [
       { title: "Activities", href: "/crm/activities" },
       { title: "Content & Creatives", href: "/crm/content" },
       { title: "Product & Brand", href: "/crm/product-brand" },
+      { title: "CRM Product List", href: "/crm/product-list" },
       { title: "Daily Closing", href: "/crm/daily-closing" },
       { title: "Marketing KPIs", href: "/crm/marketing-kpis" },
       { title: "Reactivation", href: "/crm/reactivation" },

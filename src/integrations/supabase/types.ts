@@ -2591,6 +2591,32 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_product_list: {
+        Row: {
+          created_at: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_product_list_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_product_packaging: {
         Row: {
           barcode: string | null

@@ -21,6 +21,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useCrmProducts } from "@/hooks/useCrmProducts";
+import { MultiSelectFilter } from "@/components/shared/MultiSelectFilter";
 import { Plus, GripVertical, Calendar, User, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -35,7 +37,7 @@ const STAGES = [
 ];
 
 const NONE = "none";
-const ALL = "all";
+const FILTER_KEY = "crm-deals-product-filter";
 const UNASSIGNED = "unassigned";
 
 const fmt = (n: number) => `Rs. ${new Intl.NumberFormat("en-PK").format(Math.round(n))}`;
@@ -45,8 +47,24 @@ export default function CRMDealsPipelinePage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [productFilter, setProductFilter] = useState<string>(ALL);
+  const { products: crmProducts, allProducts } = useCrmProducts();
+  const [productFilter, setProductFilter] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const updateProductFilter = (next: string[]) => {
+    setProductFilter(next);
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -69,18 +87,16 @@ export default function CRMDealsPipelinePage() {
   }, []);
 
   const load = async () => {
-    const [dRes, cRes, custRes, uRes, pRes] = await Promise.all([
+    const [dRes, cRes, custRes, uRes] = await Promise.all([
       supabase.from("crm_deals").select("*").order("created_at", { ascending: false }),
       supabase.from("crm_contacts").select("id, full_name, company"),
       supabase.from("customers").select("id, name, code").eq("is_active", true),
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
-      supabase.from("products").select("id, code, name").eq("is_active", true).order("name"),
     ]);
     setDeals(dRes.data || []);
     setContacts(cRes.data || []);
     setCustomers(custRes.data || []);
     setUsers(uRes.data || []);
-    setProducts(pRes.data || []);
   };
 
   const openCreate = (stage: string) => {
@@ -192,14 +208,14 @@ export default function CRMDealsPipelinePage() {
   };
 
   const visibleDeals = deals.filter((d) =>
-    productFilter === ALL
+    productFilter.length === 0
       ? true
-      : productFilter === UNASSIGNED
-        ? !d.product_id
-        : d.product_id === productFilter,
+      : d.product_id
+        ? productFilter.includes(d.product_id)
+        : productFilter.includes(UNASSIGNED),
   );
   const productLabel = (id?: string | null) => {
-    const p = products.find((x) => x.id === id);
+    const p = allProducts.find((x) => x.id === id);
     return p ? `${p.code} — ${p.name}` : "";
   };
   const stageDeals = (s: string) => visibleDeals.filter((d) => d.stage === s);
@@ -217,23 +233,19 @@ export default function CRMDealsPipelinePage() {
       <div className="flex flex-wrap items-end gap-3 mb-3">
         <div>
           <Label>Product</Label>
-          <Select value={productFilter} onValueChange={setProductFilter}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="All products" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All products</SelectItem>
-              <SelectItem value={UNASSIGNED}>No product set</SelectItem>
-              {products.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.code} — {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            options={[
+              { value: UNASSIGNED, label: "No product set" },
+              ...crmProducts.map((p) => ({ value: p.id, label: `${p.code} — ${p.name.trim()}` })),
+            ]}
+            selected={productFilter}
+            onChange={updateProductFilter}
+            placeholder="All products"
+            searchPlaceholder="Search products..."
+          />
         </div>
-        {productFilter !== ALL && (
-          <Button variant="ghost" onClick={() => setProductFilter(ALL)}>
+        {productFilter.length > 0 && (
+          <Button variant="ghost" onClick={() => updateProductFilter([])}>
             Clear
           </Button>
         )}
@@ -388,9 +400,12 @@ export default function CRMDealsPipelinePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
-                  {products.map((p) => (
+                  {(form.product_id !== NONE && !crmProducts.some((p) => p.id === form.product_id)
+                    ? [...crmProducts, ...allProducts.filter((p) => p.id === form.product_id)]
+                    : crmProducts
+                  ).map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.code} — {p.name}
+                      {p.code} — {p.name.trim()}
                     </SelectItem>
                   ))}
                 </SelectContent>

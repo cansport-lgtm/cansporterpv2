@@ -364,6 +364,7 @@ import CRMDashboard from "./pages/crm/CRMDashboard";
 import CRMLeadsPage from "./pages/crm/CRMLeadsPage";
 import CRMContactsPage from "./pages/crm/CRMContactsPage";
 import CRMDealsPipelinePage from "./pages/crm/CRMDealsPipelinePage";
+import CRMProductListPage from "./pages/crm/CRMProductListPage";
 import CRMActivitiesPage from "./pages/crm/CRMActivitiesPage";
 import CRMContentPage from "./pages/crm/CRMContentPage";
 // CRM v1 additions
@@ -1122,6 +1123,7 @@ const App = () => (
             <Route path="/crm/deals" element={<ProtectedRoute><CRMDealsPipelinePage /></ProtectedRoute>} />
             <Route path="/crm/activities" element={<ProtectedRoute><CRMActivitiesPage /></ProtectedRoute>} />
             <Route path="/crm/content" element={<ProtectedRoute requiredModule="crm"><CRMContentPage /></ProtectedRoute>} />
+            <Route path="/crm/product-list" element={<ProtectedRoute requiredModule="crm"><CRMProductListPage /></ProtectedRoute>} />
             <Route path="/crm/product-brand" element={<ProtectedRoute requiredModule="crm"><CRMProductBrandPage /></ProtectedRoute>} />
             <Route path="/crm/daily-closing" element={<ProtectedRoute requiredModule="crm"><CRMDailyClosingPage /></ProtectedRoute>} />
             <Route path="/crm/marketing-kpis" element={<ProtectedRoute requiredModule="crm"><CRMMarketingKPIsPage /></ProtectedRoute>} />
