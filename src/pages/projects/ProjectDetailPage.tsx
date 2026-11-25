@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Upload, Download, Trash2, Flag, FileText, Printer } from "lucide-react";
+import { ArrowLeft, Upload, Download, Trash2, Flag, FileText, Printer, Pencil } from "lucide-react";
+import { TaskFormDialog, ProjectTask } from "@/components/projects/TaskDialogs";
 import { format, differenceInDays, addDays } from "date-fns";
 import { toast } from "sonner";
 
@@ -29,20 +30,7 @@ interface Project {
   project_manager_id: string | null;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  status: string;
-  priority: string;
-  assigned_to: string | null;
-  start_date: string | null;
-  due_date: string | null;
-  completed_date: string | null;
-  is_milestone: boolean | null;
-  milestone_name: string | null;
-  estimated_hours: number | null;
-  actual_hours: number | null;
-}
+type Task = ProjectTask;
 
 interface Doc {
   id: string;
@@ -93,6 +81,7 @@ export default function ProjectDetailPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (id) loadAll();
@@ -154,6 +143,15 @@ export default function ProjectDetailPage() {
     await supabase.from("project_documents").delete().eq("id", docId);
     toast.success("Document deleted");
     loadAll();
+  };
+
+  const handleSaveTask = async (payload: Record<string, unknown>): Promise<boolean> => {
+    if (!editingTask) return false;
+    const { error } = await supabase.from("project_tasks").update(payload).eq("id", editingTask.id);
+    if (error) { toast.error("Failed to update task"); return false; }
+    toast.success("Task updated");
+    loadAll();
+    return true;
   };
 
   if (loading) return <ERPLayout><div className="p-6">Loading...</div></ERPLayout>;
@@ -234,8 +232,10 @@ export default function ProjectDetailPage() {
                         <th className="p-2">Priority</th>
                         <th className="p-2">Assigned To</th>
                         <th className="p-2">Due Date</th>
+                        <th className="p-2">Completed</th>
                         <th className="p-2">Est. Hours</th>
-                        {isSuperAdmin && <th className="p-2">Actions</th>}
+                        <th className="p-2">Actual Hours</th>
+                        <th className="p-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -248,16 +248,21 @@ export default function ProjectDetailPage() {
                           <td className="p-2"><Badge variant="secondary" className={priorityColor[t.priority] || ""}>{t.priority}</Badge></td>
                           <td className="p-2 text-xs">{users.find((u) => u.id === t.assigned_to)?.full_name || "-"}</td>
                           <td className="p-2 text-xs">{t.due_date ? format(new Date(t.due_date), "dd MMM yy") : "-"}</td>
+                          <td className="p-2 text-xs">{t.completed_date ? format(new Date(t.completed_date), "dd MMM yy") : "-"}</td>
                           <td className="p-2 text-xs">{t.estimated_hours || "-"}</td>
-                          {isSuperAdmin && (
-                            <td className="p-2">
-                              <Button variant="ghost" size="icon" onClick={async () => {
+                          <td className="p-2 text-xs">{t.actual_hours || "-"}</td>
+                          <td className="p-2 whitespace-nowrap">
+                            <Button variant="ghost" size="icon" title="Edit task" onClick={() => setEditingTask(t)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {isSuperAdmin && (
+                              <Button variant="ghost" size="icon" title="Delete task" onClick={async () => {
                                 await supabase.from("project_tasks").delete().eq("id", t.id);
                                 toast.success("Task deleted");
                                 loadAll();
                               }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                            </td>
-                          )}
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -398,6 +403,13 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <TaskFormDialog
+        open={!!editingTask}
+        onOpenChange={(o) => { if (!o) setEditingTask(null); }}
+        task={editingTask}
+        users={users}
+        onSubmit={handleSaveTask}
+      />
     </ERPLayout>
   );
 }
