@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { MyLeaveBalanceCard } from "@/components/hr/MyLeaveBalanceCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -71,6 +72,8 @@ export default function ProfilePage() {
             </dl>
           </CardContent>
         </Card>
+
+        <MyLeaveBalanceCard />
 
         <Card>
           <CardHeader><CardTitle className="text-base">Account</CardTitle></CardHeader>
