@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Factory,
@@ -38,10 +38,16 @@ import {
   Building2,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
+  Pin,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ListCollapse,
 } from "lucide-react";
 import { AddRawMaterialDialog } from "@/components/floor-inventory/AddRawMaterialDialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Collapsible,
   CollapsibleContent,
@@ -880,6 +886,37 @@ interface ERPSidebarProps {
   onToggleCollapsed: () => void;
 }
 
+// ---- Per-browser sidebar preferences (pins, open modules, accordion mode) ----
+const PREFS_KEY = "erp.sidebar.prefs.v1";
+interface SidebarPrefs {
+  pinned: string[];
+  expanded: string[];
+  accordion: boolean;
+}
+const loadPrefs = (): SidebarPrefs => {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        pinned: Array.isArray(p.pinned) ? p.pinned : [],
+        expanded: Array.isArray(p.expanded) ? p.expanded : [],
+        accordion: !!p.accordion,
+      };
+    }
+  } catch {
+    /* storage unavailable or corrupt: fall back to defaults */
+  }
+  return { pinned: [], expanded: [], accordion: false };
+};
+const savePrefs = (prefs: SidebarPrefs) => {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
+};
+
 const DESKTOP_QUERY = "(min-width: 1024px)"; // Tailwind `lg`
 
 const useIsDesktop = () => {
@@ -1016,19 +1053,64 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
     return null;
   };
 
-  // Initialize expanded items with the active module
+  // Saved preferences (pinned modules, open modules, accordion mode)
+  const [prefs] = useState<SidebarPrefs>(loadPrefs);
+  const [pinned, setPinned] = useState<string[]>(prefs.pinned);
+  const [accordion, setAccordion] = useState<boolean>(prefs.accordion);
+  const [query, setQuery] = useState("");
+  const searching = query.trim().length > 0;
+
+  // Initialize expanded items with the saved set plus the active module
   const [expandedItems, setExpandedItems] = useState<string[]>(() => {
     const activeModule = getActiveModuleTitle();
-    return activeModule ? [activeModule] : [];
+    const saved = accordion ? [] : prefs.expanded;
+    return activeModule && !saved.includes(activeModule) ? [...saved, activeModule] : saved;
   });
 
   // Update expanded items when route changes to include active module
   useEffect(() => {
     const activeModule = getActiveModuleTitle();
     if (activeModule && !expandedItems.includes(activeModule)) {
-      setExpandedItems(prev => [...prev, activeModule]);
+      setExpandedItems(prev => (accordion ? [activeModule] : [...prev, activeModule]));
     }
   }, [location.pathname]);
+
+  // Persist preferences whenever they change
+  useEffect(() => {
+    savePrefs({ pinned, expanded: expandedItems, accordion });
+  }, [pinned, expandedItems, accordion]);
+
+  const isExpanded = (title: string) => searching || expandedItems.includes(title);
+
+  // Apply search, then float pinned modules to the top
+  const displayItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let items = filteredNavigationItems;
+    if (q) {
+      items = items
+        .map((item) => {
+          if (item.title.toLowerCase().includes(q)) return item;
+          if (!item.children) return null;
+          const kids = item.children.filter(
+            (c) => !c.isHeader && c.title.toLowerCase().includes(q)
+          );
+          return kids.length ? { ...item, children: kids } : null;
+        })
+        .filter((i): i is NavItem => Boolean(i));
+    }
+    const pinnedItems = pinned
+      .map((t) => items.find((i) => i.title === t))
+      .filter((i): i is NavItem => Boolean(i));
+    const rest = items.filter((i) => !pinned.includes(i.title));
+    return { pinnedItems, rest, all: [...pinnedItems, ...rest] };
+  }, [filteredNavigationItems, query, pinned]);
+
+  const togglePin = (title: string) =>
+    setPinned((prev) => (prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]));
+
+  const expandableTitles = filteredNavigationItems.filter((i) => i.children).map((i) => i.title);
+  const anyExpanded = expandedItems.length > 0;
+  const toggleAll = () => setExpandedItems(anyExpanded ? [] : expandableTitles);
 
   // Mobile drawer behaviour (no-ops on desktop where the sidebar is static):
   // close after navigating, on Escape, and when the viewport grows into the
@@ -1064,7 +1146,9 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
     setExpandedItems((prev) =>
       prev.includes(title)
         ? prev.filter((item) => item !== title)
-        : [...prev, title]
+        : accordion
+          ? [title]
+          : [...prev, title]
     );
   };
 
@@ -1147,6 +1231,75 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
           </Button>
         </div>
 
+        {/* Search + quick controls (hidden in icon-rail mode) */}
+        {!isRail && (
+          <div className="shrink-0 flex items-center gap-1 px-3 pt-3">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/50" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+                placeholder="Search modules..."
+                aria-label="Search modules and pages"
+                className="h-9 pl-8 pr-7 text-sm"
+              />
+              {searching && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-sidebar-foreground/50 hover:text-sidebar-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                  onClick={toggleAll}
+                  aria-label={anyExpanded ? "Collapse all modules" : "Expand all modules"}
+                >
+                  {anyExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{anyExpanded ? "Collapse all" : "Expand all"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground",
+                    accordion && "bg-sidebar-accent text-primary"
+                  )}
+                  onClick={() => {
+                    const next = !accordion;
+                    setAccordion(next);
+                    if (next) {
+                      // keep only the first open module (prefer the active one)
+                      const active = getActiveModuleTitle();
+                      setExpandedItems((prev) => (active ? [active] : prev.slice(0, 1)));
+                    }
+                  }}
+                  aria-pressed={accordion}
+                  aria-label="Accordion mode: keep only one module open"
+                >
+                  <ListCollapse className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Accordion mode: {accordion ? "on" : "off"} (one module open at a time)
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+
         {/* Navigation */}
         <nav
           className={cn(
@@ -1156,7 +1309,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
         >
           {isRail ? (
             <div className="flex flex-col items-center gap-1">
-              {filteredNavigationItems.map((item) => {
+              {displayItems.all.map((item) => {
                 const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
                 // Same visual language as the expanded menu: prominent modules and an
                 // active direct link get the brand gradient, an active module gets the accent.
@@ -1278,10 +1431,45 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
             </div>
           ) : (
           <div className="space-y-0.5">
-            {filteredNavigationItems.map((item) => {
+            {searching && displayItems.all.length === 0 && (
+              <p className="px-3 py-6 text-center text-sm text-sidebar-foreground/60">
+                No modules or pages match "{query.trim()}"
+              </p>
+            )}
+            {displayItems.all.map((item, index) => {
               const itemActive = item.href ? isActiveRoute(item.href) : isParentActive(item.children);
+              const isPinned = pinned.includes(item.title);
+              const pinnedCount = displayItems.pinnedItems.length;
+              const sectionLabel =
+                pinnedCount > 0 && index === 0
+                  ? "Pinned"
+                  : pinnedCount > 0 && index === pinnedCount
+                    ? "All modules"
+                    : null;
               return (
-                <div key={item.title}>
+                <Fragment key={item.title}>
+                {sectionLabel && (
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 select-none">
+                    {sectionLabel}
+                  </div>
+                )}
+                <div className="group/item relative">
+                  <button
+                    type="button"
+                    onClick={() => togglePin(item.title)}
+                    aria-label={isPinned ? `Unpin ${item.title}` : `Pin ${item.title} to top`}
+                    aria-pressed={isPinned}
+                    title={isPinned ? "Unpin" : "Pin to top"}
+                    className={cn(
+                      "absolute right-9 top-1/2 z-10 -translate-y-1/2 rounded p-1 transition-opacity focus-visible:opacity-100",
+                      isPinned
+                        ? "opacity-100 text-primary"
+                        : "opacity-0 group-hover/item:opacity-100 text-sidebar-foreground/50 hover:text-primary",
+                      itemActive && item.href && "text-primary-foreground hover:text-primary-foreground"
+                    )}
+                  >
+                    <Pin className={cn("h-3.5 w-3.5", isPinned && "fill-current")} />
+                  </button>
                   {item.href ? (
                     <Link
                       to={item.href}
@@ -1305,7 +1493,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                     </Link>
                   ) : (
                     <Collapsible
-                      open={expandedItems.includes(item.title)}
+                      open={isExpanded(item.title)}
                       onOpenChange={() => toggleExpanded(item.title)}
                     >
                       {item.prominent ? (
@@ -1327,7 +1515,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                             <ChevronDown
                               className={cn(
                                 "h-4 w-4 transition-transform duration-300 text-primary-foreground/80",
-                                expandedItems.includes(item.title) && "rotate-180 text-primary-foreground"
+                                isExpanded(item.title) && "rotate-180 text-primary-foreground"
                               )}
                             />
                           </CollapsibleTrigger>
@@ -1357,7 +1545,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                             <ChevronDown
                               className={cn(
                                 "h-4 w-4 transition-transform duration-300 text-sidebar-foreground/50",
-                                expandedItems.includes(item.title) && "rotate-180 text-sidebar-foreground"
+                                isExpanded(item.title) && "rotate-180 text-sidebar-foreground"
                               )}
                             />
                           </div>
@@ -1405,6 +1593,7 @@ export function ERPSidebar({ isOpen, setIsOpen, collapsed, onToggleCollapsed }: 
                     </Collapsible>
                   )}
                 </div>
+                </Fragment>
               );
             })}
           </div>
