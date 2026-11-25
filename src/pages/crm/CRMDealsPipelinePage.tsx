@@ -35,6 +35,8 @@ const STAGES = [
 ];
 
 const NONE = "none";
+const ALL = "all";
+const UNASSIGNED = "unassigned";
 
 const fmt = (n: number) => `Rs. ${new Intl.NumberFormat("en-PK").format(Math.round(n))}`;
 
@@ -43,6 +45,8 @@ export default function CRMDealsPipelinePage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [productFilter, setProductFilter] = useState<string>(ALL);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -51,6 +55,7 @@ export default function CRMDealsPipelinePage() {
     title: "",
     contact_id: NONE,
     customer_id: NONE,
+    product_id: NONE,
     value: "",
     expected_close_date: "",
     probability: "0",
@@ -64,16 +69,18 @@ export default function CRMDealsPipelinePage() {
   }, []);
 
   const load = async () => {
-    const [dRes, cRes, custRes, uRes] = await Promise.all([
+    const [dRes, cRes, custRes, uRes, pRes] = await Promise.all([
       supabase.from("crm_deals").select("*").order("created_at", { ascending: false }),
       supabase.from("crm_contacts").select("id, full_name, company"),
       supabase.from("customers").select("id, name, code").eq("is_active", true),
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
+      supabase.from("products").select("id, code, name").eq("is_active", true).order("name"),
     ]);
     setDeals(dRes.data || []);
     setContacts(cRes.data || []);
     setCustomers(custRes.data || []);
     setUsers(uRes.data || []);
+    setProducts(pRes.data || []);
   };
 
   const openCreate = (stage: string) => {
@@ -83,6 +90,7 @@ export default function CRMDealsPipelinePage() {
       title: "",
       contact_id: NONE,
       customer_id: NONE,
+      product_id: NONE,
       value: "",
       expected_close_date: "",
       probability: "0",
@@ -99,6 +107,7 @@ export default function CRMDealsPipelinePage() {
       title: d.title || "",
       contact_id: d.contact_id || NONE,
       customer_id: d.customer_id || NONE,
+      product_id: d.product_id || NONE,
       value: d.value?.toString() || "",
       expected_close_date: d.expected_close_date || "",
       probability: d.probability?.toString() || "0",
@@ -118,6 +127,7 @@ export default function CRMDealsPipelinePage() {
       title: form.title.trim(),
       contact_id: form.contact_id === NONE ? null : form.contact_id,
       customer_id: form.customer_id === NONE ? null : form.customer_id,
+      product_id: form.product_id === NONE ? null : form.product_id,
       value: form.value ? parseFloat(form.value) : 0,
       expected_close_date: form.expected_close_date || null,
       probability: form.probability ? parseInt(form.probability) : 0,
@@ -181,7 +191,18 @@ export default function CRMDealsPipelinePage() {
     load();
   };
 
-  const stageDeals = (s: string) => deals.filter((d) => d.stage === s);
+  const visibleDeals = deals.filter((d) =>
+    productFilter === ALL
+      ? true
+      : productFilter === UNASSIGNED
+        ? !d.product_id
+        : d.product_id === productFilter,
+  );
+  const productLabel = (id?: string | null) => {
+    const p = products.find((x) => x.id === id);
+    return p ? `${p.code} — ${p.name}` : "";
+  };
+  const stageDeals = (s: string) => visibleDeals.filter((d) => d.stage === s);
   const stageValue = (s: string) =>
     stageDeals(s).reduce((sum, d) => sum + Number(d.value || 0), 0);
 
@@ -192,6 +213,31 @@ export default function CRMDealsPipelinePage() {
         description="Drag deals across stages to update pipeline"
         action={{ label: "New Deal", onClick: () => openCreate("prospecting") }}
       />
+
+      <div className="flex flex-wrap items-end gap-3 mb-3">
+        <div>
+          <Label>Product</Label>
+          <Select value={productFilter} onValueChange={setProductFilter}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="All products" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All products</SelectItem>
+              <SelectItem value={UNASSIGNED}>No product set</SelectItem>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.code} — {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {productFilter !== ALL && (
+          <Button variant="ghost" onClick={() => setProductFilter(ALL)}>
+            Clear
+          </Button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         {STAGES.map((col) => (
@@ -237,6 +283,11 @@ export default function CRMDealsPipelinePage() {
                       <p className="text-[10px] font-mono text-muted-foreground">
                         {d.deal_number}
                       </p>
+                      {d.product_id && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {productLabel(d.product_id)}
+                        </p>
+                      )}
                       <p className="text-xs font-semibold text-amber-600 mt-1">
                         {fmt(Number(d.value || 0))}
                       </p>
@@ -325,6 +376,25 @@ export default function CRMDealsPipelinePage() {
                 value={form.expected_close_date}
                 onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })}
               />
+            </div>
+            <div>
+              <Label>Product</Label>
+              <Select
+                value={form.product_id}
+                onValueChange={(v) => setForm({ ...form, product_id: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.code} — {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Contact</Label>

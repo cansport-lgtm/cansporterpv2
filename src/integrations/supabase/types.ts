@@ -2322,6 +2322,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          product_id: string | null
           deal_number: string
           expected_close_date: string | null
           id: string
@@ -2340,6 +2341,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          product_id?: string | null
           deal_number: string
           expected_close_date?: string | null
           id?: string
@@ -2358,6 +2360,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          product_id?: string | null
           deal_number?: string
           expected_close_date?: string | null
           id?: string
