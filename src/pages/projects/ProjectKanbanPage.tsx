@@ -1,15 +1,16 @@
-import { useEffect, useState, DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, DragEvent, ReactNode } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { ProjectCombobox } from "@/components/projects/ProjectCombobox";
 import { TaskFormDialog, MoveTaskDialog, ProjectTask } from "@/components/projects/TaskDialogs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, GripVertical, Calendar, User } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, GripVertical, Calendar, User, Search, X } from "lucide-react";
+import { format, isBefore, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
 interface Project {
@@ -43,6 +44,21 @@ const priorityColor: Record<string, string> = {
   critical: "bg-red-100 text-red-700",
 };
 
+function highlight(text: string, q: string): ReactNode {
+  if (!q) return text;
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="bg-yellow-200 text-inherit rounded-sm">{text.slice(i, i + q.length)}</mark>
+      {text.slice(i + q.length)}
+    </>
+  );
+}
+
+type QuickFilter = "mine" | "overdue" | "high";
+
 export default function ProjectKanbanPage() {
   const { user, hasRole } = useAuth();
   // super_admin and Projects Super Manager see every project; everyone else only their own
@@ -57,6 +73,30 @@ export default function ProjectKanbanPage() {
   const [newStatus, setNewStatus] = useState("todo");
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<{ task: Task; toStatus: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [quickFilters, setQuickFilters] = useState<QuickFilter[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 150);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // "/" focuses the search box (unless typing in a field already)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     loadInitial();
@@ -150,20 +190,110 @@ export default function ProjectKanbanPage() {
     await updateTaskStatus(task, { status: newStatus });
   };
 
-  const getColumnTasks = (status: string) => tasks.filter((t) => t.status === status);
+  const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.full_name || ""])), [users]);
+
+  const filteredTasks = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    const today = startOfDay(new Date());
+    return tasks.filter((t) => {
+      if (q) {
+        const hay = [
+          t.title,
+          t.task_number,
+          t.description,
+          t.priority,
+          t.assigned_to ? userNameById.get(t.assigned_to) : "",
+        ].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (assigneeFilter !== "all" && t.assigned_to !== assigneeFilter) return false;
+      if (quickFilters.includes("mine") && t.assigned_to !== user?.id) return false;
+      if (quickFilters.includes("overdue")) {
+        if (!t.due_date || t.status === "done" || !isBefore(new Date(t.due_date), today)) return false;
+      }
+      if (quickFilters.includes("high") && !["high", "critical"].includes(t.priority)) return false;
+      return true;
+    });
+  }, [tasks, debouncedSearch, assigneeFilter, quickFilters, userNameById, user?.id]);
+
+  const isFiltering = !!debouncedSearch || assigneeFilter !== "all" || quickFilters.length > 0;
+  const getColumnTasks = (status: string) => filteredTasks.filter((t) => t.status === status);
+  const getColumnTotal = (status: string) => tasks.filter((t) => t.status === status).length;
+
+  const toggleQuick = (k: QuickFilter) =>
+    setQuickFilters((f) => (f.includes(k) ? f.filter((x) => x !== k) : [...f, k]));
+  const clearFilters = () => {
+    setSearch("");
+    setQuickFilters([]);
+    setAssigneeFilter("all");
+  };
 
   return (
     <ERPLayout>
       <PageHeader title="Kanban Board" description="Drag & drop tasks across columns">
-        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select project" /></SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.project_number} - {p.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ProjectCombobox
+          projects={projects}
+          value={selectedProjectId}
+          onChange={setSelectedProjectId}
+          className="w-[280px]"
+        />
       </PageHeader>
+
+      {selectedProjectId && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") { setSearch(""); e.currentTarget.blur(); } }}
+              placeholder="Search tasks...  ( / )"
+              className="pl-8 pr-8"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => { setSearch(""); searchRef.current?.focus(); }}
+                className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {([
+            ["mine", "My tasks"],
+            ["overdue", "Overdue"],
+            ["high", "High / Critical"],
+          ] as [QuickFilter, string][]).map(([k, label]) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={quickFilters.includes(k) ? "default" : "outline"}
+              onClick={() => toggleQuick(k)}
+            >
+              {label}
+            </Button>
+          ))}
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            aria-label="Filter by assignee"
+          >
+            <option value="all">All assignees</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+          {isFiltering && (
+            <Button size="sm" variant="ghost" onClick={clearFilters}>
+              <X className="h-3 w-3 mr-1" /> Clear
+            </Button>
+          )}
+        </div>
+      )}
 
       {!selectedProjectId ? (
         <Card><CardContent className="p-6 text-center text-muted-foreground">Select a project to view its tasks</CardContent></Card>
@@ -179,13 +309,16 @@ export default function ProjectKanbanPage() {
               <div className="p-3 flex items-center justify-between">
                 <h3 className="font-semibold text-sm">{col.label}</h3>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.key).length}</Badge>
+                  <Badge variant="secondary" className="text-xs">{isFiltering ? `${getColumnTasks(col.key).length} of ${getColumnTotal(col.key)}` : getColumnTasks(col.key).length}</Badge>
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCreate(col.key)}>
                     <Plus className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
               <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                {isFiltering && getColumnTasks(col.key).length === 0 && getColumnTotal(col.key) > 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">No matching tasks</p>
+                )}
                 {getColumnTasks(col.key).map((task) => (
                   <div
                     key={task.id}
@@ -199,7 +332,7 @@ export default function ProjectKanbanPage() {
                     <div className="flex items-start gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{task.title}</p>
+                        <p className="text-sm font-medium truncate">{highlight(task.title, debouncedSearch)}</p>
                         {task.is_milestone && (
                           <Badge variant="outline" className="text-xs mt-1 bg-amber-50 text-amber-700">
                             🏆 Milestone
