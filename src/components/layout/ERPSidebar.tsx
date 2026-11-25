@@ -836,6 +836,7 @@ const navigationItems: NavItem[] = [
       { title: "Machines", href: "/master/machines" },
       { title: "Items", href: "/master/items" },
       { title: "Units", href: "/master/units" },
+      { title: "Project Categories", href: "/master/project-categories" },
       { title: "Reason Masters", href: "/master/reasons" },
       { title: "Hourly Loss Reasons", href: "/master/hourly-loss-reasons" },
       { title: "MPH Loss Reasons", href: "/master/mph-loss-reasons", superAdminOnly: true },

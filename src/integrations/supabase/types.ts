@@ -11541,6 +11541,39 @@ export type Database = {
           },
         ]
       }
+      project_categories: {
+        Row: {
+          code: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sequence_order: number
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sequence_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sequence_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       project_documents: {
         Row: {
           created_at: string | null
@@ -11692,6 +11725,7 @@ export type Database = {
           actual_end_date: string | null
           budget_actual: number | null
           budget_estimated: number | null
+          category_id: string | null
           created_at: string | null
           department_id: string | null
           description: string | null
@@ -11710,6 +11744,7 @@ export type Database = {
           actual_end_date?: string | null
           budget_actual?: number | null
           budget_estimated?: number | null
+          category_id?: string | null
           created_at?: string | null
           department_id?: string | null
           description?: string | null
@@ -11728,6 +11763,7 @@ export type Database = {
           actual_end_date?: string | null
           budget_actual?: number | null
           budget_estimated?: number | null
+          category_id?: string | null
           created_at?: string | null
           department_id?: string | null
           description?: string | null
@@ -11743,6 +11779,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "project_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_department_id_fkey"
             columns: ["department_id"]

@@ -27,6 +27,8 @@ interface Project {
   budget_actual: number | null;
   methodology: string | null;
   department_id: string | null;
+  category_id?: string | null;
+  project_categories?: { name: string } | null;
   project_manager_id: string | null;
 }
 
@@ -89,7 +91,7 @@ export default function ProjectDetailPage() {
 
   const loadAll = async () => {
     const [projRes, taskRes, docRes, userRes] = await Promise.all([
-      supabase.from("projects").select("*").eq("id", id!).single(),
+      supabase.from("projects").select("*, project_categories(name)").eq("id", id!).single(),
       supabase.from("project_tasks").select("*").eq("project_id", id!).order("sort_order"),
       supabase.from("project_documents").select("*").eq("project_id", id!).order("created_at", { ascending: false }),
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
@@ -173,7 +175,7 @@ export default function ProjectDetailPage() {
     <ERPLayout>
       <PageHeader
         title={`${project.project_number} - ${project.title}`}
-        description={project.description || ""}
+        description={[project.project_categories?.name, project.description].filter(Boolean).join(" · ")}
       >
         <div className="flex gap-2">
           {isSuperAdmin && (
