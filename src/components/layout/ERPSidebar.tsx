@@ -384,6 +384,7 @@ const navigationItems: NavItem[] = [
     color: "text-orange-400",
     module: "sales",
     children: [
+      { title: "Sales Targets", href: "/sales/targets" },
       { title: "Customers", href: "/domestic/customers" },
       { title: "Sales Orders", href: "/domestic/orders" },
       { title: "Packing Master", href: "/domestic/packing-types" },
@@ -394,7 +395,6 @@ const navigationItems: NavItem[] = [
       { title: "Dispatch", href: "/domestic/dispatch" },
       { title: "Invoices", href: "/domestic/invoices" },
       { title: "Sales Returns", href: "/sales/returns" },
-      { title: "Sales Targets", href: "/sales/targets" },
       { title: "Dispatch Acknowledgement", href: "/domestic/dispatch-acknowledgement" },
       { title: "Dispatch Dashboard", href: "/domestic/dispatch-dashboard" },
       { title: "Deadline Requests", href: "/domestic/deadline-requests", superAdminOnly: true },
