@@ -28,6 +28,7 @@ interface Project {
   target_end_date: string | null;
   actual_end_date: string | null;
   department_id: string | null;
+  category_id: string | null;
   project_manager_id: string | null;
   budget_estimated: number | null;
   budget_actual: number | null;
@@ -38,6 +39,12 @@ interface Project {
 interface Department {
   id: string;
   name: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  is_active: boolean;
 }
 
 interface AppUser {
@@ -56,10 +63,12 @@ export default function ProjectsListPage() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -72,6 +81,7 @@ export default function ProjectsListPage() {
     start_date: "",
     target_end_date: "",
     department_id: "",
+    category_id: "",
     project_manager_id: "",
     budget_estimated: "",
     methodology: "",
@@ -86,13 +96,15 @@ export default function ProjectsListPage() {
     if (!canViewAllProjects && user) {
       projQuery = projQuery.eq("project_manager_id", user.id);
     }
-    const [projRes, deptRes, userRes] = await Promise.all([
+    const [projRes, deptRes, catRes, userRes] = await Promise.all([
       projQuery,
       supabase.from("production_departments").select("id, name").eq("is_active", true),
+      supabase.from("project_categories").select("id, name, is_active").order("sequence_order").order("name"),
       supabase.from("app_users").select("id, full_name").eq("is_active", true),
     ]);
     setProjects(projRes.data || []);
     setDepartments(deptRes.data || []);
+    setCategories(catRes.data || []);
     setUsers(userRes.data || []);
     setLoading(false);
   };
@@ -101,7 +113,7 @@ export default function ProjectsListPage() {
     setEditingProject(null);
     setForm({
       title: "", description: "", status: "planned", priority: "medium",
-      start_date: "", target_end_date: "", department_id: "", project_manager_id: "",
+      start_date: "", target_end_date: "", department_id: "", category_id: "", project_manager_id: "",
       budget_estimated: "", methodology: "",
     });
     setDialogOpen(true);
@@ -117,6 +129,7 @@ export default function ProjectsListPage() {
       start_date: p.start_date || "",
       target_end_date: p.target_end_date || "",
       department_id: p.department_id || "",
+      category_id: p.category_id || "",
       project_manager_id: p.project_manager_id || "",
       budget_estimated: p.budget_estimated?.toString() || "",
       methodology: p.methodology || "",
@@ -138,6 +151,7 @@ export default function ProjectsListPage() {
       start_date: form.start_date || null,
       target_end_date: form.target_end_date || null,
       department_id: form.department_id || null,
+      category_id: form.category_id || null,
       project_manager_id: form.project_manager_id || null,
       budget_estimated: form.budget_estimated ? parseFloat(form.budget_estimated) : 0,
       methodology: form.methodology || null,
@@ -164,6 +178,7 @@ export default function ProjectsListPage() {
 
   const filtered = projects.filter((p) => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (categoryFilter !== "all" && (categoryFilter === "none" ? p.category_id : p.category_id !== categoryFilter)) return false;
     if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.project_number.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -208,6 +223,14 @@ export default function ProjectsListPage() {
                 {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="none">Uncategorized</SelectItem>
+                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           {loading ? (
@@ -221,6 +244,7 @@ export default function ProjectsListPage() {
                   <tr className="border-b text-left text-muted-foreground">
                     <th className="p-2">Project #</th>
                     <th className="p-2">Title</th>
+                    <th className="p-2">Category</th>
                     <th className="p-2">Status</th>
                     <th className="p-2">Priority</th>
                     <th className="p-2">Start</th>
@@ -234,6 +258,7 @@ export default function ProjectsListPage() {
                     <tr key={p.id} className="border-b hover:bg-muted/50">
                       <td className="p-2 font-mono text-xs">{p.project_number}</td>
                       <td className="p-2 font-medium">{p.title}</td>
+                      <td className="p-2 text-xs">{categories.find((c) => c.id === p.category_id)?.name || "-"}</td>
                       <td className="p-2">
                         <Badge variant="outline" className={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
                       </td>
@@ -311,6 +336,17 @@ export default function ProjectsListPage() {
                 <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                 <SelectContent>
                   {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {categories
+                    .filter((c) => c.is_active || c.id === form.category_id)
+                    .map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.is_active ? "" : " (inactive)"}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

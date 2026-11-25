@@ -152,6 +152,7 @@ import DepartmentsPage from "./pages/master/DepartmentsPage";
 import GradesPage from "./pages/master/GradesPage";
 import ProductsPage from "./pages/master/ProductsPage";
 import UnitsPage from "./pages/master/UnitsPage";
+import ProjectCategoriesPage from "./pages/master/ProjectCategoriesPage";
 import ReasonsPage from "./pages/master/ReasonsPage";
 import ItemsPage from "./pages/master/ItemsPage";
 
@@ -817,6 +818,7 @@ const App = () => (
             <Route path="/master/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
             <Route path="/master/setup-check" element={<ProtectedRoute><MaterialSetupCheckPage /></ProtectedRoute>} />
             <Route path="/master/units" element={<ProtectedRoute><UnitsPage /></ProtectedRoute>} />
+            <Route path="/master/project-categories" element={<ProtectedRoute><ProjectCategoriesPage /></ProtectedRoute>} />
             <Route path="/master/reasons" element={<ProtectedRoute><ReasonsPage /></ProtectedRoute>} />
             <Route path="/master/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
             <Route path="/master/hourly-loss-reasons" element={<ProtectedRoute><HourlyLossReasonsPage /></ProtectedRoute>} />
