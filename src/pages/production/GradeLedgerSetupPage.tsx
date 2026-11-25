@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
 import { Link } from "react-router-dom";
-import { Settings2, Lock, Unlock, Loader2, BookOpen, Save } from "lucide-react";
+import { Settings2, Lock, Unlock, Loader2, BookOpen, Save, Pencil } from "lucide-react";
 
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -21,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   CUTOVER_OPTIONS, LEDGER_BUCKETS, bucketLabel, fmtQty,
   type LedgerBucket, type LedgerSettings,
@@ -35,6 +39,9 @@ type AdjustmentRow = {
   reason: string;
   reference: string | null;
   created_at: string;
+  grade_id: string;
+  edit_count: number | null;
+  updated_at: string | null;
   grades: { code: string; name: string } | null;
   app_users: { full_name: string | null } | null;
 };
@@ -43,6 +50,8 @@ const key = (bucket: string, gradeId: string) => `${bucket}:${gradeId}`;
 
 export default function GradeLedgerSetupPage() {
   const { toast } = useToast();
+  const { hasRole } = useAuth();
+  const isSuperAdmin = hasRole("super_admin");
   const queryClient = useQueryClient();
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
@@ -79,7 +88,7 @@ export default function GradeLedgerSetupPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("grade_ledger_adjustments")
-        .select("id, txn_date, bucket, quantity, reason, reference, created_at, grades(code, name), app_users(full_name)")
+        .select("id, txn_date, bucket, grade_id, quantity, reason, reference, created_at, edit_count, updated_at, grades(code, name), app_users(full_name)")
         .order("txn_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(300);
@@ -200,6 +209,44 @@ export default function GradeLedgerSetupPage() {
         ? { title: "Adjustment posted with a warning", description: `Balance is now ${fmtQty(after)} (negative).`, variant: "destructive" }
         : { title: "Adjustment posted", description: `New balance: ${fmtQty(after)} bags` });
       setAdj((a) => ({ ...a, quantity: "", reason: "", reference: "" }));
+      invalidate();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // --- Edit adjustment (super admin) ------------------------------------------
+  const emptyEdit = { id: "", txn_date: "", bucket: "", grade_id: "", direction: "add" as "add" | "remove",
+    quantity: "", reason: "", reference: "", edit_reason: "" };
+  const [editOpen, setEditOpen] = useState(false);
+  const [edit, setEdit] = useState(emptyEdit);
+
+  const openEdit = (a: AdjustmentRow) => {
+    setEdit({
+      id: a.id, txn_date: a.txn_date, bucket: a.bucket, grade_id: a.grade_id,
+      direction: Number(a.quantity) < 0 ? "remove" : "add",
+      quantity: String(Math.abs(Number(a.quantity))),
+      reason: a.reason, reference: a.reference ?? "", edit_reason: "",
+    });
+    setEditOpen(true);
+  };
+
+  const editSigned = (edit.direction === "add" ? 1 : -1) * Number(edit.quantity || 0);
+
+  const editAdjustment = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await (supabase as any).rpc("grade_ledger_edit_adjustment", {
+        p_id: edit.id, p_date: edit.txn_date, p_bucket: edit.bucket, p_grade: edit.grade_id,
+        p_quantity: editSigned, p_reason: edit.reason, p_reference: edit.reference || null,
+        p_edit_reason: edit.edit_reason,
+      });
+      if (error) throw error;
+      return Number(data);
+    },
+    onSuccess: (after) => {
+      toast(after < 0
+        ? { title: "Adjustment updated with a warning", description: `Balance is now ${fmtQty(after)} (negative).`, variant: "destructive" }
+        : { title: "Adjustment updated", description: `Balance on that date: ${fmtQty(after)} bags` });
+      setEditOpen(false);
       invalidate();
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -413,6 +460,7 @@ export default function GradeLedgerSetupPage() {
                             <TableHead>Reason</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead>Posted by</TableHead>
+                            {isSuperAdmin && <TableHead className="w-16">Edit</TableHead>}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -428,7 +476,20 @@ export default function GradeLedgerSetupPage() {
                               <TableCell className="text-sm text-muted-foreground">{a.reference ?? "—"}</TableCell>
                               <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                                 {a.app_users?.full_name ?? "—"} · {format(new Date(a.created_at), "dd MMM HH:mm")}
+                                {!!a.edit_count && (
+                                  <Badge variant="outline" className="ml-2 text-[10px]"
+                                    title={a.updated_at ? `Last edited ${format(new Date(a.updated_at), "dd MMM HH:mm")}` : undefined}>
+                                    edited{a.edit_count > 1 ? ` ×${a.edit_count}` : ""}
+                                  </Badge>
+                                )}
                               </TableCell>
+                              {isSuperAdmin && (
+                                <TableCell>
+                                  <Button variant="ghost" size="icon" title="Edit adjustment" onClick={() => openEdit(a)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              )}
                             </TableRow>
                           ))}
                         </TableBody>
@@ -441,6 +502,73 @@ export default function GradeLedgerSetupPage() {
           </Tabs>
         )}
       </div>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Edit adjustment</DialogTitle></DialogHeader>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="text-xs">Date</Label>
+              <Input type="date" className="w-40" value={edit.txn_date} min={settings?.cutover_date}
+                onChange={(e) => setEdit({ ...edit, txn_date: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Stage</Label>
+              <Select value={edit.bucket} onValueChange={(v) => setEdit({ ...edit, bucket: v })}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LEDGER_BUCKETS.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Grade</Label>
+              <Select value={edit.grade_id} onValueChange={(v) => setEdit({ ...edit, grade_id: v })}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {grades.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.code} - {g.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Direction</Label>
+              <Select value={edit.direction} onValueChange={(v: "add" | "remove") => setEdit({ ...edit, direction: v })}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add stock (+)</SelectItem>
+                  <SelectItem value="remove">Remove stock (−)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Bags</Label>
+              <Input type="number" className="w-28" min={0} value={edit.quantity}
+                onChange={(e) => setEdit({ ...edit, quantity: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Reference</Label>
+              <Input className="w-44" value={edit.reference}
+                onChange={(e) => setEdit({ ...edit, reference: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Reason *</Label>
+            <Textarea rows={2} value={edit.reason} onChange={(e) => setEdit({ ...edit, reason: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-xs">Why are you editing this? *</Label>
+            <Textarea rows={2} value={edit.edit_reason} placeholder="Kept in the edit history"
+              onChange={(e) => setEdit({ ...edit, edit_reason: e.target.value })} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={() => editAdjustment.mutate()}
+              disabled={!edit.bucket || !edit.grade_id || !edit.txn_date || !(Number(edit.quantity) > 0)
+                || !edit.reason.trim() || !edit.edit_reason.trim() || editAdjustment.isPending}>
+              {editAdjustment.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ERPLayout>
   );
 }
