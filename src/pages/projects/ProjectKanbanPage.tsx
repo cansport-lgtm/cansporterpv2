@@ -5,11 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { TaskFormDialog, MoveTaskDialog, ProjectTask } from "@/components/projects/TaskDialogs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Plus, GripVertical, Calendar, User } from "lucide-react";
@@ -22,22 +18,9 @@ interface Project {
   title: string;
 }
 
-interface Task {
-  id: string;
+interface Task extends ProjectTask {
   project_id: string;
   task_number: string | null;
-  title: string;
-  description: string | null;
-  status: string;
-  priority: string;
-  assigned_to: string | null;
-  start_date: string | null;
-  due_date: string | null;
-  completed_date: string | null;
-  is_milestone: boolean | null;
-  milestone_name: string | null;
-  estimated_hours: number | null;
-  actual_hours: number | null;
   sort_order: number | null;
 }
 
@@ -52,8 +35,6 @@ const COLUMNS = [
   { key: "review", label: "Review", color: "border-t-purple-500" },
   { key: "done", label: "Done", color: "border-t-green-500" },
 ];
-
-const PRIORITIES = ["low", "medium", "high", "critical"];
 
 const priorityColor: Record<string, string> = {
   low: "bg-gray-100 text-gray-700",
@@ -72,14 +53,10 @@ export default function ProjectKanbanPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [_loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<ProjectTask | null>(null);
+  const [newStatus, setNewStatus] = useState("todo");
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-
-  const [form, setForm] = useState({
-    title: "", description: "", priority: "medium", assigned_to: "",
-    start_date: "", due_date: "", is_milestone: false, milestone_name: "",
-    estimated_hours: "",
-  });
+  const [pendingMove, setPendingMove] = useState<{ task: Task; toStatus: string } | null>(null);
 
   useEffect(() => {
     loadInitial();
@@ -116,61 +93,30 @@ export default function ProjectKanbanPage() {
 
   const openCreate = (status: string) => {
     setEditingTask(null);
-    setForm({
-      title: "", description: "", priority: "medium", assigned_to: "",
-      start_date: "", due_date: "", is_milestone: false, milestone_name: "", estimated_hours: "",
-    });
+    setNewStatus(status);
     setDialogOpen(true);
-    // Store initial status in a temp way
-    (window as any).__kanbanNewStatus = status;
   };
 
-  const openEdit = (task: Task) => {
+  const openEdit = (task: ProjectTask) => {
     setEditingTask(task);
-    setForm({
-      title: task.title,
-      description: task.description || "",
-      priority: task.priority,
-      assigned_to: task.assigned_to || "",
-      start_date: task.start_date || "",
-      due_date: task.due_date || "",
-      is_milestone: task.is_milestone || false,
-      milestone_name: task.milestone_name || "",
-      estimated_hours: task.estimated_hours?.toString() || "",
-    });
     setDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!form.title.trim()) { toast.error("Title is required"); return; }
-
-    const payload: any = {
-      title: form.title,
-      description: form.description || null,
-      priority: form.priority,
-      assigned_to: form.assigned_to || null,
-      start_date: form.start_date || null,
-      due_date: form.due_date || null,
-      is_milestone: form.is_milestone,
-      milestone_name: form.is_milestone ? form.milestone_name : null,
-      estimated_hours: form.estimated_hours ? parseFloat(form.estimated_hours) : 0,
-    };
-
+  const handleSave = async (payload: Record<string, unknown>): Promise<boolean> => {
     if (editingTask) {
       const { error } = await supabase.from("project_tasks").update(payload).eq("id", editingTask.id);
-      if (error) { toast.error("Failed to update task"); return; }
+      if (error) { toast.error("Failed to update task"); return false; }
       toast.success("Task updated");
     } else {
-      payload.project_id = selectedProjectId;
-      payload.status = (window as any).__kanbanNewStatus || "todo";
-      payload.sort_order = tasks.filter((t) => t.status === payload.status).length;
-      const { error } = await supabase.from("project_tasks").insert(payload);
-      if (error) { toast.error("Failed to create task"); return; }
+      const sortOrder = tasks.filter((t) => t.status === payload.status).length;
+      const { error } = await supabase
+        .from("project_tasks")
+        .insert({ ...payload, project_id: selectedProjectId, sort_order: sortOrder } as never);
+      if (error) { toast.error("Failed to create task"); return false; }
       toast.success("Task created");
     }
-
-    setDialogOpen(false);
     loadTasks();
+    return true;
   };
 
   const handleDragStart = (e: DragEvent, taskId: string) => {
@@ -183,17 +129,25 @@ export default function ProjectKanbanPage() {
     e.dataTransfer.dropEffect = "move";
   };
 
+  const updateTaskStatus = async (task: ProjectTask, payload: Record<string, unknown>): Promise<boolean> => {
+    const { error } = await supabase.from("project_tasks").update(payload).eq("id", task.id);
+    if (error) { toast.error("Failed to move task"); return false; }
+    loadTasks();
+    return true;
+  };
+
   const handleDrop = async (e: DragEvent, newStatus: string) => {
     e.preventDefault();
-    if (!draggedTaskId) return;
-
-    const payload: any = { status: newStatus };
-    if (newStatus === "done") payload.completed_date = new Date().toISOString().split("T")[0];
-    else payload.completed_date = null;
-
-    await supabase.from("project_tasks").update(payload).eq("id", draggedTaskId);
+    const task = tasks.find((t) => t.id === draggedTaskId);
     setDraggedTaskId(null);
-    loadTasks();
+    if (!task || task.status === newStatus) return;
+
+    // Moving into or out of Done needs confirmation (completion date / reopen)
+    if (newStatus === "done" || task.status === "done") {
+      setPendingMove({ task, toStatus: newStatus });
+      return;
+    }
+    await updateTaskStatus(task, { status: newStatus });
   };
 
   const getColumnTasks = (status: string) => tasks.filter((t) => t.status === status);
@@ -259,6 +213,16 @@ export default function ProjectKanbanPage() {
                               {format(new Date(task.due_date), "dd MMM")}
                             </span>
                           )}
+                          {task.status === "done" && task.completed_date && (
+                            <span className="text-[10px] text-green-700 flex items-center gap-0.5">
+                              ✓ {format(new Date(task.completed_date), "dd MMM")}
+                            </span>
+                          )}
+                          {task.status === "done" && (task.actual_hours ?? 0) > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {task.actual_hours}h{task.estimated_hours ? ` / ${task.estimated_hours}h` : ""}
+                            </span>
+                          )}
                           {task.assigned_to && (
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <User className="h-3 w-3" />
@@ -276,47 +240,24 @@ export default function ProjectKanbanPage() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingTask ? "Edit Task" : "New Task"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Title *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
-            <div>
-              <Label>Priority</Label>
-              <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Assigned To</Label>
-              <Select value={form.assigned_to} onValueChange={(v) => setForm({ ...form, assigned_to: v })}>
-                <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
-                <SelectContent>{users.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date</Label><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
-              <div><Label>Due Date</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
-            </div>
-            <div><Label>Estimated Hours</Label><Input type="number" value={form.estimated_hours} onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })} /></div>
-            <div className="flex items-center gap-2">
-              <Checkbox checked={form.is_milestone} onCheckedChange={(v) => setForm({ ...form, is_milestone: !!v })} />
-              <Label>Mark as Milestone</Label>
-            </div>
-            {form.is_milestone && (
-              <div><Label>Milestone Name</Label><Input value={form.milestone_name} onChange={(e) => setForm({ ...form, milestone_name: e.target.value })} /></div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editingTask ? "Update" : "Create"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TaskFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        task={editingTask}
+        initialStatus={newStatus}
+        users={users}
+        onSubmit={handleSave}
+      />
+
+      <MoveTaskDialog
+        move={pendingMove}
+        onCancel={() => setPendingMove(null)}
+        onConfirm={async (task, payload) => {
+          const ok = await updateTaskStatus(task, payload);
+          if (ok) setPendingMove(null);
+          return ok;
+        }}
+      />
     </ERPLayout>
   );
 }
