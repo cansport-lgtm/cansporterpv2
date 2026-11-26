@@ -671,7 +671,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/rd/dashboard" },
       { title: "Projects", href: "/rd/projects" },
-      { title: "Experiments", href: "/rd/experiments" },
+      { title: "Experiments", href: "/rd/experiments", superAdminOnly: true },
     ],
   },
   {

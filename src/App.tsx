@@ -967,7 +967,7 @@ const App = () => (
             <Route path="/rd/dashboard" element={<ProtectedRoute><RDDashboard /></ProtectedRoute>} />
             <Route path="/rd/projects" element={<ProtectedRoute><RDProjectsPage /></ProtectedRoute>} />
             <Route path="/rd/projects/:id" element={<ProtectedRoute><RDProjectDetailPage /></ProtectedRoute>} />
-            <Route path="/rd/experiments" element={<ProtectedRoute><RDExperimentsPage /></ProtectedRoute>} />
+            <Route path="/rd/experiments" element={<ProtectedRoute requiredRole="super_admin"><RDExperimentsPage /></ProtectedRoute>} />
             <Route path="/rd/*" element={<ProtectedRoute><ComingSoon title="Product Dev & R&D" /></ProtectedRoute>} />
 
             {/* Private Label floor page - no ERP login, unlocked with the floor PIN */}
