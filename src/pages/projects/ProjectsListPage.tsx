@@ -351,13 +351,13 @@ export default function ProjectsListPage() {
           </div>
 
           {!loading && tiles.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-4 print:hidden">
+            <div className="flex flex-wrap gap-2 mb-4 print:hidden">
               {tiles.map((t) => (
                 <button key={t.key} type="button" aria-pressed={categoryFilter === t.key}
                   onClick={() => setCategoryFilter(categoryFilter === t.key ? "all" : t.key)}
-                  className={`text-left rounded-lg border p-3 hover:bg-muted/50 ${categoryFilter === t.key ? "border-primary bg-primary/5" : ""}`}>
-                  <div className="text-xs text-muted-foreground truncate">{t.name}</div>
-                  <div className="text-xl font-semibold">{t.items.length}</div>
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm hover:bg-muted/50 ${categoryFilter === t.key ? "border-primary bg-primary/5" : ""}`}>
+                  <span className="text-muted-foreground">{t.name}</span>
+                  <span className="font-semibold">{t.items.length}</span>
                 </button>
               ))}
             </div>
