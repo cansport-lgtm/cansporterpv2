@@ -9,7 +9,8 @@ import { ProjectCombobox } from "@/components/projects/ProjectCombobox";
 import { TaskFormDialog, MoveTaskDialog, ProjectTask } from "@/components/projects/TaskDialogs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, GripVertical, Calendar, User, Search, X } from "lucide-react";
+import { Plus, GripVertical, Calendar, User, Search, X, ArrowLeft } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, isBefore, startOfDay } from "date-fns";
 import { toast } from "sonner";
 
@@ -70,6 +71,8 @@ export default function ProjectKanbanPage() {
   const { user, hasRole } = useAuth();
   // super_admin and Projects Super Manager see every project; everyone else only their own
   const canViewAllProjects = hasRole('projects_super_manager');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedProjectId = searchParams.get("project");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -129,7 +132,9 @@ export default function ProjectKanbanPage() {
     setProjects(projs);
     setUsers(userRes.data || []);
     setCategories(catRes.data || []);
-    if (projs.length > 0) setSelectedProjectId(projs[0].id);
+    // Deep link (?project=<id>) wins when the user can see that project; otherwise first project
+    const linked = linkedProjectId ? projs.find((p) => p.id === linkedProjectId) : undefined;
+    if (projs.length > 0) setSelectedProjectId((linked || projs[0]).id);
     setLoading(false);
   };
 
@@ -274,11 +279,21 @@ export default function ProjectKanbanPage() {
           <ProjectCombobox
             projects={visibleProjects}
             value={selectedProjectId}
-            onChange={setSelectedProjectId}
+            onChange={(id) => {
+              setSelectedProjectId(id);
+              // Keep the address in sync so refresh and shared links keep the project
+              setSearchParams(id ? { project: id } : {}, { replace: true });
+            }}
             className="w-[280px]"
           />
         </div>
       </PageHeader>
+
+      {linkedProjectId && selectedProjectId === linkedProjectId && (
+        <Link to={`/projects/${linkedProjectId}`} className="mb-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" /> Back to project details
+        </Link>
+      )}
 
       {selectedProjectId && (
         <div className="mb-4 flex flex-wrap items-center gap-2">

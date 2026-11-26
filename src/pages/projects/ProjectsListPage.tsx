@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, Search, Edit, Eye, Trash2, Printer, ChevronDown } from "lucide-react";
+import { Plus, Search, Edit, Eye, Trash2, Printer, ChevronDown, LayoutGrid } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -269,6 +269,10 @@ export default function ProjectsListPage() {
       <td className="p-2 text-xs">{users.find((u) => u.id === p.project_manager_id)?.full_name || "-"}</td>
       <td className="p-2">
         <div className="flex gap-1">
+          <Button variant="outline" size="sm" className="h-8 px-2 text-primary border-primary/40" title="Open Kanban board"
+            onClick={() => navigate(`/projects/kanban?project=${p.id}`)}>
+            <LayoutGrid className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Board</span>
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${p.id}`)}><Eye className="h-4 w-4" /></Button>
           {isSuperAdmin && (
             <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
@@ -351,13 +355,13 @@ export default function ProjectsListPage() {
           </div>
 
           {!loading && tiles.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-4 print:hidden">
+            <div className="flex flex-wrap gap-2 mb-4 print:hidden">
               {tiles.map((t) => (
                 <button key={t.key} type="button" aria-pressed={categoryFilter === t.key}
                   onClick={() => setCategoryFilter(categoryFilter === t.key ? "all" : t.key)}
-                  className={`text-left rounded-lg border p-3 hover:bg-muted/50 ${categoryFilter === t.key ? "border-primary bg-primary/5" : ""}`}>
-                  <div className="text-xs text-muted-foreground truncate">{t.name}</div>
-                  <div className="text-xl font-semibold">{t.items.length}</div>
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm hover:bg-muted/50 ${categoryFilter === t.key ? "border-primary bg-primary/5" : ""}`}>
+                  <span className="text-muted-foreground">{t.name}</span>
+                  <span className="font-semibold">{t.items.length}</span>
                 </button>
               ))}
             </div>

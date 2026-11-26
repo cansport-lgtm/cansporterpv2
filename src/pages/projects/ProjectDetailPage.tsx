@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Upload, Download, Trash2, Flag, FileText, Printer, Pencil } from "lucide-react";
+import { ArrowLeft, Upload, Download, Trash2, Flag, FileText, Printer, Pencil, LayoutGrid } from "lucide-react";
 import { TaskFormDialog, ProjectTask } from "@/components/projects/TaskDialogs";
 import { format, differenceInDays, addDays } from "date-fns";
 import { toast } from "sonner";
@@ -178,6 +178,9 @@ export default function ProjectDetailPage() {
         description={[project.project_categories?.name, project.description].filter(Boolean).join(" · ")}
       >
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="text-primary border-primary/40" onClick={() => navigate(`/projects/kanban?project=${project.id}`)}>
+            <LayoutGrid className="h-4 w-4 mr-1" /> Open Kanban Board
+          </Button>
           {isSuperAdmin && (
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 mr-1" /> Print</Button>
           )}
@@ -223,7 +226,8 @@ export default function ProjectDetailPage() {
           <Card>
             <CardContent className="p-4">
               {tasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks yet. Add tasks from the Kanban Board.</p>
+                <p className="text-sm text-muted-foreground">No tasks yet. Add tasks from the{" "}
+                  <button type="button" className="text-primary underline" onClick={() => navigate(`/projects/kanban?project=${project.id}`)}>Kanban Board</button>.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
