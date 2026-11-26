@@ -42,7 +42,9 @@ export default function RDProjectDetailPage() {
     const [projRes, gatesRes, expRes] = await Promise.all([
       supabase.from("rd_projects").select("*, project_lead:app_users!rd_projects_project_lead_id_fkey(full_name), department:production_departments!rd_projects_department_id_fkey(name)").eq("id", id!).single(),
       supabase.from("rd_stage_gates").select("*, approver:app_users!rd_stage_gates_approved_by_fkey(full_name)").eq("project_id", id!).order("stage_order"),
-      supabase.from("rd_experiments").select("*").eq("project_id", id!).order("created_at", { ascending: false }),
+      isSuperAdmin
+        ? supabase.from("rd_experiments").select("*").eq("project_id", id!).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     setProject(projRes.data);
     setGates(gatesRes.data || []);
@@ -117,7 +119,7 @@ export default function RDProjectDetailPage() {
       <Tabs defaultValue="gates">
         <TabsList>
           <TabsTrigger value="gates">Gate Details</TabsTrigger>
-          <TabsTrigger value="experiments">Experiments ({experiments.length})</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="experiments">Experiments ({experiments.length})</TabsTrigger>}
           <TabsTrigger value="info">Project Info</TabsTrigger>
         </TabsList>
 
@@ -156,7 +158,7 @@ export default function RDProjectDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="experiments">
+        {isSuperAdmin && <TabsContent value="experiments">
           {experiments.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No experiments linked to this project</p>
           ) : (
@@ -176,7 +178,7 @@ export default function RDProjectDetailPage() {
               ))}
             </div>
           )}
-        </TabsContent>
+        </TabsContent>}
 
         <TabsContent value="info">
           <Card>

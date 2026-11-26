@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { FlaskConical, Lightbulb, Rocket, TestTube, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const STAGES = ["idea", "feasibility", "development", "testing", "validation", "launch"];
 const STAGE_LABELS: Record<string, string> = {
@@ -21,6 +22,8 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default function RDDashboard() {
   const navigate = useNavigate();
+  const { hasRole } = useAuth();
+  const isSuperAdmin = hasRole("super_admin");
   const [projects, setProjects] = useState<any[]>([]);
   const [experiments, setExperiments] = useState<any[]>([]);
 
@@ -29,7 +32,9 @@ export default function RDDashboard() {
   const loadData = async () => {
     const [projRes, expRes] = await Promise.all([
       supabase.from("rd_projects").select("*").order("created_at", { ascending: false }),
-      supabase.from("rd_experiments").select("*").order("created_at", { ascending: false }).limit(5),
+      isSuperAdmin
+        ? supabase.from("rd_experiments").select("*").order("created_at", { ascending: false }).limit(5)
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     setProjects(projRes.data || []);
     setExperiments(expRes.data || []);
@@ -88,7 +93,7 @@ export default function RDDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        {isSuperAdmin && <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">Recent Experiments</CardTitle>
             <Button variant="ghost" size="sm" onClick={() => navigate("/rd/experiments")}>View All</Button>
@@ -102,7 +107,7 @@ export default function RDDashboard() {
             ))}
             {experiments.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No experiments yet</p>}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
     </ERPLayout>
   );
