@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ERPLayout } from "@/components/layout/ERPLayout";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, Search, Edit, Eye, Trash2, Printer } from "lucide-react";
+import { Plus, Search, Edit, Eye, Trash2, Printer, ChevronDown } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -54,6 +54,15 @@ interface AppUser {
 
 const STATUSES = ["planned", "in_progress", "on_hold", "completed", "cancelled"];
 const PRIORITIES = ["low", "medium", "high", "critical"];
+const UNCATEGORIZED = "none";
+type ViewMode = "grouped" | "board" | "flat";
+
+const readStorage = (key: string): string | null => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const writeStorage = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch { /* storage unavailable */ }
+};
 
 export default function ProjectsListPage() {
   const { user, hasRole } = useAuth();
@@ -72,6 +81,13 @@ export default function ProjectsListPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>(() => {
+    const v = readStorage("projects-list-view");
+    return v === "board" || v === "flat" ? v : "grouped";
+  });
+  const [collapsed, setCollapsed] = useState<string[]>(() => {
+    try { return JSON.parse(readStorage("projects-list-collapsed") || "[]"); } catch { return []; }
+  });
 
   const [form, setForm] = useState({
     title: "",
@@ -178,10 +194,50 @@ export default function ProjectsListPage() {
 
   const filtered = projects.filter((p) => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
-    if (categoryFilter !== "all" && (categoryFilter === "none" ? p.category_id : p.category_id !== categoryFilter)) return false;
+    if (categoryFilter !== "all" && (categoryFilter === UNCATEGORIZED ? p.category_id : p.category_id !== categoryFilter)) return false;
     if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.project_number.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+
+  const changeView = (v: ViewMode) => { setView(v); writeStorage("projects-list-view", v); };
+  const saveCollapsed = (next: string[]) => { setCollapsed(next); writeStorage("projects-list-collapsed", JSON.stringify(next)); };
+  const toggleGroup = (key: string) =>
+    saveCollapsed(collapsed.includes(key) ? collapsed.filter((k) => k !== key) : [...collapsed, key]);
+
+  // Group the already-filtered projects by category. Admin-defined category order first, Uncategorized last.
+  const groups = useMemo(() => {
+    const known = new Set(categories.map((c) => c.id));
+    const byKey = new Map<string, Project[]>();
+    filtered.forEach((p) => {
+      const key = p.category_id && known.has(p.category_id) ? p.category_id : UNCATEGORIZED;
+      byKey.set(key, [...(byKey.get(key) || []), p]);
+    });
+    const ordered = categories
+      .filter((c) => byKey.has(c.id))
+      .map((c) => ({ key: c.id, name: c.name, items: byKey.get(c.id)! }));
+    if (byKey.has(UNCATEGORIZED)) ordered.push({ key: UNCATEGORIZED, name: "Uncategorized", items: byKey.get(UNCATEGORIZED)! });
+    return ordered;
+  }, [filtered, categories]);
+
+  // Tiles ignore the category filter so they stay visible and clickable
+  const tiles = useMemo(() => {
+    const known = new Set(categories.map((c) => c.id));
+    const base = projects.filter((p) => {
+      if (statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.project_number.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+    const list = categories.map((c) => ({ key: c.id, name: c.name, items: base.filter((p) => p.category_id === c.id) }));
+    list.push({ key: UNCATEGORIZED, name: "Uncategorized", items: base.filter((p) => !p.category_id || !known.has(p.category_id)) });
+    return list.filter((t) => t.items.length > 0);
+  }, [projects, categories, statusFilter, search]);
+
+  const statusMix = (items: Project[]) => {
+    const mix: Record<string, number> = {};
+    items.forEach((p) => { mix[p.status] = (mix[p.status] || 0) + 1; });
+    return Object.entries(mix);
+  };
 
   const statusColor: Record<string, string> = {
     planned: "bg-blue-100 text-blue-800",
@@ -197,6 +253,56 @@ export default function ProjectsListPage() {
     high: "bg-orange-100 text-orange-700",
     critical: "bg-red-100 text-red-700",
   };
+
+
+  const renderRow = (p: Project, showCategory: boolean) => (
+    <tr key={p.id} className="border-b hover:bg-muted/50">
+      <td className="p-2 font-mono text-xs">{p.project_number}</td>
+      <td className="p-2 font-medium">{p.title}</td>
+      {showCategory && <td className="p-2 text-xs">{categories.find((c) => c.id === p.category_id)?.name || "-"}</td>}
+      <td className="p-2">
+        <Badge variant="outline" className={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
+      </td>
+      <td className="p-2"><Badge variant="secondary" className={priorityColor[p.priority] || ""}>{p.priority}</Badge></td>
+      <td className="p-2 text-xs">{p.start_date ? format(new Date(p.start_date), "dd MMM yy") : "-"}</td>
+      <td className="p-2 text-xs">{p.target_end_date ? format(new Date(p.target_end_date), "dd MMM yy") : "-"}</td>
+      <td className="p-2 text-xs">{users.find((u) => u.id === p.project_manager_id)?.full_name || "-"}</td>
+      <td className="p-2">
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${p.id}`)}><Eye className="h-4 w-4" /></Button>
+          {isSuperAdmin && (
+            <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
+          )}
+          {isSuperAdmin && (
+            <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+
+  const renderTable = (items: Project[], showCategory: boolean) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-muted-foreground">
+            <th className="p-2">Project #</th>
+            <th className="p-2">Title</th>
+            {showCategory && <th className="p-2">Category</th>}
+            <th className="p-2">Status</th>
+            <th className="p-2">Priority</th>
+            <th className="p-2">Start</th>
+            <th className="p-2">Target End</th>
+            <th className="p-2">Manager</th>
+            <th className="p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>{items.map((p) => renderRow(p, showCategory))}</tbody>
+      </table>
+    </div>
+  );
+
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.includes(g.key));
 
   return (
     <ERPLayout>
@@ -231,56 +337,85 @@ export default function ProjectsListPage() {
                 {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <div className="flex rounded-md border p-0.5 gap-0.5" role="group" aria-label="View">
+              {(["grouped", "board", "flat"] as ViewMode[]).map((v) => (
+                <Button key={v} type="button" size="sm" variant={view === v ? "secondary" : "ghost"} aria-pressed={view === v}
+                  className="capitalize" onClick={() => changeView(v)}>{v}</Button>
+              ))}
+            </div>
+            {view === "grouped" && (
+              <Button type="button" variant="outline" size="sm" onClick={() => saveCollapsed(allCollapsed ? [] : groups.map((g) => g.key))}>
+                {allCollapsed ? "Expand all" : "Collapse all"}
+              </Button>
+            )}
           </div>
+
+          {!loading && tiles.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-4 print:hidden">
+              {tiles.map((t) => (
+                <button key={t.key} type="button" aria-pressed={categoryFilter === t.key}
+                  onClick={() => setCategoryFilter(categoryFilter === t.key ? "all" : t.key)}
+                  className={`text-left rounded-lg border p-3 hover:bg-muted/50 ${categoryFilter === t.key ? "border-primary bg-primary/5" : ""}`}>
+                  <div className="text-xs text-muted-foreground truncate">{t.name}</div>
+                  <div className="text-xl font-semibold">{t.items.length}</div>
+                </button>
+              ))}
+            </div>
+          )}
 
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">No projects found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="p-2">Project #</th>
-                    <th className="p-2">Title</th>
-                    <th className="p-2">Category</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2">Priority</th>
-                    <th className="p-2">Start</th>
-                    <th className="p-2">Target End</th>
-                    <th className="p-2">Manager</th>
-                    <th className="p-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((p) => (
-                    <tr key={p.id} className="border-b hover:bg-muted/50">
-                      <td className="p-2 font-mono text-xs">{p.project_number}</td>
-                      <td className="p-2 font-medium">{p.title}</td>
-                      <td className="p-2 text-xs">{categories.find((c) => c.id === p.category_id)?.name || "-"}</td>
-                      <td className="p-2">
+          ) : view === "flat" ? (
+            renderTable(filtered, true)
+          ) : view === "board" ? (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {groups.map((g) => (
+                <div key={g.key} className="min-w-[270px] w-[270px] shrink-0 rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">{g.name}</h3>
+                    <Badge variant="secondary">{g.items.length}</Badge>
+                  </div>
+                  {g.items.map((p) => (
+                    <div key={p.id} className="rounded-md border bg-background p-2.5 space-y-1.5 cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/projects/${p.id}`)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs text-muted-foreground">{p.project_number}</span>
+                        <Badge variant="secondary" className={priorityColor[p.priority] || ""}>{p.priority}</Badge>
+                      </div>
+                      <div className="text-sm font-medium">{p.title}</div>
+                      <div className="flex items-center justify-between gap-2">
                         <Badge variant="outline" className={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
-                      </td>
-                      <td className="p-2"><Badge variant="secondary" className={priorityColor[p.priority] || ""}>{p.priority}</Badge></td>
-                      <td className="p-2 text-xs">{p.start_date ? format(new Date(p.start_date), "dd MMM yy") : "-"}</td>
-                      <td className="p-2 text-xs">{p.target_end_date ? format(new Date(p.target_end_date), "dd MMM yy") : "-"}</td>
-                      <td className="p-2 text-xs">{users.find((u) => u.id === p.project_manager_id)?.full_name || "-"}</td>
-                      <td className="p-2">
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${p.id}`)}><Eye className="h-4 w-4" /></Button>
-                          {isSuperAdmin && (
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
-                          )}
-                          {isSuperAdmin && (
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                        <span className="text-xs text-muted-foreground truncate">{users.find((u) => u.id === p.project_manager_id)?.full_name || "No manager"}</span>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {groups.map((g) => {
+                const isOpen = !collapsed.includes(g.key);
+                return (
+                  <section key={g.key} className="rounded-lg border overflow-hidden print:break-inside-avoid">
+                    <button type="button" aria-expanded={isOpen} onClick={() => toggleGroup(g.key)}
+                      className="w-full flex flex-wrap items-center gap-3 px-4 py-3 text-left hover:bg-muted/50">
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                      <span className="font-semibold">{g.name}</span>
+                      <Badge variant="secondary">{g.items.length}</Badge>
+                      <span className="ml-auto flex flex-wrap gap-1.5">
+                        {statusMix(g.items).map(([status, n]) => (
+                          <Badge key={status} variant="outline" className={statusColor[status]}>{n} {status.replace("_", " ")}</Badge>
+                        ))}
+                      </span>
+                    </button>
+                    {/* Collapsed groups stay in the DOM so Print always shows every category */}
+                    <div className={`border-t ${isOpen ? "" : "hidden print:block"}`}>{renderTable(g.items, false)}</div>
+                  </section>
+                );
+              })}
             </div>
           )}
         </CardContent>
