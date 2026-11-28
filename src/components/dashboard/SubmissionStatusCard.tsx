@@ -122,74 +122,46 @@ function fmtDay(d: string) {
   return format(parseISO(d), "d MMM");
 }
 
-function Calendar({ summary }: { summary: MonthSummary }) {
-  // Monday first. Blank cells line the first day up under its weekday.
-  const lead = (parseISO(summary.days[0].date).getDay() + 6) % 7;
+/** One small bar per day of the month. Hover a bar for its date and status. */
+function DayStrip({ summary }: { summary: MonthSummary }) {
   return (
-    <div className="grid grid-cols-7 gap-1" role="group" aria-label="Day by day">
-      {["M", "T", "W", "T", "F", "S", "S"].map((w, i) => (
-        <span key={i} className="text-center text-[11px] text-muted-foreground">{w}</span>
-      ))}
-      {Array.from({ length: lead }).map((_, i) => <span key={`b${i}`} />)}
+    <div className="flex gap-0.5" role="img" aria-label="Days of the month">
       {summary.days.map((d) => (
-        <span
+        <i
           key={d.date}
           title={`${fmtDay(d.date)}: ${DAY_TEXT[d.state]}`}
-          aria-label={`${fmtDay(d.date)}: ${DAY_TEXT[d.state]}`}
-          className={cn("flex aspect-square max-h-8 items-center justify-center rounded-md text-xs tabular-nums", DAY_CLS[d.state])}
-        >
-          {Number(d.date.slice(8))}
-        </span>
+          className={cn("h-4 min-w-0 flex-1 rounded-sm", DAY_CLS[d.state], d.state === "not_required" && "bg-muted opacity-50", d.state === "upcoming" && "bg-muted opacity-30")}
+        />
       ))}
     </div>
   );
 }
 
-function ReportCard({ title, link, summary, startDate, today }: {
-  title: string; link: string; summary: MonthSummary; startDate: string; today: string;
+function ReportCard({ title, link, summary, startDate }: {
+  title: string; link: string; summary: MonthSummary; startDate: string;
 }) {
   const h = HEALTH[summary.health];
-  const todayText: Partial<Record<DayState, string>> = {
-    submitted: "submitted", late: "submitted late", draft: "draft, not submitted",
-    pending: "due, not yet submitted", missing: "missing",
-  };
+  const note =
+    summary.due === 0
+      ? `No days due yet. Tracking starts ${startDate >= "9999" ? "when the report is switched on" : fmtDay(startDate)}.`
+      : summary.streak > 0
+        ? `Not submitted for ${summary.streak} ${summary.streak === 1 ? "day" : "days in a row"}`
+        : `Last submitted ${summary.lastSubmitted ? fmtDay(summary.lastSubmitted) : "never"}${summary.late > 0 ? ` · ${summary.late} late` : ""}`;
   return (
     <Card className={cn("min-w-0", summary.health === "behind" && "border-red-500")}>
-      <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-3">
-        <CardTitle className="text-sm font-medium leading-snug">
-          <Link to={link} className="hover:underline">{title}</Link>
-        </CardTitle>
-        <span className={cn("shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium", h.cls)}>{h.label}</span>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-4xl font-semibold tabular-nums leading-none">{summary.pct === null ? "—" : summary.pct}</span>
-          <span className="text-sm text-muted-foreground">% of due days submitted</span>
+      <CardContent className="space-y-2 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <Link to={link} className="text-sm font-medium leading-snug hover:underline">{title}</Link>
+          <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium", h.cls)}>{h.label}</span>
         </div>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          <b className="font-medium text-foreground">{summary.done}</b> of <b className="font-medium text-foreground">{summary.due}</b> days submitted ·{" "}
-          <b className="font-medium text-foreground">{summary.missing}</b> missing
-        </p>
-        <Calendar summary={summary} />
-        <p className="min-h-[3em] text-sm leading-snug">
-          {summary.due === 0 ? (
-            <>No days due yet. Tracking starts <b className="font-medium">{startDate >= "9999" ? "when the report is switched on" : fmtDay(startDate)}</b>.</>
-          ) : summary.streak > 0 ? (
-            <>
-              Not submitted for <b className="font-medium">{summary.streak}</b> {summary.streak === 1 ? "day" : "days in a row"}.
-              {summary.lastSubmitted && <> Last submitted <b className="font-medium">{fmtDay(summary.lastSubmitted)}</b>.</>}
-              {summary.drafts > 0 && <> <b className="font-medium">{summary.drafts}</b> {summary.drafts === 1 ? "day is" : "days are"} still drafts.</>}
-            </>
-          ) : (
-            <>
-              Last submitted <b className="font-medium">{summary.lastSubmitted ? fmtDay(summary.lastSubmitted) : "never"}</b>.
-              {summary.late > 0 && <> <b className="font-medium">{summary.late}</b> {summary.late === 1 ? "day was" : "days were"} late.</>}
-            </>
-          )}
-          <span className="block text-muted-foreground">
-            Today ({fmtDay(today)}): {todayText[summary.todayState] ?? DAY_TEXT[summary.todayState]}.
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tabular-nums leading-none">{summary.pct === null ? "—" : `${summary.pct}%`}</span>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {summary.due ? `${summary.done} of ${summary.due} days` : "Not started"}
           </span>
-        </p>
+        </div>
+        <DayStrip summary={summary} />
+        <p className="text-sm text-muted-foreground">{note}</p>
       </CardContent>
     </Card>
   );
@@ -240,9 +212,9 @@ export function SubmissionStatusCard() {
 
       {data && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {summaries.map((s) => (
-              <ReportCard key={s.key} title={s.title} link={s.link} summary={s.summary} startDate={s.startDate} today={today} />
+              <ReportCard key={s.key} title={s.title} link={s.link} summary={s.summary} startDate={s.startDate} />
             ))}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -252,12 +224,15 @@ export function SubmissionStatusCard() {
               </span>
             ))}
           </div>
-          <p className="max-w-3xl text-xs text-muted-foreground">
-            Percent is submitted days (on time or late) out of days due before today. A draft counts as not submitted. A report is late when it is
-            submitted after the end of the next day. Sundays, public holidays, days before a report started being tracked and days with nothing to
-            report are not required. On track: 95% or more and no gap in the last days. Watch: 80% to 95%, or a recent gap. Behind: under 80%, or 3 or
-            more days missing in a row.
-          </p>
+          <details className="max-w-3xl text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">How this is worked out</summary>
+            <p className="mt-1">
+              Percent is submitted days (on time or late) out of days due before today. A draft counts as not submitted. A report is late when it
+              is submitted after the end of the next day. Sundays, public holidays, days before a report started being tracked and days with
+              nothing to report are not required. On track: 95% or more and no gap in the last days. Watch: 80% to 95%, or a recent gap.
+              Behind: under 80%, or 3 or more days missing in a row.
+            </p>
+          </details>
         </>
       )}
     </section>
