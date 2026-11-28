@@ -497,6 +497,7 @@ import RWUnitsMasterPage from "./pages/rejections/RWUnitsMasterPage";
 import RWDispositionsMasterPage from "./pages/rejections/RWDispositionsMasterPage";
 import RWMaterialsMasterPage from "./pages/rejections/RWMaterialsMasterPage";
 import RejectionsAnalyticsPage from "./pages/rejections/RejectionsAnalyticsPage";
+import RwDailyReportPage from "./pages/rejections/RwDailyReportPage";
 import QualityScoreDashboard from "./pages/quality-score/QualityScoreDashboard";
 import BallQualityEntryPage from "./pages/quality-score/BallQualityEntryPage";
 import ProcessQualityEntryPage from "./pages/quality-score/ProcessQualityEntryPage";
@@ -1152,6 +1153,7 @@ const App = () => (
             <Route path="/rejections/dispositions" element={<ProtectedRoute><RWDispositionsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/materials" element={<ProtectedRoute><RWMaterialsMasterPage /></ProtectedRoute>} />
             <Route path="/rejections/analytics" element={<ProtectedRoute><RejectionsAnalyticsPage /></ProtectedRoute>} />
+            <Route path="/rejections/daily-report" element={<ProtectedRoute><RwDailyReportPage /></ProtectedRoute>} />
             <Route path="/quality-score/dashboard" element={<ProtectedRoute><QualityScoreDashboard /></ProtectedRoute>} />
             <Route path="/quality-score/ball-entry" element={<ProtectedRoute><BallQualityEntryPage /></ProtectedRoute>} />
             <Route path="/quality-score/process-entry" element={<ProtectedRoute><ProcessQualityEntryPage /></ProtectedRoute>} />
