@@ -25,6 +25,8 @@ import {
   type MphLossReason,
   type MphEntryIssueKind,
   MPH_ENTRY_ISSUE_LABEL,
+  MPH_HR_STATUS_LABEL,
+  type MphHrStatus,
   MPH_NO_PRODUCTION_CATEGORY,
   mphEntryIssue,
   MPH_LOSS_REQUIRED_PCT,
@@ -44,6 +46,7 @@ interface Report {
   report_number: string;
   report_date: string;
   status: "draft" | "submitted";
+  hr_flow: boolean;
   notified_at: string | null;
   production_changed_at: string | null;
   submitted_by_name: string | null;
@@ -99,6 +102,13 @@ interface DeptState {
   confirmed: boolean;
   // Issue still open: no reasons can be given and the report cannot be submitted.
   locked: boolean;
+  // HR decision on this department's reasons (null: none needed / old report).
+  hrStatus: MphHrStatus | null;
+  hrRemarks: string | null;
+  hrByName: string | null;
+  hrAt: string | null;
+  // HR approved it: read-only while the rest of a rejected report is corrected.
+  hrLocked: boolean;
 }
 
 interface EntryRequest {
@@ -117,6 +127,7 @@ export default function MPHLossReasonsPage() {
 
   const isSuperAdmin = hasRole("super_admin");
   const canEditRole = isSuperAdmin || hasRole("production_coordinator");
+  const canReview = isSuperAdmin || hasRole("hr_manager");
 
   const { data: reasons = [] } = useQuery({
     queryKey: ["mph-loss-reasons"],
@@ -174,6 +185,10 @@ export default function MPHLossReasonsPage() {
         no_production_confirmed: !!d.no_production_confirmed,
         no_production_confirmed_by_name: d.no_production_confirmed_by_name ?? null,
         no_production_confirmed_at: d.no_production_confirmed_at ?? null,
+        hr_status: d.hr_status ?? null,
+        hr_remarks: d.hr_remarks ?? null,
+        hr_by_name: d.hr_by_name ?? null,
+        hr_at: d.hr_at ?? null,
       }));
       return { report: report as Report, departments, lines: (lineRes.data || []) as SavedLine[] };
     },
@@ -194,6 +209,31 @@ export default function MPHLossReasonsPage() {
     },
   });
 
+  // Dates with departments waiting for HR (shown to the people who approve).
+  const { data: hrPendingDates = [] } = useQuery({
+    queryKey: ["mph-loss-hr-pending-dates"],
+    enabled: canReview,
+    queryFn: async () => {
+      const { data: deps, error } = await (supabase as any)
+        .from("mph_loss_report_departments")
+        .select("report_id")
+        .eq("hr_status", "pending")
+        .is("superseded_at", null);
+      if (error) throw error;
+      const ids = Array.from(new Set((deps || []).map((x: any) => x.report_id)));
+      if (ids.length === 0) return [] as string[];
+      const { data: reps, error: e2 } = await (supabase as any)
+        .from("mph_loss_reports")
+        .select("report_date")
+        .in("id", ids)
+        .eq("status", "submitted")
+        .order("report_date", { ascending: false })
+        .limit(14);
+      if (e2) throw e2;
+      return (reps || []).map((r: any) => r.report_date as string);
+    },
+  });
+
   // Requests already sent to the people who can fix a missing entry.
   const { data: entryRequests = [] } = useQuery({
     queryKey: ["mph-entry-requests", date],
@@ -211,8 +251,17 @@ export default function MPHLossReasonsPage() {
   const isSubmitted = report?.status === "submitted";
   const canEdit = canEditRole && !isSubmitted;
 
-  // A submitted report shows the figures it was submitted with; a draft shows live figures.
-  const allDepts = isSubmitted ? saved!.departments : liveDepts;
+  // A submitted report shows the figures it was submitted with; a draft shows live
+  // figures, except departments HR already approved: those stay as approved.
+  const approvedSaved = useMemo(
+    () => Object.fromEntries((saved?.departments ?? []).filter((d) => d.hr_status === "approved").map((d) => [d.department_id, d])),
+    [saved]
+  );
+  const allDepts = isSubmitted
+    ? saved!.departments
+    : report?.hr_flow
+      ? liveDepts.map((d) => approvedSaved[d.department_id] ?? d)
+      : liveDepts;
   const lossDepts = useMemo(() => allDepts.filter((d) => d.net_mph < 0), [allDepts]);
   const noLossCount = allDepts.length - lossDepts.length;
 
@@ -245,7 +294,7 @@ export default function MPHLossReasonsPage() {
   );
   // A submitted report keeps the flag it was saved with; a draft works it out from the live entries.
   const issueOf = (d: DepartmentMph): MphEntryIssueKind | null =>
-    isSubmitted ? d.entry_issue ?? null : mphEntryIssue(d, detail[d.department_id]);
+    isSubmitted || approvedSaved[d.department_id] ? d.entry_issue ?? null : mphEntryIssue(d, detail[d.department_id]);
 
   const reasonById = useMemo(() => Object.fromEntries(reasons.map((r) => [r.id, r])), [reasons]);
 
@@ -265,12 +314,18 @@ export default function MPHLossReasonsPage() {
       if (Math.abs(remaining) <= MPH_LOSS_TOLERANCE) status = "complete";
       else if (remaining < 0) status = "over";
       else if (explained > 0) status = "partial";
-      return { dept: d, loss, lossPct, required, lines: deptLines, explained, remaining, status, issue, confirmed: isConfirmed, locked };
+      const sd = report?.hr_flow ? savedDeptById[d.department_id] : undefined;
+      const hrStatus = (sd?.hr_status ?? null) as MphHrStatus | null;
+      return {
+        dept: d, loss, lossPct, required, lines: deptLines, explained, remaining, status, issue, confirmed: isConfirmed, locked,
+        hrStatus, hrRemarks: sd?.hr_remarks ?? null, hrByName: sd?.hr_by_name ?? null, hrAt: sd?.hr_at ?? null,
+        hrLocked: hrStatus === "approved" && !isSubmitted,
+      };
     });
     // Open entry issues first: they have to be dealt with before anything else.
     return [...states.filter((d) => d.locked), ...states.filter((d) => !d.locked)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lossDepts, lines, confirmed, detail, isSubmitted]);
+  }, [lossDepts, lines, confirmed, detail, isSubmitted, savedDeptById, report?.hr_flow]);
 
   const totals = useMemo(() => {
     const loss = round1(deptState.reduce((s, d) => s + d.loss, 0));
@@ -383,6 +438,30 @@ export default function MPHLossReasonsPage() {
       qc.invalidateQueries({ queryKey: ["mph-loss-pending-dates"] });
     },
     onError: (e: any) => toast.error(e.message || "Failed to save"),
+  });
+
+  const hr = useMemo(() => {
+    const c = { pending: 0, approved: 0, rejected: 0 };
+    deptState.forEach((d) => d.hrStatus && (c[d.hrStatus] += 1));
+    return c;
+  }, [deptState]);
+
+  const reviewMutation = useMutation({
+    mutationFn: async (decisions: { department_id: string; decision: "approved" | "rejected"; remarks?: string }[]) => {
+      const { data, error } = await (supabase as any).rpc("mph_loss_report_hr_review", {
+        p_report_id: report!.id,
+        p_decisions: decisions,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.status === "draft" ? "Sent back to the coordinator" : data?.pending > 0 ? "Saved" : "All approved");
+      qc.invalidateQueries({ queryKey: ["mph-loss-report", date] });
+      qc.invalidateQueries({ queryKey: ["mph-loss-pending-dates"] });
+      qc.invalidateQueries({ queryKey: ["mph-loss-hr-pending-dates"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Could not save the decision"),
   });
 
   const reopenMutation = useMutation({
@@ -585,6 +664,7 @@ export default function MPHLossReasonsPage() {
     deptState, totals, allDepts, lossDepts, noLossCount, reasons, mapping, reasonById, detail,
     updateLine, addLine, removeLine, handleSave, handlePrint, saveMutation, reopenMutation, allExplained,
     toggleConfirm, entryRequests, requestMutation, savedDeptById, submitHint,
+    canReview, reviewMutation, hr, hrPendingDates,
   };
 
   if (isMobile) {
@@ -666,6 +746,18 @@ export default function MPHLossReasonsPage() {
               <Label htmlFor="mph-date" className="text-xs text-muted-foreground">Production date</Label>
               <Input id="mph-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-[170px]" />
             </div>
+            {canReview && hrPendingDates.filter((d) => d !== date).length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Waiting for HR:</span>
+                {hrPendingDates
+                  .filter((d) => d !== date)
+                  .map((d) => (
+                    <Button key={d} variant="outline" size="sm" className="h-7 px-2 text-xs border-amber-300" onClick={() => setDate(d)}>
+                      {format(parseISO(d), "dd MMM")}
+                    </Button>
+                  ))}
+              </div>
+            )}
             {pendingDates.filter((d) => d !== date).length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-muted-foreground">Pending:</span>
@@ -696,6 +788,18 @@ export default function MPHLossReasonsPage() {
                   <Send className="h-4 w-4 mr-2" /> Submit Reasons
                 </Button>
               </>
+            )}
+            {isSubmitted && canReview && hr.pending > 0 && (
+              <Button
+                onClick={() =>
+                  reviewMutation.mutate(
+                    deptState.filter((d) => d.hrStatus === "pending").map((d) => ({ department_id: d.dept.department_id, decision: "approved" as const }))
+                  )
+                }
+                disabled={reviewMutation.isPending}
+              >
+                <Check className="h-4 w-4 mr-2" /> Approve all pending ({hr.pending})
+              </Button>
             )}
             {isSubmitted && isSuperAdmin && (
               <Button variant="outline" onClick={() => reopenMutation.mutate()} disabled={reopenMutation.isPending}>
@@ -755,6 +859,8 @@ export default function MPHLossReasonsPage() {
             const badge = STATUS_BADGE[d.status];
             const pct = d.loss > 0 ? Math.min((d.explained / d.loss) * 100, 100) : 0;
             const calcOpen = openCalc.has(d.dept.department_id);
+            // Departments HR already approved stay read-only while the rest is corrected.
+            const editable = canEdit && !d.hrLocked;
             return (
               <Card key={d.dept.department_id} className={`overflow-hidden ${d.locked ? "border-red-300" : ""}`}>
                 <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 border-b px-4 py-3 ${d.locked ? "bg-red-50 border-red-200" : "bg-muted/40"}`}>
@@ -800,6 +906,7 @@ export default function MPHLossReasonsPage() {
                       {d.issue ? <EntryIssueBadge d={d} /> : <RequirementBadge d={d} />}
                     </>
                   )}
+                  <HrStatusBadge d={d} />
                 </div>
 
                 {calcOpen && (
@@ -809,11 +916,12 @@ export default function MPHLossReasonsPage() {
                 )}
 
                 <CardContent className="p-4 space-y-3">
+                  <HrReviewBar d={d} canReview={canReview && isSubmitted} reviewMutation={reviewMutation} />
                   {d.issue && <EntryIssuePanel {...commonProps} d={d} />}
                   {d.locked ? null : d.lines.length === 0 ? (
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className="text-sm text-muted-foreground">No reason entered yet.</span>
-                      {canEdit && (
+                      {editable && (
                         <Button variant="outline" size="sm" onClick={() => addLine(d.dept.department_id)}>
                           <Plus className="h-4 w-4 mr-1" /> Add reasons
                         </Button>
@@ -835,7 +943,7 @@ export default function MPHLossReasonsPage() {
                               <Select
                                 value={l.reason_id}
                                 onValueChange={(v) => updateLine(d.dept.department_id, l.key, { reason_id: v })}
-                                disabled={!canEdit}
+                                disabled={!editable}
                               >
                                 <SelectTrigger aria-label="Reason" className={!l.reason_id ? "border-primary" : ""}>
                                   <SelectValue placeholder="Select reason…">
@@ -868,7 +976,7 @@ export default function MPHLossReasonsPage() {
                                 placeholder="0.0"
                                 className="text-right"
                                 value={l.mph_lost}
-                                disabled={!canEdit}
+                                disabled={!editable}
                                 onChange={(e) => updateLine(d.dept.department_id, l.key, { mph_lost: e.target.value })}
                               />
                               <Input
@@ -880,7 +988,7 @@ export default function MPHLossReasonsPage() {
                                 placeholder="0"
                                 className="text-right"
                                 value={l.workers_affected}
-                                disabled={!canEdit}
+                                disabled={!editable}
                                 onChange={(e) =>
                                   updateLine(d.dept.department_id, l.key, { workers_affected: e.target.value })
                                 }
@@ -890,10 +998,10 @@ export default function MPHLossReasonsPage() {
                                 placeholder={d.confirmed ? "Why was there no production? (required)" : "What happened?"}
                                 className={d.confirmed && !l.remarks.trim() ? "border-red-400" : ""}
                                 value={l.remarks}
-                                disabled={!canEdit}
+                                disabled={!editable}
                                 onChange={(e) => updateLine(d.dept.department_id, l.key, { remarks: e.target.value })}
                               />
-                              {canEdit ? (
+                              {editable ? (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -910,7 +1018,7 @@ export default function MPHLossReasonsPage() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        {canEdit ? (
+                        {editable ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -986,7 +1094,82 @@ type Common = {
   requestMutation: { isPending: boolean; mutate: (departmentId: string) => void };
   savedDeptById: Record<string, DepartmentMph>;
   submitHint: string;
+  canReview: boolean;
+  reviewMutation: { isPending: boolean; mutate: (d: { department_id: string; decision: "approved" | "rejected"; remarks?: string }[]) => void };
+  hr: { pending: number; approved: number; rejected: number };
+  hrPendingDates: string[];
 };
+
+function HrStatusBadge({ d, className = "" }: { d: DeptState; className?: string }) {
+  if (!d.hrStatus) return null;
+  const b = MPH_HR_STATUS_LABEL[d.hrStatus];
+  return <Badge className={`${b.className} ${className}`}>{b.label}</Badge>;
+}
+
+// HR's decision on one department: approve / reject (with remarks) while it is
+// pending, and the outcome afterwards. A rejection's remarks tell the
+// coordinator what to correct.
+function HrReviewBar({
+  d, canReview, reviewMutation,
+}: {
+  d: DeptState;
+  canReview: boolean;
+  reviewMutation: Common["reviewMutation"];
+}) {
+  const [rejecting, setRejecting] = useState(false);
+  const [remarks, setRemarks] = useState("");
+  const id = d.dept.department_id;
+  const when = d.hrAt ? format(new Date(d.hrAt), "dd MMM HH:mm") : "";
+
+  if (d.hrStatus === "pending" && canReview) {
+    return (
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex-1 min-w-[160px] text-sm font-medium text-amber-900">Waiting for your approval</span>
+          {!rejecting && (
+            <>
+              <Button size="sm" className="h-9" disabled={reviewMutation.isPending}
+                onClick={() => reviewMutation.mutate([{ department_id: id, decision: "approved" }])}>
+                <Check className="h-4 w-4 mr-1" /> Approve
+              </Button>
+              <Button size="sm" variant="outline" className="h-9 border-red-300 text-red-700" disabled={reviewMutation.isPending}
+                onClick={() => setRejecting(true)}>
+                <X className="h-4 w-4 mr-1" /> Reject
+              </Button>
+            </>
+          )}
+        </div>
+        {rejecting && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Why is it rejected? What should be corrected?"
+              className="flex-1 min-w-[200px] h-9 bg-background" autoFocus />
+            <Button size="sm" variant="destructive" className="h-9" disabled={reviewMutation.isPending || !remarks.trim()}
+              onClick={() => reviewMutation.mutate([{ department_id: id, decision: "rejected", remarks: remarks.trim() }])}>
+              Confirm reject
+            </Button>
+            <Button size="sm" variant="ghost" className="h-9" onClick={() => { setRejecting(false); setRemarks(""); }}>Cancel</Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (d.hrStatus === "rejected") {
+    return (
+      <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-900">
+        <b>Rejected by HR</b>{d.hrByName ? ` (${d.hrByName}${when ? ", " + when : ""})` : ""}: {d.hrRemarks}
+        <div className="text-xs text-red-800 mt-0.5">Correct the reasons and submit again.</div>
+      </div>
+    );
+  }
+  if (d.hrStatus === "approved") {
+    return (
+      <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-900">
+        Approved by HR{d.hrByName ? ` — ${d.hrByName}` : ""}{when ? `, ${when}` : ""}. Locked.
+      </div>
+    );
+  }
+  return null;
+}
 
 // "No production entered" / "MPH number not set" while open; green once confirmed.
 function EntryIssueBadge({ d, className = "" }: { d: DeptState; className?: string }) {
@@ -1183,12 +1366,29 @@ function RequirementBadge({ d, className = "" }: { d: DeptState; className?: str
   );
 }
 
-function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, lossDepts, allDepts }: Common) {
+function StatusBanners({ date, report, isSubmitted, isSuperAdmin, canEditRole, lossDepts, allDepts, hr }: Common) {
   return (
     <>
-      {isSubmitted ? (
+      {isSubmitted && report?.hr_flow && hr.pending > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <Badge className="bg-amber-500 hover:bg-amber-500">Waiting for HR</Badge>
+          <span>
+            {report?.report_number} — submitted{report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""}. HR has to
+            approve {hr.pending} department{hr.pending === 1 ? "" : "s"} before the reasons count in analysis
+            {hr.approved > 0 ? ` (${hr.approved} already approved)` : ""}.
+          </span>
+        </div>
+      ) : !isSubmitted && report?.hr_flow && hr.rejected > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <Badge className="bg-red-600 hover:bg-red-600">Rejected by HR</Badge>
+          <span>
+            {hr.rejected} department{hr.rejected === 1 ? " was" : "s were"} rejected. Correct only those, then submit again —
+            the {hr.approved} approved one{hr.approved === 1 ? " is" : "s are"} locked.
+          </span>
+        </div>
+      ) : isSubmitted ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-          <Badge className="bg-green-600 hover:bg-green-600">Submitted</Badge>
+          <Badge className="bg-green-600 hover:bg-green-600">{report?.hr_flow ? "Approved" : "Submitted"}</Badge>
           <span>
             {report?.report_number} — submitted
             {report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""}
@@ -1530,7 +1730,7 @@ function MobileOverview(
   props: Common & { filter: "pending" | "all"; setFilter: (f: "pending" | "all") => void; onOpen: (id: string) => void }
 ) {
   const { date, setDate, pendingDates, report, isSubmitted, isSuperAdmin, canEdit, isLoading, deptState, totals, allDepts, lossDepts, noLossCount,
-    handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen } = props;
+    handleSave, handlePrint, saveMutation, reopenMutation, allExplained, filter, setFilter, onOpen, hr } = props;
   const pct = totals.loss > 0 ? Math.round((totals.explained / totals.loss) * 100) : 100;
   const pendingDepts = deptState.filter((d) => d.locked || (d.required && d.status !== "complete"));
   const shown = filter === "pending" ? pendingDepts : deptState;
@@ -1602,10 +1802,15 @@ function MobileOverview(
             {isSubmitted ? (
               <div className="flex items-center gap-2 text-xs text-green-900 bg-green-50 rounded-md px-2.5 py-2">
                 <Check className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1">Submitted {report?.submitted_at ? format(new Date(report.submitted_at), "dd MMM HH:mm") : ""}{report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""} · locked</span>
+                <span className="flex-1">{report?.hr_flow ? (hr.pending > 0 ? `Waiting for HR (${hr.pending}) · ` : "HR approved · ") : ""}Submitted {report?.submitted_at ? format(new Date(report.submitted_at), "dd MMM HH:mm") : ""}{report?.submitted_by_name ? ` by ${report.submitted_by_name}` : ""} · locked</span>
                 {isSuperAdmin && (
                   <button type="button" className="font-semibold underline min-h-[32px]" onClick={() => reopenMutation.mutate()} disabled={reopenMutation.isPending}>Reopen</button>
                 )}
+              </div>
+            ) : report?.hr_flow && hr.rejected > 0 ? (
+              <div className="flex items-center gap-2 text-xs text-red-900 bg-red-50 rounded-md px-2.5 py-2">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                HR rejected {hr.rejected} department{hr.rejected === 1 ? "" : "s"} — correct those and submit again
               </div>
             ) : report?.notified_at ? (
               <div className="flex items-center gap-2 text-xs text-blue-900 bg-blue-50 rounded-md px-2.5 py-2">
@@ -1730,8 +1935,10 @@ function MobileDepartment(
     onShowCalc: () => void;
   }
 ) {
-  const { d, date, deptState, canEdit, reasonById, updateLine, addLine, removeLine, handleSave, saveMutation, isLoading,
-    onBack, onNext, onPickReason, onShowCalc } = props;
+  const { d, date, deptState, reasonById, updateLine, addLine, removeLine, handleSave, saveMutation, isLoading,
+    onBack, onNext, onPickReason, onShowCalc, canReview, reviewMutation, isSubmitted } = props;
+  // Departments HR already approved stay read-only while the rest is corrected.
+  const canEdit = props.canEdit && !d.hrLocked;
   const idx = deptState.findIndex((x) => x.dept.department_id === d.dept.department_id);
   const pct = d.loss > 0 ? Math.min((d.explained / d.loss) * 100, 100) : 0;
   const deptId = d.dept.department_id;
@@ -1768,8 +1975,11 @@ function MobileDepartment(
               <RemainingText d={d} className="text-[13px]" />
             </div>
             {d.issue ? <EntryIssueBadge d={d} /> : <RequirementBadge d={d} />}
+            <HrStatusBadge d={d} />
           </CardContent>
         </Card>
+
+        <HrReviewBar d={d} canReview={canReview && isSubmitted} reviewMutation={reviewMutation} />
 
         {d.issue && (
           <Card className={d.locked ? "border-red-300" : ""}>

@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
-import { type MphEntryIssueKind, MPH_ENTRY_ISSUE_LABEL, fmtMph, round1 } from "@/lib/mphLoss";
+import { type MphEntryIssueKind, MPH_ENTRY_ISSUE_LABEL, fmtMph, mphReasonsCount, round1 } from "@/lib/mphLoss";
+import { Switch } from "@/components/ui/switch";
 
 // One hue for "MPH lost" everywhere on this page (single-series charts + matrix shading).
 const LOSS_COLOR = "#dc2626";
@@ -26,6 +27,7 @@ interface ReportRow {
   report_number: string;
   report_date: string;
   status: "draft" | "submitted";
+  hr_flow: boolean;
 }
 
 export default function MPHLossReasonAnalysisPage() {
@@ -35,6 +37,8 @@ export default function MPHLossReasonAnalysisPage() {
   const [customEnd, setCustomEnd] = useState(format(today, "yyyy-MM-dd"));
   const [department, setDepartment] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Reasons count once HR approves them; this also lists the ones still waiting.
+  const [includePending, setIncludePending] = useState(false);
 
   const { start, end } = useMemo(() => {
     switch (range) {
@@ -57,7 +61,7 @@ export default function MPHLossReasonAnalysisPage() {
     queryFn: async () => {
       const { data: reports, error } = await (supabase as any)
         .from("mph_loss_reports")
-        .select("id, report_number, report_date, status")
+        .select("id, report_number, report_date, status, hr_flow")
         .gte("report_date", start)
         .lte("report_date", end)
         .order("report_date");
@@ -77,12 +81,26 @@ export default function MPHLossReasonAnalysisPage() {
   const analysis = useMemo(() => {
     const reports = (data?.reports ?? []).filter((r) => statusFilter === "all" || r.status === statusFilter);
     const reportById = Object.fromEntries(reports.map((r) => [r.id, r]));
+    // Reports from before HR approval always count; otherwise only approved departments.
+    const hrStatusOf: Record<string, string | null> = {};
+    (data?.departments ?? []).forEach((d: any) => (hrStatusOf[`${d.report_id}|${d.department_id}`] = d.hr_status ?? null));
+    // Reasons count once approved. A department's loss is held back only while HR
+    // has its reasons pending or rejected (no reasons given needs no approval).
+    const counts = (reportId: string, deptId: string) =>
+      includePending || mphReasonsCount(reportById[reportId]?.hr_flow, hrStatusOf[`${reportId}|${deptId}`]);
+    const deptCounts = (reportId: string, deptId: string) => {
+      const st = hrStatusOf[`${reportId}|${deptId}`];
+      return includePending || !reportById[reportId]?.hr_flow || (st !== "pending" && st !== "rejected");
+    };
     const depts = (data?.departments ?? []).filter(
-      (d: any) => reportById[d.report_id] && Number(d.net_mph) < 0 && (department === "all" || d.department_id === department)
+      (d: any) => reportById[d.report_id] && Number(d.net_mph) < 0 && (department === "all" || d.department_id === department) && deptCounts(d.report_id, d.department_id)
     );
     const lines = (data?.lines ?? []).filter(
-      (l: any) => reportById[l.report_id] && (department === "all" || l.department_id === department)
+      (l: any) => reportById[l.report_id] && (department === "all" || l.department_id === department) && counts(l.report_id, l.department_id)
     );
+    const waitingForHr = (data?.departments ?? []).filter(
+      (d: any) => reportById[d.report_id]?.hr_flow && d.hr_status === "pending" && (department === "all" || d.department_id === department)
+    ).length;
 
     const totalLoss = round1(depts.reduce((s: number, d: any) => s - Number(d.net_mph), 0));
     // Departments flagged as an entry issue when the report was last saved.
@@ -148,6 +166,7 @@ export default function MPHLossReasonAnalysisPage() {
       unexplained: round1(Math.max(totalLoss - explained, 0)),
       draftCount: reports.filter((r) => r.status === "draft").length,
       reportCount: reports.length,
+      waitingForHr,
       reasonRows,
       matrixRows,
       matrixMax,
@@ -157,7 +176,7 @@ export default function MPHLossReasonAnalysisPage() {
       issueLog,
       issueOpen: issueDepts.filter((d: any) => !d.no_production_confirmed).length,
     };
-  }, [data, department, statusFilter]);
+  }, [data, department, statusFilter, includePending]);
 
   const departmentOptions = useMemo(() => {
     const map: Record<string, string> = {};
@@ -226,7 +245,16 @@ export default function MPHLossReasonAnalysisPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center gap-2 pb-2">
+            <Switch id="include-pending" checked={includePending} onCheckedChange={setIncludePending} />
+            <Label htmlFor="include-pending" className="text-xs">Include reasons not yet approved by HR</Label>
+          </div>
         </div>
+        {analysis.waitingForHr > 0 && !includePending && (
+          <p className="text-xs text-amber-700">
+            {analysis.waitingForHr} department report{analysis.waitingForHr === 1 ? " is" : "s are"} waiting for HR approval and not counted below.
+          </p>
+        )}
 
         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${analysis.issueLog.length > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           <MetricCard

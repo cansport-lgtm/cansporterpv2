@@ -44,7 +44,21 @@ export interface DepartmentMph {
   no_production_confirmed?: boolean;
   no_production_confirmed_by_name?: string | null;
   no_production_confirmed_at?: string | null;
+  // HR approval (null on reports from before approval existed, and on departments with no reasons).
+  hr_status?: MphHrStatus | null;
+  hr_remarks?: string | null;
+  hr_by_name?: string | null;
+  hr_at?: string | null;
 }
+
+// Each department's reasons are approved by HR after the coordinator submits.
+export type MphHrStatus = "pending" | "approved" | "rejected";
+
+export const MPH_HR_STATUS_LABEL: Record<MphHrStatus, { label: string; className: string }> = {
+  pending: { label: "Waiting for HR", className: "bg-amber-100 text-amber-800 hover:bg-amber-100" },
+  approved: { label: "HR approved", className: "bg-green-100 text-green-700 hover:bg-green-100" },
+  rejected: { label: "HR rejected", className: "bg-red-600 text-white hover:bg-red-600" },
+};
 
 // Labour used but 0 MPH earned is usually an entry problem, not a real loss:
 //   production_missing — no production entered, and the workers reported a
@@ -190,6 +204,14 @@ export const MPH_ENTRY_ISSUE_LABEL: Record<MphEntryIssueKind, { badge: string; c
 
 // Edits go through the database functions, which check these roles again.
 export const MPH_LOSS_EDIT_ROLES = ["super_admin", "production_coordinator"];
+
+// HR approves or rejects each department's reasons (the database checks this too).
+export const MPH_LOSS_REVIEW_ROLES = ["super_admin", "hr_manager"];
+
+// Whether a department's reasons count in analysis and reports. Reports from
+// before HR approval (hr_flow false) always count; otherwise only approved ones.
+export const mphReasonsCount = (reportHrFlow: boolean | null | undefined, hrStatus: string | null | undefined) =>
+  !reportHrFlow || hrStatus === "approved";
 
 export const round1 = (n: number) => Math.round(n * 10) / 10;
 export const fmtMph = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
