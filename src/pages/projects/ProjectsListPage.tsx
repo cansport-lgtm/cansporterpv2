@@ -55,6 +55,10 @@ interface AppUser {
 const STATUSES = ["planned", "in_progress", "on_hold", "completed", "cancelled"];
 const PRIORITIES = ["low", "medium", "high", "critical"];
 const UNCATEGORIZED = "none";
+// "active" = everything except finished work (completed / cancelled)
+const CLOSED_STATUSES = ["completed", "cancelled"];
+const matchesStatus = (filter: string, status: string) =>
+  filter === "all" ? true : filter === "active" ? !CLOSED_STATUSES.includes(status) : status === filter;
 type ViewMode = "grouped" | "board" | "flat";
 
 const readStorage = (key: string): string | null => {
@@ -76,7 +80,7 @@ export default function ProjectsListPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -193,7 +197,7 @@ export default function ProjectsListPage() {
   };
 
   const filtered = projects.filter((p) => {
-    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (!matchesStatus(statusFilter, p.status)) return false;
     if (categoryFilter !== "all" && (categoryFilter === UNCATEGORIZED ? p.category_id : p.category_id !== categoryFilter)) return false;
     if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.project_number.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -224,7 +228,7 @@ export default function ProjectsListPage() {
   const tiles = useMemo(() => {
     const known = new Set(categories.map((c) => c.id));
     const base = projects.filter((p) => {
-      if (statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (!matchesStatus(statusFilter, p.status)) return false;
       if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.project_number.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -329,6 +333,7 @@ export default function ProjectsListPage() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="active">Active (hide completed)</SelectItem>
                 <SelectItem value="all">All Statuses</SelectItem>
                 {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
               </SelectContent>
@@ -365,6 +370,15 @@ export default function ProjectsListPage() {
                 </button>
               ))}
             </div>
+          )}
+
+          {!loading && statusFilter === "active" && projects.some((p) => CLOSED_STATUSES.includes(p.status)) && (
+            <p className="text-xs text-muted-foreground mb-3 print:hidden">
+              {projects.filter((p) => CLOSED_STATUSES.includes(p.status)).length} completed/cancelled projects hidden.{" "}
+              <button type="button" className="underline hover:text-foreground" onClick={() => setStatusFilter("completed")}>View completed</button>
+              {" · "}
+              <button type="button" className="underline hover:text-foreground" onClick={() => setStatusFilter("all")}>Show all</button>
+            </p>
           )}
 
           {loading ? (
