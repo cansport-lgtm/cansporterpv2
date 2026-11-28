@@ -59,3 +59,21 @@ do not change the loss. A super admin reopens the report to unlock the day.
 - `supabase/migrations/20261201120000_rw_daily_report.sql` (+ rollback in `supabase/rollbacks/`)
 - `src/hooks/useRwDailyReport.ts`, `src/pages/rejections/RwDailyReportPage.tsx` (`/rejections/daily-report?date=`)
 - `src/components/rejections/RwReportAlerts.tsx` on the dashboard, sidebar entry "Daily Report"
+
+## Languages (English, Urdu, Roman Urdu)
+
+The report page has a language switch. Roman Urdu is the default and uses easy
+words mixed with common English words (report, submit, approve, loss, remarks).
+The choice is saved per user in `app_users.ui_language`. "Also show English"
+adds the English wording under headings and labels (kept per device).
+
+- Wording lives in `src/lib/rwReportText.ts` (all three languages, in one place).
+- Department, material and reason names, user names, numbers and amounts stay as typed.
+- Remarks boxes accept any language and align to what is typed.
+- Database messages (bell alerts, "day is locked" error) carry Roman Urdu and English together.
+- The A4 print follows the chosen language; Urdu prints load the Nastaliq font first.
+- Migration `20261201130000_rw_report_language.sql` (+ rollback).
+- Mockup: `docs/mockups/rejections-wastage-daily-report-language-mockup.html`
+
+Scope: the Daily Report page only. Other Rejections & Wastages pages are unchanged.
+The Urdu and Roman Urdu wording should be read by a native speaker before wide use.

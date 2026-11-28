@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R&W Report Urdu Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap">
+<style>
+/* Layout: one content column. A language bar on top (English / اردو / Roman Urdu + "also show English"),
+   then the report page pieces that change: header, status, manager remarks (the screen the user showed), review, buttons, messages, print header.
+   MOCKUP ONLY: nothing is saved. Sample text is written for this mockup and needs a native-speaker check before release. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea; --sub:#f8f9fb;
+  --accent:#4f46e5; --accent-fg:#ffffff; --accent-bg:#ececfd;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#9a5b00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --idle:#4b5563; --idle-bg:#eceef2;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --urdu:"Noto Nastaliq Urdu","Jameel Noori Nastaleeq",serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f; --sub:#151a21;
+  --accent:#8b86f5; --accent-fg:#0d0c24; --accent-bg:#25234a;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --idle:#aab2c0; --idle-bg:#252b35;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f; --sub:#151a21;
+  --accent:#8b86f5; --accent-fg:#0d0c24; --accent-bg:#25234a;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --idle:#aab2c0; --idle-bg:#252b35;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--font);padding-block:0 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;border-bottom:1px solid var(--line);margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{background:none;border:0;padding:8px 14px;font:inherit;color:var(--muted);cursor:pointer;min-height:40px}
+.seg button.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.seg button:focus-visible,.chk input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg .u{font-family:var(--urdu);font-size:15px;line-height:1.6}
+.chk{display:flex;align-items:center;gap:8px;color:var(--muted);cursor:pointer}
+.chk input{width:18px;height:18px}
+h1{font-size:18px;margin:0 0 4px;font-weight:600}
+.note{font-size:12px;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card>h2{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.u{font-family:var(--urdu);line-height:2.1}
+body.ur [data-k]{font-family:var(--urdu);line-height:2.1}
+body.ur .rtl{direction:rtl;text-align:right}
+body.ur .rtl .row{flex-direction:row-reverse}
+.en{display:block;font:400 12px/1.4 var(--font);color:var(--muted);direction:ltr;text-align:left;margin-top:-2px}
+.btn .en,.pill .en,.tab .en{display:none}
+.top{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between}
+.top h1{margin:0}
+.row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.pill{display:inline-flex;gap:6px;align-items:center;border-radius:999px;padding:3px 12px;font-size:12px;font-weight:500}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.draft{background:var(--idle-bg);color:var(--idle)}
+.btn{border:0;border-radius:6px;padding:9px 14px;font:inherit;font-weight:500;cursor:pointer;background:var(--accent);color:var(--accent-fg);min-height:40px}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.ok{background:var(--ok);color:#fff}.btn.bad{background:var(--bad-bg);color:var(--bad)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:2px;margin-top:12px;border-bottom:1px solid var(--line)}
+.tab{padding:8px 12px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--fg);border-color:var(--accent);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--sub)}
+.tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+body.ur .tile .k,body.ro .tile .k{text-transform:none;letter-spacing:0}
+.tile .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:500;margin-bottom:5px}
+.field textarea{width:100%;min-height:62px;font:inherit;color:var(--fg);background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical}
+body.ur .field textarea{font-family:var(--urdu);line-height:2.1;direction:rtl;text-align:right}
+textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.req{font-size:12px;color:var(--muted);font-weight:400;margin-left:8px}
+body.ur .req{margin-left:0;margin-right:8px}
+.toast{border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid var(--line);background:var(--sub)}
+.toast.ok{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.toast.bad{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.toast .t{font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.75;font-family:var(--font)}
+.notif{display:flex;gap:10px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--sub)}
+.notif .dot{width:8px;height:8px;border-radius:50%;background:var(--bad);margin-top:8px;flex:none}
+.print{border:1px solid var(--line);background:#fff;color:#111;border-radius:4px;padding:18px 20px;max-width:640px}
+.print .h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}
+.print h3{margin:0;font-size:16px}
+.print .sign{display:flex;gap:28px;margin-top:26px}
+.print .sign div{flex:1;border-top:1px solid #999;padding-top:4px;font-size:12px;color:#444}
+body.ur .print{direction:rtl;text-align:right}
+body.ur .print .en{direction:ltr;text-align:left}
+.keep{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.keep div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--sub);font-size:13px}
+.keep b{display:block;margin-bottom:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.scroll{overflow-x:auto}
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="seg" id="lang" role="group" aria-label="Language">
+      <button data-l="en" class="on">English</button>
+      <button data-l="ur" class="u">اردو</button>
+      <button data-l="ro">Roman Urdu</button>
+    </div>
+    <label class="chk" for="alsoEn"><input type="checkbox" id="alsoEn"> Also show English underneath</label>
+    <span class="note">Mockup · pick a language to see the report page change</span>
+  </div>
+
+  <!-- 1. header -->
+  <div class="card" id="c1">
+    <h2>1 · Page header and status</h2>
+    <div class="rtl">
+      <div class="top row">
+        <div><h1 data-k="title"></h1><div class="note" data-k="sub"></div></div>
+        <div class="row"><span class="note" data-k="date"></span><span style="border:1px solid var(--line);border-radius:6px;padding:7px 10px">28/11/2026</span><button class="btn ghost" data-k="print"></button></div>
+      </div>
+      <div class="tabs"><span class="tab on" data-k="tab_report"></span><span class="tab" data-k="tab_30"></span><span class="tab" data-k="tab_alert"></span></div>
+      <div class="row" style="margin-top:12px">
+        <span data-k="day"></span>
+        <span class="pill warn" data-k="st_await"></span>
+        <span class="note" data-k="due"></span>
+        <span class="note" data-k="locked"></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="k" data-k="t_rej"></div><div class="v">214</div></div>
+        <div class="tile"><div class="k" data-k="t_wst"></div><div class="v">1.25</div></div>
+        <div class="tile"><div class="k" data-k="t_lkg"></div><div class="v">312</div></div>
+        <div class="tile"><div class="k" data-k="t_tot"></div><div class="v">Rs. 43,520</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. remarks -->
+  <div class="card" id="c2">
+    <h2>2 · Manager remarks (the screen from your screenshot)</h2>
+    <div class="rtl">
+      <div style="font-weight:600;font-size:16px;margin-bottom:10px"><span data-k="mr_title"></span><span class="req" data-k="mr_req"></span></div>
+      <div class="field"><label for="f1" data-k="f_sum"></label><textarea id="f1" dir="auto"></textarea></div>
+      <div class="field"><label for="f2"><span data-k="f_big"></span></label><textarea id="f2" dir="auto"></textarea></div>
+      <div class="field"><label for="f3" data-k="f_act"></label><textarea id="f3" dir="auto"></textarea></div>
+      <div class="row"><button class="btn ghost" data-k="b_save"></button><button class="btn" data-k="b_submit"></button></div>
+    </div>
+  </div>
+
+  <!-- 3. review -->
+  <div class="card" id="c3">
+    <h2>3 · Super admin review and reopen</h2>
+    <div class="rtl">
+      <div style="font-weight:600;margin-bottom:6px" data-k="r_title"></div>
+      <div class="field"><textarea id="f4" dir="auto"></textarea></div>
+      <div class="row"><button class="btn ok" data-k="b_approve"></button><button class="btn bad" data-k="b_reject"></button><button class="btn ghost" data-k="b_reopen"></button></div>
+    </div>
+  </div>
+
+  <!-- 4. messages -->
+  <div class="card" id="c4">
+    <h2>4 · Messages the user sees</h2>
+    <div class="rtl">
+      <div class="toast ok"><div class="t">Success</div><span data-k="m_ok"></span></div>
+      <div class="toast bad"><div class="t">Needs attention</div><span data-k="m_need"></span></div>
+      <div class="toast bad"><div class="t">Day is locked</div><span data-k="m_lock"></span></div>
+      <div class="notif" style="margin-top:12px"><span class="dot"></span><div><div style="font-weight:600;direction:ltr;text-align:left;font-family:var(--font)" data-k="n_title"></div><div style="direction:ltr;text-align:left;font-family:var(--font)" data-k="n_body"></div></div></div>
+      <div class="note" style="margin-top:6px;direction:ltr;text-align:left">Bell notifications are created by the database, so they carry Roman Urdu and English together, whatever language the reader picked.</div>
+    </div>
+  </div>
+
+  <!-- 5. print -->
+  <div class="card" id="c5">
+    <h2>5 · A4 print header and signatures</h2>
+    <div class="print">
+      <div class="h"><div><h3 data-k="title"></h3><div style="color:#555;font-size:12px">Saturday, 28 Nov 2026</div></div><div style="font-weight:700;font-size:11px;text-transform:uppercase" data-k="st_notapp"></div></div>
+      <div style="font-size:12px;color:#555" data-k="p_note"></div>
+      <div class="sign"><div data-k="p_prep"></div><div data-k="p_appr"></div></div>
+    </div>
+    <div class="note" style="margin-top:8px">The print window has to load the Urdu font before printing, otherwise Urdu text prints as boxes. The build handles that.</div>
+  </div>
+
+  <!-- 6. scope -->
+  <div class="card">
+    <h2>What changes and what stays</h2>
+    <div class="keep">
+      <div><b>Translated</b>Page title, tabs, status, deadlines, tile names, field labels, hints, buttons, messages, print headings.</div>
+      <div><b>Stays as typed</b>Department, material and reason names, user names, numbers, Rs. amounts. These are your own master data.</div>
+      <div><b>Remarks box</b>The manager can type Urdu, Roman Urdu or English. The box aligns itself to the language typed.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var D={
+  title:["R&W Daily Report","ریجیکشن اور ویسٹیج کی روزانہ رپورٹ","Rejection aur Wastage ki Daily Report"],
+  sub:["Daily loss figures with the manager's remarks","روزانہ نقصان کے اعداد و شمار اور مینیجر کے ریمارکس","Roz ka loss aur manager ke remarks"],
+  date:["Report date","رپورٹ کی تاریخ","Report ki date"],
+  print:["Print A4","A4 پرنٹ","A4 Print"],
+  tab_report:["Report","رپورٹ","Report"],tab_30:["Last 30 days","پچھلے 30 دن","Pichle 30 din"],tab_alert:["Alert settings","الرٹ سیٹنگز","Alert settings"],
+  day:["Friday, 27 Nov 2026","جمعہ، 27 نومبر 2026","Juma, 27 Nov 2026"],
+  st_await:["Awaiting approval","منظوری کا منتظر","Approval ka intezar"],
+  due:["Approve by Sun 29 Nov 18:10","منظوری کا آخری وقت: اتوار 29 نومبر، شام 6:10","Approval ka last time: Sunday 29 Nov, 6:10 pm"],
+  locked:["Entries for this day are locked","اس دن کی انٹریز لاک ہیں","Is din ki entries lock hain"],
+  t_rej:["Rejected qty","مسترد مقدار","Rejected qty"],t_wst:["Wastage qty","ضائع شدہ مقدار","Wastage qty"],
+  t_lkg:["Leakage qty","لیکیج کی مقدار","Leakage qty"],t_tot:["Total loss","کل نقصان","Total loss"],
+  mr_title:["Manager remarks","مینیجر کے ریمارکس","Manager ke remarks"],
+  mr_req:["Summary and biggest-loss remark are required","خلاصہ اور سب سے بڑے نقصان کا ریمارک ضروری ہے","Summary aur sab se bare loss ka remark likhna zaroori hai"],
+  f_sum:["Summary of the day","آج کا خلاصہ","Aaj ki summary"],
+  f_big:["Biggest loss: Fancy Final (Rs. 3,895, 79.4%)","سب سے بڑا نقصان: Fancy Final (Rs. 3,895، 79.4%)","Sab se bara loss: Fancy Final (Rs. 3,895, 79.4%)"],
+  f_act:["Corrective action and owner (optional)","اصلاحی اقدام اور ذمہ دار (اختیاری)","Kya action lena hai aur kaun zimmedar hai (optional)"],
+  b_save:["Save Draft","مسودہ محفوظ کریں","Draft save karein"],
+  b_submit:["Submit for Approval","منظوری کے لیے بھیجیں","Approval ke liye submit karein"],
+  r_title:["Review this report","اس رپورٹ کا جائزہ لیں","Is report ko check karein"],
+  b_approve:["Approve","منظور کریں","Approve karein"],
+  b_reject:["Reject and send back","مسترد کر کے واپس بھیجیں","Reject karke wapas bhejein"],
+  b_reopen:["Reopen report","رپورٹ دوبارہ کھولیں","Report dobara open karein"],
+  m_ok:["Submitted for approval","منظوری کے لیے بھیج دی گئی","Report approval ke liye submit ho gayi"],
+  m_need:["Write the summary and the biggest-loss remark before submitting.","جمع کرانے سے پہلے آج کا خلاصہ اور سب سے بڑے نقصان کا ریمارک لکھیں۔","Submit karne se pehle aaj ki summary aur sab se bare loss ka remark likhein."],
+  m_lock:["The report for 27 Nov 2026 is submitted. Entries for that day are locked until a super admin reopens it.","27 نومبر 2026 کی رپورٹ جمع ہو چکی ہے۔ جب تک سپر ایڈمن رپورٹ دوبارہ نہ کھولے، اس دن کی انٹریز نہیں بدلی جا سکتیں۔","27 Nov 2026 ki report submit ho chuki hai. Jab tak Super Admin report dobara open na kare, is din ki entries change nahi ho sakti."],
+  n_title:["R&W daily report late hai · R&W daily report overdue","R&W daily report late hai · R&W daily report overdue","R&W daily report late hai · R&W daily report overdue"],
+  n_body:["Day 1 · 27 Nov 2026 ki report abhi tak submit nahi hui. · The report for 27 Nov 2026 has not been submitted.","Day 1 · 27 Nov 2026 ki report abhi tak submit nahi hui. · The report for 27 Nov 2026 has not been submitted.","Day 1 · 27 Nov 2026 ki report abhi tak submit nahi hui. · The report for 27 Nov 2026 has not been submitted."],
+  st_notapp:["Not approved","منظور شدہ نہیں","Approve nahi hui"],
+  p_note:["Previous day Rs. 38,900. Average of earlier days this week Rs. 35,917.","پچھلا دن Rs. 38,900۔ اس ہفتے کے پچھلے دنوں کی اوسط Rs. 35,917۔","Pichle din ka loss Rs. 38,900. Is hafte ke pichle dinon ka average Rs. 35,917."],
+  p_prep:["Prepared by (Rejections Manager)","تیار کردہ (ریجیکشن مینیجر)","Tayyar karne wala (Rejections Manager)"],
+  p_appr:["Approved by (Super Admin)","منظور کردہ (سپر ایڈمن)","Approve karne wala (Super Admin)"]
+  };
+  var R={ // typed remarks, in each language
+    f1:["Loss is up because of leakage at the seam test. Two machines ran with a worn valve seat.","سیم ٹیسٹ میں لیکیج کی وجہ سے آج نقصان زیادہ رہا۔ دو مشینیں گھسی ہوئی والو سیٹ کے ساتھ چلتی رہیں۔","Seam test mein leakage ki wajah se aaj loss zyada hua. Do machines ki valve seat ghis chuki thi."],
+    f2:["120 balls leaked after a thread tension change. Tension reset at 2:30 pm.","دھاگے کی ٹینشن بدلنے کے بعد 120 بال لیک ہوئے۔ دوپہر 2:30 بجے ٹینشن دوبارہ سیٹ کی گئی۔","Thread tension change karne ke baad 120 balls leak hue. Dopahar 2:30 baje tension dobara set ki."],
+    f3:["Replace valve seats on machines 4 and 7. Owner: Ali, by Monday.","مشین 4 اور 7 کی والو سیٹ تبدیل کی جائے۔ ذمہ دار: علی، پیر تک۔","Machine 4 aur 7 ki valve seat change karein. Zimmedar: Ali, Monday tak."],
+    f4:["","","" ]
+  };
+  var PH={f4:["Reason (required when sending back or reopening)","وجہ (واپس بھیجتے یا دوبارہ کھولتے وقت ضروری)","Wajah (wapas bhejte ya dobara open karte waqt zaroori)"]};
+  var cls={0:"en",1:"ur",2:"ro"},cur=0,both=false;
+  function render(){
+    document.body.className=cls[cur];
+    document.querySelectorAll("[data-k]").forEach(function(el){
+      var v=D[el.dataset.k];if(!v)return;
+      el.textContent=v[cur];el.lang=cur===1?"ur":"en";
+      if(cur===1)el.dir="rtl";else el.removeAttribute("dir");
+      if(both&&cur!==0&&!el.closest(".btn,.pill,.tab,.toast .t")){
+        var s=document.createElement("span");s.className="en";s.textContent=v[0];el.appendChild(s);
+      }
+    });
+    Object.keys(R).forEach(function(id){var t=document.getElementById(id);t.value=R[id][cur];t.placeholder=PH[id]?PH[id][cur]:""});
+    document.querySelectorAll("#lang button").forEach(function(b,i){b.classList.toggle("on",i===cur)});
+    document.getElementById("alsoEn").disabled=cur===0;
+  }
+  document.querySelectorAll("#lang button").forEach(function(b,i){b.onclick=function(){cur=i;render()}});
+  document.getElementById("alsoEn").onchange=function(){both=this.checked;render()};
+  render();
+})();
+</script>
+</html>

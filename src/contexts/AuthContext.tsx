@@ -17,6 +17,8 @@ interface AppUser {
   phone?: string | null;
   email?: string | null;
   avatar_url?: string | null;
+  // Language for the R&W daily report: 'en' | 'ur' | 'ro' (NULL = Roman Urdu).
+  ui_language?: string | null;
   created_at?: string | null;
 }
 

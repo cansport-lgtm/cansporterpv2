@@ -57,7 +57,7 @@ export const DISPATCH_PRINT_CSS = `
  * Write `bodyHtml` into a hidden iframe and print it. Waits for any images to finish
  * loading (with a timeout fallback) so logos don't print blank, then cleans up.
  */
-export function printDocument(title: string, bodyHtml: string): void {
+export function printDocument(title: string, bodyHtml: string, opts?: { fontCssUrl?: string }): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
@@ -78,6 +78,7 @@ export function printDocument(title: string, bodyHtml: string): void {
   doc.open();
   doc.write(
     `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>` +
+      (opts?.fontCssUrl ? `<link rel="stylesheet" href="${esc(opts.fontCssUrl)}">` : "") +
       `<style>${DISPATCH_PRINT_CSS}</style></head><body>${bodyHtml}</body></html>`
   );
   doc.close();
@@ -107,25 +108,41 @@ export function printDocument(title: string, bodyHtml: string): void {
     setTimeout(cleanup, 60000);
   };
 
-  // Wait for images (logo) so they don't print blank; fall back after 1.5s.
-  const images = Array.from(doc.images);
-  if (images.length === 0) {
-    setTimeout(fire, 50);
-    return;
-  }
-  let pending = images.length;
-  const settle = () => {
-    pending -= 1;
-    if (pending <= 0) fire();
-  };
-  images.forEach((img) => {
-    if (img.complete) settle();
-    else {
-      img.onload = settle;
-      img.onerror = settle;
+  const start = () => {
+    // Wait for images (logo) so they don't print blank; fall back after 1.5s.
+    const images = Array.from(doc.images);
+    if (images.length === 0) {
+      setTimeout(fire, 50);
+      return;
     }
-  });
-  setTimeout(() => {
-    if (!done) fire();
-  }, 1500);
+    let pending = images.length;
+    const settle = () => {
+      pending -= 1;
+      if (pending <= 0) fire();
+    };
+    images.forEach((img) => {
+      if (img.complete) settle();
+      else {
+        img.onload = settle;
+        img.onerror = settle;
+      }
+    });
+    setTimeout(() => {
+      if (!done) fire();
+    }, 1500);
+  };
+
+  // A web font (Urdu) must be loaded before printing or the text prints as boxes.
+  if (opts?.fontCssUrl) {
+    const link = doc.querySelector("link[rel=stylesheet]");
+    const sheetReady = new Promise<void>((res) => {
+      if (!link) return res();
+      link.addEventListener("load", () => res());
+      link.addEventListener("error", () => res());
+    });
+    const timeout = new Promise<void>((res) => setTimeout(res, 3000));
+    Promise.race([sheetReady.then(() => doc.fonts?.ready), timeout]).then(start, start);
+  } else {
+    start();
+  }
 }
