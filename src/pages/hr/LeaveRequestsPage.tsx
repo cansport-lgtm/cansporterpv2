@@ -79,7 +79,7 @@ export default function LeaveRequestsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, full_name, annual_leaves, half_day_leaves, leave_quota_type, production_departments(name)")
+        .select("id, employee_code, full_name, annual_leaves, half_day_leaves, leave_quota_type, employment_category, production_departments(name)")
         .eq("is_active", true)
         .order("full_name");
       if (error) throw error;
@@ -133,6 +133,9 @@ export default function LeaveRequestsPage() {
     },
   });
 
+  // Only permanent employees receive the monthly leave quota; probation employees get none.
+  const isProbation = (emp: any) => emp?.employment_category === 'probation';
+
   // Dynamic quota calculation: 1 leave per month, based on current month
   const getMonthlyQuota = useCallback((_quotaType?: string) => {
     const now = new Date();
@@ -147,7 +150,7 @@ export default function LeaveRequestsPage() {
     
     employees.forEach((emp) => {
       const quotaType = (emp as any).leave_quota_type || 'half_day';
-      const monthlyQuota = getMonthlyQuota(quotaType);
+      const monthlyQuota = isProbation(emp) ? 0 : getMonthlyQuota(quotaType);
       
       // Dynamic allocation based on quota type
       const dynamicFullDay = quotaType === 'full_day' ? monthlyQuota : 0;
@@ -162,8 +165,8 @@ export default function LeaveRequestsPage() {
         // Use DB values as source of truth (admin may have manually overridden)
         const dbFullDay = Number((existing as any).total_allocated);
         const dbHalfDay = Number((existing as any).half_day_allocated ?? 0);
-        const effectiveFullDay = quotaType === 'full_day' ? (dbFullDay > 0 ? dbFullDay : dynamicFullDay) : 0;
-        const effectiveHalfDay = quotaType === 'half_day' ? (dbHalfDay > 0 ? dbHalfDay : dynamicHalfDay) : 0;
+        const effectiveFullDay = isProbation(emp) ? 0 : quotaType === 'full_day' ? (dbFullDay > 0 ? dbFullDay : dynamicFullDay) : 0;
+        const effectiveHalfDay = isProbation(emp) ? 0 : quotaType === 'half_day' ? (dbHalfDay > 0 ? dbHalfDay : dynamicHalfDay) : 0;
         map[emp.id] = {
           total_allocated: effectiveFullDay,
           total_used: used,
@@ -192,7 +195,7 @@ export default function LeaveRequestsPage() {
     const quotaType = (emp as any)?.leave_quota_type || 'half_day';
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
-    const monthsElapsed = year === currentYear ? currentMonth : 12;
+    const monthsElapsed = isProbation(emp) ? 0 : year === currentYear ? currentMonth : 12;
     const dynamicFullDay = quotaType === 'full_day' ? monthsElapsed : 0;
     const dynamicHalfDay = quotaType === 'half_day' ? monthsElapsed : 0;
     
@@ -209,14 +212,14 @@ export default function LeaveRequestsPage() {
       const dbFullDay = Number((existing as any).total_allocated);
       const dbHalfDay = Number((existing as any).half_day_allocated ?? 0);
       if (quotaType === 'full_day') {
-        const effectiveAlloc = dbFullDay > 0 ? dbFullDay : dynamicFullDay;
+        const effectiveAlloc = isProbation(emp) ? 0 : dbFullDay > 0 ? dbFullDay : dynamicFullDay;
         const newUsed = Math.max(0, Number((existing as any).total_used) + usedDelta);
         await supabase
           .from("employee_leave_balances" as any)
           .update({ total_allocated: effectiveAlloc, total_used: newUsed, remaining: effectiveAlloc - newUsed, half_day_allocated: 0 } as any)
           .eq("id", (existing as any).id);
       } else {
-        const effectiveAlloc = dbHalfDay > 0 ? dbHalfDay : dynamicHalfDay;
+        const effectiveAlloc = isProbation(emp) ? 0 : dbHalfDay > 0 ? dbHalfDay : dynamicHalfDay;
         const newHdUsed = Math.max(0, Number((existing as any).half_day_used ?? 0) + usedDelta);
         await supabase
           .from("employee_leave_balances" as any)
@@ -273,8 +276,9 @@ export default function LeaveRequestsPage() {
       for (const emp of employees) {
         const quotaType = (emp as any).leave_quota_type || 'half_day';
         const usedDays = usedMap[emp.id] || 0;
-        const dynamicFullDay = quotaType === 'full_day' ? monthsElapsed : 0;
-        const dynamicHalfDay = quotaType === 'half_day' ? monthsElapsed : 0;
+        const quotaMonths = isProbation(emp) ? 0 : monthsElapsed;
+        const dynamicFullDay = quotaType === 'full_day' ? quotaMonths : 0;
+        const dynamicHalfDay = quotaType === 'half_day' ? quotaMonths : 0;
 
         const { data: existing } = await supabase
           .from("employee_leave_balances" as any)
@@ -403,7 +407,8 @@ export default function LeaveRequestsPage() {
       if (existing) {
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
-        const monthsElapsed = selectedYear === currentYear ? currentMonth : 12;
+        const toggledEmp = employees.find((e) => e.id === employeeId);
+        const monthsElapsed = isProbation(toggledEmp) ? 0 : selectedYear === currentYear ? currentMonth : 12;
 
         if (newType === 'full_day') {
           // Moving from half_day to full_day: transfer half_day_used -> total_used
@@ -454,7 +459,10 @@ export default function LeaveRequestsPage() {
       const emp = employees.find((e) => e.id === data.employee_id);
       const quotaType = (emp as any)?.leave_quota_type || 'half_day';
       const availableLeaves = quotaType === 'full_day' ? balance?.remaining ?? 0 : balance?.half_day_remaining ?? 0;
-      if (balance && totalDays > availableLeaves) {
+      if (isProbation(emp) && selectedLeaveType?.is_paid) {
+        throw new Error("Probation employees have no paid leave quota. Choose an unpaid leave type.");
+      }
+      if (!isProbation(emp) && balance && totalDays > availableLeaves) {
         throw new Error(`Only ${availableLeaves} leave days remaining. Cannot apply for ${totalDays} days.`);
       }
 
@@ -764,7 +772,9 @@ export default function LeaveRequestsPage() {
                         <TableCell className="text-center">{hdUsed}</TableCell>
                         <TableCell className="text-center font-semibold">{hdRemaining}</TableCell>
                         <TableCell className="text-center">
-                          {isZero ? (
+                          {isProbation(emp) ? (
+                            <Badge variant="outline" className="text-xs">Probation – no quota</Badge>
+                          ) : isZero ? (
                             <Badge variant="destructive" className="text-xs">Exhausted</Badge>
                           ) : isLow ? (
                             <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">Low</Badge>
@@ -842,7 +852,12 @@ export default function LeaveRequestsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedEmployeeBalance && (
+                {selectedEmployeeBalance && isProbation(employees.find((e) => e.id === formData.employee_id)) && (
+                  <div className="text-xs text-amber-600">
+                    Probation employee — no leave quota (unpaid leave only).
+                  </div>
+                )}
+                {selectedEmployeeBalance && !isProbation(employees.find((e) => e.id === formData.employee_id)) && (
                   <div className="text-xs text-muted-foreground">
                     Leave balance: <span className="font-semibold">{selectedEmployeeBalance.remaining}</span> / {selectedEmployeeBalance.total_allocated} remaining
                   </div>
