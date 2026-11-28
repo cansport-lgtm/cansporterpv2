@@ -22,6 +22,9 @@ const db = supabase as any;
 
 type ReportKey = "loss" | "rw" | "key";
 
+// Submissions are tracked from this day for all three reports.
+const TRACKING_START = "2026-11-27";
+
 const REPORTS: { key: ReportKey; title: string; link: string }[] = [
   { key: "loss", title: "Loss reason report", link: "/labour/mph-loss-reasons" },
   { key: "rw", title: "Rejection and wastage daily report", link: "/rejections/daily-report" },
@@ -82,16 +85,15 @@ function useSubmissionSources(today: string) {
     queryKey: ["ceo-submission-status", from],
     refetchInterval: 5 * 60_000,
     queryFn: async () => {
-      const [holidayRes, lossRes, lossFirstRes, rwSetRes, keySetRes, rwDays, keyDays] = await Promise.all([
+      const [holidayRes, lossRes, rwSetRes, keySetRes, rwDays, keyDays] = await Promise.all([
         db.from("public_holidays").select("holiday_date").eq("is_active", true).gte("holiday_date", from).lte("holiday_date", to),
         db.from("mph_loss_reports").select("report_date, status, submitted_at").gte("report_date", from).lte("report_date", to),
-        db.from("mph_loss_reports").select("report_date").order("report_date", { ascending: true }).limit(1),
-        db.from("rw_daily_report_settings").select("enabled, start_date").maybeSingle(),
-        db.from("consumption_key_rm_remark_settings").select("enabled, start_date").maybeSingle(),
+        db.from("rw_daily_report_settings").select("enabled").maybeSingle(),
+        db.from("consumption_key_rm_remark_settings").select("enabled").maybeSingle(),
         db.rpc("rw_daily_report_days", { p_from: from, p_to: today }),
         db.rpc("key_rm_remark_days", { p_from: from, p_to: today }),
       ]);
-      for (const r of [holidayRes, lossRes, lossFirstRes, rwDays, keyDays]) if (r.error) throw r.error;
+      for (const r of [holidayRes, lossRes, rwDays, keyDays]) if (r.error) throw r.error;
 
       const holidays = new Set<string>((holidayRes.data ?? []).map((h: { holiday_date: string }) => h.holiday_date));
 
@@ -107,9 +109,9 @@ function useSubmissionSources(today: string) {
       // A report that is switched off has no due days.
       const NEVER = "9999-12-31";
       const sources: Record<ReportKey, Source> = {
-        loss: { startDate: lossFirstRes.data?.[0]?.report_date ?? NEVER, records: loss },
-        rw: { startDate: rwSetRes.data?.enabled ? rwSetRes.data.start_date : NEVER, records: fromDayRows(rwDays.data ?? []) },
-        key: { startDate: keySetRes.data?.enabled ? keySetRes.data.start_date : NEVER, records: fromDayRows(keyDays.data ?? []) },
+        loss: { startDate: TRACKING_START, records: loss },
+        rw: { startDate: rwSetRes.data?.enabled ? TRACKING_START : NEVER, records: fromDayRows(rwDays.data ?? []) },
+        key: { startDate: keySetRes.data?.enabled ? TRACKING_START : NEVER, records: fromDayRows(keyDays.data ?? []) },
       };
       return { holidays, sources };
     },
