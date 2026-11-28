@@ -38,6 +38,7 @@ import { fetchAllRows } from "@/lib/accounting/fetchAllRows";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { KeyRmRemarkAlerts } from "@/components/consumption/KeyRmRemarkAlerts";
+import { RwReportAlerts } from "@/components/rejections/RwReportAlerts";
 import { DailyEmployeeProgress } from "@/components/dashboard/DailyEmployeeProgress";
 import { EmployeeComparisonChart } from "@/components/dashboard/EmployeeComparisonChart";
 import { useNavigate } from "react-router-dom";
@@ -1421,6 +1422,7 @@ export default function Dashboard() {
     <ERPLayout>
       <div className="space-y-6 animate-fade-in">
         <KeyRmRemarkAlerts />
+        <RwReportAlerts />
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

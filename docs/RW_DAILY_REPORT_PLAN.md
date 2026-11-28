@@ -30,47 +30,32 @@ approved -> (reopen, super admin) -> draft
 
 | Step | Who | Deadline (Pakistan time) |
 |---|---|---|
-| Write remarks, submit | `rejections_manager` (super admin can too) | Day end (midnight after the report date) + 48 h. Reminder at +24 h |
+| Write remarks, submit | `rejections_manager` (super admin can too) | Next morning 10:00 (Pakistan time). Reminder at 08:00 |
 | Approve or reject with reason | `super_admin` | 48 h after submission |
-| Re-submit after rejection | `rejections_manager` | 48 h after rejection |
+| Re-submit after rejection or reopen | `rejections_manager` | 48 h after |
 | Reopen approved report | `super_admin` | any time, logged |
 
-Overdue alerts go to super admins once a day at 09:00 until the day is
+Overdue days alert at once, then once a day at 09:00 until the day is
 submitted / approved. Days with no R&W entries are skipped. Deadlines, alert
 time and start date are settings, as in the key raw material remarks.
 
-## Frozen figures
+## Frozen figures and edit lock
 
-On submit, store a JSON snapshot of the figures. The approver reviews exactly
-what the manager saw. Later edits to entries do not change an approved report.
-If entries for a submitted day are edited afterwards, flag the report
-"figures changed since submit" and let the manager re-submit.
+On submit, a JSON snapshot of the figures is stored, so the approver reviews
+exactly what the manager saw. While a report is submitted or approved, a
+database trigger blocks adding, changing or deleting rejection, wastage and
+leakage entries for that date. Rework status updates stay allowed because they
+do not change the loss. A super admin reopens the report to unlock the day.
 
-## Build
+## Decisions (confirmed)
 
-1. **Migration** `rw_daily_report.sql` (+ rollback):
-   - `rw_daily_report_settings` (enabled, start_date, reminder_hours 24,
-     submit_hours 48, approve_hours 48, alert_time)
-   - `rw_daily_reports` (report_date PK, status, remarks, dept_remark,
-     action_plan, snapshot jsonb, submitted_by/at, reviewed_by/at, review_note)
-   - `rw_daily_report_history`, `rw_daily_report_alerts`
-   - Read-only RLS; writes only through SECURITY DEFINER functions
-     `rw_report_save`, `rw_report_submit`, `rw_report_review`, `rw_report_reopen`
-   - `rw_report_days(from, to)` for the status list and `pg_cron` alert job
-     (every 15 min, notifications with reference type `rw_daily_report`)
-2. **Hook** `useRwDailyReport.ts` (copy of `useKeyRmRemarks.ts`)
-3. **Pages**
-   - `/rejections/daily-report?date=YYYY-MM-DD`: the report, role-aware
-   - Status list tab (last 30 days) and rules tab (settings, super admin)
-4. **Alerts**: `RwReportAlerts` card on the dashboard for super admins and
-   manager reminders, plus bell notifications
-5. **Sidebar** entry under Rejections & Wastages, plus module permission wiring
-6. Optional: A4 print view with signature lines, Excel export of the day
+1. One report per day for all departments.
+2. Manager submits by the next morning; super admin approves within 48 h.
+3. Entry edits on submitted days are blocked.
+4. A4 print with signature lines.
 
-## Open questions
+## Built
 
-1. One report per day for all departments, or one per department?
-2. Is the 48 h submit window counted from midnight after the report date, or
-   should the manager submit by next morning?
-3. Block entry edits on submitted days, or flag and re-submit?
-4. Print / PDF with signature lines needed?
+- `supabase/migrations/20261201120000_rw_daily_report.sql` (+ rollback in `supabase/rollbacks/`)
+- `src/hooks/useRwDailyReport.ts`, `src/pages/rejections/RwDailyReportPage.tsx` (`/rejections/daily-report?date=`)
+- `src/components/rejections/RwReportAlerts.tsx` on the dashboard, sidebar entry "Daily Report"

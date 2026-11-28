@@ -237,6 +237,7 @@ const navigationItems: NavItem[] = [
       { title: "Rework Tracking", href: "/rejections/rework" },
       { title: "Reports", href: "", isHeader: true },
       { title: "Analytics", href: "/rejections/analytics" },
+      { title: "Daily Report", href: "/rejections/daily-report", highlight: true },
       { title: "Masters", href: "", isHeader: true },
       { title: "Reasons Master", href: "/rejections/reasons", superAdminOnly: true },
       { title: "Units Master", href: "/rejections/units", superAdminOnly: true },

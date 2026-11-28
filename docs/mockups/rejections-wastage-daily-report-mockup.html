@@ -112,7 +112,7 @@ textarea[readonly]{background:var(--sub);resize:none}
       <h1>Rejections &amp; Wastages · Daily Report</h1>
       <div class="sub">Mockup of the proposed daily sign-off. Click through the states; nothing is saved.</div>
     </div>
-    <div class="note">Sample figures · Fri 27 Nov 2026</div>
+    <div class="note">Sample figures · Fri 27 Nov 2026 · Print A4 included in the build</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -214,7 +214,7 @@ textarea[readonly]{background:var(--sub);resize:none}
       <div class="scroll"><table>
         <thead><tr><th>Report date</th><th>Total loss</th><th>Status</th><th>Submitted</th><th>Reviewed</th><th>Next deadline</th></tr></thead>
         <tbody>
-          <tr><td>Fri 27 Nov</td><td class="num">Rs. 43,520</td><td><span class="pill draft">Draft</span></td><td>—</td><td>—</td><td>Submit by Mon 30 Nov 00:00 <span class="note">(in 36 h)</span></td></tr>
+          <tr><td>Fri 27 Nov</td><td class="num">Rs. 43,520</td><td><span class="pill draft">Draft</span></td><td>—</td><td>—</td><td>Submit by Sat 28 Nov 10:00 <span class="note">(next morning)</span></td></tr>
           <tr><td>Thu 26 Nov</td><td class="num">Rs. 38,900</td><td><span class="pill submitted">Awaiting approval</span></td><td>Fri 27 Nov 18:10 · Ayesha K.</td><td>—</td><td>Approve by Sun 29 Nov 18:10 <span class="note">(in 20 h)</span></td></tr>
           <tr><td>Wed 25 Nov</td><td class="num">Rs. 35,600</td><td><span class="pill approved">Approved</span></td><td>Thu 26 Nov 09:40</td><td>Thu 26 Nov 15:05 · Umair</td><td>—</td></tr>
           <tr><td>Tue 24 Nov</td><td class="num">Rs. 36,100</td><td><span class="pill approved">Approved</span></td><td>Wed 25 Nov 10:12</td><td>Wed 25 Nov 16:30 · Umair</td><td>—</td></tr>
@@ -242,12 +242,12 @@ textarea[readonly]{background:var(--sub);resize:none}
     <div class="card">
       <h2>Deadlines <small>Pakistan time · editable by super admin</small></h2>
       <div class="rules">
-        <div class="rule"><div class="t">DAY END + 24 h</div><p><b>Reminder</b> to the rejections manager (bell + push) if the report is still a draft.</p></div>
-        <div class="rule"><div class="t">DAY END + 48 h</div><p><b>Submit overdue.</b> Super admins are alerted and the day shows red on the dashboard.</p></div>
+        <div class="rule"><div class="t">NEXT MORNING 08:00</div><p><b>Reminder</b> to the rejections manager (bell + push) if the report is still a draft.</p></div>
+        <div class="rule"><div class="t">NEXT MORNING 10:00</div><p><b>Submit overdue.</b> Manager and super admins are alerted and the day shows red on the dashboard.</p></div>
         <div class="rule"><div class="t">SUBMITTED + 48 h</div><p><b>Approval overdue.</b> Super admins are alerted once a day at 09:00 until approved or sent back.</p></div>
         <div class="rule"><div class="t">REJECTED + 48 h</div><p><b>Re-submit overdue.</b> Same alert path as a late submission.</p></div>
       </div>
-      <p class="note" style="margin:10px 0 0">Day end is midnight after the report date. The check runs every 15 minutes, the same way as the key raw material remarks.</p>
+      <p class="note" style="margin:10px 0 0">Times are settings a super admin can change. The check runs every 15 minutes. An overdue day is alerted at once, then once a day at 09:00.</p>
     </div>
     <div class="card">
       <h2>Who can do what</h2>
@@ -262,12 +262,12 @@ textarea[readonly]{background:var(--sub);resize:none}
       </table></div>
     </div>
     <div class="card">
-      <h2>Please confirm before build</h2>
+      <h2>Decisions</h2>
       <ol class="open">
-        <li>One report per day for all departments (shown here), or one per department each with its own remarks and approval?</li>
-        <li>Is the 48 h submit window counted from midnight after the report date, or must the manager submit by next morning?</li>
-        <li>Should entry edits on a submitted day be blocked, or should they flag the report for re-submission?</li>
-        <li>Should approved reports be printable as an A4 PDF with signature lines, as the MPH loss report is?</li>
+        <li>One report per day for all departments.</li>
+        <li>The manager submits by the next morning (10:00). The super admin approves within 48 h of submission.</li>
+        <li>Entries for a submitted or approved day are blocked until a super admin reopens the report. Rework status updates stay allowed.</li>
+        <li>An A4 print with signature lines is included.</li>
       </ol>
     </div>
   </section>
@@ -319,7 +319,7 @@ textarea[readonly]{background:var(--sub);resize:none}
     var p=$("pill");p.className="pill "+status;p.textContent=LABEL[status];
     var b=$("banner"),a=$("actions"),editable=(role==="manager"||role==="admin")&&(status==="draft"||status==="rejected");
     var msg="";
-    if(status==="draft")msg='<span><b>Submit by Mon 30 Nov 00:00</b> · 36 h left. Reminder goes out at 24 h.</span>';
+    if(status==="draft")msg='<span><b>Submit by Sat 28 Nov 10:00</b> (next morning). Reminder goes out at 08:00.</span>';
     if(status==="rejected")msg='<span><b>Sent back by Umair:</b> "Explain the leakage jump in Stitching with the batch number." Fix and re-submit within 48 h.</span>';
     if(status==="submitted")msg='<span><b>Submitted by Ayesha K. · '+hist[hist.length-1][0]+'.</b> Super admin must approve within 48 h.</span>';
     if(status==="approved")msg='<span><b>Approved by Umair.</b> Report is locked.</span>';
@@ -334,7 +334,7 @@ textarea[readonly]{background:var(--sub);resize:none}
     }else if(status==="submitted"){
       h='<span class="msg">'+(role==="manager"?"Waiting for super admin. You can no longer edit.":"Use the review box above.")+'</span>';
     }else{
-      h='<span class="msg">Locked. Figures are frozen as they were at approval.</span>'+(role==="admin"?'<button class="btn ghost" id="bReopen">Reopen report</button>':"");
+      h='<span class="msg">Locked. Figures are frozen and entries for this day are blocked.</span>'+(role==="admin"?'<button class="btn ghost" id="bReopen">Reopen report</button>':"");
     }
     a.innerHTML=h;
     $("history").innerHTML=hist.slice().reverse().map(function(e){return '<li><time>'+e[0]+'</time><span>'+e[1]+'</span></li>'}).join("");
