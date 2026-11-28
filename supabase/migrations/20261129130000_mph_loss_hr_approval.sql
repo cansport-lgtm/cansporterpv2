@@ -285,8 +285,9 @@ END;
 $$;
 
 
-REVOKE ALL ON FUNCTION public.mph_loss_report_save(date, jsonb, jsonb, boolean) FROM public, anon;
-GRANT EXECUTE ON FUNCTION public.mph_loss_report_save(date, jsonb, jsonb, boolean) TO authenticated;
+-- The app signs in through its own auth, so requests arrive as anon; the roles are checked inside the function.
+REVOKE ALL ON FUNCTION public.mph_loss_report_save(date, jsonb, jsonb, boolean) FROM public;
+GRANT EXECUTE ON FUNCTION public.mph_loss_report_save(date, jsonb, jsonb, boolean) TO anon, authenticated;
 
 
 -- HR decision -----------------------------------------------------------------
@@ -379,8 +380,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.mph_loss_report_hr_review(uuid, jsonb) FROM public, anon;
-GRANT EXECUTE ON FUNCTION public.mph_loss_report_hr_review(uuid, jsonb) TO authenticated;
+-- The app signs in through its own auth, so requests arrive as anon; the roles are checked inside the function.
+REVOKE ALL ON FUNCTION public.mph_loss_report_hr_review(uuid, jsonb) FROM public;
+GRANT EXECUTE ON FUNCTION public.mph_loss_report_hr_review(uuid, jsonb) TO anon, authenticated;
 
 -- Reopen: also clears HR decisions, so the report is approved afresh -------------
 
@@ -419,5 +421,6 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.mph_loss_report_reopen(uuid) FROM public, anon;
-GRANT EXECUTE ON FUNCTION public.mph_loss_report_reopen(uuid) TO authenticated;
+-- The app signs in through its own auth, so requests arrive as anon; the roles are checked inside the function.
+REVOKE ALL ON FUNCTION public.mph_loss_report_reopen(uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.mph_loss_report_reopen(uuid) TO anon, authenticated;
