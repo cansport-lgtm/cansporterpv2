@@ -305,6 +305,7 @@ const navigationItems: NavItem[] = [
       { title: "Dashboard", href: "/hr/dashboard" },
       { title: "Employees", href: "/hr/employees" },
       { title: "Attendance", href: "/hr/attendance" },
+      { title: "Biometric Attendance", href: "/hr/biometric-attendance" },
       { title: "Attendance Sheet", href: "/hr/attendance-sheet" },
       { title: "Leave Requests", href: "/hr/leaves" },
       { title: "Recruitment", href: "/hr/recruitment" },
