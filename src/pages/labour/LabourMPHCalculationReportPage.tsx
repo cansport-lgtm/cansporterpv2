@@ -51,7 +51,8 @@ type SortMode = "loss" | "name" | "authorized";
 
 // Loss-reason state of one department on one date.
 interface ReasonState {
-  status: "draft" | "submitted";
+  // "waiting for HR" / "approved by HR" / "rejected by HR" once HR approval applies.
+  status: "draft" | "submitted" | "waiting for HR" | "approved by HR" | "rejected by HR";
   explained: number;
 }
 
@@ -828,7 +829,7 @@ async function fetchReasonStates(start: string, end: string): Promise<Map<string
   const map = new Map<string, ReasonState>();
   const { data: reports, error } = await (supabase as any)
     .from("mph_loss_reports")
-    .select("id, report_date, status")
+    .select("id, report_date, status, hr_flow")
     .gte("report_date", start)
     .lte("report_date", end);
   if (error) throw error;
@@ -839,13 +840,24 @@ async function fetchReasonStates(start: string, end: string): Promise<Map<string
     .in("report_id", reports.map((r: any) => r.id))
     .is("superseded_at", null);
   if (lineError) throw lineError;
-  const dateOf: Record<string, { date: string; status: "draft" | "submitted" }> = {};
-  reports.forEach((r: any) => (dateOf[r.id] = { date: r.report_date, status: r.status }));
+  const { data: hrDepts, error: hrError } = await (supabase as any)
+    .from("mph_loss_report_departments")
+    .select("report_id, department_id, hr_status")
+    .in("report_id", reports.filter((r: any) => r.hr_flow).map((r: any) => r.id))
+    .is("superseded_at", null);
+  if (hrError) throw hrError;
+  const hrOf = new Map<string, string | null>((hrDepts ?? []).map((d: any) => [`${d.report_id}|${d.department_id}`, d.hr_status]));
+  const hrLabel: Record<string, ReasonState["status"]> = {
+    pending: "waiting for HR", approved: "approved by HR", rejected: "rejected by HR",
+  };
+  const dateOf: Record<string, { date: string; status: "draft" | "submitted"; hrFlow: boolean }> = {};
+  reports.forEach((r: any) => (dateOf[r.id] = { date: r.report_date, status: r.status, hrFlow: !!r.hr_flow }));
   (lines ?? []).forEach((l: any) => {
     const rep = dateOf[l.report_id];
     if (!rep) return;
     const key = `${l.department_id}|${rep.date}`;
-    const cur = map.get(key) ?? { status: rep.status, explained: 0 };
+    const hrStatus = rep.hrFlow ? hrOf.get(`${l.report_id}|${l.department_id}`) : null;
+    const cur = map.get(key) ?? { status: (hrStatus && hrLabel[hrStatus]) || rep.status, explained: 0 };
     cur.explained = round1(cur.explained + Number(l.mph_lost || 0));
     map.set(key, cur);
   });
