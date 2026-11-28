@@ -48,29 +48,46 @@ export function validationError(err: z.ZodError): Response {
   return fail(400, `${issue.path.join(".") || "body"}: ${issue.message}`);
 }
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://ojejlhnthhdvgbgpsgvi.supabase.co";
+const DEFAULT_URL = "https://ojejlhnthhdvgbgpsgvi.supabase.co";
+const DEFAULT_KEY = "sb_publishable_maHf4XFU4sbsRHv1Z-8jgw_5qoDvpYq";
+
+// Env values can carry stray whitespace/quotes/newlines (pasted in the Vercel
+// UI), which makes fetch throw before any request is sent. Clean them and fall
+// back to the project's public defaults when they are unusable.
+const clean = (v: string | undefined) => (v ?? "").trim().replace(/^["']|["']$/g, "").trim();
+const pickUrl = () => {
+  for (const c of [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL]) {
+    const v = clean(c).replace(/\/+$/, "");
+    if (/^https:\/\/[a-z0-9.-]+\.supabase\.co$/i.test(v)) return v;
+  }
+  return DEFAULT_URL;
+};
 // The publishable (anon) key is public by design; every bridge_* database
 // function re-checks the bridge API key itself.
-const SUPABASE_KEY =
-  process.env.SUPABASE_PUBLISHABLE_KEY ||
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_maHf4XFU4sbsRHv1Z-8jgw_5qoDvpYq";
+const pickKey = () => {
+  for (const c of [process.env.SUPABASE_PUBLISHABLE_KEY, process.env.VITE_SUPABASE_PUBLISHABLE_KEY]) {
+    const v = clean(c);
+    if (/^[A-Za-z0-9._-]{20,}$/.test(v)) return v;
+  }
+  return DEFAULT_KEY;
+};
 
 /** Call a bridge_* database function. Maps database errors to HTTP statuses. */
 export async function callRpc(fn: string, args: Record<string, unknown>): Promise<Response | { data: any }> {
   let res: globalThis.Response;
   try {
-    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    const key = pickKey();
+    res = await fetch(`${pickUrl()}/rest/v1/rpc/${fn}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        apikey: SUPABASE_KEY,
-        authorization: `Bearer ${SUPABASE_KEY}`,
+        apikey: key,
+        authorization: `Bearer ${key}`,
       },
       body: JSON.stringify(args),
     });
-  } catch {
+  } catch (e) {
+    console.error("bridge rpc fetch failed", fn, e instanceof Error ? `${e.message} / ${String((e as any).cause ?? "")}` : e);
     return fail(503, "database_unreachable");
   }
   if (res.ok) {
