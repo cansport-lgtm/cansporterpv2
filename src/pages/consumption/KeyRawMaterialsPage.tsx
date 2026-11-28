@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowDown, ArrowUp, BarChart3, CalendarIcon, Printer, Star, Trash2 } from "lucide-react";
@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MultiSearchableSelect } from "@/components/shared/MultiSearchableSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { useKeyRawMaterials } from "@/hooks/useKeyRawMaterials";
+import { KeyRmRemarksPanel } from "@/components/consumption/KeyRmRemarksPanel";
+import { KeyRmRemarkAlerts } from "@/components/consumption/KeyRmRemarkAlerts";
 import { materialValueCategoryCode } from "@/lib/materialValueCategory";
 import { shareOrDownloadPdf } from "@/lib/sharePdf";
 import { cn } from "@/lib/utils";
@@ -34,7 +36,12 @@ export default function KeyRawMaterialsPage() {
   useEffect(() => { setDraftIds(keyIds); }, [keyIds]);
   const isDirty = draftIds.length !== keyIds.length || draftIds.some((id, i) => keyIds[i] !== id);
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // ?date=YYYY-MM-DD (from a remarks alert) opens that day.
+  const [searchParams] = useSearchParams();
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date(`${searchParams.get("date") ?? ""}T00:00:00`);
+    return Number.isNaN(d.getTime()) || d > new Date() ? new Date() : d;
+  });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [hideInactive, setHideInactive] = useState(false);
   const [includeBomInPrint, setIncludeBomInPrint] = useState(true);
@@ -184,6 +191,8 @@ export default function KeyRawMaterialsPage() {
             )}
           </div>
         </div>
+
+        <KeyRmRemarkAlerts />
 
         {/* Key list */}
         <Card>
@@ -335,6 +344,8 @@ export default function KeyRawMaterialsPage() {
             onIncludeBomInPrintChange={setIncludeBomInPrint}
           />
         )}
+
+        <KeyRmRemarksPanel date={selectedDate} onPickDate={setSelectedDate} />
       </div>
     </ERPLayout>
   );
