@@ -4375,6 +4375,7 @@ export type Database = {
           duty_start_time: string | null
           emergency_contact: string | null
           employee_code: string
+          employment_category: string
           full_name: string
           half_day_leaves: number | null
           id: string
@@ -4401,6 +4402,7 @@ export type Database = {
           duty_start_time?: string | null
           emergency_contact?: string | null
           employee_code: string
+          employment_category?: string
           full_name: string
           half_day_leaves?: number | null
           id?: string
@@ -4427,6 +4429,7 @@ export type Database = {
           duty_start_time?: string | null
           emergency_contact?: string | null
           employee_code?: string
+          employment_category?: string
           full_name?: string
           half_day_leaves?: number | null
           id?: string

@@ -30,13 +30,14 @@ export function MyLeaveBalanceCard() {
     queryFn: async () => {
       const { data: emp, error: empErr } = await supabase
         .from("employees")
-        .select("id, employee_code, leave_quota_type")
+        .select("id, employee_code, leave_quota_type, employment_category")
         .eq("app_user_id", user!.id)
         .eq("is_active", true)
         .maybeSingle();
       if (empErr) throw empErr;
       if (!emp) return null;
 
+      const isProbation = (emp as any).employment_category === "probation";
       const quotaType: "full_day" | "half_day" =
         (emp as any).leave_quota_type === "full_day" ? "full_day" : "half_day";
 
@@ -62,7 +63,7 @@ export function MyLeaveBalanceCard() {
       const dbAlloc = Number(
         (quotaType === "full_day" ? (bal as any)?.total_allocated : (bal as any)?.half_day_allocated) ?? 0,
       );
-      const allocated = dbAlloc > 0 ? dbAlloc : monthsElapsed;
+      const allocated = isProbation ? 0 : dbAlloc > 0 ? dbAlloc : monthsElapsed;
       const sum = (status: string) =>
         (reqs || []).filter((r) => r.status === status).reduce((t, r) => t + Number(r.total_days), 0);
       const used = sum("approved");
@@ -71,6 +72,7 @@ export function MyLeaveBalanceCard() {
       return {
         code: (emp as any).employee_code as string,
         quotaType,
+        isProbation,
         allocated,
         used,
         pending,
@@ -110,7 +112,11 @@ export function MyLeaveBalanceCard() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Employee {data.code}</span>
-              <Badge variant="secondary">{data.quotaType === "full_day" ? "Full-day quota" : "Half-day quota"}</Badge>
+              {data.isProbation ? (
+                <Badge variant="outline">Probation – no leave quota</Badge>
+              ) : (
+                <Badge variant="secondary">{data.quotaType === "full_day" ? "Full-day quota" : "Half-day quota"}</Badge>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[

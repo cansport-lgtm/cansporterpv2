@@ -39,6 +39,7 @@ interface Employee {
   emergency_contact: string | null;
   joining_date: string | null;
   status: string | null;
+  employment_category?: string | null;
   is_active: boolean;
   basic_salary: number | null;
   allowances: number | null;
@@ -113,6 +114,7 @@ const EmployeesPage = () => {
     emergency_contact: "",
     joining_date: "",
     status: "active",
+    employment_category: "permanent",
     is_active: true,
     basic_salary: "",
     allowances: "",
@@ -237,6 +239,7 @@ const EmployeesPage = () => {
         emergency_contact: data.emergency_contact?.trim() || null,
         joining_date: data.joining_date || null,
         status: data.status || "active",
+        employment_category: data.employment_category || "permanent",
         is_active: data.is_active,
         basic_salary: data.basic_salary ? parseFloat(data.basic_salary) : 0,
         allowances: data.allowances ? parseFloat(data.allowances) : 0,
@@ -331,6 +334,7 @@ const EmployeesPage = () => {
       emergency_contact: "",
       joining_date: "",
       status: "active",
+      employment_category: "permanent",
       is_active: true,
       basic_salary: "",
       allowances: "",
@@ -359,6 +363,7 @@ const EmployeesPage = () => {
       emergency_contact: employee.emergency_contact || "",
       joining_date: employee.joining_date || "",
       status: employee.status || "active",
+      employment_category: employee.employment_category || "permanent",
       is_active: employee.is_active,
       basic_salary: employee.basic_salary?.toString() || "",
       allowances: employee.allowances?.toString() || "",
@@ -641,6 +646,24 @@ const EmployeesPage = () => {
                       <SelectItem value="probation">Probation</SelectItem>
                       <SelectItem value="resigned">Resigned</SelectItem>
                       <SelectItem value="terminated">Terminated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Employee Category</Label>
+                  <Select
+                    value={formData.employment_category}
+                    onValueChange={(val) => setFormData({ ...formData, employment_category: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="permanent">Permanent</SelectItem>
+                      <SelectItem value="probation">Probation</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
