@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R&W Daily Report Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one app content column. Top tabs = three screens (Daily report with a role switch, Status list, Rules & alerts).
+   The report is the Rejections & Wastages Analytics page cut to one day, plus manager remarks and a super admin review block.
+   MOCKUP ONLY: sample figures for Fri 27 Nov 2026, nothing is wired. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1f2430; --muted:#6b7280; --line:#e2e5ea; --sub:#f8f9fb;
+  --accent:#4f46e5; --accent-fg:#ffffff; --accent-bg:#ececfd;
+  --rej:#ef4444; --wst:#f59e0b; --lkg:#6366f1;
+  --ok:#1a7f4b; --ok-bg:#e3f5ea; --warn:#9a5b00; --warn-bg:#fff2d9; --bad:#b4232c; --bad-bg:#fde4e6; --idle:#4b5563; --idle-bg:#eceef2;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f; --sub:#151a21;
+  --accent:#8b86f5; --accent-fg:#0d0c24; --accent-bg:#25234a;
+  --rej:#f87171; --wst:#fbbf24; --lkg:#818cf8;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --idle:#aab2c0; --idle-bg:#252b35;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418; --panel:#1a1f27; --fg:#e6e9ef; --muted:#98a2b3; --line:#2c333f; --sub:#151a21;
+  --accent:#8b86f5; --accent-fg:#0d0c24; --accent-bg:#25234a;
+  --rej:#f87171; --wst:#fbbf24; --lkg:#818cf8;
+  --ok:#5fcf8c; --ok-bg:#15301f; --warn:#f0b454; --warn-bg:#3a2a0d; --bad:#f08a90; --bad-bg:#3b1a1d; --idle:#aab2c0; --idle-bg:#252b35;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font);padding-block:18px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1040px;margin:0 auto}
+.num{font-variant-numeric:tabular-nums}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.top h1{margin:0;font-size:20px;font-weight:600;text-wrap:balance}
+.top .sub{color:var(--muted);font-size:13px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font:inherit;padding:8px 12px;cursor:pointer;margin-bottom:-1px}
+.tabs button.on{color:var(--fg);border-color:var(--accent);font-weight:500}
+.tabs button:focus-visible,.btn:focus-visible,.seg button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.screen{display:none}.screen.on{display:block}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.ok{background:var(--ok);color:#fff}.btn.bad{background:var(--bad-bg);color:var(--bad)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.seg button{background:none;border:0;padding:6px 12px;font:inherit;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--accent-bg);color:var(--accent);font-weight:500}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.card h2{margin:0 0 10px;font-size:15px;font-weight:600}
+.card h2 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:500}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.draft{background:var(--idle-bg);color:var(--idle)}.pill.submitted{background:var(--warn-bg);color:var(--warn)}
+.pill.approved{background:var(--ok-bg);color:var(--ok)}.pill.rejected,.pill.overdue{background:var(--bad-bg);color:var(--bad)}
+.pill.none{background:var(--idle-bg);color:var(--idle)}
+.banner{border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
+.banner.draft{background:var(--idle-bg)}.banner.submitted{background:var(--warn-bg);color:var(--warn)}
+.banner.approved{background:var(--ok-bg);color:var(--ok)}.banner.rejected{background:var(--bad-bg);color:var(--bad)}
+.banner b{font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px}
+.tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:22px;font-weight:600;margin-top:2px}
+.tile .s{font-size:12px;color:var(--muted)}
+.tile.total{border-color:var(--accent);background:var(--accent-bg)}
+.delta.up{color:var(--bad)}.delta.dn{color:var(--ok)}
+.split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:8px 0}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.cols>.card{margin-bottom:0}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th.r,td.r{text-align:right;font-variant-numeric:tabular-nums}
+tfoot td{font-weight:600;background:var(--sub)}
+.tag{font-size:11px;border-radius:4px;padding:1px 6px;color:#fff;white-space:nowrap}
+.rm-grid{display:grid;gap:12px}
+.rm label{display:block;font-weight:500;margin-bottom:4px}
+.rm label small{color:var(--muted);font-weight:400;margin-left:6px}
+textarea,select{width:100%;font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+textarea{min-height:64px;resize:vertical}
+textarea[readonly]{background:var(--sub);resize:none}
+.hint{font-size:12px;color:var(--muted);margin-top:3px}
+.actions{position:sticky;bottom:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;box-shadow:0 -6px 18px rgba(0,0,0,.06)}
+.actions .msg{color:var(--muted);font-size:13px}
+.review{border:1px solid var(--accent);background:var(--accent-bg);border-radius:8px;padding:12px 14px;margin-bottom:14px}
+.review h2{margin:0 0 8px;font-size:15px}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.tl li:last-child{border-bottom:0}.tl time{color:var(--muted);font-family:var(--mono);font-size:12px;white-space:nowrap;min-width:108px}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.rule{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--panel)}
+.rule .t{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500}
+.rule p{margin:4px 0 0;font-size:13px}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 2px}
+.flow .arrow{color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+.row-link{color:var(--accent);background:none;border:0;font:inherit;cursor:pointer;padding:0;text-decoration:underline}
+.open{margin:0;padding-left:18px}.open li{margin-bottom:4px}
+@media (max-width:560px){.tile .v{font-size:19px}.actions{position:static}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Rejections &amp; Wastages · Daily Report</h1>
+      <div class="sub">Mockup of the proposed daily sign-off. Click through the states; nothing is saved.</div>
+    </div>
+    <div class="note">Sample figures · Fri 27 Nov 2026</div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="on" data-tab="report" role="tab">Daily report</button>
+    <button data-tab="status" role="tab">Status list</button>
+    <button data-tab="rules" role="tab">Rules &amp; alerts</button>
+  </div>
+
+  <!-- ============ SCREEN 1: REPORT ============ -->
+  <section class="screen on" id="report">
+    <div class="top" style="margin-bottom:10px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <label for="rdate" class="note">Report date</label>
+        <select id="rdate" style="width:auto"><option>Fri 27 Nov 2026</option><option>Thu 26 Nov 2026</option><option>Wed 25 Nov 2026</option></select>
+        <span id="pill" class="pill draft">Draft</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span class="note">View as</span>
+        <div class="seg" id="roleSeg"><button class="on" data-role="manager">Rejections manager</button><button data-role="admin">Super admin</button></div>
+      </div>
+    </div>
+
+    <div id="banner" class="banner draft"></div>
+
+    <div id="reviewBox" class="review" hidden>
+      <h2>Review this report</h2>
+      <p style="margin:0 0 8px">Check the figures and the manager's remarks, then approve or send it back with a reason.</p>
+      <label for="revnote" class="note">Reason (required when rejecting)</label>
+      <textarea id="revnote" placeholder="e.g. Explain the leakage jump in Stitching with the batch number."></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button class="btn ok" id="btnApprove">Approve</button>
+        <button class="btn bad" id="btnReject">Reject &amp; send back</button>
+      </div>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>Total R&amp;W loss <small>Rejection + Wastage + Leakage</small></h2>
+      <div class="num" style="font-size:24px;font-weight:600">Rs. 43,520 <span class="delta up" style="font-size:13px;font-weight:500">▲ 11.9% vs Thu · ▲ 21.2% vs previous 6-day average (Rs. 35,917)</span></div>
+      <div class="split" id="split"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="cols" style="margin-bottom:14px">
+      <div class="card">
+        <h2>Last 7 days <small>total loss, Rs.</small></h2>
+        <svg id="trend" viewBox="0 0 360 150" width="100%" role="img" aria-label="Total R&W loss for the last 7 days, today highest"></svg>
+      </div>
+      <div class="card">
+        <h2>Top reasons today</h2>
+        <div class="scroll"><table>
+          <thead><tr><th>Reason</th><th>Type</th><th class="r">Qty</th><th class="r">Cost (Rs.)</th></tr></thead>
+          <tbody id="reasons"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>By department</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Department</th><th class="r">Rejected qty</th><th class="r">Rejection</th><th class="r">Wastage</th><th class="r">Leakage</th><th class="r">Total loss</th><th class="r">Share</th></tr></thead>
+        <tbody id="depts"></tbody>
+        <tfoot><tr><td>All departments</td><td class="r">214</td><td class="r">18,420</td><td class="r">140</td><td class="r">24,960</td><td class="r">43,520</td><td class="r">100%</td></tr></tfoot>
+      </table></div>
+    </div>
+
+    <div class="card rm">
+      <h2>Manager remarks <small id="rmHint">Required before submit</small></h2>
+      <div class="rm-grid">
+        <div>
+          <label for="rmAll">Overall summary of the day</label>
+          <textarea id="rmAll">Loss is up on Thursday mainly because of leakage in Stitching and Lamination. Two machines ran with a worn valve seat from shift B.</textarea>
+        </div>
+        <div>
+          <label for="rmDept">Biggest loss: Stitching <small>Rs. 16,800 · 38.6% of the day</small></label>
+          <textarea id="rmDept">120 balls leaked at the seam test after a thread tension change. Tension reset at 2:30 pm, no repeat after that.</textarea>
+        </div>
+        <div>
+          <label for="rmAct">Corrective action and owner</label>
+          <textarea id="rmAct" placeholder="What is being done, who owns it, by when."></textarea>
+          <div class="hint">Optional, but the super admin sees it next to the figures.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>History <small>every save, submit and review is kept</small></h2>
+      <ul class="tl" id="history"></ul>
+    </div>
+
+    <div class="actions" id="actions"></div>
+  </section>
+
+  <!-- ============ SCREEN 2: STATUS LIST ============ -->
+  <section class="screen" id="status">
+    <div class="card">
+      <h2>Last 10 days <small>what is waiting on whom</small></h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Report date</th><th>Total loss</th><th>Status</th><th>Submitted</th><th>Reviewed</th><th>Next deadline</th></tr></thead>
+        <tbody>
+          <tr><td>Fri 27 Nov</td><td class="num">Rs. 43,520</td><td><span class="pill draft">Draft</span></td><td>—</td><td>—</td><td>Submit by Mon 30 Nov 00:00 <span class="note">(in 36 h)</span></td></tr>
+          <tr><td>Thu 26 Nov</td><td class="num">Rs. 38,900</td><td><span class="pill submitted">Awaiting approval</span></td><td>Fri 27 Nov 18:10 · Ayesha K.</td><td>—</td><td>Approve by Sun 29 Nov 18:10 <span class="note">(in 20 h)</span></td></tr>
+          <tr><td>Wed 25 Nov</td><td class="num">Rs. 35,600</td><td><span class="pill approved">Approved</span></td><td>Thu 26 Nov 09:40</td><td>Thu 26 Nov 15:05 · Umair</td><td>—</td></tr>
+          <tr><td>Tue 24 Nov</td><td class="num">Rs. 36,100</td><td><span class="pill approved">Approved</span></td><td>Wed 25 Nov 10:12</td><td>Wed 25 Nov 16:30 · Umair</td><td>—</td></tr>
+          <tr><td>Mon 23 Nov</td><td class="num">Rs. 33,200</td><td><span class="pill rejected">Sent back</span></td><td>Tue 24 Nov 11:00</td><td>Tue 24 Nov 17:45 · Umair</td><td>Re-submit by Thu 26 Nov 17:45 <span class="note">(overdue)</span></td></tr>
+          <tr><td>Sun 22 Nov</td><td class="num">—</td><td><span class="pill none">No entries</span></td><td>—</td><td>—</td><td>Not required</td></tr>
+          <tr><td>Sat 21 Nov</td><td class="num">Rs. 36,900</td><td><span class="pill overdue">Approval overdue</span></td><td>Sun 22 Nov 10:00</td><td>—</td><td>Was due Tue 24 Nov 10:00 <span class="note">(4 days late)</span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="note" style="margin:10px 0 0">Days with no rejection, wastage or leakage entries are skipped, so Sundays and holidays never raise alerts.</p>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 3: RULES ============ -->
+  <section class="screen" id="rules">
+    <div class="card">
+      <h2>Lifecycle</h2>
+      <div class="flow">
+        <span class="pill draft">Draft</span><span class="arrow">→</span>
+        <span class="pill submitted">Submitted</span><span class="arrow">→</span>
+        <span class="pill approved">Approved</span>
+        <span class="note" style="margin-left:8px">Rejected by super admin goes back to the manager, then re-submitted.</span>
+      </div>
+      <div class="flow"><span class="note">Approved reports are locked. Only a super admin can reopen one, and the reopen is logged.</span></div>
+    </div>
+    <div class="card">
+      <h2>Deadlines <small>Pakistan time · editable by super admin</small></h2>
+      <div class="rules">
+        <div class="rule"><div class="t">DAY END + 24 h</div><p><b>Reminder</b> to the rejections manager (bell + push) if the report is still a draft.</p></div>
+        <div class="rule"><div class="t">DAY END + 48 h</div><p><b>Submit overdue.</b> Super admins are alerted and the day shows red on the dashboard.</p></div>
+        <div class="rule"><div class="t">SUBMITTED + 48 h</div><p><b>Approval overdue.</b> Super admins are alerted once a day at 09:00 until approved or sent back.</p></div>
+        <div class="rule"><div class="t">REJECTED + 48 h</div><p><b>Re-submit overdue.</b> Same alert path as a late submission.</p></div>
+      </div>
+      <p class="note" style="margin:10px 0 0">Day end is midnight after the report date. The check runs every 15 minutes, the same way as the key raw material remarks.</p>
+    </div>
+    <div class="card">
+      <h2>Who can do what</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Role</th><th>Write remarks</th><th>Submit</th><th>Approve / reject</th><th>Reopen</th></tr></thead>
+        <tbody>
+          <tr><td>Rejections manager</td><td>Yes</td><td>Yes</td><td>—</td><td>—</td></tr>
+          <tr><td>Rejections officer</td><td>View</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Rejections viewer</td><td>View</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Super admin</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>Please confirm before build</h2>
+      <ol class="open">
+        <li>One report per day for all departments (shown here), or one per department each with its own remarks and approval?</li>
+        <li>Is the 48 h submit window counted from midnight after the report date, or must the manager submit by next morning?</li>
+        <li>Should entry edits on a submitted day be blocked, or should they flag the report for re-submission?</li>
+        <li>Should approved reports be printable as an A4 PDF with signature lines, as the MPH loss report is?</li>
+      </ol>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var fmt=function(n){return n.toLocaleString("en-US")};
+  var D=[["Stitching",86,7200,0,9600],["Lamination",62,5100,60,6400],["Printing",36,3520,0,4160],["Panel Cutting",22,1800,80,2400],["Bladder",8,800,0,2400]];
+  var rej=18420,wst=140,lkg=24960,total=rej+wst+lkg;
+
+  // tiles
+  var T=[["Rejected qty","214","pcs · Rs. 18,420"],["Wastage","1.25 kg","Rs. 140"],["Leakage qty","312","pcs · Rs. 24,960"]];
+  var th=T.map(function(t){return '<div class="tile"><div class="k">'+t[0]+'</div><div class="v num">'+t[1]+'</div><div class="s">'+t[2]+'</div></div>'}).join("");
+  th+='<div class="tile total"><div class="k">Total loss</div><div class="v num">Rs. '+fmt(total)+'</div><div class="s">All departments</div></div>';
+  document.getElementById("tiles").innerHTML=th;
+
+  // split bar
+  var parts=[["Rejection",rej,"var(--rej)"],["Wastage",wst,"var(--wst)"],["Leakage",lkg,"var(--lkg)"]];
+  document.getElementById("split").innerHTML=parts.map(function(p){return '<div style="width:'+(p[1]/total*100)+'%;background:'+p[2]+'"></div>'}).join("");
+  document.getElementById("legend").innerHTML=parts.map(function(p){return '<span><i style="background:'+p[2]+'"></i>'+p[0]+' Rs. '+fmt(p[1])+' · '+(p[1]/total*100).toFixed(1)+'%</span>'}).join("");
+
+  // departments
+  document.getElementById("depts").innerHTML=D.map(function(d){var t=d[2]+d[3]+d[4];
+    return '<tr><td>'+d[0]+'</td><td class="r">'+d[1]+'</td><td class="r">'+fmt(d[2])+'</td><td class="r">'+fmt(d[3])+'</td><td class="r">'+fmt(d[4])+'</td><td class="r"><b>'+fmt(t)+'</b></td><td class="r">'+(t/total*100).toFixed(1)+'%</td></tr>'}).join("");
+
+  // reasons
+  var R=[["Valve leak","Leakage","140 pcs",11200,"var(--lkg)"],["Seam leak","Leakage","110 pcs",8800,"var(--lkg)"],["Stitch misalignment","Rejection","58 pcs",4930,"var(--rej)"],["Lamination bubbles","Rejection","44 pcs",3300,"var(--rej)"],["Print smudge","Rejection","36 pcs",3520,"var(--rej)"]];
+  document.getElementById("reasons").innerHTML=R.map(function(r){return '<tr><td>'+r[0]+'</td><td><span class="tag" style="background:'+r[4]+'">'+r[1]+'</span></td><td class="r">'+r[2]+'</td><td class="r">'+fmt(r[3])+'</td></tr>'}).join("");
+
+  // trend (bars to one scale, 0..max)
+  var days=[["21",34800],["22",36900],["23",33200],["24",36100],["25",35600],["26",38900],["27",43520]];
+  var max=45000,x0=34,w=300,h=100,top=18,svg="";
+  [0,15000,30000,45000].forEach(function(v){var y=top+h-(v/max*h);
+    svg+='<line x1="'+x0+'" x2="350" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(x0-4)+'" y="'+(y+3)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+(v/1000)+'k</text>'});
+  days.forEach(function(d,i){var bw=26,gap=(w-days.length*bw)/(days.length-1),x=x0+8+i*(bw+gap-1.2),bh=d[1]/max*h,y=top+h-bh,last=i===days.length-1;
+    svg+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="3" fill="'+(last?'var(--accent)':'var(--idle-bg)')+'" stroke="'+(last?'none':'var(--line)')+'"/>';
+    svg+='<text x="'+(x+bw/2)+'" y="'+(top+h+13)+'" text-anchor="middle" font-size="10" fill="var(--muted)">'+d[0]+' Nov</text>';
+    if(last)svg+='<text x="'+(x+bw/2)+'" y="'+(y-5)+'" text-anchor="middle" font-size="10" font-weight="600" fill="var(--fg)">'+fmt(d[1])+'</text>'});
+  document.getElementById("trend").innerHTML=svg;
+
+  // state machine
+  var role="manager",status="draft",hist=[["Fri 27 Nov 17:42","Draft saved by Ayesha K."]];
+  var $=function(i){return document.getElementById(i)};
+  var LABEL={draft:"Draft",submitted:"Awaiting approval",approved:"Approved",rejected:"Sent back"};
+  var textareas=["rmAll","rmDept","rmAct"];
+  function now(){return "Sat 28 Nov "+new Date().toTimeString().slice(0,5)}
+  function render(){
+    var p=$("pill");p.className="pill "+status;p.textContent=LABEL[status];
+    var b=$("banner"),a=$("actions"),editable=(role==="manager"||role==="admin")&&(status==="draft"||status==="rejected");
+    var msg="";
+    if(status==="draft")msg='<span><b>Submit by Mon 30 Nov 00:00</b> · 36 h left. Reminder goes out at 24 h.</span>';
+    if(status==="rejected")msg='<span><b>Sent back by Umair:</b> "Explain the leakage jump in Stitching with the batch number." Fix and re-submit within 48 h.</span>';
+    if(status==="submitted")msg='<span><b>Submitted by Ayesha K. · '+hist[hist.length-1][0]+'.</b> Super admin must approve within 48 h.</span>';
+    if(status==="approved")msg='<span><b>Approved by Umair.</b> Report is locked.</span>';
+    b.className="banner "+status;b.innerHTML=msg;
+    textareas.forEach(function(id){$(id).readOnly=!editable});
+    $("rmHint").textContent=editable?"Required before submit":"Read only";
+    $("reviewBox").hidden=!(role==="admin"&&status==="submitted");
+    var h="";
+    if(editable){
+      var empty=!$("rmAll").value.trim()||!$("rmDept").value.trim();
+      h='<span class="msg">'+(role==="admin"?"Super admin can also write and submit.":"Remarks needed for the day and the biggest-loss department.")+'</span><span style="display:flex;gap:8px"><button class="btn ghost" id="bSave">Save draft</button><button class="btn" id="bSubmit"'+(empty?" disabled":"")+'>Submit for approval</button></span>';
+    }else if(status==="submitted"){
+      h='<span class="msg">'+(role==="manager"?"Waiting for super admin. You can no longer edit.":"Use the review box above.")+'</span>';
+    }else{
+      h='<span class="msg">Locked. Figures are frozen as they were at approval.</span>'+(role==="admin"?'<button class="btn ghost" id="bReopen">Reopen report</button>':"");
+    }
+    a.innerHTML=h;
+    $("history").innerHTML=hist.slice().reverse().map(function(e){return '<li><time>'+e[0]+'</time><span>'+e[1]+'</span></li>'}).join("");
+    var s=$("bSave"),u=$("bSubmit"),r=$("bReopen");
+    if(s)s.onclick=function(){hist.push([now(),"Draft saved"]);render()};
+    if(u)u.onclick=function(){status="submitted";hist.push([now(),"Submitted by Ayesha K."]);render()};
+    if(r)r.onclick=function(){status="draft";hist.push([now(),"Reopened by Umair"]);render()};
+  }
+  textareas.forEach(function(id){$(id).addEventListener("input",function(){var u=$("bSubmit");if(u)u.disabled=!$("rmAll").value.trim()||!$("rmDept").value.trim()})});
+  $("btnApprove").onclick=function(){status="approved";hist.push([now(),"Approved by Umair"]);render()};
+  $("btnReject").onclick=function(){var n=$("revnote").value.trim();if(!n){$("revnote").focus();$("revnote").style.borderColor="var(--bad)";return}
+    status="rejected";hist.push([now(),"Sent back by Umair: "+n]);render()};
+  $("revnote").addEventListener("input",function(){this.style.borderColor=""});
+  document.querySelectorAll("#roleSeg button").forEach(function(btn){btn.onclick=function(){
+    document.querySelectorAll("#roleSeg button").forEach(function(x){x.classList.remove("on")});btn.classList.add("on");role=btn.dataset.role;render()}});
+  document.querySelectorAll(".tabs button").forEach(function(btn){btn.onclick=function(){
+    document.querySelectorAll(".tabs button").forEach(function(x){x.classList.remove("on")});btn.classList.add("on");
+    document.querySelectorAll(".screen").forEach(function(s){s.classList.remove("on")});$(btn.dataset.tab).classList.add("on")}});
+  render();
+})();
+</script>
+</html>
