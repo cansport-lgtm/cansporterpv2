@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
   partially_dispatched: 'bg-purple-500',
   dispatched: 'bg-green-500',
   delivered: 'bg-emerald-600',
+  completed: 'bg-teal-600',
   cancelled: 'bg-red-500',
 };
 
