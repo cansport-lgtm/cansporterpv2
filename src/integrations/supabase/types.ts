@@ -15044,6 +15044,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           auto_cancelled_at: string | null
+          auto_completed_at: string | null
           created_at: string | null
           created_by: string | null
           customer_id: string
@@ -15067,6 +15068,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           auto_cancelled_at?: string | null
+          auto_completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id: string
@@ -15090,6 +15092,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           auto_cancelled_at?: string | null
+          auto_completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id?: string

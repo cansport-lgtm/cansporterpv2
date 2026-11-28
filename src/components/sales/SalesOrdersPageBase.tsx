@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
   partially_dispatched: 'bg-purple-500',
   dispatched: 'bg-green-500',
   delivered: 'bg-emerald-600',
+  completed: 'bg-teal-600',
   cancelled: 'bg-red-500',
 };
 
@@ -402,6 +403,7 @@ export default function SalesOrdersPageBase({ segment, title }: SalesOrdersPageB
                   <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>

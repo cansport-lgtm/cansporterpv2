@@ -38,6 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   partially_dispatched: 'bg-purple-500',
   dispatched: 'bg-green-500',
   delivered: 'bg-emerald-600',
+  completed: 'bg-teal-600',
   cancelled: 'bg-red-500',
 };
 
@@ -811,6 +812,7 @@ export default function DomesticSalesOrdersPage() {
                   <SelectItem value="partially_dispatched">Partially Dispatched</SelectItem>
                   <SelectItem value="dispatched">Dispatched</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
@@ -1100,13 +1102,13 @@ export default function DomesticSalesOrdersPage() {
                                <div className="flex items-center gap-1">
                                 {order.expected_dispatch_date ? (
                                   <span className={
-                                    !['dispatched', 'delivered', 'cancelled'].includes(order.status) && 
+                                    !['dispatched', 'delivered', 'completed', 'cancelled'].includes(order.status) && 
                                     new Date(order.expected_dispatch_date) < new Date() 
                                       ? 'text-destructive font-semibold' 
                                       : ''
                                   }>
                                     {format(new Date(order.expected_dispatch_date), 'dd MMM yyyy')}
-                                    {!['dispatched', 'delivered', 'cancelled'].includes(order.status) && 
+                                    {!['dispatched', 'delivered', 'completed', 'cancelled'].includes(order.status) && 
                                      new Date(order.expected_dispatch_date) < new Date() && (
                                       <span className="text-xs block">⚠ Late</span>
                                     )}
@@ -1154,7 +1156,7 @@ export default function DomesticSalesOrdersPage() {
                                 <Button variant="ghost" size="icon" onClick={() => handlePrintOrder(order, getOrderItems(order.id))} title="Print for Packing">
                                   <Printer className="h-4 w-4" />
                                  </Button>
-                                {!['dispatched', 'delivered', 'cancelled'].includes(order.status) && (
+                                {!['dispatched', 'delivered', 'completed', 'cancelled'].includes(order.status) && (
                                   <Button variant="ghost" size="icon" onClick={() => {
                                     setDeadlineRequestOrder(order);
                                     setDeadlineRequestDate('');
@@ -1241,7 +1243,7 @@ export default function DomesticSalesOrdersPage() {
               ) : (
                 filteredOrders?.map((order) => {
                   const items = getOrderItems(order.id);
-                  const isLate = !['dispatched', 'delivered', 'cancelled'].includes(order.status) &&
+                  const isLate = !['dispatched', 'delivered', 'completed', 'cancelled'].includes(order.status) &&
                     order.expected_dispatch_date && new Date(order.expected_dispatch_date) < new Date();
                   return (
                     <div
@@ -1332,7 +1334,7 @@ export default function DomesticSalesOrdersPage() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handlePrintOrder(order, items)} title="Print for Packing">
                             <Printer className="h-4 w-4" />
                           </Button>
-                          {!['dispatched', 'delivered', 'cancelled'].includes(order.status) && (
+                          {!['dispatched', 'delivered', 'completed', 'cancelled'].includes(order.status) && (
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                               setDeadlineRequestOrder(order);
                               setDeadlineRequestDate('');
